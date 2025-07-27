@@ -200,10 +200,18 @@ router.beforeEach(async (to, from, next) => {
 
   const currentUser = await getCurrentUser();
 
+  // Case 1: Route requires authentication but user is not logged in
   if (requiresAuth && !currentUser) {
     alert("로그인이 필요한 페이지입니다. 로그인 해주세요.");
     next("/login"); // 로그인 페이지로 리다이렉트
-  } else if (currentUser) {
+  }
+  // Case 2: User is not logged in AND tries to access the root ("/")
+  //       - "/" 경로는 requiresAuth가 없으므로 이 조건이 필요합니다.
+  else if (to.path === "/" && !currentUser) {
+    next("/login"); // 로그인 페이지로 리다이렉트
+  }
+  // Case 3: User is logged in
+  else if (currentUser) {
     let userProfile = null;
     try {
       const userRef = doc(db, "users", currentUser.uid);
@@ -215,12 +223,17 @@ router.beforeEach(async (to, from, next) => {
       console.error("사용자 프로필을 불러오는 중 오류 발생:", error);
     }
 
+    // If logged in, prevent going back to login/signup pages, redirect to dashboard
     if (to.name === "LoginPage" || to.name === "SignupPage") {
       next("/dashboard");
-    } else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
+    }
+    // Check admin access
+    else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
       alert("관리자 권한이 없습니다.");
       next("/dashboard");
-    } else if (requiresNFT) {
+    }
+    // Check NFT requirement
+    else if (requiresNFT) {
       if (!userProfile || !userProfile.hasNFT) {
         alert(
           "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다."
@@ -229,11 +242,15 @@ router.beforeEach(async (to, from, next) => {
       } else {
         next();
       }
-    } else {
+    }
+    // Default: allow navigation for logged-in users to other pages
+    else {
       next();
     }
-  } else {
-    next();
+  }
+  // Case 4: Route does not require auth AND user is not logged in (e.g., /about, /login, /signup itself)
+  else {
+    next(); // Allow access
   }
 });
 
