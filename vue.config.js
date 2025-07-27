@@ -1,6 +1,6 @@
 // vue.config.js
-const { defineConfig } = require('@vue/cli-service')
+const { defineConfig } = require("@vue/cli-service");
 module.exports = defineConfig({
   transpileDependencies: true,
-  publicPath: '/' // ¿©±â¿¡ Áß¿ä! ºôµåµÈ ÆÄÀÏÀÌ Á¦°øµÉ ±âº» URL °æ·Î.
-})
+  publicPath: "/", // ï¿½ï¿½ï¿½â¿¡ ï¿½ß¿ï¿½! ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½âº» URL ï¿½ï¿½ï¿½.
+});
