@@ -214,6 +214,18 @@ router.beforeEach(async (to, from, next) => {
     } catch (error) {
       console.error("사용자 프로필을 불러오는 중 오류 발생:", error);
     }
+    
+    // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    // --- 여기에 리디렉션 로직 추가 ---
+    if (to.path === '/' && userProfile) {
+      if (userProfile.isAdmin) {
+        next('/admin-dashboard/users'); // 관리자는 관리자 대시보드로
+      } else {
+        next('/dashboard'); // 일반 사용자는 일반 대시보드로
+      }
+      return; // 리디렉션 후에는 더 이상 진행하지 않도록 return
+    }
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     if (to.name === "LoginPage" || to.name === "SignupPage") {
       next("/dashboard");
