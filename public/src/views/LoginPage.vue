@@ -154,6 +154,7 @@ export default {
 <style scoped>
 /* 이전 스타일은 그대로 유지됩니다 */
 .login-page {
+font-family: "Noto Sans KR", sans-serif; /* 이 줄을 추가하세요! */
   display: flex;
   justify-content: center;
   align-items: center;
