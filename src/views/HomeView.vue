@@ -1,127 +1,83 @@
 <template>
-  <div class="home">
-    <h1>��Ʈ����Ʈ�� ���� ���� ȯ���մϴ�!</h1>
-    <p>�̰��� �α��� �� ���̴� ���� ���� ���� �������Դϴ�.</p>
-    <p>
-      ���⿡ ����ں� ��ú��� ���, �ֽ� �ҽ�, ���� ��Ȳ ��
-      <br />��Ʈ����Ʈ ���� �ٽ� �������� �߰����ּ���.
-    </p>
-
-    <div class="placeholder-content">
-      <h2>�ֿ� ��� Ž��</h2>
-      <ul>
-        <li><router-link to="/dashboard">��ú���</router-link></li>
-        <li><router-link to="/shop">��</router-link></li>
-        <li><router-link to="/my-investments">�� ����</router-link></li>
-        <li><router-link to="/community">Ŀ�´�Ƽ</router-link></li>
-        <li><router-link to="/profile">�� ������</router-link></li>
-      </ul>
-    </div>
+  <div class="home-container">
+    <div class="loading-spinner"></div>
+    <p>사용자 정보를 확인하고 있습니다. 잠시만 기다려주세요...</p>
   </div>
 </template>
 
-<script>
-// �� �̻� HelloWorld ������Ʈ�� ����Ʈ�ϰų� ������� �ʽ��ϴ�.
-// import HelloWorld from "@/components/HelloWorld.vue";
+<script setup>
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { auth, db } from "@/firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
-export default {
-  name: "HomeView",
-  components: {
-    // HelloWorld, // �� ���� �����ϰų� �ּ� ó���մϴ�.
-    // ���⿡ �α��� �� Ȩ ȭ�鿡 �ʿ��� �ٸ� ������Ʈ���� ����Ʈ�ϰ� ����� �� �ֽ��ϴ�.
-    // ���� ���, DashboardSummary, RecentActivityFeed ��
-  },
-  data() {
-    return {
-      // isLoggedIn: false, // ���� �α��� ���´� Vuex �Ǵ� ���� ���� ������ ó��
-    };
-  },
-  // Vue Router�� beforeEach ���忡�� �α��� ���¸� ó���ϹǷ�,
-  // ���⿡���� Ư���� ������ �ʿ� ���� ���� �ֽ��ϴ�.
-  // �ʿ信 ���� ������Ʈ ���ο��� �α��� ���¸� Ȯ���Ͽ� �ٸ� ������ ǥ���� �� �ֽ��ϴ�.
-};
+// script setup을 사용하면 더 간결하게 코드를 작성할 수 있습니다.
+const router = useRouter();
+
+// 컴포넌트가 화면에 마운트되자마자 실행될 로직
+onMounted(() => {
+  onAuthStateChanged(auth, async (user) => {
+    // 1. 사용자가 로그인했는지 확인
+    if (user) {
+      // 2. Firestore에서 사용자 프로필 정보 가져오기
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const userProfile = userSnap.data();
+        // 3. 관리자인지 확인하고 리디렉션
+        if (userProfile.isAdmin) {
+          router.replace("/admin-dashboard/users"); // 관리자 대시보드로 이동
+        } else {
+          router.replace("/dashboard"); // 일반 사용자는 일반 대시보드로 이동
+        }
+      } else {
+        // 프로필이 없는 경우 (오류 상황)
+        router.replace("/login");
+      }
+    } else {
+      // 4. 로그인하지 않은 사용자는 로그인 페이지로 이동
+      // (또는 현재처럼 깨진 화면 대신 다른 안내 페이지를 보여줄 수 있습니다)
+      // 여기서는 일단 로그인 페이지로 보내도록 처리합니다.
+      router.replace("/login");
+    }
+  });
+});
 </script>
 
 <style scoped>
-/* �� ��Ÿ���� HomeView.vue���� ����˴ϴ�. */
-.home {
-  padding: 60px 20px;
-  max-width: 900px;
-  margin: 60px auto;
-  background-color: #ffffff;
-  border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+.home-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 80vh;
   text-align: center;
-  animation: fadeIn 0.8s ease-out;
+  font-family: "Noto Sans KR", sans-serif; /* 폰트 직접 지정 */
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.loading-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: #007bff;
+  animation: spin 1s ease infinite;
+  margin-bottom: 20px;
 }
 
-h1 {
-  color: #2c3e50;
-  font-size: 2.8em;
-  margin-bottom: 25px;
-  font-weight: 700;
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 p {
+  font-size: 1.1em;
   color: #555;
-  font-size: 1.15em;
-  line-height: 1.8;
-  margin-bottom: 30px;
-}
-
-.placeholder-content {
-  margin-top: 40px;
-  padding: 30px;
-  background-color: #f9f9f9;
-  border-radius: 10px;
-  border: 1px dashed #e0e0e0;
-}
-
-.placeholder-content h2 {
-  color: #34495e;
-  font-size: 1.8em;
-  margin-bottom: 25px;
-}
-
-.placeholder-content ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 20px;
-}
-
-.placeholder-content li {
-  margin-bottom: 10px;
-}
-
-.placeholder-content a {
-  display: block;
-  padding: 12px 25px;
-  background-color: #007bff;
-  color: white;
-  text-decoration: none;
-  border-radius: 8px;
-  font-weight: bold;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
-}
-
-.placeholder-content a:hover {
-  background-color: #0056b3;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(0, 123, 255, 0.3);
 }
 </style>
