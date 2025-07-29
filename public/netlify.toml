@@ -1,0 +1,5 @@
+# SPA 리디렉션 규칙
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

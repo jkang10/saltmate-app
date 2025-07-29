@@ -1,0 +1,2 @@
+"use strict";(self["webpackChunksaltmate_app"]=self["webpackChunksaltmate_app"]||[]).push([[603],{603:function(a,t,n){n.r(t),n.d(t,{default:function(){return p}});var u=n(6768);const e={class:"about"};function s(a,t){return(0,u.uX)(),(0,u.CE)("div",e,t[0]||(t[0]=[(0,u.Lk)("h1",null,"This is an about page",-1)]))}var r=n(1241);const c={},l=(0,r.A)(c,[["render",s]]);var p=l}}]);
+//# sourceMappingURL=603.033ef475.js.map
