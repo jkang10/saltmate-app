@@ -180,7 +180,9 @@ export default {
   font-size: 1.1em;
   padding: 8px 12px;
   border-radius: 5px;
-  transition: background-color 0.3s ease, transform 0.2s ease,
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease,
     box-shadow 0.3s ease;
   white-space: nowrap;
   display: flex;

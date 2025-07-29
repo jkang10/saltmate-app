@@ -97,7 +97,9 @@ a:hover {
   font-weight: bold;
   color: white;
   background-color: #007bff; /* 기본 버튼 색상 */
-  transition: background-color 0.3s ease, transform 0.2s ease,
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease,
     box-shadow 0.3s ease;
   text-decoration: none; /* router-link 사용 시 기본 밑줄 제거 */
 }
@@ -225,7 +227,9 @@ a:hover {
   border-radius: 8px;
   text-decoration: none;
   font-weight: bold;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
 }
 
 .retry-button:hover,

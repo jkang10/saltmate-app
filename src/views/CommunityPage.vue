@@ -175,7 +175,9 @@ export default {
   color: #555;
   background-color: rgba(0, 0, 0, 0.03);
   border-radius: 8px;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
   font-weight: 500;
 }
 
@@ -242,7 +244,9 @@ export default {
   background-color: rgba(255, 255, 255, 0.4);
   padding: 15px 20px;
   border-radius: 8px;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
 }
 
 .post-item:hover {

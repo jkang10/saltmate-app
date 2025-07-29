@@ -123,7 +123,9 @@ h2 {
   border-radius: 6px;
   font-size: 1em;
   color: #333;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
   box-sizing: border-box;
 }
 
@@ -143,7 +145,9 @@ h2 {
   font-size: 1.1em;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
   margin-top: 10px;
 }
 

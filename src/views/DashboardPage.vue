@@ -177,7 +177,7 @@ export default {
               unsubscribe();
               resolve(user);
             },
-            reject
+            reject,
           );
         });
 
@@ -412,7 +412,9 @@ export default {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   min-width: 250px;
   flex-grow: 1;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   position: relative;
 }
 
@@ -485,7 +487,9 @@ export default {
   font-size: 1.1em;
   font-weight: bold;
   text-decoration: none;
-  transition: background-color 0.3s ease, transform 0.2s ease,
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease,
     box-shadow 0.3s ease;
   min-height: 120px;
   text-align: center;

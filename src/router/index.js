@@ -188,7 +188,7 @@ const getCurrentUser = () => {
         unsubscribe();
         resolve(user);
       },
-      reject
+      reject,
     );
   });
 };
@@ -236,7 +236,7 @@ router.beforeEach(async (to, from, next) => {
     else if (requiresNFT) {
       if (!userProfile || !userProfile.hasNFT) {
         alert(
-          "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다."
+          "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다.",
         );
         next("/dashboard"); // NFT가 없으면 대시보드로 리다이렉트
       } else {

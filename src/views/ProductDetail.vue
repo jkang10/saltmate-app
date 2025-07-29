@@ -77,7 +77,7 @@ watch(
     if (newId) {
       fetchProduct(newId);
     }
-  }
+  },
 );
 
 const goBack = () => {
@@ -167,7 +167,9 @@ const goBack = () => {
   border-radius: 8px;
   font-size: 1.1em;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
   font-weight: bold;
   box-shadow: 0 4px 10px rgba(52, 152, 219, 0.2);
 }

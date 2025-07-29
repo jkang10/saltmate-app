@@ -186,7 +186,10 @@ export default {
   text-decoration: none;
   font-size: 1.1em;
   font-weight: 500;
-  transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    transform 0.2s ease;
 }
 
 .admin-nav .nav-item i {
