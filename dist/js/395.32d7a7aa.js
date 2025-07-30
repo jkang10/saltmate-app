@@ -1,2 +1,0 @@
-"use strict";(self["webpackChunksaltmate_app"]=self["webpackChunksaltmate_app"]||[]).push([[395],{3395:function(a,e,n){n.r(e),n.d(e,{default:function(){return l}});var t=n(6768);const u={class:"shop-page"};function s(a,e,n,s,p,r){return(0,t.uX)(),(0,t.CE)("div",u,e[0]||(e[0]=[(0,t.Lk)("h1",null,"솔트메이트 스토어",-1),(0,t.Lk)("p",null,"여기에 상품 목록과 쇼핑 관련 내용이 표시됩니다.",-1)]))}var p={name:"ShopPage",setup(){return{}}},r=n(1241);const c=(0,r.A)(p,[["render",s],["__scopeId","data-v-6970f22c"]]);var l=c}}]);
-//# sourceMappingURL=395.32d7a7aa.js.map

@@ -149,7 +149,6 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-// ▼▼▼ Firestore 관련 모든 기능 임포트 ▼▼▼
 import {
   doc,
   collection,
@@ -160,13 +159,11 @@ import {
   increment,
   serverTimestamp,
 } from "firebase/firestore";
-// ▲▲▲
 
 export default {
   name: "SignUpPage",
   setup() {
     const router = useRouter();
-    // --- 기존 state 변수들 ---
     const email = ref("");
     const password = ref("");
     const confirmPassword = ref("");
@@ -174,33 +171,38 @@ export default {
     const phone = ref("");
     const region = ref("");
     const investmentAmount = ref("");
-    const referrer = ref(""); // 추천인 입력값
+    const referrer = ref("");
     const error = ref(null);
     const isLoading = ref(false);
-
-    // --- 추천인 검색 기능 관련 state 추가 ---
     const searchResults = ref([]);
     const isSearching = ref(false);
 
-    // --- 추천인 검색 및 선택 함수 추가 ---
     const searchReferrer = async () => {
-      if (!referrer.value.trim()) {
-        alert("검색할 추천인 이메일을 입력하세요.");
+      const searchTerm = referrer.value.trim();
+      if (!searchTerm) {
+        alert("검색할 추천인 정보를 입력하세요.");
         return;
       }
       isSearching.value = true;
       searchResults.value = [];
       try {
         const usersRef = collection(db, "users");
-        const q = query(usersRef, where("email", "==", referrer.value.trim()));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
+        const nameQuery = query(usersRef, where("name", "==", searchTerm));
+        const emailQuery = query(usersRef, where("email", "==", searchTerm));
+        const [nameSnapshot, emailSnapshot] = await Promise.all([
+          getDocs(nameQuery),
+          getDocs(emailQuery),
+        ]);
+        const foundUsers = new Map();
+        nameSnapshot.forEach((doc) =>
+          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
+        );
+        emailSnapshot.forEach((doc) =>
+          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
+        );
+        searchResults.value = Array.from(foundUsers.values());
+        if (searchResults.value.length === 0) {
           alert("일치하는 사용자를 찾을 수 없습니다.");
-        } else {
-          querySnapshot.forEach((doc) => {
-            searchResults.value.push({ id: doc.id, ...doc.data() });
-          });
         }
       } catch (err) {
         console.error("추천인 검색 오류:", err);
@@ -215,7 +217,6 @@ export default {
       searchResults.value = [];
     };
 
-    // --- 추천인 포인트 지급 로직을 포함한 handleSignup 함수 ---
     const handleSignup = async () => {
       error.value = null;
       if (password.value !== confirmPassword.value) {
@@ -238,7 +239,6 @@ export default {
         let initialPoints = 0;
         let referrerFoundAndProcessed = false;
 
-        // 추천인 코드가 입력된 경우
         if (referrer.value.trim()) {
           const usersRef = collection(db, "users");
           const q = query(
@@ -251,8 +251,8 @@ export default {
             const referrerDoc = referrerSnapshot.docs[0];
             const referrerRef = doc(db, "users", referrerDoc.id);
 
-            initialPoints = 1000; // 추천받은 사람: 1,000점
-            batch.update(referrerRef, { saltmatePoints: increment(300) }); // 추천한 사람: 300점
+            initialPoints = 1000;
+            batch.update(referrerRef, { saltmatePoints: increment(300) });
             referrerFoundAndProcessed = true;
           } else {
             error.value =
@@ -260,7 +260,6 @@ export default {
           }
         }
 
-        // 신규 사용자 정보 저장 (기존 필드 모두 포함)
         batch.set(newUserRef, {
           email: user.email,
           name: name.value,
@@ -271,7 +270,7 @@ export default {
           isAdmin: false,
           hasNFT: false,
           saltmateLevel: "basic",
-          saltmatePoints: initialPoints, // 최종 포인트
+          saltmatePoints: initialPoints,
         });
 
         await batch.commit();
@@ -299,7 +298,6 @@ export default {
     };
 
     return {
-      // --- 기존 반환값 ---
       email,
       password,
       confirmPassword,
@@ -311,7 +309,6 @@ export default {
       error,
       isLoading,
       handleSignup,
-      // --- 새로 추가된 반환값 ---
       searchResults,
       isSearching,
       searchReferrer,

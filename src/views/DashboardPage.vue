@@ -1,12 +1,17 @@
 <template>
   <div class="dashboard-container">
     <header class="dashboard-header">
-      <h1>솔트메이트 대시보드</h1>
+      <HappyGauge
+        v-if="userProfile"
+        :current-points="userProfile.saltmatePoints"
+      />
+      <h1 v-else>솔트메이트 대시보드</h1>
     </header>
 
     <main class="dashboard-content">
       <section class="user-info-section card">
-        <h2>환영합니다, {{ userEmail }}님!</h2>
+        <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
+
         <p v-if="loadingUser">사용자 정보를 불러오는 중...</p>
         <div v-else-if="userProfile">
           <p>회원님의 현재 **솔트메이트 등급**:</p>
@@ -57,7 +62,6 @@
           <p class="error-message">😔 사용자 정보를 불러올 수 없습니다.</p>
         </div>
       </section>
-
       <section class="tokens-section card">
         <h2>💰 보유 토큰 현황</h2>
         <div v-if="loadingUser" class="loading-state">
@@ -148,15 +152,18 @@
 </template>
 
 <script>
+import HappyGauge from "@/components/common/HappyGauge.vue";
 import { auth, db } from "@/firebaseConfig";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export default {
   name: "DashboardPage",
+  components: {
+    HappyGauge,
+  },
   data() {
     return {
-      userEmail: "",
       userProfile: null,
       loadingUser: true,
       error: null,
@@ -182,14 +189,12 @@ export default {
         });
 
         if (user) {
-          this.userEmail = user.email;
           const userRef = doc(db, "users", user.uid);
           const userSnap = await getDoc(userRef);
 
           if (userSnap.exists()) {
             this.userProfile = {
               ...userSnap.data(),
-              // 기본값 설정 (Firestore에 필드가 없을 경우를 대비)
               cobsBalance: userSnap.data().cobsBalance || 0,
               bndBalance: userSnap.data().bndBalance || 0,
               discountRate: userSnap.data().discountRate || 0,
@@ -197,29 +202,18 @@ export default {
             };
           } else {
             this.error = "사용자 프로필을 찾을 수 없습니다.";
-            this.userProfile = null; // 프로필이 없을 경우 초기화
+            this.userProfile = null;
           }
         } else {
           this.error = "로그인된 사용자가 없습니다.";
-          this.userProfile = null; // 사용자가 없을 경우 초기화
+          this.userProfile = null;
         }
       } catch (e) {
         console.error("사용자 프로필 가져오기 실패:", e);
         this.error = "사용자 프로필을 불러오는 데 실패했습니다: " + e.message;
-        this.userProfile = null; // 오류 발생 시 초기화
+        this.userProfile = null;
       } finally {
         this.loadingUser = false;
-      }
-    },
-    // handleLogout 메서드는 더 이상 호출되지 않으므로 필요하지 않지만,
-    // 다른 곳에서 사용될 가능성을 고려하여 일단 유지하거나, 확실히 필요 없으면 삭제할 수 있습니다.
-    async handleLogout() {
-      try {
-        await signOut(auth);
-        this.$router.push("/login");
-      } catch (error) {
-        console.error("로그아웃 실패:", error);
-        alert("로그아웃 중 오류가 발생했습니다.");
       }
     },
     getSaltmateLevelText(level) {

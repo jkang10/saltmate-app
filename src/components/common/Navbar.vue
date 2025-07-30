@@ -14,89 +14,126 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
-        <li v-if="!isAdmin">
-          <router-link to="/shop" class="nav-link">투자 상품</router-link>
-        </li>
-        <li v-if="!isAdmin">
-          <router-link to="/my-investments" class="nav-link"
-            >내 투자 현황</router-link
-          >
-        </li>
+        <template v-if="!userProfile?.isAdmin">
+          <li>
+            <router-link to="/shop" class="nav-link">투자 상품</router-link>
+          </li>
+          <li>
+            <router-link to="/my-investments" class="nav-link"
+              >내 투자 현황</router-link
+            >
+          </li>
+          <li>
+            <router-link to="/nft-marketplace" class="nav-link"
+              >NFT 마켓플레이스</router-link
+            >
+          </li>
+        </template>
+
         <li>
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
-        </li>
-        <li v-if="user && !isAdmin">
-          <router-link to="/nft-marketplace" class="nav-link"
-            >NFT 마켓플레이스</router-link
-          >
         </li>
         <li>
           <router-link to="/about" class="nav-link"
             >솔트메이트 소개</router-link
           >
         </li>
-        <li v-if="!user">
-          <router-link to="/login" class="nav-link primary-button"
-            >로그인</router-link
-          >
-        </li>
-        <li v-if="!user">
-          <router-link to="/signup" class="nav-link outline-button"
-            >회원가입</router-link
-          >
-        </li>
-        <li v-if="user && !isAdmin">
-          <router-link to="/profile" class="nav-link user-profile">
-            <i class="fas fa-user-circle"></i> {{ user.email }}
-          </router-link>
-        </li>
-        <li v-if="user && isAdmin">
-          <router-link
-            to="/admin-dashboard"
-            class="nav-link admin-dashboard-link"
-          >
-            <i class="fas fa-tools"></i> 관리자 대시보드
-          </router-link>
-        </li>
-        <li v-if="user">
-          <button @click="handleLogout" class="nav-link logout-button">
-            <i class="fas fa-sign-out-alt"></i> 로그아웃
-          </button>
-        </li>
+
+        <template v-if="!user">
+          <li>
+            <router-link to="/login" class="nav-link primary-button"
+              >로그인</router-link
+            >
+          </li>
+          <li>
+            <router-link to="/signup" class="nav-link outline-button"
+              >회원가입</router-link
+            >
+          </li>
+        </template>
+
+        <template v-if="user">
+          <li v-if="!userProfile?.isAdmin">
+            <router-link to="/profile" class="nav-link user-profile">
+              <i class="fas fa-user-circle"></i>
+              {{ userProfile?.name || user.email }}
+            </router-link>
+          </li>
+          <li v-if="userProfile?.isAdmin">
+            <router-link
+              to="/admin-dashboard"
+              class="nav-link admin-dashboard-link"
+            >
+              <i class="fas fa-tools"></i> 관리자 대시보드
+            </router-link>
+          </li>
+          <li>
+            <button @click="handleLogout" class="nav-link logout-button">
+              <i class="fas fa-sign-out-alt"></i> 로그아웃
+            </button>
+          </li>
+        </template>
       </ul>
     </div>
   </nav>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { auth } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig"; // db 임포트 추가
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore"; // onSnapshot 임포트 추가
 
 export default {
   name: "AppNavbar",
   setup() {
     const router = useRouter();
     const user = ref(null);
-    const isAdmin = ref(false);
     const isMobileMenuOpen = ref(false);
 
-    const ADMIN_EMAILS = ["admin@admin.com"]; // 실제 배포 시에는 Firestore 등에서 관리하는 것이 더 안전하고 유연합니다.
-
+    // ▼▼▼ 사용자 프로필 정보 추가 ▼▼▼
+    const userProfile = ref(null);
     let unsubscribeAuth = null;
+    let unsubscribeProfile = null; // 프로필 실시간 리스너 구독 해제 함수
+    // ▲▲▲
+
+    // ▼▼▼ 기존 isAdmin 로직을 Firestore에서 가져오도록 변경 ▼▼▼
+    const isAdmin = computed(() => userProfile.value?.isAdmin === true);
+    // ▲▲▲
+
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
         user.value = currentUser;
-        isAdmin.value = currentUser && ADMIN_EMAILS.includes(currentUser.email);
+
+        // 이전에 구독한 프로필 리스너가 있다면 해제
+        if (unsubscribeProfile) {
+          unsubscribeProfile();
+          unsubscribeProfile = null;
+        }
+
+        if (currentUser) {
+          // 로그인 시 Firestore에서 사용자 프로필 실시간 감지
+          const userDocRef = doc(db, "users", currentUser.uid);
+          unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              userProfile.value = docSnap.data();
+            } else {
+              userProfile.value = null; // 문서가 없는 경우
+            }
+          });
+        } else {
+          // 로그아웃 시 프로필 정보 초기화
+          userProfile.value = null;
+        }
       });
     });
 
     onUnmounted(() => {
-      if (unsubscribeAuth) {
-        unsubscribeAuth();
-      }
+      if (unsubscribeAuth) unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
     });
+    // ▲▲▲
 
     const handleLogout = async () => {
       try {
@@ -120,7 +157,8 @@ export default {
 
     return {
       user,
-      isAdmin,
+      isAdmin, // isAdmin은 userProfile을 통해 계산되도록 변경됨
+      userProfile, // 템플릿에서 이름을 사용하기 위해 반환
       isMobileMenuOpen,
       handleLogout,
       toggleMobileMenu,
