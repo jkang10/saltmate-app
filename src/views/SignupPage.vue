@@ -1,86 +1,48 @@
 <template>
-  <div class="signup-page">
-    <div class="signup-container card glassmorphism">
-      <h2 class="signup-title">
-        <i class="fas fa-user-plus"></i> 솔트메이트 가입
-      </h2>
-      <form @submit.prevent="handleSignup" class="signup-form">
+  <div class="signup-page-background">
+    <div class="signup-container">
+      <h2 class="title"><i class="fas fa-user-plus"></i> 솔트메이트 가입</h2>
+      <form @submit.prevent="handleSignup">
         <div class="form-group">
-          <label for="email">이메일:</label>
-          <input
-            type="email"
-            id="email"
-            v-model="email"
-            placeholder="이메일을 입력하세요"
-            required
-            autocomplete="email"
-          />
+          <input type="email" v-model="email" placeholder="이메일" required />
         </div>
-
         <div class="form-group">
-          <label for="password">비밀번호:</label>
           <input
             type="password"
-            id="password"
             v-model="password"
             placeholder="비밀번호 (6자 이상)"
             required
-            autocomplete="new-password"
           />
         </div>
-
         <div class="form-group">
-          <label for="confirm-password">비밀번호 확인:</label>
           <input
             type="password"
-            id="confirm-password"
             v-model="confirmPassword"
-            placeholder="비밀번호를 다시 입력하세요"
+            placeholder="비밀번호 확인"
             required
-            autocomplete="new-password"
           />
         </div>
-
         <div class="form-group">
-          <label for="name">이름:</label>
-          <input
-            type="text"
-            id="name"
-            v-model="name"
-            placeholder="이름을 입력하세요"
-            required
-            autocomplete="name"
-          />
+          <input type="text" v-model="name" placeholder="이름" required />
         </div>
-
         <div class="form-group">
-          <label for="phone">전화번호 (HP):</label>
           <input
             type="tel"
-            id="phone"
             v-model="phone"
-            placeholder="예: 010-1234-5678"
+            placeholder="전화번호 (HP) 예: 010-1234-5678"
             required
-            pattern="[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}"
-            autocomplete="tel"
           />
-          <small>하이픈(-)을 포함하여 입력해주세요.</small>
         </div>
-
         <div class="form-group">
-          <label for="region">지역 (센터):</label>
           <input
             type="text"
-            id="region"
             v-model="region"
-            placeholder="활동하실 센터 지역을 입력하세요"
+            placeholder="지역 (센터)"
             required
           />
         </div>
-
         <div class="form-group">
-          <label for="investment-amount">투자금액:</label>
-          <select id="investment-amount" v-model="investmentAmount" required>
+          <select v-model="investmentAmount" required>
             <option value="">투자금액을 선택하세요</option>
             <option value="10000">만원의 행복</option>
             <option value="100000">10만원</option>
@@ -89,16 +51,12 @@
             <option value="1000000">100만원</option>
           </select>
         </div>
-
-        <div class="form-group">
-          <label for="referrer">추천인 (선택 사항):</label>
-          <div class="referrer-input-group">
+        <div class="form-group referrer-group">
+          <div class="referrer-input-wrapper">
             <input
               type="text"
-              id="referrer"
               v-model="referrer"
-              placeholder="추천인 이메일을 입력하세요"
-              autocomplete="off"
+              placeholder="추천인 (선택 사항)"
             />
             <button
               type="button"
@@ -106,36 +64,32 @@
               class="search-btn"
               :disabled="isSearching"
             >
-              <span v-if="isSearching">...</span>
-              <span v-else>검색</span>
+              검색
             </button>
           </div>
-
           <div v-if="searchResults.length > 0" class="search-results">
-            <ul>
-              <li
-                v-for="user in searchResults"
-                :key="user.id"
-                @click="selectReferrer(user)"
-              >
-                {{ user.name }} ({{ user.email }})
-              </li>
-            </ul>
+            <div
+              v-for="user in searchResults"
+              :key="user.id"
+              @click="selectReferrer(user)"
+              class="result-item"
+            >
+              {{ user.name }} ({{ user.email }})
+            </div>
           </div>
-
-          <small>추천인의 이름, 이메일 또는 ID를 수동으로 입력해주세요.</small>
-          <small class="referrer-bonus-text">
+          <small class="info-text"
+            >추천인의 이름 또는 이메일을 입력 후 검색하세요.</small
+          >
+          <small class="bonus-text">
             추천을 받은 사람은 1,000 SaltMate, 추천한 사람은 300 SaltMate가
-            지급됩니다.
+            행복한 솔트메이트(SaltMate) 게이지에 쌓입니다.
           </small>
         </div>
-        <button type="submit" class="signup-button" :disabled="isLoading">
-          <span v-if="isLoading" class="spinner"></span>
-          <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
+        <button type="submit" class="signup-btn" :disabled="isLoading">
+          <span v-if="isLoading">가입 중...</span>
+          <span v-else>가입하기</span>
         </button>
-
-        <p v-if="error" class="error-message">{{ error }}</p>
-
+        <p v-if="error" class="error-msg">{{ error }}</p>
         <div class="login-link">
           이미 계정이 있으신가요? <router-link to="/login">로그인</router-link>
         </div>
@@ -187,22 +141,19 @@ export default {
       searchResults.value = [];
       try {
         const usersRef = collection(db, "users");
-        const nameQuery = query(usersRef, where("name", "==", searchTerm));
-        const emailQuery = query(usersRef, where("email", "==", searchTerm));
-        const [nameSnapshot, emailSnapshot] = await Promise.all([
-          getDocs(nameQuery),
-          getDocs(emailQuery),
-        ]);
-        const foundUsers = new Map();
-        nameSnapshot.forEach((doc) =>
-          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
-        );
-        emailSnapshot.forEach((doc) =>
-          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
-        );
-        searchResults.value = Array.from(foundUsers.values());
-        if (searchResults.value.length === 0) {
+        let q;
+        if (searchTerm.includes("@")) {
+          q = query(usersRef, where("email", "==", searchTerm));
+        } else {
+          q = query(usersRef, where("name", "==", searchTerm));
+        }
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
           alert("일치하는 사용자를 찾을 수 없습니다.");
+        } else {
+          querySnapshot.forEach((doc) => {
+            searchResults.value.push({ id: doc.id, ...doc.data() });
+          });
         }
       } catch (err) {
         console.error("추천인 검색 오류:", err);
@@ -223,7 +174,6 @@ export default {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
-
       isLoading.value = true;
       try {
         const userCredential = await createUserWithEmailAndPassword(
@@ -232,10 +182,8 @@ export default {
           password.value,
         );
         const user = userCredential.user;
-
         const batch = writeBatch(db);
         const newUserRef = doc(db, "users", user.uid);
-
         let initialPoints = 0;
         let referrerFoundAndProcessed = false;
 
@@ -246,11 +194,9 @@ export default {
             where("email", "==", referrer.value.trim()),
           );
           const referrerSnapshot = await getDocs(q);
-
           if (!referrerSnapshot.empty) {
             const referrerDoc = referrerSnapshot.docs[0];
             const referrerRef = doc(db, "users", referrerDoc.id);
-
             initialPoints = 1000;
             batch.update(referrerRef, { saltmatePoints: increment(300) });
             referrerFoundAndProcessed = true;
@@ -272,32 +218,22 @@ export default {
           saltmateLevel: "basic",
           saltmatePoints: initialPoints,
         });
-
         await batch.commit();
-
         alert("회원가입이 성공적으로 완료되었습니다!");
         if (referrerFoundAndProcessed) {
           alert("추천인 보너스로 1,000 SaltMate가 지급되었습니다!");
         }
         router.push("/login");
       } catch (err) {
-        console.error("회원가입 오류:", err.code, err.message);
-        switch (err.code) {
-          case "auth/email-already-in-use":
-            error.value = "이미 사용 중인 이메일입니다.";
-            break;
-          case "auth/weak-password":
-            error.value = "비밀번호는 6자 이상이어야 합니다.";
-            break;
-          default:
-            error.value = "회원가입 중 오류가 발생했습니다.";
-        }
+        console.error("회원가입 오류:", err.code);
+        error.value = "회원가입 중 오류가 발생했습니다.";
       } finally {
         isLoading.value = false;
       }
     };
 
     return {
+      router,
       email,
       password,
       confirmPassword,
@@ -319,68 +255,101 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일은 여기에 그대로 유지됩니다. */
-.signup-page {
+.signup-page-background {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f0f2f5;
-  padding: 40px 20px;
+  background: #f0f2f5;
+  padding: 20px;
 }
-/* ... (이하 기존 스타일 생략) ... */
-
-/* ▼▼▼ 추천인 검색 관련 스타일만 추가 ▼▼▼ */
-.referrer-input-group {
+.signup-container {
+  background: #ffffff;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 450px;
+}
+.title {
+  text-align: center;
+  font-size: 1.8em;
+  color: #333;
+  margin-bottom: 25px;
+}
+.form-group {
+  margin-bottom: 15px;
+}
+input,
+select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  box-sizing: border-box;
+}
+.referrer-input-wrapper {
   display: flex;
-  gap: 10px;
 }
-.referrer-input-group input {
-  flex: 1;
+.referrer-input-wrapper input {
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .search-btn {
-  padding: 0 15px;
   border: 1px solid #007bff;
-  background-color: #007bff;
+  background: #007bff;
   color: white;
-  border-radius: 8px;
+  padding: 0 15px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
   cursor: pointer;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-.search-btn:disabled {
-  background-color: #a0c9ff;
-  border-color: #a0c9ff;
-  cursor: not-allowed;
-}
-.referrer-bonus-text {
-  color: #007bff !important;
-  font-weight: bold;
-  display: block; /* small 태그가 나란히 표시되지 않도록 */
-  margin-top: 5px;
 }
 .search-results {
   border: 1px solid #ddd;
-  border-radius: 5px;
-  margin-top: 5px;
-  max-height: 150px;
-  overflow-y: auto;
-  background-color: #fff;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
 }
-.search-results ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.search-results li {
+.result-item {
   padding: 10px 15px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
 }
-.search-results li:last-child {
-  border-bottom: none;
+.result-item:hover {
+  background: #f0f0f0;
 }
-.search-results li:hover {
-  background-color: #e9f5ff;
+.info-text {
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 5px;
+}
+.bonus-text {
+  font-size: 0.85em;
+  color: #007bff;
+  font-weight: bold;
+  display: block;
+  margin-top: 5px;
+}
+.signup-btn {
+  width: 100%;
+  padding: 12px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.error-msg {
+  color: #dc3545;
+  text-align: center;
+  margin-top: 10px;
+}
+.login-link {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.9em;
 }
 </style>

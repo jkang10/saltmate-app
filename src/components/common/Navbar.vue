@@ -45,11 +45,6 @@
               >로그인</router-link
             >
           </li>
-          <li>
-            <router-link to="/signup" class="nav-link outline-button"
-              >회원가입</router-link
-            >
-          </li>
         </template>
 
         <template v-if="user">
@@ -81,9 +76,9 @@
 <script>
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { auth, db } from "@/firebaseConfig"; // db 임포트 추가
+import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore"; // onSnapshot 임포트 추가
+import { doc, onSnapshot } from "firebase/firestore";
 
 export default {
   name: "AppNavbar",
@@ -91,39 +86,31 @@ export default {
     const router = useRouter();
     const user = ref(null);
     const isMobileMenuOpen = ref(false);
-
-    // ▼▼▼ 사용자 프로필 정보 추가 ▼▼▼
     const userProfile = ref(null);
     let unsubscribeAuth = null;
-    let unsubscribeProfile = null; // 프로필 실시간 리스너 구독 해제 함수
-    // ▲▲▲
+    let unsubscribeProfile = null;
 
-    // ▼▼▼ 기존 isAdmin 로직을 Firestore에서 가져오도록 변경 ▼▼▼
     const isAdmin = computed(() => userProfile.value?.isAdmin === true);
-    // ▲▲▲
 
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
         user.value = currentUser;
 
-        // 이전에 구독한 프로필 리스너가 있다면 해제
         if (unsubscribeProfile) {
           unsubscribeProfile();
           unsubscribeProfile = null;
         }
 
         if (currentUser) {
-          // 로그인 시 Firestore에서 사용자 프로필 실시간 감지
           const userDocRef = doc(db, "users", currentUser.uid);
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
               userProfile.value = docSnap.data();
             } else {
-              userProfile.value = null; // 문서가 없는 경우
+              userProfile.value = null;
             }
           });
         } else {
-          // 로그아웃 시 프로필 정보 초기화
           userProfile.value = null;
         }
       });
@@ -133,7 +120,6 @@ export default {
       if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
     });
-    // ▲▲▲
 
     const handleLogout = async () => {
       try {
@@ -157,8 +143,8 @@ export default {
 
     return {
       user,
-      isAdmin, // isAdmin은 userProfile을 통해 계산되도록 변경됨
-      userProfile, // 템플릿에서 이름을 사용하기 위해 반환
+      isAdmin,
+      userProfile,
       isMobileMenuOpen,
       handleLogout,
       toggleMobileMenu,
