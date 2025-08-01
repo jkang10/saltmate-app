@@ -90,15 +90,43 @@
 
         <div class="form-group">
           <label for="referrer">추천인 (선택 사항):</label>
-          <input
-            type="text"
-            id="referrer"
-            v-model="referrer"
-            placeholder="추천인 이름, 이메일 또는 ID를 입력하세요"
-          />
-          <small>추천인의 이름, 이메일 또는 ID를 수동으로 입력해주세요.</small>
+          <div class="referrer-input-group">
+            <input
+              type="text"
+              id="referrer"
+              v-model="referrerInput"
+              placeholder="추천인 이메일 또는 이름 입력"
+              :disabled="!!validatedReferrer.uid"
+            />
+            <button
+              type="button"
+              @click="verifyReferrer"
+              class="verify-button"
+              :disabled="
+                isVerifying || !referrerInput || !!validatedReferrer.uid
+              "
+            >
+              <span v-if="isVerifying" class="spinner-small"></span>
+              <span v-else>검증</span>
+            </button>
+          </div>
+          <small v-if="!validatedReferrer.uid"
+            >추천인의 이메일 또는 이름을 입력 후 '검증'을 눌러주세요.</small
+          >
+          <p
+            v-if="referrerStatus.message"
+            :class="['status-message', referrerStatus.type]"
+          >
+            {{ referrerStatus.message }}
+            <span
+              v-if="validatedReferrer.uid"
+              @click="resetReferrer"
+              class="reset-referrer"
+            >
+              [변경]
+            </span>
+          </p>
         </div>
-
         <button type="submit" class="signup-button" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
           <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
@@ -115,7 +143,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -124,6 +152,9 @@ import {
   setDoc,
   collection,
   getDocs,
+  query,
+  where,
+  limit,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -138,10 +169,15 @@ export default {
     const phone = ref("");
     const region = ref("");
     const investmentAmount = ref("");
-    const referrer = ref("");
     const error = ref(null);
     const isLoading = ref(false);
     const centers = ref([]);
+
+    // 추천인 관련 새로운 상태 변수들
+    const referrerInput = ref(""); // 추천인 검색어 입력
+    const isVerifying = ref(false); // 검증 진행 중 상태
+    const validatedReferrer = reactive({ uid: null, name: null }); // 검증 완료된 추천인 정보
+    const referrerStatus = reactive({ message: "", type: "" }); // 검증 결과 메시지
 
     const fetchCenters = async () => {
       try {
@@ -155,6 +191,59 @@ export default {
       }
     };
     onMounted(fetchCenters);
+
+    // 추천인 검증을 위한 새로운 함수
+    const verifyReferrer = async () => {
+      if (!referrerInput.value) return;
+      isVerifying.value = true;
+      referrerStatus.message = "";
+      referrerStatus.type = "";
+
+      try {
+        // 이메일로 먼저 검색, 없으면 이름으로 검색
+        let q = query(
+          collection(db, "users"),
+          where("email", "==", referrerInput.value),
+          limit(1),
+        );
+        let querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          q = query(
+            collection(db, "users"),
+            where("name", "==", referrerInput.value),
+            limit(1),
+          );
+          querySnapshot = await getDocs(q);
+        }
+
+        if (querySnapshot.empty) {
+          referrerStatus.message = "존재하지 않는 추천인입니다.";
+          referrerStatus.type = "error";
+        } else {
+          const referrerDoc = querySnapshot.docs[0];
+          validatedReferrer.uid = referrerDoc.id;
+          validatedReferrer.name = referrerDoc.data().name;
+          referrerStatus.message = `✔️ 추천인 '${validatedReferrer.name}'님 확인 완료!`;
+          referrerStatus.type = "success";
+        }
+      } catch (err) {
+        console.error("추천인 검증 오류:", err);
+        referrerStatus.message = "검증 중 오류가 발생했습니다.";
+        referrerStatus.type = "error";
+      } finally {
+        isVerifying.value = false;
+      }
+    };
+
+    // 추천인 정보 리셋 함수
+    const resetReferrer = () => {
+      validatedReferrer.uid = null;
+      validatedReferrer.name = null;
+      referrerInput.value = "";
+      referrerStatus.message = "";
+      referrerStatus.type = "";
+    };
 
     const handleSignup = async () => {
       error.value = null;
@@ -171,19 +260,27 @@ export default {
         );
         const user = userCredential.user;
 
-        await setDoc(doc(db, "users", user.uid), {
+        // 검증된 추천인 UID를 사용자 정보에 추가
+        const newUserDoc = {
           email: user.email,
           name: name.value,
           phone: phone.value,
           region: region.value,
           investmentAmount: Number(investmentAmount.value),
-          referrer: referrer.value,
           createdAt: serverTimestamp(),
           isAdmin: false,
-          // 기타 필요한 기본 필드들...
-        });
+          saltmatePoints: 0, // 포인트 필드 초기화
+        };
 
-        alert("회원가입이 성공적으로 완료되었습니다!");
+        if (validatedReferrer.uid) {
+          newUserDoc.referrerUid = validatedReferrer.uid;
+        }
+
+        await setDoc(doc(db, "users", user.uid), newUserDoc);
+
+        alert(
+          "회원가입이 성공적으로 완료되었습니다! 로그인 페이지로 이동합니다.",
+        );
         router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
@@ -201,11 +298,17 @@ export default {
       phone,
       region,
       investmentAmount,
-      referrer,
       error,
       isLoading,
       handleSignup,
       centers,
+      // 새로 추가된 변수와 함수들을 반환
+      referrerInput,
+      isVerifying,
+      validatedReferrer,
+      referrerStatus,
+      verifyReferrer,
+      resetReferrer,
     };
   },
 };
@@ -368,4 +471,58 @@ export default {
     transform: rotate(360deg);
   }
 }
+
+/* ▼▼▼ 추천인 섹션 추가 스타일 ▼▼▼ */
+.referrer-input-group {
+  display: flex;
+  gap: 10px;
+}
+.referrer-input-group input {
+  flex-grow: 1;
+}
+.verify-button {
+  padding: 0 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+  flex-shrink: 0;
+}
+.verify-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+.verify-button:disabled {
+  background-color: #a0c9ff;
+  cursor: not-allowed;
+}
+.status-message {
+  margin-top: 8px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+.status-message.success {
+  color: #28a745;
+}
+.status-message.error {
+  color: #dc3545;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+.reset-referrer {
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 5px;
+}
+/* ▲▲▲ 추천인 섹션 추가 스타일 종료 ▲▲▲ */
 </style>

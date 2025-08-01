@@ -199,6 +199,8 @@ export default {
               bndBalance: userSnap.data().bndBalance || 0,
               discountRate: userSnap.data().discountRate || 0,
               eventCouponsCount: userSnap.data().eventCouponsCount || 0,
+              // saltmatePoints를 userProfile에 포함시킵니다.
+              saltmatePoints: userSnap.data().saltmatePoints || 0,
             };
           } else {
             this.error = "사용자 프로필을 찾을 수 없습니다.";
