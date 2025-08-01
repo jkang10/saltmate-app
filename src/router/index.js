@@ -28,7 +28,7 @@ const routes = [
     path: "/dashboard",
     name: "DashboardPage",
     component: () => import("@/views/DashboardPage.vue"),
-    meta: { requiresAuth: true }, // 로그인 필요 설정
+    meta: { requiresAuth: true },
   },
   {
     path: "/shop",
@@ -58,7 +58,7 @@ const routes = [
   {
     path: "/nft-marketplace",
     name: "NftMarketplacePage",
-    component: () => import("@/views/NFTMarketplacePage.vue"), // Nft -> NFT로 수정됨
+    component: () => import("@/views/NFTMarketplacePage.vue"),
     meta: { requiresAuth: true, requiresNFT: true },
   },
   {
@@ -75,7 +75,7 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/my-nfts", // 기존 /nft-marketplace와 역할 구분
+    path: "/my-nfts",
     name: "MyNFTsPage",
     component: () => import("@/views/MyNFTsPage.vue"),
     meta: { requiresAuth: true },
@@ -210,7 +210,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresAuth && !currentUser) {
     alert("로그인이 필요한 페이지입니다. 로그인 해주세요.");
-    next("/login"); // 로그인 페이지로 리다이렉트
+    next("/login");
   } else if (currentUser) {
     let userProfile = null;
     try {
@@ -233,7 +233,7 @@ router.beforeEach(async (to, from, next) => {
         alert(
           "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다.",
         );
-        next("/dashboard"); // NFT가 없으면 대시보드로 리다이렉트
+        next("/dashboard");
       } else {
         next();
       }

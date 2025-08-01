@@ -17,7 +17,8 @@
 
     <div class="list-card card">
       <h4>센터 목록</h4>
-      <ul v-if="centers.length > 0" class="center-list">
+      <div v-if="loading" class="loading-spinner"></div>
+      <ul v-else-if="centers.length > 0" class="center-list">
         <li v-for="center in centers" :key="center.id">
           <span>{{ center.name }}</span>
           <button
@@ -28,12 +29,12 @@
           </button>
         </li>
       </ul>
-      <p v-else>등록된 센터가 없습니다.</p>
+      <p v-else class="no-data">등록된 센터가 없습니다.</p>
     </div>
   </div>
 </template>
 
-<script setup>
+<script>
 import { ref, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
 import {
@@ -47,126 +48,129 @@ import {
   query,
 } from "firebase/firestore";
 
-const centers = ref([]);
-const newCenterName = ref("");
+export default {
+  name: "CenterManagement",
+  setup() {
+    const centers = ref([]);
+    const newCenterName = ref("");
+    const loading = ref(true);
 
-const fetchCenters = async () => {
-  const centersRef = collection(db, "centers");
-  const q = query(centersRef, orderBy("createdAt", "desc"));
-  const querySnapshot = await getDocs(q);
-  centers.value = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+    const fetchCenters = async () => {
+      loading.value = true;
+      try {
+        const centersRef = collection(db, "centers");
+        const q = query(centersRef, orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        centers.value = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.error("센터 목록 로딩 오류:", error);
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    const addCenter = async () => {
+      if (!newCenterName.value.trim()) return;
+      try {
+        await addDoc(collection(db, "centers"), {
+          name: newCenterName.value,
+          createdAt: serverTimestamp(),
+        });
+        newCenterName.value = "";
+        await fetchCenters();
+      } catch (error) {
+        console.error("센터 추가 오류:", error);
+      }
+    };
+
+    const deleteCenter = async (id) => {
+      if (!confirm("정말로 이 센터를 삭제하시겠습니까?")) return;
+      try {
+        await deleteDoc(doc(db, "centers", id));
+        await fetchCenters();
+      } catch (error) {
+        console.error("센터 삭제 오류:", error);
+      }
+    };
+
+    onMounted(fetchCenters);
+
+    return {
+      centers,
+      newCenterName,
+      loading,
+      addCenter,
+      deleteCenter,
+    };
+  },
 };
-
-const addCenter = async () => {
-  if (!newCenterName.value.trim()) return;
-  await addDoc(collection(db, "centers"), {
-    name: newCenterName.value,
-    createdAt: serverTimestamp(),
-  });
-  newCenterName.value = "";
-  await fetchCenters();
-};
-
-const deleteCenter = async (id) => {
-  if (!confirm("정말로 이 센터를 삭제하시겠습니까?")) return;
-  await deleteDoc(doc(db, "centers", id));
-  await fetchCenters();
-};
-
-onMounted(fetchCenters);
 </script>
 
 <style scoped>
+.management-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.card {
+  background: #fff;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
 .center-form {
   display: flex;
   gap: 10px;
 }
 .center-form input {
   flex-grow: 1;
-  padding: 10px;
+  padding: 10px 15px;
   border: 1px solid #ddd;
-  border-radius: 5px;
+  border-radius: 8px;
+  font-size: 1em;
 }
 .center-list {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 .center-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #eee;
+  padding: 12px 5px;
+  border-bottom: 1px solid #f0f0f0;
 }
-/* 이전 컴포넌트들과 유사한 스타일 */
-.management-container {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
+.center-list li:last-child {
+  border-bottom: none;
 }
-.card {
-  background-color: #fff;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-}
-h3,
-h4 {
-  margin-top: 0;
-}
-
-.order-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
-}
-.order-table th,
-.order-table td {
-  border-bottom: 1px solid #eee;
-  padding: 12px 15px;
-  text-align: left;
-  vertical-align: middle;
-}
-.order-table th {
-  background-color: #f8f9fa;
-}
-
-/* 상태 변경 드롭다운 */
-.status-select {
-  padding: 6px 10px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  background-color: #fff;
-  cursor: pointer;
-}
-.status-select:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-/* 로딩 및 데이터 없음 스타일 */
-.loading-spinner,
-.no-data {
-  text-align: center;
-  padding: 50px;
-  color: #777;
-}
+.no-data,
 .loading-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border-left-color: #007bff;
-  animation: spin 1s ease infinite;
-  margin: 50px auto;
+  text-align: center;
+  padding: 40px;
+  color: #888;
 }
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* 버튼 스타일 (기존 관리자 페이지와 통일) */
+.btn {
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.85em;
 }
 </style>
