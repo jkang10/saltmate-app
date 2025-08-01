@@ -138,7 +138,7 @@ const handleAction = async () => {
 
   if (
     !confirm(
-      `${tokenName} 토큰 ${action.amount}개를 ${actionTypeText}하시겠습니까?`
+      `${tokenName} 토큰 ${action.amount}개를 ${actionTypeText}하시겠습니까?`,
     )
   )
     return;
@@ -152,7 +152,7 @@ const handleAction = async () => {
   if (action.type === "mint") {
     updatePayload[`${action.token}.totalSupply`] = increment(action.amount);
     updatePayload[`${action.token}.circulatingSupply`] = increment(
-      action.amount
+      action.amount,
     );
   } else {
     // burn
@@ -162,7 +162,7 @@ const handleAction = async () => {
     }
     updatePayload[`${action.token}.totalBurned`] = increment(action.amount);
     updatePayload[`${action.token}.circulatingSupply`] = increment(
-      -action.amount
+      -action.amount,
     );
   }
 

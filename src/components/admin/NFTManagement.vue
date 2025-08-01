@@ -121,7 +121,7 @@ const issueNft = async () => {
 const revokeNft = async (user) => {
   if (
     !confirm(
-      `'${user.name}'님의 NFT를 회수하시겠습니까? 이 작업은 해당 사용자의 지분 정보도 함께 삭제합니다.`
+      `'${user.name}'님의 NFT를 회수하시겠습니까? 이 작업은 해당 사용자의 지분 정보도 함께 삭제합니다.`,
     )
   )
     return;

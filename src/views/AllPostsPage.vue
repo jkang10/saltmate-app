@@ -125,7 +125,7 @@ export default {
 
       if (selectedCategory.value) {
         filtered = filtered.filter(
-          (post) => post.category === selectedCategory.value
+          (post) => post.category === selectedCategory.value,
         );
       }
 
@@ -135,7 +135,7 @@ export default {
           (post) =>
             post.title.toLowerCase().includes(query) ||
             post.content.toLowerCase().includes(query) || // content는 실제 데이터에 있어야 함
-            post.author.toLowerCase().includes(query)
+            post.author.toLowerCase().includes(query),
         );
       }
 
@@ -263,7 +263,9 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: background-color 0.3s ease, transform 0.2s ease,
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease,
     box-shadow 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -359,7 +361,9 @@ export default {
   border-radius: 8px;
   cursor: pointer;
   font-size: 1em;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 .page-button:hover:not(.active) {

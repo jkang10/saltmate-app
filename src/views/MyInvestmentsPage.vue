@@ -146,7 +146,7 @@
                       formatDate(
                         investment.payoutHistory[
                           investment.payoutHistory.length - 1
-                        ].date
+                        ].date,
                       )
                     }})</span
                   >
@@ -271,7 +271,7 @@ export default {
         const investmentsCollectionRef = collection(db, "investments");
         const q = query(
           investmentsCollectionRef,
-          where("investorUID", "==", user.uid) // 'userId' 대신 'investorUID'로 변경
+          where("investorUID", "==", user.uid), // 'userId' 대신 'investorUID'로 변경
         );
         const querySnapshot = await getDocs(q);
 
@@ -297,7 +297,7 @@ export default {
     const totalInvested = computed(() => {
       return investments.value.reduce(
         (sum, inv) => sum + inv.investedAmount,
-        0
+        0,
       );
     });
 
@@ -471,7 +471,9 @@ export default {
   border-radius: 8px;
   font-size: 1em;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
   margin-top: 20px;
   text-decoration: none; /* a 태그 스타일 제거 */
   display: inline-block;
@@ -502,7 +504,9 @@ export default {
   -webkit-backdrop-filter: blur(10px); /* Safari 지원 */
   border: 1px solid rgba(255, 255, 255, 0.3); /* 은은한 테두리 */
   padding: 30px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .card:hover {
@@ -703,7 +707,9 @@ export default {
   border-radius: 8px;
   font-size: 0.95em;
   text-decoration: none;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 8px;

@@ -108,7 +108,7 @@ export default {
             saltmateLevel: "basic",
           });
           alert(
-            "Google 계정으로 회원가입 성공! 관리자 승인 후 서비스 이용이 가능합니다."
+            "Google 계정으로 회원가입 성공! 관리자 승인 후 서비스 이용이 가능합니다.",
           );
         } else {
           alert("Google 계정으로 로그인 성공!");
@@ -217,7 +217,9 @@ h2 {
   font-weight: bold;
   cursor: pointer;
   width: 100%;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
   margin-top: 10px;
 }
 

@@ -84,7 +84,7 @@ const updateEquity = async (holder) => {
   }
   if (
     !confirm(
-      `'${holder.userName}'님의 지분율을 ${holder.newEquity}%로 변경하시겠습니까?`
+      `'${holder.userName}'님의 지분율을 ${holder.newEquity}%로 변경하시겠습니까?`,
     )
   )
     return;

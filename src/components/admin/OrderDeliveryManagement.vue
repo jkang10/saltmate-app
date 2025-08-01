@@ -111,7 +111,7 @@ const updateStatus = async (order, newStatus) => {
   const newStatusText = getStatusText(newStatus);
   if (
     !confirm(
-      `'${order.userName}'님의 주문 상태를 '${newStatusText}'(으)로 변경하시겠습니까?`
+      `'${order.userName}'님의 주문 상태를 '${newStatusText}'(으)로 변경하시겠습니까?`,
     )
   ) {
     // 사용자가 '취소'를 누르면, select의 값을 원래대로 되돌립니다.

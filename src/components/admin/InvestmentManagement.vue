@@ -92,7 +92,7 @@ const summary = reactive({
 // --- Helper Functions ---
 const formatCurrency = (value) =>
   new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW" }).format(
-    value
+    value,
   );
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
@@ -130,21 +130,21 @@ const fetchInvestments = async () => {
 const calculateSummary = () => {
   summary.totalAmount = investments.value.reduce(
     (sum, item) => sum + item.amount,
-    0
+    0,
   );
   summary.totalCount = investments.value.length;
   summary.completedCount = investments.value.filter(
-    (item) => item.status === "completed"
+    (item) => item.status === "completed",
   ).length;
   summary.pendingCount = investments.value.filter(
-    (item) => item.status === "pending"
+    (item) => item.status === "pending",
   ).length;
 };
 
 const updateStatus = async (id, newStatus) => {
   const statusText = getStatusText(newStatus);
   const confirmation = confirm(
-    `이 투자 건의 상태를 '${statusText}' (으)로 변경하시겠습니까?`
+    `이 투자 건의 상태를 '${statusText}' (으)로 변경하시겠습니까?`,
   );
   if (!confirmation) return;
 

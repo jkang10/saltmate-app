@@ -84,7 +84,7 @@ const toggleAdmin = async (user) => {
   const confirmation = confirm(
     `'${user.name}' 사용자의 권한을 '${
       user.isAdmin ? "일반 사용자" : "관리자"
-    }' (으)로 변경하시겠습니까?`
+    }' (으)로 변경하시겠습니까?`,
   );
   if (!confirmation) return;
 
@@ -105,7 +105,7 @@ const toggleAdmin = async (user) => {
 // Firestore에서 사용자를 삭제하는 함수
 const deleteUser = async (userId) => {
   const confirmation = confirm(
-    "정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+    "정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
   );
   if (!confirmation) return;
 

@@ -257,7 +257,9 @@ export default {
   border-radius: 8px;
   font-size: 1em;
   outline: none;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
   box-sizing: border-box; /* 패딩이 너비에 포함되도록 */
 }
 
@@ -288,7 +290,9 @@ export default {
   cursor: pointer;
   font-size: 1.1em;
   font-weight: bold;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
   display: flex;
   align-items: center;
   gap: 8px;

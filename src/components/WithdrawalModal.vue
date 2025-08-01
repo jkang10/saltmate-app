@@ -246,7 +246,9 @@ export default {
   cursor: pointer;
   font-size: 1em;
   font-weight: bold;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
 }
 
 .submit-button {

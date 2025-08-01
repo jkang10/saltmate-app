@@ -309,7 +309,9 @@ export default {
   border-radius: 8px;
   font-size: 1em;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
   margin-top: 20px;
   text-decoration: none; /* a 태그 스타일 제거 */
   display: inline-flex;

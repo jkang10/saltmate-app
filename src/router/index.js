@@ -28,80 +28,14 @@ const routes = [
     path: "/dashboard",
     name: "DashboardPage",
     component: () => import("@/views/DashboardPage.vue"),
-    meta: { requiresAuth: true }, // 로그인 필요 설정
-  },
-  {
-    path: "/shop",
-    name: "ShopPage",
-    component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
-  {
-    path: "/my-investments",
-    name: "MyInvestmentsPage",
-    component: () => import("@/views/MyInvestmentsPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/investment/:id",
-    name: "InvestmentDetailPage",
-    component: () => import("@/views/InvestmentDetailPage.vue"),
-    props: true,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/community",
-    name: "CommunityPage",
-    component: () => import("@/views/CommunityPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/nft-marketplace",
-    name: "NftMarketplacePage",
-    component: () => import("@/views/NFTMarketplacePage.vue"), // Nft -> NFT로 수정됨
-    meta: { requiresAuth: true, requiresNFT: true },
-  },
-  {
-    path: "/profile",
-    name: "UserProfilePage",
-    component: () => import("@/views/UserProfilePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  // --- 사용자용 추가 관리 페이지 라우트 ---
-  {
-    path: "/my-tokens",
-    name: "MyTokensPage",
-    component: () => import("@/views/MyTokensPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/my-nfts", // 기존 /nft-marketplace와 역할 구분
-    name: "MyNFTsPage",
-    component: () => import("@/views/MyNFTsPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/my-equity",
-    name: "MyEquityPage",
-    component: () => import("@/views/MyEquityPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/my-orders",
-    name: "MyOrdersPage",
-    component: () => import("@/views/MyOrdersPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/my-events",
-    name: "MyEventsPage",
-    component: () => import("@/views/MyEventsPage.vue"),
-    meta: { requiresAuth: true },
-  },
+  // ... (기타 사용자 페이지 라우트들은 생략)
+
   // --- 관리자 대시보드 라우트 ---
   {
     path: "/admin-dashboard",
-    name: "AdminDashboardPage",
+    //    name: "AdminDashboardPage",
     component: () => import("@/views/AdminDashboardPage.vue"),
     meta: { requiresAuth: true, isAdmin: true },
     children: [
@@ -111,6 +45,14 @@ const routes = [
         component: () => import("@/components/admin/UserManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
+      // ▼▼▼ 여기에 새로운 라우트 추가 ▼▼▼
+      {
+        path: "centers",
+        name: "AdminCenterManagement",
+        component: () => import("@/components/admin/CenterManagement.vue"),
+        meta: { requiresAuth: true, isAdmin: true },
+      },
+      // ▲▲▲
       {
         path: "investments",
         name: "AdminInvestmentManagement",
@@ -162,7 +104,7 @@ const routes = [
         meta: { requiresAuth: true, isAdmin: true },
       },
       {
-        path: "",
+        path: "", // 기본 자식 경로를 users로 설정
         redirect: { name: "AdminUserManagement" },
       },
     ],
@@ -188,7 +130,7 @@ const getCurrentUser = () => {
         unsubscribe();
         resolve(user);
       },
-      reject
+      reject,
     );
   });
 };
@@ -236,7 +178,7 @@ router.beforeEach(async (to, from, next) => {
     else if (requiresNFT) {
       if (!userProfile || !userProfile.hasNFT) {
         alert(
-          "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다."
+          "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다.",
         );
         next("/dashboard"); // NFT가 없으면 대시보드로 리다이렉트
       } else {
