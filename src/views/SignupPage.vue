@@ -30,8 +30,6 @@
             type="tel"
             v-model="phone"
             placeholder="전화번호 (HP) 예: 010-1234-5678"
-<<<<<<< HEAD
-=======
             required
           />
         </div>
@@ -40,12 +38,10 @@
             type="text"
             v-model="region"
             placeholder="지역 (센터)"
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
             required
           />
         </div>
         <div class="form-group">
-<<<<<<< HEAD
           <select v-model="region" required>
             <option value="" disabled>지역 (센터)를 선택하세요</option>
             <option
@@ -58,8 +54,6 @@
           </select>
         </div>
         <div class="form-group">
-=======
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
           <select v-model="investmentAmount" required>
             <option value="">투자금액을 선택하세요</option>
             <option value="10000">만원의 행복</option>
@@ -128,7 +122,6 @@
 <script>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-<<<<<<< HEAD
 import { auth, db, functions } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -146,8 +139,6 @@ import {
   increment,
   serverTimestamp,
 } from "firebase/firestore";
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
-
 export default {
   name: "SignUpPage",
   setup() {
@@ -162,7 +153,6 @@ export default {
     const referrer = ref("");
     const error = ref(null);
     const isLoading = ref(false);
-<<<<<<< HEAD
     const centers = ref([]);
     const searchResults = ref([]);
     const isSearching = ref(false);
@@ -181,11 +171,9 @@ export default {
 
     onMounted(fetchCenters);
 
-=======
     const searchResults = ref([]);
     const isSearching = ref(false);
 
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
     const searchReferrer = async () => {
       const searchTerm = referrer.value.trim();
       if (!searchTerm) {
@@ -231,7 +219,6 @@ export default {
       }
       isLoading.value = true;
       try {
-<<<<<<< HEAD
         await createUserWithEmailAndPassword(auth, email.value, password.value);
 
         const newUserProfileData = {
@@ -265,7 +252,6 @@ export default {
       } catch (err) {
         console.error("회원가입 처리 중 오류:", err);
         error.value = err.message || "회원가입 중 오류가 발생했습니다.";
-=======
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email.value,
@@ -317,7 +303,6 @@ export default {
       } catch (err) {
         console.error("회원가입 오류:", err.code);
         error.value = "회원가입 중 오류가 발생했습니다.";
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
       } finally {
         isLoading.value = false;
       }
@@ -362,18 +347,12 @@ export default {
       error,
       isLoading,
       handleSignup,
-<<<<<<< HEAD
       centers,
-=======
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
       searchResults,
       isSearching,
       searchReferrer,
       selectReferrer,
-<<<<<<< HEAD
       testFunction, // 템플릿에서 사용할 수 있도록 반환
-=======
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
     };
   },
 };
@@ -382,8 +361,6 @@ export default {
 <style scoped>
 <<<<<<< HEAD
 /* 기존 스타일은 모두 그대로 유지됩니다. */
-=======
->>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
 .signup-page-background {
   display: flex;
   justify-content: center;
