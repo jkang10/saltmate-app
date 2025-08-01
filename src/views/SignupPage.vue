@@ -34,21 +34,9 @@
           />
         </div>
         <div class="form-group">
-          <input
-            type="text"
-            v-model="region"
-            placeholder="지역 (센터)"
-            required
-          />
-        </div>
-        <div class="form-group">
           <select v-model="region" required>
             <option value="" disabled>지역 (센터)를 선택하세요</option>
-            <option
-              v-for="center in centers"
-              :key="center.id"
-              :value="center.name"
-            >
+            <option v-for="center in centers" :key="center.id" :value="center.name">
               {{ center.name }}
             </option>
           </select>
@@ -106,15 +94,6 @@
           이미 계정이 있으신가요? <router-link to="/login">로그인</router-link>
         </div>
       </form>
-
-      <button
-        type="button"
-        @click="testFunction"
-        style="background: orange; margin-top: 10px"
-        class="signup-btn"
-      >
-        클라우드 함수 연결 테스트
-      </button>
     </div>
   </div>
 </template>
@@ -126,19 +105,7 @@ import { auth, db, functions } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-=======
-import { auth, db } from "@/firebaseConfig";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import {
-  doc,
-  collection,
-  query,
-  where,
-  getDocs,
-  writeBatch,
-  increment,
-  serverTimestamp,
-} from "firebase/firestore";
+
 export default {
   name: "SignUpPage",
   setup() {
@@ -160,19 +127,13 @@ export default {
     const fetchCenters = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "centers"));
-        centers.value = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        centers.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (err) {
         console.error("센터 목록을 불러오는 중 오류 발생:", err);
       }
     };
-
+    
     onMounted(fetchCenters);
-
-    const searchResults = ref([]);
-    const isSearching = ref(false);
 
     const searchReferrer = async () => {
       const searchTerm = referrer.value.trim();
@@ -237,7 +198,7 @@ export default {
           eventCouponsCount: 0,
         };
 
-        const createUserProfile = httpsCallable(functions, "createUserProfile");
+        const createUserProfile = httpsCallable(functions, 'createUserProfile');
         const result = await createUserProfile({
           newUserProfile: newUserProfileData,
           referrerEmail: referrer.value.trim() || null,
@@ -245,6 +206,9 @@ export default {
 
         if (result.data.success) {
           alert("회원가입이 성공적으로 완료되었습니다!");
+          if (referrer.value.trim()) {
+            alert("추천인 보너스 1,000 SaltMate가 지급될 예정입니다.");
+          }
           router.push("/login");
         } else {
           throw new Error(result.data.message || "프로필 생성에 실패했습니다.");
@@ -252,87 +216,10 @@ export default {
       } catch (err) {
         console.error("회원가입 처리 중 오류:", err);
         error.value = err.message || "회원가입 중 오류가 발생했습니다.";
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email.value,
-          password.value,
-        );
-        const user = userCredential.user;
-        const batch = writeBatch(db);
-        const newUserRef = doc(db, "users", user.uid);
-        let initialPoints = 0;
-        let referrerFoundAndProcessed = false;
-
-        if (referrer.value.trim()) {
-          const usersRef = collection(db, "users");
-          const q = query(
-            usersRef,
-            where("email", "==", referrer.value.trim()),
-          );
-          const referrerSnapshot = await getDocs(q);
-          if (!referrerSnapshot.empty) {
-            const referrerDoc = referrerSnapshot.docs[0];
-            const referrerRef = doc(db, "users", referrerDoc.id);
-            initialPoints = 1000;
-            batch.update(referrerRef, { saltmatePoints: increment(300) });
-            referrerFoundAndProcessed = true;
-          } else {
-            error.value =
-              "유효하지 않은 추천인 코드입니다. 추천인 없이 가입이 진행됩니다.";
-          }
-        }
-
-        batch.set(newUserRef, {
-          email: user.email,
-          name: name.value,
-          phone: phone.value,
-          region: region.value,
-          investmentAmount: Number(investmentAmount.value),
-          createdAt: serverTimestamp(),
-          isAdmin: false,
-          hasNFT: false,
-          saltmateLevel: "basic",
-          saltmatePoints: initialPoints,
-        });
-        await batch.commit();
-        alert("회원가입이 성공적으로 완료되었습니다!");
-        if (referrerFoundAndProcessed) {
-          alert("추천인 보너스로 1,000 SaltMate가 지급되었습니다!");
-        }
-        router.push("/login");
-      } catch (err) {
-        console.error("회원가입 오류:", err.code);
-        error.value = "회원가입 중 오류가 발생했습니다.";
       } finally {
         isLoading.value = false;
       }
     };
-
-    // ▼▼▼ 테스트 기능 추가 ▼▼▼
-    const testFunction = async () => {
-      console.log("테스트 버튼 클릭됨. 함수 호출을 시작합니다...");
-      try {
-        const functionUrl =
-          "https://asia-northeast3-saltmate-project.cloudfunctions.net/helloWorld";
-        const response = await fetch(functionUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: {} }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`서버 응답 오류: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log("Cloud Function에서 받은 응답:", result);
-        alert("함수 호출 성공! 응답: " + result.data.message);
-      } catch (err) {
-        console.error("테스트 함수 호출 중 심각한 오류 발생:", err);
-        alert("테스트 함수 호출에 실패했습니다. 개발자 콘솔을 확인하세요.");
-      }
-    };
-    // ▲▲▲
 
     return {
       router,
@@ -352,15 +239,12 @@ export default {
       isSearching,
       searchReferrer,
       selectReferrer,
-      testFunction, // 템플릿에서 사용할 수 있도록 반환
     };
   },
 };
 </script>
 
 <style scoped>
-<<<<<<< HEAD
-/* 기존 스타일은 모두 그대로 유지됩니다. */
 .signup-page-background {
   display: flex;
   justify-content: center;
