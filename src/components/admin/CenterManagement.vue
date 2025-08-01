@@ -43,13 +43,17 @@ import {
   deleteDoc,
   doc,
   serverTimestamp,
+  orderBy,
+  query,
 } from "firebase/firestore";
 
 const centers = ref([]);
 const newCenterName = ref("");
 
 const fetchCenters = async () => {
-  const querySnapshot = await getDocs(collection(db, "centers"));
+  const centersRef = collection(db, "centers");
+  const q = query(centersRef, orderBy("createdAt", "desc"));
+  const querySnapshot = await getDocs(q);
   centers.value = querySnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),

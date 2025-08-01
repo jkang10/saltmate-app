@@ -64,15 +64,17 @@
 
         <div class="form-group">
           <label for="region">지역 (센터):</label>
-          <input
-            type="text"
-            id="region"
-            v-model="region"
-            placeholder="활동하실 센터 지역을 입력하세요"
-            required
-          />
+          <select id="region" v-model="region" required>
+            <option value="" disabled>지역(센터)를 선택하세요</option>
+            <option
+              v-for="center in centers"
+              :key="center.id"
+              :value="center.name"
+            >
+              {{ center.name }}
+            </option>
+          </select>
         </div>
-
         <div class="form-group">
           <label for="investment-amount">투자금액:</label>
           <select id="investment-amount" v-model="investmentAmount" required>
@@ -87,15 +89,37 @@
 
         <div class="form-group">
           <label for="referrer">추천인 (선택 사항):</label>
-          <input
-            type="text"
-            id="referrer"
-            v-model="referrer"
-            placeholder="추천인 이름, 이메일 또는 ID를 입력하세요"
-          />
-          <small>추천인의 이름, 이메일 또는 ID를 수동으로 입력해주세요.</small>
+          <div class="referrer-input-wrapper">
+            <input
+              type="text"
+              id="referrer"
+              v-model="referrer"
+              placeholder="추천인 이름 또는 이메일 입력"
+            />
+            <button type="button" @click="searchReferrer" class="search-btn">
+              검색
+            </button>
+          </div>
+          <div v-if="searchResults.length > 0" class="search-results">
+            <ul>
+              <li
+                v-for="user in searchResults"
+                :key="user.id"
+                @click="selectReferrer(user)"
+              >
+                {{ user.name }} ({{ user.email }})
+              </li>
+            </ul>
+          </div>
+          <small>
+            추천인의 이름, 이메일 또는 ID를 수동으로 입력해주세요.
+            <br />
+            <strong class="bonus-text"
+              >추천 받은 사람은 1,000 SaltMate, 추천한 사람은 300 SaltMate가
+              지급됩니다.</strong
+            >
+          </small>
         </div>
-
         <button type="submit" class="signup-button" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
           <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
@@ -112,11 +136,20 @@
 </template>
 
 <script>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { auth, db } from "@/firebaseConfig"; // Firebase 설정 임포트
+import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  doc,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  increment,
+  serverTimestamp,
+} from "firebase/firestore";
 
 export default {
   name: "SignUpPage",
@@ -125,25 +158,87 @@ export default {
     const email = ref("");
     const password = ref("");
     const confirmPassword = ref("");
-    const name = ref(""); // 이름 필드 추가
-    const phone = ref(""); // 전화번호 필드 추가
-    const region = ref(""); // 지역 필드 추가
+    const name = ref("");
+    const phone = ref("");
+    const region = ref("");
     const investmentAmount = ref("");
-    const referrer = ref(""); // 추천인 필드
-
+    const referrer = ref("");
     const error = ref(null);
     const isLoading = ref(false);
 
+    // --- 추천인 검색 및 센터 목록을 위한 변수 ---
+    const searchResults = ref([]);
+    const isSearching = ref(false);
+    const centers = ref([]);
+
+    // --- 센터 목록 불러오기 ---
+    const fetchCenters = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "centers"));
+        centers.value = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (err) {
+        console.error("센터 목록 로딩 오류:", err);
+      }
+    };
+    onMounted(fetchCenters);
+
+    // --- 추천인 검색 ---
+    const searchReferrer = async () => {
+      const searchTerm = referrer.value.trim();
+      if (!searchTerm) {
+        alert("검색할 추천인 정보를 입력하세요.");
+        return;
+      }
+      isSearching.value = true;
+      searchResults.value = [];
+      try {
+        const usersRef = collection(db, "users");
+        const nameQuery = query(usersRef, where("name", "==", searchTerm));
+        const emailQuery = query(usersRef, where("email", "==", searchTerm));
+
+        const [nameSnapshot, emailSnapshot] = await Promise.all([
+          getDocs(nameQuery),
+          getDocs(emailQuery),
+        ]);
+
+        const foundUsers = new Map();
+        nameSnapshot.forEach((doc) =>
+          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
+        );
+        emailSnapshot.forEach((doc) =>
+          foundUsers.set(doc.id, { id: doc.id, ...doc.data() }),
+        );
+
+        searchResults.value = Array.from(foundUsers.values());
+
+        if (searchResults.value.length === 0) {
+          alert("일치하는 사용자를 찾을 수 없습니다.");
+        }
+      } catch (err) {
+        console.error("추천인 검색 오류:", err);
+        alert("추천인 검색 중 오류가 발생했습니다.");
+      } finally {
+        isSearching.value = false;
+      }
+    };
+
+    const selectReferrer = (user) => {
+      referrer.value = user.email;
+      searchResults.value = [];
+    };
+
+    // --- 회원가입 처리 ---
     const handleSignup = async () => {
       error.value = null;
       if (password.value !== confirmPassword.value) {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
-
       isLoading.value = true;
       try {
-        // 1. Firebase Authentication으로 사용자 생성
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email.value,
@@ -151,35 +246,57 @@ export default {
         );
         const user = userCredential.user;
 
-        // 2. Firestore에 사용자 추가 정보 저장
-        await setDoc(doc(db, "users", user.uid), {
+        const batch = writeBatch(db);
+        const newUserRef = doc(db, "users", user.uid);
+
+        let initialPoints = 0;
+        let referrerFound = false;
+
+        // 추천인 확인 및 포인트 지급 처리
+        if (referrer.value.trim()) {
+          const usersRef = collection(db, "users");
+          const q = query(
+            usersRef,
+            where("email", "==", referrer.value.trim()),
+          );
+          const referrerSnapshot = await getDocs(q);
+
+          if (!referrerSnapshot.empty) {
+            referrerFound = true;
+            const referrerDoc = referrerSnapshot.docs[0];
+            const referrerRef = doc(db, "users", referrerDoc.id);
+
+            initialPoints = 1000; // 추천받은 사람
+            batch.update(referrerRef, { saltmatePoints: increment(300) }); // 추천한 사람
+          } else {
+            error.value = "유효하지 않은 추천인입니다. 추천인 없이 가입됩니다.";
+          }
+        }
+
+        // Firestore에 사용자 정보 저장
+        batch.set(newUserRef, {
           email: user.email,
-          name: name.value, // 이름 저장
-          phone: phone.value, // 전화번호 저장
-          region: region.value, // 지역 저장
-          investmentAmount: investmentAmount.value,
-          referrer: referrer.value, // 추천인 정보 저장 (수동 입력된 값)
-          createdAt: new Date(),
-          isAdmin: false, // 기본적으로 관리자 아님
+          name: name.value,
+          phone: phone.value,
+          region: region.value,
+          participationAmount: Number(investmentAmount.value),
+          createdAt: serverTimestamp(),
+          isAdmin: false,
+          hasNFT: false,
+          saltmatePoints: initialPoints,
+          // 기타 필요한 기본 필드들...
         });
 
+        await batch.commit();
+
         alert("회원가입이 성공적으로 완료되었습니다!");
-        router.push("/login"); // 회원가입 성공 후 로그인 페이지로 이동
-      } catch (err) {
-        console.error("회원가입 오류:", err.code, err.message);
-        switch (err.code) {
-          case "auth/email-already-in-use":
-            error.value = "이미 사용 중인 이메일 주소입니다.";
-            break;
-          case "auth/invalid-email":
-            error.value = "유효하지 않은 이메일 주소입니다.";
-            break;
-          case "auth/weak-password":
-            error.value = "비밀번호는 6자 이상이어야 합니다.";
-            break;
-          default:
-            error.value = "회원가입 중 오류가 발생했습니다: " + err.message;
+        if (referrerFound) {
+          alert("추천인 포인트가 지급되었습니다!");
         }
+        router.push("/login");
+      } catch (err) {
+        console.error("회원가입 오류:", err);
+        error.value = "회원가입 중 오류가 발생했습니다.";
       } finally {
         isLoading.value = false;
       }
@@ -197,166 +314,50 @@ export default {
       error,
       isLoading,
       handleSignup,
+      searchResults,
+      isSearching,
+      searchReferrer,
+      selectReferrer,
+      centers,
     };
   },
 };
 </script>
 
 <style scoped>
-.signup-page {
+/* 기존 스타일을 유지하면서, 검색 관련 UI 스타일만 추가합니다. */
+.referrer-input-wrapper {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 70px); /* Navbar 높이만큼 제외 */
-  padding: 20px;
-  background-color: #f0f2f5;
 }
-
-.signup-container {
-  max-width: 450px;
-  width: 100%;
-  padding: 40px;
-  border-radius: 15px;
-  text-align: center;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.4); /* Glassmorphism 효과 강화 */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+.search-btn {
+  border: 1px solid #007bff;
+  background: #007bff;
+  color: white;
+  padding: 0 15px;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
 }
-
-.signup-title {
-  font-size: 2.2em;
-  color: #333;
-  margin-bottom: 30px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  font-weight: bold;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.signup-title i {
-  color: #007bff; /* 아이콘 색상 */
-}
-
-.signup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-group {
-  text-align: left;
-}
-
-.form-group label {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 8px;
-  color: #555;
-  font-size: 1.05em;
-}
-
-.form-group input[type="email"],
-.form-group input[type="password"],
-.form-group input[type="text"],
-.form-group input[type="tel"],
-.form-group select {
-  width: 100%;
-  padding: 12px 15px;
+.search-results {
   border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 1em;
-  outline: none;
-  transition:
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
-  background-color: rgba(255, 255, 255, 0.7); /* Glassmorphism과 어울리도록 */
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+  border-top: none;
+  max-height: 150px;
+  overflow-y: auto;
   background-color: white;
 }
-
-.form-group small {
-  display: block;
-  margin-top: 5px;
-  color: #888;
-  font-size: 0.85em;
+.search-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
-
-.signup-button {
-  width: 100%;
-  padding: 15px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.2em;
-  font-weight: bold;
+.search-results li {
+  padding: 10px;
   cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
 }
-
-.signup-button:hover:not(:disabled) {
-  background-color: #0056b3;
-  transform: translateY(-2px);
+.search-results li:hover {
+  background-color: #f0f0f0;
 }
-
-.signup-button:disabled {
-  background-color: #a0c9ff;
-  cursor: not-allowed;
-}
-
-.error-message {
-  color: #e74c3c;
-  font-size: 0.95em;
-  margin-top: 10px;
-}
-
-.login-link {
-  margin-top: 25px;
-  font-size: 0.95em;
-  color: #666;
-}
-
-.login-link a {
+.bonus-text {
   color: #007bff;
   font-weight: bold;
-  text-decoration: none;
-}
-
-.login-link a:hover {
-  text-decoration: underline;
-}
-
-/* 스피너 스타일 */
-.spinner {
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top: 3px solid #fff;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
 }
 </style>

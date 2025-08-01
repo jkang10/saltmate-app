@@ -20,6 +20,15 @@
           </li>
           <li>
             <router-link
+              to="/admin-dashboard/centers"
+              class="nav-item"
+              active-class="active-link"
+            >
+              <i class="fas fa-map-marker-alt"></i> 지역(센터) 관리
+            </router-link>
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/investments"
               class="nav-item"
               active-class="active-link"

@@ -111,6 +111,14 @@ const routes = [
         component: () => import("@/components/admin/UserManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
+      // ▼▼▼ '지역(센터) 관리' 라우트 추가 ▼▼▼
+      {
+        path: "centers",
+        name: "AdminCenterManagement",
+        component: () => import("@/components/admin/CenterManagement.vue"),
+        meta: { requiresAuth: true, isAdmin: true },
+      },
+      // ▲▲▲
       {
         path: "investments",
         name: "AdminInvestmentManagement",
