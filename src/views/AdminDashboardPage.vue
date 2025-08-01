@@ -127,11 +127,20 @@ export default {
   gap: 10px;
   padding: 12px 15px;
   text-decoration: none;
+<<<<<<< HEAD
   color: #333;
   border-radius: 8px;
   transition:
     background-color 0.3s,
     color 0.3s;
+=======
+  font-size: 1.1em;
+  font-weight: 500;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    transform 0.2s ease;
+>>>>>>> c869327615fe8ac7d4603e9e7b45438f2820a59c
 }
 .management-menu .nav-link:hover {
   background-color: #f0f2f5;
