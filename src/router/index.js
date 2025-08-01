@@ -7,7 +7,7 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: () => import("@/views/HomeView.vue"),
+    component: () => import("@/views/HomePage.vue"),
   },
   {
     path: "/about",
@@ -17,7 +17,7 @@ const routes = [
   {
     path: "/signup",
     name: "SignupPage",
-    component: () => import("@/views/SignupPage.vue"),
+    component: () => import("@/views/SignUpPage.vue"),
   },
   {
     path: "/login",
@@ -30,12 +30,14 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [신규] 등급 구매 페이지 라우트 추가 ▼▼▼
   {
     path: "/shop",
     name: "ShopPage",
     component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▲▲▲ [신규] 등급 구매 페이지 라우트 추가 ▲▲▲
   {
     path: "/my-investments",
     name: "MyInvestmentsPage",
@@ -111,14 +113,12 @@ const routes = [
         component: () => import("@/components/admin/UserManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▼▼▼ '지역(센터) 관리' 라우트 추가 ▼▼▼
       {
         path: "centers",
         name: "AdminCenterManagement",
         component: () => import("@/components/admin/CenterManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▲▲▲
       {
         path: "investments",
         name: "AdminInvestmentManagement",
