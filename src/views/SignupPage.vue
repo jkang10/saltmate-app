@@ -98,6 +98,15 @@
           이미 계정이 있으신가요? <router-link to="/login">로그인</router-link>
         </div>
       </form>
+
+      <button
+        type="button"
+        @click="testFunction"
+        style="background: orange; margin-top: 10px"
+        class="signup-btn"
+      >
+        클라우드 함수 연결 테스트
+      </button>
     </div>
   </div>
 </template>
@@ -213,9 +222,6 @@ export default {
 
         if (result.data.success) {
           alert("회원가입이 성공적으로 완료되었습니다!");
-          if (referrer.value.trim()) {
-            alert("추천인 보너스 1,000 SaltMate가 지급될 예정입니다.");
-          }
           router.push("/login");
         } else {
           throw new Error(result.data.message || "프로필 생성에 실패했습니다.");
@@ -227,6 +233,32 @@ export default {
         isLoading.value = false;
       }
     };
+
+    // ▼▼▼ 테스트 기능 추가 ▼▼▼
+    const testFunction = async () => {
+      console.log("테스트 버튼 클릭됨. 함수 호출을 시작합니다...");
+      try {
+        const functionUrl =
+          "https://asia-northeast3-saltmate-project.cloudfunctions.net/helloWorld";
+        const response = await fetch(functionUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: {} }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`서버 응답 오류: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("Cloud Function에서 받은 응답:", result);
+        alert("함수 호출 성공! 응답: " + result.data.message);
+      } catch (err) {
+        console.error("테스트 함수 호출 중 심각한 오류 발생:", err);
+        alert("테스트 함수 호출에 실패했습니다. 개발자 콘솔을 확인하세요.");
+      }
+    };
+    // ▲▲▲
 
     return {
       router,
@@ -246,12 +278,14 @@ export default {
       isSearching,
       searchReferrer,
       selectReferrer,
+      testFunction, // 템플릿에서 사용할 수 있도록 반환
     };
   },
 };
 </script>
 
 <style scoped>
+/* 기존 스타일은 모두 그대로 유지됩니다. */
 .signup-page-background {
   display: flex;
   justify-content: center;
