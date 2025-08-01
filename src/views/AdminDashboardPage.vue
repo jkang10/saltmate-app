@@ -129,7 +129,9 @@ export default {
   text-decoration: none;
   color: #333;
   border-radius: 8px;
-  transition: background-color 0.3s, color 0.3s;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
 }
 .management-menu .nav-link:hover {
   background-color: #f0f2f5;

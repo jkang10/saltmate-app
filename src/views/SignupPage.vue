@@ -36,7 +36,11 @@
         <div class="form-group">
           <select v-model="region" required>
             <option value="" disabled>지역 (센터)를 선택하세요</option>
-            <option v-for="center in centers" :key="center.id" :value="center.name">
+            <option
+              v-for="center in centers"
+              :key="center.id"
+              :value="center.name"
+            >
               {{ center.name }}
             </option>
           </select>
@@ -127,12 +131,15 @@ export default {
     const fetchCenters = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "centers"));
-        centers.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        centers.value = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
       } catch (err) {
         console.error("센터 목록을 불러오는 중 오류 발생:", err);
       }
     };
-    
+
     onMounted(fetchCenters);
 
     const searchReferrer = async () => {
@@ -198,7 +205,7 @@ export default {
           eventCouponsCount: 0,
         };
 
-        const createUserProfile = httpsCallable(functions, 'createUserProfile');
+        const createUserProfile = httpsCallable(functions, "createUserProfile");
         const result = await createUserProfile({
           newUserProfile: newUserProfileData,
           referrerEmail: referrer.value.trim() || null,
