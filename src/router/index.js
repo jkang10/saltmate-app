@@ -112,7 +112,6 @@ const routes = [
         component: () => import("@/components/admin/CenterManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▼▼▼ [신규] 구독 승인 관리 페이지 경로 추가 ▼▼▼
       {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",
@@ -120,7 +119,13 @@ const routes = [
           import("@/components/admin/SubscriptionManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▲▲▲ [신규] 완료 ▲▲▲
+      {
+        path: "marketing-plan",
+        name: "AdminMarketingPlanManagement",
+        component: () =>
+          import("@/components/admin/MarketingPlanManagement.vue"),
+        meta: { requiresAuth: true, isAdmin: true },
+      },
       {
         path: "investments",
         name: "AdminInvestmentManagement",

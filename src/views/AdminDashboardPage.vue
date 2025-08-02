@@ -4,7 +4,6 @@
       <h1><i class="fas fa-tools"></i> 관리자 대시보드</h1>
       <p class="description">솔트메이트 서비스의 다양한 항목을 관리합니다.</p>
     </header>
-
     <main class="content-wrapper admin-layout">
       <aside class="admin-sidebar card glassmorphism">
         <h2>관리 메뉴</h2>
@@ -14,114 +13,109 @@
               to="/admin-dashboard/users"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-users"></i> 회원 관리</router-link
             >
-              <i class="fas fa-users"></i> 회원 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/centers"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-map-marker-alt"></i> 지역(센터)
+              관리</router-link
             >
-              <i class="fas fa-map-marker-alt"></i> 지역(센터) 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/subscriptions"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-check-double"></i> 구독 승인 관리</router-link
             >
-              <i class="fas fa-check-double"></i> 구독 승인 관리
-            </router-link>
+          </li>
+          <li>
+            <router-link
+              to="/admin-dashboard/marketing-plan"
+              class="nav-item"
+              active-class="active-link"
+              ><i class="fas fa-cogs"></i> 마케팅 플랜 관리</router-link
+            >
           </li>
           <li>
             <router-link
               to="/admin-dashboard/investments"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-hand-holding-usd"></i> 투자금 관리</router-link
             >
-              <i class="fas fa-hand-holding-usd"></i> 투자금 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/notices-community"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-comments"></i> 공지사항 및 커뮤니티
+              관리</router-link
             >
-              <i class="fas fa-comments"></i> 공지사항 및 커뮤니티 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/events"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-calendar-alt"></i> 이벤트 관리</router-link
             >
-              <i class="fas fa-calendar-alt"></i> 이벤트 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/products"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-box"></i> 상품 관리</router-link
             >
-              <i class="fas fa-box"></i> 상품 관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/orders-delivery"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-truck"></i> 주문 배송관리</router-link
             >
-              <i class="fas fa-truck"></i> 주문 배송관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/tokens"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-coins"></i> 토큰관리 (COBS, BND)</router-link
             >
-              <i class="fas fa-coins"></i> 토큰관리 (COBS, BND)
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/nfts"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-gem"></i> NFT관리</router-link
             >
-              <i class="fas fa-gem"></i> NFT관리
-            </router-link>
           </li>
           <li>
             <router-link
               to="/admin-dashboard/equity"
               class="nav-item"
               active-class="active-link"
+              ><i class="fas fa-chart-pie"></i> 지분관리</router-link
             >
-              <i class="fas fa-chart-pie"></i> 지분관리
-            </router-link>
           </li>
         </ul>
       </aside>
-
       <section class="admin-content card glassmorphism">
         <router-view></router-view>
       </section>
     </main>
   </div>
 </template>
-
 <script>
-export default {
-  name: "AdminDashboardPage",
-};
+export default { name: "AdminDashboardPage" };
 </script>
 
 <style scoped>
