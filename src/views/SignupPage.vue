@@ -15,7 +15,6 @@
             required
           />
         </div>
-
         <div class="form-group">
           <label for="password">비밀번호:</label>
           <input
@@ -26,7 +25,6 @@
             required
           />
         </div>
-
         <div class="form-group">
           <label for="confirm-password">비밀번호 확인:</label>
           <input
@@ -37,7 +35,6 @@
             required
           />
         </div>
-
         <div class="form-group">
           <label for="name">이름:</label>
           <input
@@ -48,7 +45,6 @@
             required
           />
         </div>
-
         <div class="form-group">
           <label for="phone">전화번호 (HP):</label>
           <input
@@ -61,7 +57,6 @@
           />
           <small>하이픈(-)을 포함하여 입력해주세요.</small>
         </div>
-
         <div class="form-group">
           <label for="region">지역 (센터):</label>
           <select id="region" v-model="region" required>
@@ -75,7 +70,6 @@
             </option>
           </select>
         </div>
-
         <div class="form-group">
           <label for="investment-amount">구독 등급:</label>
           <select id="investment-amount" v-model="investmentAmount" required>
@@ -87,7 +81,6 @@
             <option value="1000000">100만원</option>
           </select>
         </div>
-
         <div class="form-group">
           <label for="referrer">추천인 (선택 사항):</label>
           <div class="referrer-input-group">
@@ -131,9 +124,7 @@
           <span v-if="isLoading" class="spinner"></span>
           <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
         </button>
-
         <p v-if="error" class="error-message">{{ error }}</p>
-
         <div class="login-link">
           이미 계정이 있으신가요? <router-link to="/login">로그인</router-link>
         </div>
@@ -147,18 +138,8 @@ import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import {
-  doc,
-  setDoc,
-  collection,
-  getDocs,
-  getDoc,
-  addDoc,
-  query,
-  where,
-  limit,
-  serverTimestamp,
-} from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 export default {
   name: "SignUpPage",
@@ -251,56 +232,22 @@ export default {
       }
       isLoading.value = true;
       try {
-        // 1. 마케팅 플랜 설정 가져오기
-        const configRef = doc(db, "configuration", "marketingPlan");
-        const configSnap = await getDoc(configRef);
-        if (!configSnap.exists()) {
-          throw new Error("마케팅 플랜 설정을 찾을 수 없습니다.");
-        }
-        const marketingConfig = configSnap.data();
-        const selectedTierName =
-          marketingConfig.tiers[investmentAmount.value]?.name || "BRONZE";
+        // ▼▼▼ [수정] user 변수를 선언하지 않고, 인증 계정 생성만 실행 ▼▼▼
+        await createUserWithEmailAndPassword(auth, email.value, password.value);
+        // ▲▲▲ [수정] 완료 ▲▲▲
 
-        // 2. 사용자 계정 생성
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email.value,
-          password.value,
-        );
-        const user = userCredential.user;
+        const functions = getFunctions();
+        const createNewUser = httpsCallable(functions, "createNewUser");
 
-        // 3. users 문서에 저장할 데이터 준비
-        const newUserDoc = {
-          email: user.email,
+        const userData = {
           name: name.value,
           phone: phone.value,
           region: region.value,
-          createdAt: serverTimestamp(),
-          isAdmin: false,
           investmentAmount: Number(investmentAmount.value),
-          tier: selectedTierName,
-          cycleCap:
-            Number(investmentAmount.value) * marketingConfig.cycleCapMultiplier,
-          currentCycleEarnings: 0,
-          cashBalance: 0,
-          saltmatePoints: 0,
+          uplineReferrer: validatedReferrer.uid || null,
         };
-        if (validatedReferrer.uid) {
-          newUserDoc.uplineReferrer = validatedReferrer.uid;
-        }
 
-        // 4. users 문서 생성
-        await setDoc(doc(db, "users", user.uid), newUserDoc);
-
-        // 5. 첫 구독 기록을 investments 컬렉션에 남겨서 보너스 로직 트리거
-        if (Number(investmentAmount.value) > 0) {
-          await addDoc(collection(db, "investments"), {
-            userId: user.uid,
-            amount: Number(investmentAmount.value),
-            tier: selectedTierName,
-            createdAt: serverTimestamp(),
-          });
-        }
+        await createNewUser(userData);
 
         alert(
           "회원가입이 성공적으로 완료되었습니다! 로그인 페이지로 이동합니다.",
@@ -308,13 +255,16 @@ export default {
         router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
-        error.value = "회원가입 중 오류가 발생했습니다: " + err.message;
+        if (err.code && err.message) {
+          error.value = `오류가 발생했습니다: (${err.code}) ${err.message}`;
+        } else {
+          error.value = "회원가입 중 오류가 발생했습니다: " + err;
+        }
       } finally {
         isLoading.value = false;
       }
     };
 
-    // ▼▼▼ [수정] setup 함수가 모든 변수와 함수를 반환하도록 수정 ▼▼▼
     return {
       email,
       password,
@@ -344,11 +294,10 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: calc(100vh - 70px); /* Navbar 높이만큼 제외 */
+  min-height: calc(100vh - 70px);
   padding: 20px;
   background-color: #f0f2f5;
 }
-
 .signup-container {
   max-width: 450px;
   width: 100%;
@@ -356,12 +305,11 @@ export default {
   border-radius: 15px;
   text-align: center;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.4); /* Glassmorphism 효과 강화 */
+  background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
-
 .signup-title {
   font-size: 2.2em;
   color: #333;
@@ -373,21 +321,17 @@ export default {
   font-weight: bold;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
-
 .signup-title i {
-  color: #007bff; /* 아이콘 색상 */
+  color: #007bff;
 }
-
 .signup-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-
 .form-group {
   text-align: left;
 }
-
 .form-group label {
   display: block;
   font-weight: bold;
@@ -395,7 +339,6 @@ export default {
   color: #555;
   font-size: 1.05em;
 }
-
 .form-group input[type="email"],
 .form-group input[type="password"],
 .form-group input[type="text"],
@@ -410,23 +353,20 @@ export default {
   transition:
     border-color 0.3s ease,
     box-shadow 0.3s ease;
-  background-color: rgba(255, 255, 255, 0.7); /* Glassmorphism과 어울리도록 */
+  background-color: rgba(255, 255, 255, 0.7);
 }
-
 .form-group input:focus,
 .form-group select:focus {
   border-color: #007bff;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
   background-color: white;
 }
-
 .form-group small {
   display: block;
   margin-top: 5px;
   color: #888;
   font-size: 0.85em;
 }
-
 .signup-button {
   width: 100%;
   padding: 15px;
@@ -445,40 +385,32 @@ export default {
   align-items: center;
   gap: 10px;
 }
-
 .signup-button:hover:not(:disabled) {
   background-color: #0056b3;
   transform: translateY(-2px);
 }
-
 .signup-button:disabled {
   background-color: #a0c9ff;
   cursor: not-allowed;
 }
-
 .error-message {
   color: #e74c3c;
   font-size: 0.95em;
   margin-top: 10px;
 }
-
 .login-link {
   margin-top: 25px;
   font-size: 0.95em;
   color: #666;
 }
-
 .login-link a {
   color: #007bff;
   font-weight: bold;
   text-decoration: none;
 }
-
 .login-link a:hover {
   text-decoration: underline;
 }
-
-/* 스피너 스타일 */
 .spinner {
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-top: 3px solid #fff;
@@ -487,7 +419,6 @@ export default {
   height: 20px;
   animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -496,7 +427,6 @@ export default {
     transform: rotate(360deg);
   }
 }
-
 .referrer-input-group {
   display: flex;
   gap: 10px;
