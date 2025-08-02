@@ -1,291 +1,292 @@
 <template>
   <div id="app">
-    <AppNavbar />
-    <router-view />
+    <header class="navbar card glassmorphism">
+      <div class="navbar-container">
+        <router-link to="/" class="navbar-brand">
+          <img src="@/assets/logo.png" alt="Saltmate Logo" />
+          <span>솔트메이트</span>
+        </router-link>
+        <nav class="navbar-nav" :class="{ 'is-active': isNavActive }">
+          <router-link to="/shop" class="nav-link">등급 선택</router-link>
+          <router-link to="/my-investments" class="nav-link"
+            >내 수익 현황</router-link
+          >
+          <router-link to="/nft-marketplace" class="nav-link"
+            >NFT 마켓플레이스</router-link
+          >
+          <router-link to="/community" class="nav-link">커뮤니티</router-link>
+          <router-link to="/about" class="nav-link"
+            >솔트메이트 소개</router-link
+          >
+        </nav>
+        <div class="navbar-actions">
+          <div v-if="isLoggedIn" class="user-actions">
+            <router-link to="/profile" class="user-profile-link">
+              <i class="fas fa-user-circle"></i>
+              <span>{{ userName }}</span>
+            </router-link>
+            <button @click="logout" class="logout-button">
+              <i class="fas fa-sign-out-alt"></i> 로그아웃
+            </button>
+          </div>
+          <div v-else>
+            <router-link to="/login" class="login-button">로그인</router-link>
+          </div>
+          <button class="navbar-toggler" @click="toggleNav">
+            <i class="fas fa-bars"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script>
-import AppNavbar from "@/components/common/Navbar.vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { auth, db } from "@/firebaseConfig";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { useRouter } from "vue-router";
 
 export default {
-  name: "App",
-  components: {
-    AppNavbar,
+  setup() {
+    const isLoggedIn = ref(false);
+    const userName = ref("");
+    const isNavActive = ref(false);
+    const router = useRouter();
+
+    let authUnsubscribe = null;
+
+    const checkAuthState = () => {
+      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          isLoggedIn.value = true;
+          try {
+            const userRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              userName.value = userSnap.data().name || "사용자";
+            }
+          } catch (error) {
+            console.error("사용자 이름을 가져오는 중 오류 발생:", error);
+            userName.value = "사용자";
+          }
+        } else {
+          isLoggedIn.value = false;
+          userName.value = "";
+        }
+      });
+    };
+
+    const logout = async () => {
+      try {
+        await signOut(auth);
+        alert("로그아웃 되었습니다.");
+        router.push("/login");
+      } catch (error) {
+        console.error("로그아웃 실패:", error);
+      }
+    };
+
+    const toggleNav = () => {
+      isNavActive.value = !isNavActive.value;
+    };
+
+    onMounted(() => {
+      checkAuthState();
+    });
+
+    onUnmounted(() => {
+      if (authUnsubscribe) {
+        authUnsubscribe();
+      }
+    });
+
+    watch(
+      () => router.currentRoute.value,
+      () => {
+        isNavActive.value = false;
+      },
+    );
+
+    return {
+      isLoggedIn,
+      userName,
+      logout,
+      isNavActive,
+      toggleNav,
+    };
   },
 };
 </script>
 
-<style>
-/* 전역 스타일 */
-html,
-body {
-  margin: 0; /* 기본 마진 제거 */
-  padding: 0; /* 기본 패딩 제거 */
-  width: 100%; /* 너비를 100%로 설정하여 가로 스크롤 방지 */
-  overflow-x: hidden; /* 가로 스크롤 명시적 방지 */
-  font-family: "Noto Sans KR", sans-serif; /* 한국어 폰트 우선 적용 고려 */
-  background-color: #f0f2f5; /* 전반적인 배경색 */
-  color: #333;
-  line-height: 1.6;
-  box-sizing: border-box; /* 모든 요소에 box-sizing 적용 */
-}
-
-/* 모든 요소에 box-sizing 적용 (border-box는 패딩과 테두리를 요소의 전체 너비와 높이에 포함) */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
+<style scoped>
 #app {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  /* Navbar는 sticky/fixed로 상단에 고정되므로, #app 자체에는 padding-top을 주지 않습니다. */
-  /* 대신 body에 padding-top을 주어 콘텐츠가 Navbar 아래에서 시작하도록 합니다. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f8f9fa;
 }
 
-/* body에 상단 패딩을 주어 Navbar가 콘텐츠를 가리지 않도록 함 */
-body {
-  padding-top: 70px; /* AppNavbar의 실제 높이에 맞춰 조절 (약 60px + 여유) */
-}
-
-/* 모든 링크 기본 스타일 */
-a {
-  color: #007bff;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-a:hover {
-  color: #0056b3;
-  text-decoration: underline;
-}
-
-/* 카드 및 글래스모피즘 공통 스타일 */
-.card {
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 30px;
-  margin-bottom: 20px;
-  border: 1px solid #e0e0e0; /* 연한 테두리 추가 */
-}
-
-.glassmorphism {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 16px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
-/* 공통 버튼 스타일 */
-.button-primary,
-.action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1.05em;
-  font-weight: bold;
-  color: white;
-  background-color: #007bff; /* 기본 버튼 색상 */
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease,
-    box-shadow 0.3s ease;
-  text-decoration: none; /* router-link 사용 시 기본 밑줄 제거 */
-}
-
-.button-primary:hover,
-.action-button:hover {
-  background-color: #0056b3;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(0, 123, 255, 0.2);
-}
-
-.button-secondary {
-  background-color: #6c757d;
-}
-
-.button-secondary:hover {
-  background-color: #5a6268;
-}
-
-.button-success {
-  background-color: #28a745;
-}
-
-.button-success:hover {
-  background-color: #218838;
-}
-
-.button-outline {
-  background-color: transparent;
-  color: #007bff;
-  border: 2px solid #007bff;
-}
-
-.button-outline:hover {
-  background-color: #e6f2ff;
-  color: #0056b3;
-  box-shadow: none;
-}
-
-/* 페이지 헤더 공통 스타일 */
-.page-header {
-  text-align: center;
-  margin-bottom: 40px;
-  padding: 20px;
-  background: linear-gradient(135deg, #e0f2f7, #c1e0f0);
-  border-radius: 15px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.page-header h1 {
-  font-size: 2.8em;
-  color: #2c3e50;
-  margin-bottom: 15px;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+.navbar-container {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #333;
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.navbar-brand img {
+  height: 40px;
+  margin-right: 10px;
+}
+
+.navbar-nav {
+  display: flex;
+  gap: 25px;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: #555;
+  font-weight: 500;
+  padding: 5px 0;
+  position: relative;
+  transition: color 0.3s;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: #007bff;
+  transition: width 0.3s;
+}
+
+.nav-link:hover,
+.nav-link.router-link-exact-active {
+  color: #007bff;
+}
+
+.nav-link:hover::after,
+.nav-link.router-link-exact-active::after {
+  width: 100%;
+}
+
+.navbar-actions {
+  display: flex;
   align-items: center;
   gap: 15px;
 }
 
-.page-header h1 i {
-  color: #4caf50; /* 아이콘 색상 */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-.page-header .description {
-  font-size: 1.2em;
-  color: #555;
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-/* 로딩 및 에러 상태 공통 스타일 */
-.loading-state,
-.error-state,
-.no-data-state,
-.not-found-state {
-  padding: 50px;
-  text-align: center;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  max-width: 600px;
-  margin: 50px auto;
-}
-
-.spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #4caf50;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px auto;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.loading-state p,
-.error-state p,
-.no-data-state p,
-.not-found-state p {
-  font-size: 1.1em;
-  color: #666;
-  margin-bottom: 20px;
-}
-
-.error-message {
-  color: #e74c3c;
-  font-weight: bold;
-}
-
-.retry-button,
-.explore-button,
-.back-to-dashboard-button {
-  background-color: #007bff;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 8px;
+.user-profile-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-decoration: none;
+  color: #333;
+  font-weight: 500;
+}
+
+.logout-button,
+.login-button {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
   font-weight: bold;
   transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
+    background-color 0.3s,
+    color 0.3s;
 }
 
-.retry-button:hover,
-.explore-button:hover,
-.back-to-dashboard-button:hover {
+.logout-button {
+  background-color: #f8f9fa;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+}
+
+.logout-button:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+.login-button {
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+}
+
+.login-button:hover {
   background-color: #0056b3;
-  transform: translateY(-2px);
 }
 
-/* 기타 공통 유틸리티 */
-.text-center {
-  text-align: center;
-}
-.text-right {
-  text-align: right;
-}
-.text-left {
-  text-align: left;
-}
-.mt-20 {
-  margin-top: 20px;
-}
-.mb-20 {
-  margin-bottom: 20px;
-}
-.p-20 {
-  padding: 20px;
+.navbar-toggler {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
 }
 
-/* Font Awesome 아이콘 스타일 */
-.fa-edit,
-.fa-dollar-sign,
-.fa-chart-line,
-.fa-users,
-.fa-id-badge,
-.fa-hand-holding-usd,
-.fa-seedling {
-  margin-right: 5px;
+.main-content {
+  flex: 1;
+  margin-top: 70px; /* Navbar height */
 }
 
-/* 스크롤바 커스터마이징 (선택 사항) */
-::-webkit-scrollbar {
-  width: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
+@media (max-width: 992px) {
+  .navbar-nav {
+    display: none;
+    position: absolute;
+    top: 70px;
+    left: 0;
+    width: 100%;
+    background-color: white;
+    flex-direction: column;
+    padding: 20px;
+    box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
+  }
+  .navbar-nav.is-active {
+    display: flex;
+  }
+  .navbar-toggler {
+    display: block;
+  }
 }
 </style>

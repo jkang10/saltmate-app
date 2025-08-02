@@ -49,103 +49,64 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
-import {
-  signInWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "firebase/auth";
-import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore"; // getDoc 임포트
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 export default {
-  name: "LoginPage", // 컴포넌트 이름 변경
+  name: "LoginPage",
   setup() {
-    const router = useRouter();
     const email = ref("");
     const password = ref("");
-    const loading = ref(false);
     const error = ref(null);
+    const isLoading = ref(false);
+    const router = useRouter();
 
     const handleLogin = async () => {
-      loading.value = true;
-      error.value = null; // 이전 오류 메시지 초기화
-
-      try {
-        await signInWithEmailAndPassword(auth, email.value, password.value);
-        alert("로그인 성공!");
-        router.push("/dashboard"); // 로그인 성공 후 대시보드로 이동
-      } catch (err) {
-        console.error("로그인 오류:", err.code, err.message);
-        error.value = getAuthErrorMessage(err.code);
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    const signInWithGoogle = async () => {
-      loading.value = true;
       error.value = null;
+      isLoading.value = true;
       try {
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
+        // 1. Firebase Authentication으로 로그인 시도
+        await signInWithEmailAndPassword(auth, email.value, password.value);
 
-        // 사용자가 이미 Firestore에 등록되어 있는지 확인
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        // ▼▼▼ [수정] 바로 이 위치에 삽입합니다 ▼▼▼
+        // 2. 로그인 성공 후, 사용자 정보 가져오기
+        const user = auth.currentUser;
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
 
-        if (!userDocSnap.exists()) {
-          // 새로운 Google 사용자라면 Firestore에 정보 저장
-          await setDoc(userDocRef, {
-            email: user.email,
-            name: user.displayName || "", // Google 프로필 이름 사용
-            phone: "", // Google은 전화번호를 제공하지 않을 수 있음
-            accountNumber: "",
-            investmentType: "individual", // 소셜 로그인은 기본적으로 개인 투자
-            isApproved: false,
-            createdAt: Timestamp.now(),
-            participationAmount: 0,
-            hasNFT: false,
-            saltmateLevel: "basic",
-          });
-          alert(
-            "Google 계정으로 회원가입 성공! 관리자 승인 후 서비스 이용이 가능합니다.",
-          );
+        // 3. 관리자인지 확인하고 올바른 대시보드로 이동
+        if (userSnap.exists() && userSnap.data().isAdmin) {
+          router.push("/admin-dashboard"); // 관리자는 관리자 페이지로
         } else {
-          alert("Google 계정으로 로그인 성공!");
+          router.push("/dashboard"); // 일반 사용자는 일반 페이지로
         }
-        router.push("/dashboard"); // 로그인 성공 후 대시보드로 이동
+        // ▲▲▲ [수정] 완료 ▲▲▲
       } catch (err) {
-        console.error("Google 로그인 오류:", err.code, err.message);
-        error.value = getAuthErrorMessage(err.code);
+        console.error("로그인 오류:", err);
+        switch (err.code) {
+          case "auth/invalid-email":
+            error.value = "유효하지 않은 이메일 형식입니다.";
+            break;
+          case "auth/user-not-found":
+          case "auth/wrong-password":
+          case "auth/invalid-credential":
+            error.value = "이메일 또는 비밀번호가 잘못되었습니다.";
+            break;
+          default:
+            error.value = "로그인 중 오류가 발생했습니다.";
+            break;
+        }
       } finally {
-        loading.value = false;
-      }
-    };
-
-    const getAuthErrorMessage = (code) => {
-      switch (code) {
-        case "auth/invalid-email":
-          return "유효하지 않은 이메일 주소입니다.";
-        case "auth/user-not-found":
-          return "등록되지 않은 이메일입니다.";
-        case "auth/wrong-password":
-          return "비밀번호가 올바르지 않습니다.";
-        case "auth/too-many-requests":
-          return "로그인 시도 횟수가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
-        case "auth/popup-closed-by-user":
-          return "Google 로그인 팝업이 사용자에게 의해 닫혔습니다.";
-        default:
-          return "로그인 중 알 수 없는 오류가 발생했습니다. 다시 시도해주세요.";
+        isLoading.value = false;
       }
     };
 
     return {
       email,
       password,
-      loading,
       error,
+      isLoading,
       handleLogin,
-      signInWithGoogle,
     };
   },
 };

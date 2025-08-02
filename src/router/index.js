@@ -230,9 +230,16 @@ router.beforeEach(async (to, from, next) => {
       console.error("사용자 프로필을 불러오는 중 오류 발생:", error);
     }
 
+    // ▼▼▼ [수정] 로그인/회원가입 페이지 접근 시 관리자/일반사용자 분기 처리 ▼▼▼
     if (to.name === "LoginPage" || to.name === "SignupPage") {
-      next("/dashboard");
-    } else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
+      if (userProfile && userProfile.isAdmin) {
+        next("/admin-dashboard"); // 관리자는 관리자 대시보드로
+      } else {
+        next("/dashboard"); // 일반 사용자는 일반 대시보드로
+      }
+    }
+    // ▲▲▲ [수정] 완료 ▲▲▲
+    else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
       alert("관리자 권한이 없습니다.");
       next("/dashboard");
     } else if (requiresNFT) {

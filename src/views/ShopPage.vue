@@ -7,8 +7,14 @@
       </p>
     </header>
 
-    <div v-if="isLoading" class="loading-container"></div>
-    <div v-else-if="error" class="error-container"></div>
+    <div v-if="isLoading" class="loading-container">
+      <div class="spinner"></div>
+      <p>등급 정보를 불러오는 중입니다...</p>
+    </div>
+
+    <div v-else-if="error" class="error-container">
+      <p>{{ error }}</p>
+    </div>
 
     <main v-else class="tiers-grid">
       <div
@@ -16,6 +22,19 @@
         :key="tier.amount"
         :class="['tier-card', tier.name.toLowerCase()]"
       >
+        <div class="tier-header">
+          <h3 class="tier-name">{{ tier.name }}</h3>
+          <p v-if="tier.isSubscription" class="subscription-badge">매월 구독</p>
+        </div>
+        <div class="tier-price">
+          <span class="amount">{{ tier.amount.toLocaleString() }}</span>
+          <span class="currency">원</span>
+        </div>
+        <ul class="tier-features">
+          <li><i class="fas fa-check"></i> 직접 추천 보너스 3%</li>
+          <li><i class="fas fa-check"></i> 1대 매칭 보너스 3%</li>
+          <li><i class="fas fa-check"></i> 300% 수익 순환</li>
+        </ul>
         <button
           @click="requestSubscription(tier)"
           class="purchase-button"
@@ -112,7 +131,9 @@ export default {
 
         if (
           window.confirm(
-            `'${tierInfo.name}' 등급을 구독 신청하시겠습니까?\n관리자 승인 후 등급이 적용됩니다.`,
+            `'${
+              tierInfo.name
+            }' 등급을 구독 신청하시겠습니까?\n관리자 승인 후 등급이 적용됩니다.`,
           )
         ) {
           // 'investments' 대신 'subscription_requests'에 문서 생성
@@ -264,7 +285,7 @@ export default {
   transition: background-color 0.3s ease;
   margin-top: auto;
 }
-.purchase-button:hover {
+.purchase-button:hover:not(:disabled) {
   background-color: #0056b3;
 }
 .purchase-button:disabled {
