@@ -233,6 +233,18 @@ export default {
 
     const handleSignup = async () => {
       error.value = null;
+
+      // ▼▼▼ [수정됨] 필수 필드 유효성 검사 추가 ▼▼▼
+      if (!name.value.trim()) {
+        error.value = "이름을 반드시 입력해주세요.";
+        return;
+      }
+      if (!phone.value.trim()) {
+        error.value = "전화번호를 반드시 입력해주세요.";
+        return;
+      }
+      // ▲▲▲ 검사 로직 끝 ▲▲▲
+
       if (password.value !== confirmPassword.value) {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
@@ -266,7 +278,11 @@ export default {
         }
       } catch (err) {
         console.error("회원가입 오류:", err);
-        error.value = `오류가 발생했습니다: ${err.message}`;
+        if (err.code === "auth/email-already-in-use") {
+          error.value = "이미 가입된 이메일 주소입니다.";
+        } else {
+          error.value = `오류가 발생했습니다: ${err.message}`;
+        }
       } finally {
         isLoading.value = false;
       }
