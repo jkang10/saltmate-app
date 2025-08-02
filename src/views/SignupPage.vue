@@ -220,14 +220,12 @@ export default {
       referrerStatus.type = "";
     };
 
-    // SignupPage.vue의 handleSignup 함수
     const handleSignup = async () => {
       error.value = null;
       if (password.value !== confirmPassword.value) {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
-      // 구독 등급 선택 유효성 검사 추가
       if (!investmentAmount.value) {
         error.value = "구독 등급을 선택해주세요.";
         return;
@@ -239,7 +237,6 @@ export default {
         const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
 
-        // 원래의 모든 데이터를 다시 전달
         const userData = {
           name: name.value,
           phone: phone.value,
