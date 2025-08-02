@@ -5,6 +5,121 @@
         <i class="fas fa-user-plus"></i> 솔트메이트 가입
       </h2>
       <form @submit.prevent="handleSignup" class="signup-form">
+        <div class="form-group">
+          <label for="email">이메일:</label>
+          <input
+            type="email"
+            id="email"
+            v-model="email"
+            placeholder="이메일을 입력하세요"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="password">비밀번호:</label>
+          <input
+            type="password"
+            id="password"
+            v-model="password"
+            placeholder="비밀번호 (6자 이상)"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="confirm-password">비밀번호 확인:</label>
+          <input
+            type="password"
+            id="confirm-password"
+            v-model="confirmPassword"
+            placeholder="비밀번호를 다시 입력하세요"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="name">이름:</label>
+          <input
+            type="text"
+            id="name"
+            v-model="name"
+            placeholder="이름을 입력하세요"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="phone">전화번호 (HP):</label>
+          <input
+            type="tel"
+            id="phone"
+            v-model="phone"
+            placeholder="예: 010-1234-5678"
+            required
+            pattern="[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}"
+          />
+          <small>하이픈(-)을 포함하여 입력해주세요.</small>
+        </div>
+        <div class="form-group">
+          <label for="region">지역 (센터):</label>
+          <select id="region" v-model="region" required>
+            <option value="" disabled>지역(센터)를 선택하세요</option>
+            <option
+              v-for="center in centers"
+              :key="center.id"
+              :value="center.name"
+            >
+              {{ center.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="investment-amount">구독 등급:</label>
+          <select id="investment-amount" v-model="investmentAmount" required>
+            <option value="">구독 등급을 선택하세요</option>
+            <option value="10000">만원의 행복</option>
+            <option value="100000">10만원</option>
+            <option value="300000">30만원</option>
+            <option value="500000">50만원</option>
+            <option value="1000000">100만원</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="referrer">추천인 (선택 사항):</label>
+          <div class="referrer-input-group">
+            <input
+              type="text"
+              id="referrer"
+              v-model="referrerInput"
+              placeholder="추천인 이메일 또는 이름 입력"
+              :disabled="!!validatedReferrer.uid"
+            />
+            <button
+              type="button"
+              @click="verifyReferrer"
+              class="verify-button"
+              :disabled="
+                isVerifying || !referrerInput || !!validatedReferrer.uid
+              "
+            >
+              <span v-if="isVerifying" class="spinner-small"></span>
+              <span v-else>검증</span>
+            </button>
+          </div>
+          <small v-if="!validatedReferrer.uid"
+            >추천인의 이메일 또는 이름을 입력 후 '검증'을 눌러주세요.</small
+          >
+          <p
+            v-if="referrerStatus.message"
+            :class="['status-message', referrerStatus.type]"
+          >
+            {{ referrerStatus.message }}
+            <span
+              v-if="validatedReferrer.uid"
+              @click="resetReferrer"
+              class="reset-referrer"
+            >
+              [변경]
+            </span>
+          </p>
+        </div>
         <button type="submit" class="signup-button" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
           <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
@@ -22,13 +137,20 @@
 import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
-// ▼▼▼ [수정] signInWithEmailAndPassword 추가 ▼▼▼
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  limit,
+} from "firebase/firestore";
 
 export default {
   name: "SignUpPage",
@@ -49,7 +171,65 @@ export default {
     const validatedReferrer = reactive({ uid: null, name: null });
     const referrerStatus = reactive({ message: "", type: "" });
 
-    // ... fetchCenters, verifyReferrer, resetReferrer 함수는 변경 없음 ...
+    const fetchCenters = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "centers"));
+        centers.value = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (err) {
+        console.error("센터 목록 로딩 오류:", err);
+      }
+    };
+    onMounted(fetchCenters);
+
+    const verifyReferrer = async () => {
+      if (!referrerInput.value) return;
+      isVerifying.value = true;
+      referrerStatus.message = "";
+      referrerStatus.type = "";
+      try {
+        let q = query(
+          collection(db, "users"),
+          where("email", "==", referrerInput.value),
+          limit(1),
+        );
+        let querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          q = query(
+            collection(db, "users"),
+            where("name", "==", referrerInput.value),
+            limit(1),
+          );
+          querySnapshot = await getDocs(q);
+        }
+        if (querySnapshot.empty) {
+          referrerStatus.message = "존재하지 않는 추천인입니다.";
+          referrerStatus.type = "error";
+        } else {
+          const referrerDoc = querySnapshot.docs[0];
+          validatedReferrer.uid = referrerDoc.id;
+          validatedReferrer.name = referrerDoc.data().name;
+          referrerStatus.message = `✔️ 추천인 '${validatedReferrer.name}'님 확인 완료!`;
+          referrerStatus.type = "success";
+        }
+      } catch (err) {
+        console.error("추천인 검증 오류:", err);
+        referrerStatus.message = "검증 중 오류가 발생했습니다.";
+        referrerStatus.type = "error";
+      } finally {
+        isVerifying.value = false;
+      }
+    };
+
+    const resetReferrer = () => {
+      validatedReferrer.uid = null;
+      validatedReferrer.name = null;
+      referrerInput.value = "";
+      referrerStatus.message = "";
+      referrerStatus.type = "";
+    };
 
     const handleSignup = async () => {
       error.value = null;
@@ -63,17 +243,10 @@ export default {
       }
       isLoading.value = true;
       try {
-        // 1. Firebase Authentication에 계정 생성
         await createUserWithEmailAndPassword(auth, email.value, password.value);
-
-        // ▼▼▼ [수정] 생성된 계정으로 즉시 로그인하여 인증 상태 확보 ▼▼▼
         await signInWithEmailAndPassword(auth, email.value, password.value);
-        // ▲▲▲ [수정] 완료 ▲▲▲
-
-        // 3. 로그인된 상태로 functions 호출
         const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
-
         const userData = {
           name: name.value,
           phone: phone.value,
@@ -81,15 +254,11 @@ export default {
           investmentAmount: Number(investmentAmount.value),
           uplineReferrer: validatedReferrer.uid || null,
         };
-
         await createNewUser(userData);
-
         alert("회원가입이 성공적으로 완료되었습니다! 대시보드로 이동합니다.");
-        // 로그인 후 관리자인지 여부를 확인하여 올바른 경로로 이동
         const user = auth.currentUser;
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
-
         if (userSnap.exists() && userSnap.data().isAdmin) {
           router.push("/admin-dashboard");
         } else {
