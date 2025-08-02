@@ -4,21 +4,16 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 const routes = [
-  // ▼▼▼ [수정] 실제로 존재하는 페이지만 남기고, 존재하지 않는 경로는 삭제 ▼▼▼
   {
     path: "/",
     name: "Home",
-    // 시작 페이지를 대시보드로 리디렉션하거나, 실제 존재하는 HomePage로 연결
-    // 여기서는 대시보드로 리디렉션하는 것을 추천합니다.
     redirect: "/dashboard",
   },
   {
     path: "/signup",
-    name: "SignupPage", // 이름은 그대로 두어도 괜찮습니다.
-    // 실제 파일 경로를 정확하게 수정합니다. (SignUpPage -> SignupPage)
+    name: "SignupPage",
     component: () => import("@/views/SignupPage.vue"),
   },
-  // ▲▲▲ [수정] 완료 ▲▲▲
   {
     path: "/login",
     name: "LoginPage",
@@ -117,6 +112,15 @@ const routes = [
         component: () => import("@/components/admin/CenterManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
+      // ▼▼▼ [신규] 구독 승인 관리 페이지 경로 추가 ▼▼▼
+      {
+        path: "subscriptions",
+        name: "AdminSubscriptionManagement",
+        component: () =>
+          import("@/components/admin/SubscriptionManagement.vue"),
+        meta: { requiresAuth: true, isAdmin: true },
+      },
+      // ▲▲▲ [신규] 완료 ▲▲▲
       {
         path: "investments",
         name: "AdminInvestmentManagement",

@@ -1,20 +1,14 @@
 <template>
   <div class="shop-page">
     <header class="page-header">
-      <h1><i class="fas fa-gem"></i> 등급 선택 및 업그레이드</h1>
+      <h1><i class="fas fa-gem"></i> 등급 선택</h1>
       <p class="description">
-        솔트메이트의 등급을 선택하여 더 많은 혜택을 누리세요.
+        솔트메이트의 등급을 구독하여 더 많은 혜택을 누리세요.
       </p>
     </header>
 
-    <div v-if="isLoading" class="loading-container">
-      <div class="spinner"></div>
-      <p>등급 정보를 불러오는 중입니다...</p>
-    </div>
-
-    <div v-else-if="error" class="error-container">
-      <p>{{ error }}</p>
-    </div>
+    <div v-if="isLoading" class="loading-container"></div>
+    <div v-else-if="error" class="error-container"></div>
 
     <main v-else class="tiers-grid">
       <div
@@ -22,26 +16,17 @@
         :key="tier.amount"
         :class="['tier-card', tier.name.toLowerCase()]"
       >
-        <div class="tier-header">
-          <h3 class="tier-name">{{ tier.name }}</h3>
-          <p v-if="tier.isSubscription" class="subscription-badge">매월 구독</p>
-        </div>
-        <div class="tier-price">
-          <span class="amount">{{ tier.amount.toLocaleString() }}</span>
-          <span class="currency">원</span>
-        </div>
-        <ul class="tier-features">
-          <li><i class="fas fa-check"></i> 직접 추천 보너스 3%</li>
-          <li><i class="fas fa-check"></i> 1대 매칭 보너스 3%</li>
-          <li><i class="fas fa-check"></i> 300% 수익 순환</li>
-        </ul>
         <button
-          @click="purchaseTier(tier)"
+          @click="requestSubscription(tier)"
           class="purchase-button"
-          :disabled="isProcessing"
+          :disabled="isProcessing || hasPendingRequest"
         >
           <span v-if="isProcessing" class="spinner-small"></span>
-          <span v-else>이 등급으로 시작하기</span>
+          <span v-else-if="userProfile && userProfile.tier === tier.name"
+            >현재 나의 등급</span
+          >
+          <span v-else-if="hasPendingRequest">승인 대기중</span>
+          <span v-else>이 등급으로 구독 신청</span>
         </button>
       </div>
     </main>
@@ -56,6 +41,9 @@ import {
   addDoc,
   collection,
   serverTimestamp,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
@@ -65,18 +53,36 @@ export default {
   setup() {
     const router = useRouter();
     const tiers = ref([]);
+    const userProfile = ref(null);
+    const hasPendingRequest = ref(false);
     const isLoading = ref(true);
     const isProcessing = ref(false);
     const error = ref(null);
 
-    const fetchTiers = async () => {
+    const fetchData = async () => {
       try {
+        const user = auth.currentUser;
+        if (user) {
+          // 1. 사용자 프로필 정보 가져오기 (현재 등급 확인용)
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) userProfile.value = userSnap.data();
+
+          // 2. 이 사용자의 'pending' 상태 요청이 있는지 확인
+          const q = query(
+            collection(db, "subscription_requests"),
+            where("userId", "==", user.uid),
+            where("status", "==", "pending"),
+          );
+          const requestSnap = await getDocs(q);
+          hasPendingRequest.value = !requestSnap.empty;
+        }
+
+        // 3. 등급 설정 정보 가져오기
         const configRef = doc(db, "configuration", "marketingPlan");
         const configSnap = await getDoc(configRef);
-
         if (configSnap.exists()) {
           const configTiers = configSnap.data().tiers;
-          // Firestore map을 배열로 변환하여 정렬
           tiers.value = Object.entries(configTiers)
             .map(([amount, details]) => ({
               amount: Number(amount),
@@ -87,14 +93,14 @@ export default {
           throw new Error("등급 설정 정보를 찾을 수 없습니다.");
         }
       } catch (err) {
-        console.error("Failed to fetch tiers:", err);
-        error.value = "등급 정보를 불러오는 데 실패했습니다.";
+        console.error("Failed to fetch data:", err);
+        error.value = "정보를 불러오는 데 실패했습니다.";
       } finally {
         isLoading.value = false;
       }
     };
 
-    const purchaseTier = async (tierInfo) => {
+    const requestSubscription = async (tierInfo) => {
       isProcessing.value = true;
       try {
         const user = auth.currentUser;
@@ -104,44 +110,42 @@ export default {
           return;
         }
 
-        // 실제로는 여기에 PG사 결제 모듈 호출 코드가 들어갑니다.
-        // 지금은 결제가 성공했다고 가정하고 바로 다음 단계로 진행합니다.
-        const paymentSuccessful = window.confirm(
-          `'${
-            tierInfo.name
-          }' 등급을 ${tierInfo.amount.toLocaleString()}원에 구매하시겠습니까?`,
-        );
-
-        if (paymentSuccessful) {
-          // 'investments' 컬렉션에 문서 생성 (Cloud Function 트리거)
-          await addDoc(collection(db, "investments"), {
+        if (
+          window.confirm(
+            `'${tierInfo.name}' 등급을 구독 신청하시겠습니까?\n관리자 승인 후 등급이 적용됩니다.`,
+          )
+        ) {
+          // 'investments' 대신 'subscription_requests'에 문서 생성
+          await addDoc(collection(db, "subscription_requests"), {
             userId: user.uid,
-            amount: tierInfo.amount,
-            tier: tierInfo.name,
+            userName: userProfile.value?.name || user.email,
+            userEmail: user.email,
+            requestedAmount: tierInfo.amount,
+            requestedTier: tierInfo.name,
+            status: "pending", // '승인 대기' 상태로 생성
             createdAt: serverTimestamp(),
           });
-
-          alert(
-            `'${tierInfo.name}' 등급 구매가 완료되었습니다! 대시보드에서 결과를 확인하세요.`,
-          );
-          router.push("/dashboard");
+          alert("구독 신청이 완료되었습니다. 관리자 승인을 기다려주세요.");
+          hasPendingRequest.value = true; // 신청 후 버튼 상태 즉시 변경
         }
       } catch (err) {
-        console.error("Failed to process purchase:", err);
-        alert("처리 중 오류가 발생했습니다. 다시 시도해 주세요.");
+        console.error("Failed to process request:", err);
+        alert("처리 중 오류가 발생했습니다.");
       } finally {
         isProcessing.value = false;
       }
     };
 
-    onMounted(fetchTiers);
+    onMounted(fetchData);
 
     return {
       tiers,
+      userProfile,
+      hasPendingRequest,
       isLoading,
       isProcessing,
       error,
-      purchaseTier,
+      requestSubscription,
     };
   },
 };

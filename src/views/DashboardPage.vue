@@ -12,6 +12,16 @@
             userProfile?.tier || "Loding.."
           }}</span>
         </div>
+
+        <div class="investment-info">
+          <span>나의 투자 원금</span>
+          <strong
+            >{{
+              (userProfile?.investmentAmount || 0).toLocaleString()
+            }}
+            원</strong
+          >
+        </div>
         <div class="performance-body">
           <h4>수익 사이클 (300%)</h4>
           <div class="progress-bar-container">
@@ -48,60 +58,12 @@
           </div>
         </div>
       </section>
-
-      <section class="tokens-section card">
-        <h2>💰 보유 토큰 현황</h2>
-        <div v-if="loadingUser" class="loading-state">
-          <div class="spinner"></div>
-        </div>
-        <div v-else-if="userProfile" class="token-display">
-          <div class="token-item">
-            <img src="@/assets/COBS.png" alt="COBS Logo" class="token-logo" />
-            <div class="token-details">
-              <span class="token-name">COBS</span>
-              <span class="token-balance"
-                >{{ (userProfile.cobsBalance || 0).toLocaleString() }} 개</span
-              >
-            </div>
-          </div>
-          <div class="token-item">
-            <img
-              src="@/assets/BND_LOGO.png"
-              alt="BND Logo"
-              class="token-logo"
-            />
-            <div class="token-details">
-              <span class="token-name">BND</span>
-              <span class="token-balance"
-                >{{ (userProfile.bndBalance || 0).toLocaleString() }} 개</span
-              >
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="quick-access-section card">
-        <h2>🚀 바로가기</h2>
-        <div class="action-grid">
-          <router-link to="/shop" class="action-button primary">
-            <i class="fas fa-store"></i> 등급 업그레이드
-          </router-link>
-          <router-link to="/my-investments" class="action-button secondary">
-            <i class="fas fa-chart-line"></i> 내 투자 현황
-          </router-link>
-          <router-link to="/community" class="action-button info">
-            <i class="fas fa-comments"></i> 커뮤니티
-          </router-link>
-          <router-link to="/profile" class="action-button success">
-            <i class="fas fa-user-circle"></i> 내 프로필 관리
-          </router-link>
-        </div>
-      </section>
     </main>
   </div>
 </template>
 
 <script>
+// ... script 내용은 이전과 동일 ...
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -156,8 +118,8 @@ export default {
             const data = userSnap.data();
             this.userProfile = {
               ...data,
-              // 새로운 필드들 불러오기 (없을 경우 기본값 설정)
               tier: data.tier || "BRONZE",
+              investmentAmount: data.investmentAmount || 0, // investmentAmount 필드 추가
               cycleCap: data.cycleCap || 0,
               currentCycleEarnings: data.currentCycleEarnings || 0,
               cashBalance: data.cashBalance || 0,
@@ -181,6 +143,21 @@ export default {
 </script>
 
 <style scoped>
+.investment-info {
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+.investment-info span {
+  opacity: 0.8;
+  margin-right: 10px;
+}
+.investment-info strong {
+  font-size: 1.2em;
+  font-weight: bold;
+}
 .dashboard-container {
   padding: 20px;
   max-width: 1000px;

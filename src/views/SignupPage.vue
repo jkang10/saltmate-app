@@ -77,9 +77,9 @@
         </div>
 
         <div class="form-group">
-          <label for="investment-amount">투자금액:</label>
+          <label for="investment-amount">구독 등급:</label>
           <select id="investment-amount" v-model="investmentAmount" required>
-            <option value="">투자금액을 선택하세요</option>
+            <option value="">구독 등급을 선택하세요</option>
             <option value="10000">만원의 행복</option>
             <option value="100000">10만원</option>
             <option value="300000">30만원</option>
@@ -152,6 +152,8 @@ import {
   setDoc,
   collection,
   getDocs,
+  getDoc,
+  addDoc,
   query,
   where,
   limit,
@@ -172,12 +174,10 @@ export default {
     const error = ref(null);
     const isLoading = ref(false);
     const centers = ref([]);
-
-    // 추천인 관련 새로운 상태 변수들
-    const referrerInput = ref(""); // 추천인 검색어 입력
-    const isVerifying = ref(false); // 검증 진행 중 상태
-    const validatedReferrer = reactive({ uid: null, name: null }); // 검증 완료된 추천인 정보
-    const referrerStatus = reactive({ message: "", type: "" }); // 검증 결과 메시지
+    const referrerInput = ref("");
+    const isVerifying = ref(false);
+    const validatedReferrer = reactive({ uid: null, name: null });
+    const referrerStatus = reactive({ message: "", type: "" });
 
     const fetchCenters = async () => {
       try {
@@ -192,22 +192,18 @@ export default {
     };
     onMounted(fetchCenters);
 
-    // 추천인 검증을 위한 새로운 함수
     const verifyReferrer = async () => {
       if (!referrerInput.value) return;
       isVerifying.value = true;
       referrerStatus.message = "";
       referrerStatus.type = "";
-
       try {
-        // 이메일로 먼저 검색, 없으면 이름으로 검색
         let q = query(
           collection(db, "users"),
           where("email", "==", referrerInput.value),
           limit(1),
         );
         let querySnapshot = await getDocs(q);
-
         if (querySnapshot.empty) {
           q = query(
             collection(db, "users"),
@@ -216,7 +212,6 @@ export default {
           );
           querySnapshot = await getDocs(q);
         }
-
         if (querySnapshot.empty) {
           referrerStatus.message = "존재하지 않는 추천인입니다.";
           referrerStatus.type = "error";
@@ -236,7 +231,6 @@ export default {
       }
     };
 
-    // 추천인 정보 리셋 함수
     const resetReferrer = () => {
       validatedReferrer.uid = null;
       validatedReferrer.name = null;
@@ -251,8 +245,23 @@ export default {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
+      if (!investmentAmount.value) {
+        error.value = "구독 등급을 선택해주세요.";
+        return;
+      }
       isLoading.value = true;
       try {
+        // 1. 마케팅 플랜 설정 가져오기
+        const configRef = doc(db, "configuration", "marketingPlan");
+        const configSnap = await getDoc(configRef);
+        if (!configSnap.exists()) {
+          throw new Error("마케팅 플랜 설정을 찾을 수 없습니다.");
+        }
+        const marketingConfig = configSnap.data();
+        const selectedTierName =
+          marketingConfig.tiers[investmentAmount.value]?.name || "BRONZE";
+
+        // 2. 사용자 계정 생성
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email.value,
@@ -260,23 +269,38 @@ export default {
         );
         const user = userCredential.user;
 
-        // 검증된 추천인 UID를 사용자 정보에 추가
+        // 3. users 문서에 저장할 데이터 준비
         const newUserDoc = {
           email: user.email,
           name: name.value,
           phone: phone.value,
           region: region.value,
-          investmentAmount: Number(investmentAmount.value),
           createdAt: serverTimestamp(),
           isAdmin: false,
-          saltmatePoints: 0, // 포인트 필드 초기화
+          investmentAmount: Number(investmentAmount.value),
+          tier: selectedTierName,
+          cycleCap:
+            Number(investmentAmount.value) * marketingConfig.cycleCapMultiplier,
+          currentCycleEarnings: 0,
+          cashBalance: 0,
+          saltmatePoints: 0,
         };
-
         if (validatedReferrer.uid) {
-          newUserDoc.referrerUid = validatedReferrer.uid;
+          newUserDoc.uplineReferrer = validatedReferrer.uid;
         }
 
+        // 4. users 문서 생성
         await setDoc(doc(db, "users", user.uid), newUserDoc);
+
+        // 5. 첫 구독 기록을 investments 컬렉션에 남겨서 보너스 로직 트리거
+        if (Number(investmentAmount.value) > 0) {
+          await addDoc(collection(db, "investments"), {
+            userId: user.uid,
+            amount: Number(investmentAmount.value),
+            tier: selectedTierName,
+            createdAt: serverTimestamp(),
+          });
+        }
 
         alert(
           "회원가입이 성공적으로 완료되었습니다! 로그인 페이지로 이동합니다.",
@@ -290,6 +314,7 @@ export default {
       }
     };
 
+    // ▼▼▼ [수정] setup 함수가 모든 변수와 함수를 반환하도록 수정 ▼▼▼
     return {
       email,
       password,
@@ -302,7 +327,6 @@ export default {
       isLoading,
       handleSignup,
       centers,
-      // 새로 추가된 변수와 함수들을 반환
       referrerInput,
       isVerifying,
       validatedReferrer,
@@ -315,6 +339,7 @@ export default {
 </script>
 
 <style scoped>
+/* style 부분은 변경 없음 */
 .signup-page {
   display: flex;
   justify-content: center;
@@ -472,7 +497,6 @@ export default {
   }
 }
 
-/* ▼▼▼ 추천인 섹션 추가 스타일 ▼▼▼ */
 .referrer-input-group {
   display: flex;
   gap: 10px;
@@ -524,5 +548,4 @@ export default {
   text-decoration: underline;
   margin-left: 5px;
 }
-/* ▲▲▲ 추천인 섹션 추가 스타일 종료 ▲▲▲ */
 </style>
