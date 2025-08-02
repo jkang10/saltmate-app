@@ -227,24 +227,30 @@ export default {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
+      // 구독 등급 선택 유효성 검사 추가
+      if (!investmentAmount.value) {
+        error.value = "구독 등급을 선택해주세요.";
+        return;
+      }
       isLoading.value = true;
       try {
-        // 1. 계정 인증
         await createUserWithEmailAndPassword(auth, email.value, password.value);
 
-        // 2. 진단용 함수 호출
         const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
 
-        // 3. 최소한의 데이터만 전달
+        // 원래의 모든 데이터를 다시 전달
         const userData = {
           name: name.value,
           phone: phone.value,
+          region: region.value,
+          investmentAmount: Number(investmentAmount.value),
+          uplineReferrer: validatedReferrer.uid || null,
         };
 
         await createNewUser(userData);
 
-        alert("테스트 회원가입이 성공적으로 완료되었습니다!");
+        alert("회원가입이 성공적으로 완료되었습니다!");
         router.push("/dashboard");
       } catch (err) {
         console.error("회원가입 중 클라이언트 오류:", err);
