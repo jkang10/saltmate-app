@@ -12,9 +12,8 @@
             userProfile?.tier || "Loding.."
           }}</span>
         </div>
-
         <div class="investment-info">
-          <span>나의 투자 원금</span>
+          <span>나의 구독 원금</span>
           <strong
             >{{
               (userProfile?.investmentAmount || 0).toLocaleString()
@@ -58,12 +57,68 @@
           </div>
         </div>
       </section>
+
+      <div class="dashboard-grid">
+        <router-link to="/my-tokens" class="feature-card tokens">
+          <div class="card-icon"><i class="fas fa-coins"></i></div>
+          <h3>보유 토큰 현황</h3>
+          <p>COBS, BND 토큰의 수량과 가치를 확인하세요.</p>
+          <div class="token-glance">
+            <div class="token-item">
+              <img src="@/assets/COBS.png" alt="COBS" />
+              <span>{{
+                (userProfile?.cobsBalance || 0).toLocaleString()
+              }}</span>
+            </div>
+            <div class="token-item">
+              <img src="@/assets/BND_LOGO.png" alt="BND" />
+              <span>{{ (userProfile?.bndBalance || 0).toLocaleString() }}</span>
+            </div>
+          </div>
+          <span class="card-enter">자세히 보기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/nft-marketplace" class="feature-card nft">
+          <div class="card-icon"><i class="fas fa-gem"></i></div>
+          <h3>NFT 마켓플레이스</h3>
+          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+          <span class="card-enter">입장하기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/my-equity" class="feature-card equity">
+          <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+          <h3>지분 정보</h3>
+          <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
+          <span class="card-enter">확인하기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/my-events" class="feature-card events">
+          <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+          <h3>이벤트 공간</h3>
+          <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
+          <span class="card-enter">참여하기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/mall" class="feature-card mall">
+          <div class="card-icon"><i class="fas fa-store"></i></div>
+          <h3>솔트메이트 몰</h3>
+          <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+          <span class="card-enter">둘러보기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/my-investments" class="feature-card revenue">
+          <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+          <h3>내 수익 현황</h3>
+          <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
+          <span class="card-enter">분석하기 &rarr;</span>
+        </router-link>
+      </div>
     </main>
   </div>
 </template>
 
 <script>
-// ... script 내용은 이전과 동일 ...
+// script 부분은 이전과 동일 (변경 없음)
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -89,7 +144,7 @@ export default {
       const progress =
         (this.userProfile.currentCycleEarnings / this.userProfile.cycleCap) *
         100;
-      return Math.min(progress, 100); // 100%를 넘지 않도록
+      return Math.min(progress, 100);
     },
   },
   async created() {
@@ -119,7 +174,7 @@ export default {
             this.userProfile = {
               ...data,
               tier: data.tier || "BRONZE",
-              investmentAmount: data.investmentAmount || 0, // investmentAmount 필드 추가
+              investmentAmount: data.investmentAmount || 0,
               cycleCap: data.cycleCap || 0,
               currentCycleEarnings: data.currentCycleEarnings || 0,
               cashBalance: data.cashBalance || 0,
@@ -143,57 +198,29 @@ export default {
 </script>
 
 <style scoped>
-.investment-info {
-  text-align: center;
-  margin-bottom: 20px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-}
-.investment-info span {
-  opacity: 0.8;
-  margin-right: 10px;
-}
-.investment-info strong {
-  font-size: 1.2em;
-  font-weight: bold;
-}
 .dashboard-container {
   padding: 20px;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 70px auto 20px auto;
   display: flex;
   flex-direction: column;
   gap: 30px;
 }
-
-.dashboard-header {
-  text-align: center;
-}
-
 .dashboard-header h2 {
   font-size: 2.2em;
   color: #333;
+  text-align: center;
 }
-
 .card {
   background: white;
   border-radius: 15px;
-  padding: 25px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
-
-.card:hover {
-  transform: translateY(-5px);
-}
-
-/* [신설] 수익 현황판 스타일 */
 .performance-card {
   background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
   color: white;
+  padding: 25px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -202,7 +229,6 @@ export default {
   padding-bottom: 15px;
   margin-bottom: 20px;
 }
-
 .card-header h3 {
   font-size: 1.5em;
   margin: 0;
@@ -210,7 +236,6 @@ export default {
   align-items: center;
   gap: 10px;
 }
-
 .tier-badge {
   font-size: 1em;
   font-weight: bold;
@@ -219,25 +244,27 @@ export default {
   background-color: rgba(255, 255, 255, 0.2);
   text-transform: uppercase;
 }
-.tier-badge.vip {
-  background-color: #ffd700;
-  color: #333;
+.investment-info {
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
 }
-.tier-badge.vvip {
-  background-color: #c0c0c0;
-  color: #333;
+.investment-info span {
+  opacity: 0.9;
+  margin-right: 10px;
+  font-size: 1.1em;
 }
-.tier-badge.infinite {
-  background: linear-gradient(45deg, #f3ec78, #af4261);
-  color: white;
+.investment-info strong {
+  font-size: 1.3em;
+  font-weight: bold;
 }
-
 .performance-body h4 {
   font-size: 1.1em;
   margin-bottom: 10px;
   font-weight: 500;
 }
-
 .progress-bar-container {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.2);
@@ -245,14 +272,12 @@ export default {
   height: 20px;
   overflow: hidden;
 }
-
 .progress-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, #17a2b8 0%, #28a745 100%);
   border-radius: 10px;
   transition: width 0.5s ease-in-out;
 }
-
 .progress-labels {
   display: flex;
   justify-content: space-between;
@@ -260,7 +285,6 @@ export default {
   font-size: 0.9em;
   opacity: 0.9;
 }
-
 .balances {
   margin-top: 25px;
   display: grid;
@@ -268,13 +292,11 @@ export default {
   gap: 20px;
   text-align: center;
 }
-
 .balance-item {
   background: rgba(0, 0, 0, 0.15);
   padding: 20px;
   border-radius: 10px;
 }
-
 .balance-item label {
   display: block;
   font-size: 1em;
@@ -285,91 +307,99 @@ export default {
   align-items: center;
   gap: 8px;
 }
-
 .balance-item span {
   font-size: 2em;
   font-weight: bold;
   line-height: 1;
 }
-
 .balance-item small {
   font-size: 1em;
   margin-left: 5px;
 }
 
-.tokens-section h2,
-.quick-access-section h2 {
-  font-size: 1.5em;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
+/* ▼▼▼ [신규] 핵심 기능 카드 그리드 스타일 ▼▼▼ */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+}
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  padding: 30px;
+  border-radius: 15px;
+  background-color: #ffffff;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  position: relative;
+  min-height: 220px;
+}
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+.card-icon {
+  font-size: 2.5em;
+  margin-bottom: 15px;
+}
+.feature-card h3 {
+  font-size: 1.6em;
+  margin: 0 0 10px 0;
+}
+.feature-card p {
+  font-size: 1em;
+  color: #666;
+  line-height: 1.5;
+  flex-grow: 1;
+}
+.card-enter {
+  font-weight: bold;
+  color: #007bff;
+  align-self: flex-end;
+  transition: color 0.3s ease;
+}
+.feature-card:hover .card-enter {
+  color: #0056b3;
 }
 
-.token-display {
+/* 카드별 아이콘 색상 */
+.feature-card.tokens .card-icon {
+  color: #ffc107;
+}
+.feature-card.nft .card-icon {
+  color: #17a2b8;
+}
+.feature-card.equity .card-icon {
+  color: #fd7e14;
+}
+.feature-card.events .card-icon {
+  color: #28a745;
+}
+.feature-card.mall .card-icon {
+  color: #6f42c1;
+}
+.feature-card.revenue .card-icon {
+  color: #dc3545;
+}
+
+/* 토큰 카드 특별 스타일 */
+.token-glance {
   display: flex;
   gap: 20px;
-  justify-content: space-around;
+  margin-bottom: 15px;
 }
-
 .token-item {
   display: flex;
   align-items: center;
-  gap: 15px;
-}
-.token-logo {
-  width: 40px;
-  height: 40px;
-}
-.token-details {
-  text-align: left;
-}
-.token-name {
-  font-size: 1em;
-  color: #666;
-}
-.token-balance {
-  font-size: 1.4em;
+  gap: 8px;
   font-weight: bold;
+  font-size: 1.1em;
 }
-
-.action-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-}
-
-.action-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: center;
-  padding: 15px;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: bold;
-  color: white;
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
-}
-.action-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-.action-button i {
-  font-size: 1.2em;
-}
-
-.action-button.primary {
-  background-color: #007bff;
-}
-.action-button.secondary {
-  background-color: #6c757d;
-}
-.action-button.info {
-  background-color: #17a2b8;
-}
-.action-button.success {
-  background-color: #28a745;
+.token-item img {
+  height: 24px;
 }
 </style>
