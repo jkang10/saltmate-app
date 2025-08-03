@@ -115,8 +115,9 @@
               v-if="validatedReferrer.uid"
               @click="resetReferrer"
               class="reset-referrer"
-              >[변경]</span
             >
+              [변경]
+            </span>
           </p>
         </div>
         <button type="submit" class="signup-button" :disabled="isLoading">
@@ -136,7 +137,6 @@
 import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
-// [수정됨] signInWithEmailAndPassword 제거
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
@@ -160,7 +160,6 @@ export default {
     const validatedReferrer = reactive({ uid: null, name: null });
     const referrerStatus = reactive({ message: "", type: "" });
 
-    // fetchCenters, verifyReferrer, resetReferrer는 기존 코드와 동일합니다.
     const fetchCenters = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "centers"));
@@ -173,6 +172,7 @@ export default {
       }
     };
     onMounted(fetchCenters);
+
     const verifyReferrer = async () => {
       if (!referrerInput.value) return;
       isVerifying.value = true;
@@ -200,7 +200,9 @@ export default {
           const referrerDoc = querySnapshot.docs[0];
           validatedReferrer.uid = referrerDoc.id;
           validatedReferrer.name = referrerDoc.data().name;
-          referrerStatus.message = `✔️ 추천인 '${validatedReferrer.name}'님 확인 완료!`;
+          referrerStatus.message = `✔️ 추천인 '${
+            validatedReferrer.name
+          }'님 확인 완료!`;
           referrerStatus.type = "success";
         }
       } catch (err) {
@@ -211,6 +213,7 @@ export default {
         isVerifying.value = false;
       }
     };
+
     const resetReferrer = () => {
       validatedReferrer.uid = null;
       validatedReferrer.name = null;
@@ -219,7 +222,6 @@ export default {
       referrerStatus.type = "";
     };
 
-    // [수정됨] 회원가입 로직 전체 변경
     const handleSignup = async () => {
       error.value = null;
 
@@ -239,15 +241,16 @@ export default {
         error.value = "구독 등급을 선택해주세요.";
         return;
       }
-
       isLoading.value = true;
       try {
-        // 1. Firebase Auth 계정만 생성 (로그인 X)
         await createUserWithEmailAndPassword(auth, email.value, password.value);
 
-        // 2. 백엔드 함수 호출하여 사용자 정보 및 구독 요청 생성
         const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
+
+        const selectElement = document.getElementById("investment-amount");
+        const selectedTierName =
+          selectElement.options[selectElement.selectedIndex].text;
 
         const userData = {
           name: name.value,
@@ -255,23 +258,18 @@ export default {
           region: region.value,
           investmentAmount: Number(investmentAmount.value),
           uplineReferrer: validatedReferrer.uid || null,
+          tierName: selectedTierName,
         };
-        const result = await createNewUser(userData);
+        await createNewUser(userData);
 
-        // 3. 성공 메시지 표시 및 로그인 페이지로 이동
-        alert(
-          result.data.message ||
-            "회원가입 요청이 완료되었습니다. 관리자 승인 후 로그인해주세요.",
-        );
+        alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
         router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
         if (err.code === "auth/email-already-in-use") {
           error.value = "이미 가입된 이메일 주소입니다.";
-        } else if (err.message) {
-          error.value = `오류가 발생했습니다: ${err.message}`;
         } else {
-          error.value = "알 수 없는 오류가 발생했습니다.";
+          error.value = `오류가 발생했습니다: ${err.message}`;
         }
       } finally {
         isLoading.value = false;

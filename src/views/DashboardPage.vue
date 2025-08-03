@@ -137,7 +137,7 @@
 <script>
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore"; // getDoc 제거
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 
@@ -157,6 +157,7 @@ export default {
         type: "",
       },
       upgradeModalVisible: false,
+      unsubscribe: null, // 실시간 업데이트 리스너 해제 함수
     };
   },
   computed: {
@@ -174,30 +175,32 @@ export default {
       return Math.min(progress, 100);
     },
   },
-  async created() {
-    await this.fetchUserProfile();
+  created() {
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        this.listenToUserProfile(user.uid);
+      } else {
+        this.loadingUser = false;
+        // 로그인 페이지로 리다이렉트 또는 다른 처리
+      }
+    });
+  },
+  unmounted() {
+    // 컴포넌트가 파괴될 때 실시간 리스너 해제
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
   },
   methods: {
-    async fetchUserProfile() {
+    // [수정됨] 실시간으로 사용자 프로필 업데이트를 받도록 변경
+    listenToUserProfile(uid) {
       this.loadingUser = true;
-      try {
-        const user = await new Promise((resolve, reject) => {
-          const unsubscribe = onAuthStateChanged(
-            auth,
-            (user) => {
-              unsubscribe();
-              resolve(user);
-            },
-            reject,
-          );
-        });
-
-        if (user) {
-          const userRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userRef);
-
-          if (userSnap.exists()) {
-            const data = userSnap.data();
+      const userRef = doc(db, "users", uid);
+      this.unsubscribe = onSnapshot(
+        userRef,
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
             this.userProfile = {
               ...data,
               tier: data.tier || "BRONZE",
@@ -212,13 +215,14 @@ export default {
           } else {
             this.error = "사용자 프로필을 찾을 수 없습니다.";
           }
-        }
-      } catch (e) {
-        console.error("사용자 프로필 가져오기 실패:", e);
-        this.error = "프로필 로딩에 실패했습니다.";
-      } finally {
-        this.loadingUser = false;
-      }
+          this.loadingUser = false;
+        },
+        (e) => {
+          console.error("사용자 프로필 실시간 수신 실패:", e);
+          this.error = "프로필 로딩에 실패했습니다.";
+          this.loadingUser = false;
+        },
+      );
     },
     getTierClass(tier) {
       if (!tier) return "default";
