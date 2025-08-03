@@ -115,14 +115,13 @@
               v-if="validatedReferrer.uid"
               @click="resetReferrer"
               class="reset-referrer"
+              >[변경]</span
             >
-              [변경]
-            </span>
           </p>
         </div>
         <button type="submit" class="signup-button" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
-          <span v-else><i class="fas fa-user-plus"></i> 가입하기</span>
+          <span v-else><i class="fas fa-user-plus"></i> 가입 신청하기</span>
         </button>
         <p v-if="error" class="error-message">{{ error }}</p>
         <div class="login-link">
@@ -137,20 +136,10 @@
 import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+// [수정됨] signInWithEmailAndPassword 제거
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import {
-  doc,
-  getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  limit,
-} from "firebase/firestore";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 export default {
   name: "SignUpPage",
@@ -171,6 +160,7 @@ export default {
     const validatedReferrer = reactive({ uid: null, name: null });
     const referrerStatus = reactive({ message: "", type: "" });
 
+    // fetchCenters, verifyReferrer, resetReferrer는 기존 코드와 동일합니다.
     const fetchCenters = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "centers"));
@@ -183,7 +173,6 @@ export default {
       }
     };
     onMounted(fetchCenters);
-
     const verifyReferrer = async () => {
       if (!referrerInput.value) return;
       isVerifying.value = true;
@@ -222,7 +211,6 @@ export default {
         isVerifying.value = false;
       }
     };
-
     const resetReferrer = () => {
       validatedReferrer.uid = null;
       validatedReferrer.name = null;
@@ -231,10 +219,10 @@ export default {
       referrerStatus.type = "";
     };
 
+    // [수정됨] 회원가입 로직 전체 변경
     const handleSignup = async () => {
       error.value = null;
 
-      // ▼▼▼ [수정됨] 필수 필드 유효성 검사 추가 ▼▼▼
       if (!name.value.trim()) {
         error.value = "이름을 반드시 입력해주세요.";
         return;
@@ -243,8 +231,6 @@ export default {
         error.value = "전화번호를 반드시 입력해주세요.";
         return;
       }
-      // ▲▲▲ 검사 로직 끝 ▲▲▲
-
       if (password.value !== confirmPassword.value) {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
@@ -253,12 +239,16 @@ export default {
         error.value = "구독 등급을 선택해주세요.";
         return;
       }
+
       isLoading.value = true;
       try {
+        // 1. Firebase Auth 계정만 생성 (로그인 X)
         await createUserWithEmailAndPassword(auth, email.value, password.value);
-        await signInWithEmailAndPassword(auth, email.value, password.value);
+
+        // 2. 백엔드 함수 호출하여 사용자 정보 및 구독 요청 생성
         const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
+
         const userData = {
           name: name.value,
           phone: phone.value,
@@ -266,22 +256,22 @@ export default {
           investmentAmount: Number(investmentAmount.value),
           uplineReferrer: validatedReferrer.uid || null,
         };
-        await createNewUser(userData);
-        alert("회원가입이 성공적으로 완료되었습니다! 대시보드로 이동합니다.");
-        const user = auth.currentUser;
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().isAdmin) {
-          router.push("/admin-dashboard");
-        } else {
-          router.push("/dashboard");
-        }
+        const result = await createNewUser(userData);
+
+        // 3. 성공 메시지 표시 및 로그인 페이지로 이동
+        alert(
+          result.data.message ||
+            "회원가입 요청이 완료되었습니다. 관리자 승인 후 로그인해주세요.",
+        );
+        router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
         if (err.code === "auth/email-already-in-use") {
           error.value = "이미 가입된 이메일 주소입니다.";
-        } else {
+        } else if (err.message) {
           error.value = `오류가 발생했습니다: ${err.message}`;
+        } else {
+          error.value = "알 수 없는 오류가 발생했습니다.";
         }
       } finally {
         isLoading.value = false;

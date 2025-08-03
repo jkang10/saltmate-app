@@ -122,17 +122,15 @@ export default { name: "AdminDashboardPage" };
 .admin-dashboard-page {
   padding: 20px;
   max-width: 1200px;
-  margin: 70px auto 20px auto; /* Navbar 높이 고려 */
+  margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
   gap: 30px;
 }
-
 .page-header {
   text-align: center;
   margin-bottom: 20px;
 }
-
 .page-header h1 {
   font-size: 2.8em;
   color: #333;
@@ -142,33 +140,28 @@ export default { name: "AdminDashboardPage" };
   align-items: center;
   gap: 15px;
 }
-
 .page-header h1 i {
   color: #007bff;
 }
-
 .page-header .description {
   font-size: 1.1em;
   color: #666;
 }
-
 .admin-layout {
   display: flex;
   gap: 30px;
-  align-items: flex-start; /* 사이드바와 콘텐츠 상단 정렬 */
+  align-items: flex-start;
 }
-
 .admin-sidebar {
-  flex: 0 0 250px; /* 고정 너비 */
+  flex: 0 0 250px;
   padding: 30px 20px;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
-
 .admin-sidebar h2 {
   font-size: 1.8em;
   color: #333;
@@ -177,17 +170,14 @@ export default { name: "AdminDashboardPage" };
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   padding-bottom: 15px;
 }
-
 .admin-nav {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-
 .admin-nav li {
   margin-bottom: 10px;
 }
-
 .admin-nav .nav-item {
   display: flex;
   align-items: center;
@@ -203,48 +193,42 @@ export default { name: "AdminDashboardPage" };
     color 0.3s ease,
     transform 0.2s ease;
 }
-
 .admin-nav .nav-item i {
   font-size: 1.2em;
   color: #007bff;
 }
-
+.admin-nav .nav-item.active-link,
 .admin-nav .nav-item:hover {
   background-color: rgba(0, 123, 255, 0.1);
   color: #007bff;
   transform: translateX(5px);
 }
-
 .admin-nav .nav-item.active-link {
   background-color: #007bff;
-  color: white;
+  color: #fff;
   box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
 }
-
 .admin-nav .nav-item.active-link i {
-  color: white;
+  color: #fff;
 }
-
 .admin-content {
-  flex: 1; /* 남은 공간 모두 차지 */
+  flex: 1;
   padding: 30px;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.5);
-  min-height: 500px; /* 최소 높이 */
+  min-height: 500px;
 }
-
-/* 반응형 */
 @media (max-width: 992px) {
   .admin-layout {
     flex-direction: column;
     align-items: stretch;
   }
   .admin-sidebar {
-    flex: none; /* 고정 너비 해제 */
+    flex: none;
     width: 100%;
     margin-bottom: 20px;
   }
@@ -276,8 +260,8 @@ export default { name: "AdminDashboardPage" };
   .page-header h1 {
     font-size: 2.2em;
   }
-  .admin-sidebar,
-  .admin-content {
+  .admin-content,
+  .admin-sidebar {
     padding: 20px;
   }
   .admin-nav {

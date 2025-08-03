@@ -8,7 +8,7 @@
       <section class="performance-card card">
         <div class="card-header">
           <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
-          <span :class="['tier-badge', userProfile?.tier?.toLowerCase()]">{{
+          <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{
             userProfile?.tier || "Loding.."
           }}</span>
         </div>
@@ -43,18 +43,30 @@
           </div>
         </div>
         <div class="balances">
-          <div class="balance-item cash">
+          <div class="balance-item cash" @click="openHistoryModal('CASH')">
             <label><i class="fas fa-wallet"></i> 현금성 수익</label>
             <span>{{ (userProfile?.cashBalance || 0).toLocaleString() }}</span>
             <small>원</small>
           </div>
-          <div class="balance-item saltmate">
+          <div
+            class="balance-item saltmate"
+            @click="openHistoryModal('SALTMATE')"
+          >
             <label><i class="fas fa-gifts"></i> 솔트메이트</label>
             <span>{{
               (userProfile?.saltmatePoints || 0).toLocaleString()
             }}</span>
             <small>P</small>
           </div>
+        </div>
+        <div class="upgrade-action">
+          <button
+            @click="openUpgradeModal"
+            class="upgrade-button"
+            :disabled="userProfile?.tier === '승인대기중'"
+          >
+            <i class="fas fa-arrow-up"></i> 등급 추가 구매
+          </button>
         </div>
       </section>
 
@@ -77,35 +89,30 @@
           </div>
           <span class="card-enter">자세히 보기 &rarr;</span>
         </router-link>
-
         <router-link to="/nft-marketplace" class="feature-card nft">
           <div class="card-icon"><i class="fas fa-gem"></i></div>
           <h3>NFT 마켓플레이스</h3>
           <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
           <span class="card-enter">입장하기 &rarr;</span>
         </router-link>
-
         <router-link to="/my-equity" class="feature-card equity">
           <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
           <h3>지분 정보</h3>
           <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
           <span class="card-enter">확인하기 &rarr;</span>
         </router-link>
-
         <router-link to="/my-events" class="feature-card events">
           <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
           <h3>이벤트 공간</h3>
           <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
           <span class="card-enter">참여하기 &rarr;</span>
         </router-link>
-
         <router-link to="/mall" class="feature-card mall">
           <div class="card-icon"><i class="fas fa-store"></i></div>
           <h3>솔트메이트 몰</h3>
           <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
           <span class="card-enter">둘러보기 &rarr;</span>
         </router-link>
-
         <router-link to="/my-investments" class="feature-card revenue">
           <div class="card-icon"><i class="fas fa-chart-line"></i></div>
           <h3>내 수익 현황</h3>
@@ -118,18 +125,25 @@
 </template>
 
 <script>
-// script 부분은 이전과 동일 (변경 없음)
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export default {
   name: "DashboardPage",
+  // [신규] 모달 컴포넌트 등록
+  // components: { TransactionHistoryModal, UpgradeTierModal },
   data() {
     return {
       userProfile: null,
       loadingUser: true,
       error: null,
+      // [신규] 모달 상태 관리
+      historyModal: {
+        visible: false,
+        type: "",
+      },
+      upgradeModalVisible: false,
     };
   },
   computed: {
@@ -193,15 +207,35 @@ export default {
         this.loadingUser = false;
       }
     },
+    // [신규] 등급 뱃지 클래스 반환
+    getTierClass(tier) {
+      if (!tier) return "default";
+      if (tier === "승인대기중") return "pending";
+      return tier.toLowerCase();
+    },
+    // [신규] 거래내역 모달 열기
+    openHistoryModal(type) {
+      console.log(`${type} 내역 조회를 시작합니다.`);
+      // this.historyModal.type = type;
+      // this.historyModal.visible = true;
+      alert(`${type} 내역 조회 기능은 모달 컴포넌트 생성 후 연동됩니다.`);
+    },
+    // [신규] 등급 추가 구매 모달 열기
+    openUpgradeModal() {
+      console.log("등급 추가 구매를 시작합니다.");
+      // this.upgradeModalVisible = true;
+      alert("등급 추가 구매 기능은 모달 컴포넌트 생성 후 연동됩니다.");
+    },
   },
 };
 </script>
 
 <style scoped>
+/* 기존 스타일은 그대로 유지 */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
-  margin: 70px auto 20px auto;
+  margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
   gap: 30px;
@@ -212,20 +246,20 @@ export default {
   text-align: center;
 }
 .card {
-  background: white;
+  background: #fff;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
 .performance-card {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
   padding: 25px;
 }
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid hsla(0, 0%, 100%, 0.3);
   padding-bottom: 15px;
   margin-bottom: 20px;
 }
@@ -238,17 +272,21 @@ export default {
 }
 .tier-badge {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: 700;
   padding: 6px 15px;
   border-radius: 20px;
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: hsla(0, 0%, 100%, 0.2);
   text-transform: uppercase;
+}
+.tier-badge.pending {
+  background-color: #ffc107;
+  color: #212529;
 }
 .investment-info {
   text-align: center;
   margin-bottom: 20px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: hsla(0, 0%, 100%, 0.1);
   border-radius: 8px;
 }
 .investment-info span {
@@ -258,7 +296,7 @@ export default {
 }
 .investment-info strong {
   font-size: 1.3em;
-  font-weight: bold;
+  font-weight: 700;
 }
 .performance-body h4 {
   font-size: 1.1em;
@@ -274,7 +312,7 @@ export default {
 }
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #17a2b8 0%, #28a745 100%);
+  background: linear-gradient(90deg, #17a2b8, #28a745);
   border-radius: 10px;
   transition: width 0.5s ease-in-out;
 }
@@ -296,6 +334,11 @@ export default {
   background: rgba(0, 0, 0, 0.15);
   padding: 20px;
   border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.balance-item:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 .balance-item label {
   display: block;
@@ -309,15 +352,13 @@ export default {
 }
 .balance-item span {
   font-size: 2em;
-  font-weight: bold;
+  font-weight: 700;
   line-height: 1;
 }
 .balance-item small {
   font-size: 1em;
   margin-left: 5px;
 }
-
-/* ▼▼▼ [신규] 핵심 기능 카드 그리드 스타일 ▼▼▼ */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -330,7 +371,7 @@ export default {
   color: inherit;
   padding: 30px;
   border-radius: 15px;
-  background-color: #ffffff;
+  background-color: #fff;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
   transition:
     transform 0.3s ease,
@@ -348,7 +389,7 @@ export default {
 }
 .feature-card h3 {
   font-size: 1.6em;
-  margin: 0 0 10px 0;
+  margin: 0 0 10px;
 }
 .feature-card p {
   font-size: 1em;
@@ -357,21 +398,13 @@ export default {
   flex-grow: 1;
 }
 .card-enter {
-  font-weight: bold;
+  font-weight: 700;
   color: #007bff;
   align-self: flex-end;
   transition: color 0.3s ease;
 }
 .feature-card:hover .card-enter {
   color: #0056b3;
-}
-
-/* 카드별 아이콘 색상 */
-.feature-card.tokens .card-icon {
-  color: #ffc107;
-}
-.feature-card.nft .card-icon {
-  color: #17a2b8;
 }
 .feature-card.equity .card-icon {
   color: #fd7e14;
@@ -382,11 +415,15 @@ export default {
 .feature-card.mall .card-icon {
   color: #6f42c1;
 }
+.feature-card.nft .card-icon {
+  color: #17a2b8;
+}
 .feature-card.revenue .card-icon {
   color: #dc3545;
 }
-
-/* 토큰 카드 특별 스타일 */
+.feature-card.tokens .card-icon {
+  color: #ffc107;
+}
 .token-glance {
   display: flex;
   gap: 20px;
@@ -396,10 +433,33 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 1.1em;
 }
 .token-item img {
   height: 24px;
+}
+.upgrade-action {
+  margin-top: 20px;
+  text-align: center;
+}
+.upgrade-button {
+  background-color: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.upgrade-button:disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+.upgrade-button:hover:not(:disabled) {
+  background-color: #e0a800;
+  transform: translateY(-2px);
 }
 </style>
