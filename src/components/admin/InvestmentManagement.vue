@@ -36,8 +36,8 @@
       </thead>
       <tbody>
         <tr v-for="investment in investments" :key="investment.id">
-          <td>{{ investment.userName }}</td>
-          <td>{{ investment.userEmail }}</td>
+          <td>{{ investment.userName || "정보 없음" }}</td>
+          <td>{{ investment.userEmail || "정보 없음" }}</td>
           <td class="amount">{{ formatCurrency(investment.amount) }}</td>
           <td>{{ formatDate(investment.createdAt) }}</td>
           <td>
@@ -78,6 +78,7 @@ import {
   updateDoc,
   orderBy,
   query,
+  getDoc, // [수정] getDoc 추가
 } from "firebase/firestore";
 
 const investments = ref([]);
@@ -92,7 +93,7 @@ const summary = reactive({
 // --- Helper Functions ---
 const formatCurrency = (value) =>
   new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW" }).format(
-    value,
+    value || 0,
   );
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
@@ -108,16 +109,40 @@ const getStatusText = (status) => {
 };
 
 // --- Firestore Functions ---
+
+// ▼▼▼ [수정됨] 투자자 이름, 이메일을 함께 가져오도록 fetchInvestments 함수 전체 수정 ▼▼▼
 const fetchInvestments = async () => {
   loading.value = true;
   try {
     const investmentsRef = collection(db, "investments");
     const q = query(investmentsRef, orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
-    investments.value = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+
+    const enrichedInvestments = await Promise.all(
+      querySnapshot.docs.map(async (investmentDoc) => {
+        const investmentData = {
+          id: investmentDoc.id,
+          ...investmentDoc.data(),
+          // 기본값 설정
+          userName: "N/A",
+          userEmail: "N/A",
+        };
+
+        // userId가 있을 경우, users 컬렉션에서 해당 유저 정보 조회
+        if (investmentData.userId) {
+          const userRef = doc(db, "users", investmentData.userId);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            // 조회한 사용자 정보를 투자 데이터에 추가
+            investmentData.userName = userSnap.data().name;
+            investmentData.userEmail = userSnap.data().email;
+          }
+        }
+        return investmentData;
+      }),
+    );
+
+    investments.value = enrichedInvestments;
     calculateSummary();
   } catch (error) {
     console.error("투자 내역을 불러오는 중 오류 발생:", error);
@@ -126,6 +151,7 @@ const fetchInvestments = async () => {
     loading.value = false;
   }
 };
+// ▲▲▲ 수정 완료 ▲▲▲
 
 const calculateSummary = () => {
   summary.totalAmount = investments.value.reduce(
@@ -168,7 +194,7 @@ onMounted(fetchInvestments);
 </script>
 
 <style scoped>
-/* 이전 UserManagement 스타일과 유사하게 구성 */
+/* 기존 스타일과 동일 (변경 없음) */
 .investment-management {
   background-color: #fff;
   padding: 30px;
@@ -178,8 +204,6 @@ onMounted(fetchInvestments);
 .investment-management h3 {
   margin-bottom: 20px;
 }
-
-/* 요약 카드 */
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -201,8 +225,6 @@ onMounted(fetchInvestments);
   font-weight: bold;
   color: #333;
 }
-
-/* 투자 내역 테이블 */
 .investment-table {
   width: 100%;
   border-collapse: collapse;
@@ -221,8 +243,6 @@ onMounted(fetchInvestments);
 .investment-table .amount {
   font-weight: 600;
 }
-
-/* 상태 배지 */
 .status-badge {
   padding: 5px 10px;
   border-radius: 15px;
@@ -239,8 +259,6 @@ onMounted(fetchInvestments);
 .status-cancelled {
   background-color: #6c757d; /* 회색 */
 }
-
-/* 버튼 */
 .btn {
   border: none;
   border-radius: 5px;
@@ -259,8 +277,6 @@ onMounted(fetchInvestments);
   background-color: #ffc107;
   color: #212529;
 }
-
-/* 로딩 및 데이터 없음 */
 .loading-spinner,
 .no-data {
   text-align: center;
