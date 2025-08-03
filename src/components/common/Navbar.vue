@@ -3,9 +3,7 @@
     :class="{ 'navbar-container': true, 'navbar-expanded': isMobileMenuOpen }"
   >
     <div class="navbar-brand">
-      <router-link :to="user ? '/dashboard' : '/login'" class="logo"
-        >솔트메이트</router-link
-      >
+      <router-link :to="logoLink" class="logo">솔트메이트</router-link>
     </div>
 
     <button class="hamburger-menu" @click="toggleMobileMenu">
@@ -87,6 +85,15 @@ export default {
 
     const isAdmin = computed(() => userProfile.value?.isAdmin === true);
 
+    // ▼▼▼ [신규] 관리자 여부에 따라 로고 링크를 동적으로 반환하는 computed 속성 추가 ▼▼▼
+    const logoLink = computed(() => {
+      if (!user.value) {
+        return "/login"; // 비로그인 시 로그인 페이지로
+      }
+      return userProfile.value?.isAdmin ? "/admin-dashboard" : "/dashboard";
+    });
+    // ▲▲▲ 추가 완료 ▲▲▲
+
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
         user.value = currentUser;
@@ -141,6 +148,7 @@ export default {
       isAdmin,
       userProfile,
       isMobileMenuOpen,
+      logoLink, // [수정] 템플릿에서 사용할 수 있도록 반환
       handleLogout,
       toggleMobileMenu,
       closeMobileMenu,
@@ -150,13 +158,14 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일과 동일 (변경 없음) */
 .navbar-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px;
-  background: linear-gradient(90deg, #6a82fb 0%, #fc5c7d 100%);
-  color: white;
+  background: linear-gradient(90deg, #6a82fb, #fc5c7d);
+  color: #fff;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   position: fixed;
   top: 0;
@@ -165,21 +174,18 @@ export default {
   z-index: 1000;
   transition: all 0.3s ease-in-out;
 }
-
 .navbar-brand .logo {
   font-size: 1.8em;
-  font-weight: bold;
-  color: white;
+  font-weight: 700;
+  color: #fff;
   text-decoration: none;
   letter-spacing: 1px;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
-
 .navbar-menu {
   display: flex;
   align-items: center;
 }
-
 .navbar-links {
   display: flex;
   list-style: none;
@@ -188,13 +194,11 @@ export default {
   align-items: center;
   flex-wrap: nowrap;
 }
-
 .navbar-links li {
   margin-left: 15px;
 }
-
 .nav-link {
-  color: white;
+  color: #fff;
   text-decoration: none;
   font-size: 1.1em;
   padding: 8px 12px;
@@ -208,18 +212,15 @@ export default {
   align-items: center;
   gap: 5px;
 }
-
 .nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: hsla(0, 0%, 100%, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-
 .nav-link.router-link-exact-active {
-  background-color: rgba(255, 255, 255, 0.3);
-  font-weight: bold;
+  background-color: hsla(0, 0%, 100%, 0.3);
+  font-weight: 700;
 }
-
 .primary-button {
   background-color: #28a745;
   padding: 10px 18px;
@@ -227,61 +228,53 @@ export default {
 .primary-button:hover {
   background-color: #218838;
 }
-
 .outline-button {
-  border: 1px solid white;
+  border: 1px solid #fff;
   padding: 10px 18px;
 }
 .outline-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: hsla(0, 0%, 100%, 0.1);
 }
-
 .logout-button {
-  background: none;
+  background: 0 0;
   border: none;
   cursor: pointer;
   padding: 8px 12px;
-  color: white;
+  color: #fff;
   font-size: 1.1em;
 }
 .logout-button:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: hsla(0, 0%, 100%, 0.2);
   transform: translateY(-2px);
 }
-
-.user-profile,
-.admin-dashboard-link {
-  background-color: rgba(255, 255, 255, 0.15);
+.admin-dashboard-link,
+.user-profile {
+  background-color: hsla(0, 0%, 100%, 0.15);
   padding: 8px 15px;
   border-radius: 20px;
   font-weight: 500;
 }
-.user-profile:hover,
-.admin-dashboard-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+.admin-dashboard-link:hover,
+.user-profile:hover {
+  background-color: hsla(0, 0%, 100%, 0.3);
   transform: translateY(-2px);
 }
-
 .hamburger-menu {
   display: none;
-  background: none;
+  background: 0 0;
   border: none;
-  color: white;
+  color: #fff;
   font-size: 1.8em;
   cursor: pointer;
 }
-
-/* 모바일 반응형 */
 @media (max-width: 992px) {
   .navbar-container {
     flex-wrap: wrap;
     padding: 15px 20px;
   }
-
   .hamburger-menu {
     display: block;
   }
-
   .navbar-menu {
     flex-direction: column;
     width: 100%;
@@ -289,26 +282,22 @@ export default {
     overflow: hidden;
     transition: max-height 0.3s ease-out;
   }
-
   .navbar-menu.is-active {
     max-height: 500px;
   }
-
   .navbar-links {
     flex-direction: column;
     width: 100%;
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-top: 1px solid hsla(0, 0%, 100%, 0.2);
     flex-wrap: nowrap;
   }
-
   .navbar-links li {
     margin: 10px 0;
     width: 100%;
     text-align: center;
   }
-
   .nav-link {
     display: block;
     width: 100%;
@@ -316,20 +305,17 @@ export default {
     border-radius: 0;
     white-space: normal;
   }
-
-  .primary-button,
-  .outline-button {
+  .outline-button,
+  .primary-button {
     padding: 12px 0;
     border-radius: 8px;
   }
-
-  .user-profile,
-  .admin-dashboard-link {
+  .admin-dashboard-link,
+  .user-profile {
     width: auto;
     margin: 0 auto;
   }
 }
-
 @media (max-width: 576px) {
   .navbar-brand .logo {
     font-size: 1.5em;

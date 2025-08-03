@@ -47,6 +47,17 @@
             <label><i class="fas fa-wallet"></i> 현금성 수익</label>
             <span>{{ (userProfile?.cashBalance || 0).toLocaleString() }}</span>
             <small>원</small>
+            <div class="withdrawal-action">
+              <button
+                class="withdrawal-button"
+                :disabled="!isWithdrawalEnabled"
+              >
+                출금 신청하기
+              </button>
+              <small v-if="!isWithdrawalEnabled" class="withdrawal-notice">
+                신청 가능 시간: 매주 화 09:00-17:00
+              </small>
+            </div>
           </div>
           <div
             class="balance-item saltmate"
@@ -137,7 +148,7 @@
 <script>
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore"; // getDoc 제거
+import { doc, onSnapshot } from "firebase/firestore";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 
@@ -157,7 +168,7 @@ export default {
         type: "",
       },
       upgradeModalVisible: false,
-      unsubscribe: null, // 실시간 업데이트 리스너 해제 함수
+      unsubscribe: null,
     };
   },
   computed: {
@@ -174,6 +185,14 @@ export default {
         100;
       return Math.min(progress, 100);
     },
+    // ▼▼▼ [수정됨] isWithdrawalEnabled 로직을 computed 안으로 이동 ▼▼▼
+    isWithdrawalEnabled() {
+      const now = new Date();
+      const day = now.getDay(); // 0:일, 1:월, 2:화, 3:수, 4:목, 5:금, 6:토
+      const hour = now.getHours();
+      // 화요일(2)이고, 시간이 9시 이상 17시 미만일 때 true 반환 (17시는 5 PM)
+      return day === 2 && hour >= 9 && hour < 17;
+    },
   },
   created() {
     onAuthStateChanged(auth, (user) => {
@@ -186,13 +205,11 @@ export default {
     });
   },
   unmounted() {
-    // 컴포넌트가 파괴될 때 실시간 리스너 해제
     if (this.unsubscribe) {
       this.unsubscribe();
     }
   },
   methods: {
-    // [수정됨] 실시간으로 사용자 프로필 업데이트를 받도록 변경
     listenToUserProfile(uid) {
       this.loadingUser = true;
       const userRef = doc(db, "users", uid);
@@ -241,6 +258,7 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일과 동일하되, withdrawal 관련 스타일 추가 */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
@@ -368,6 +386,44 @@ export default {
   font-size: 1em;
   margin-left: 5px;
 }
+.balance-item.saltmate {
+  background: linear-gradient(135deg, #6f42c1, #a96ef0);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 20px rgba(111, 66, 193, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.balance-item.saltmate:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 12px 25px rgba(111, 66, 193, 0.6);
+}
+.balance-item.saltmate::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 20px;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(25deg);
+  animation: shimmer 4s infinite linear;
+}
+.balance-item.saltmate span {
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+@keyframes shimmer {
+  from {
+    left: -100%;
+  }
+  to {
+    left: 200%;
+  }
+}
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -471,52 +527,33 @@ export default {
   background-color: #e0a800;
   transform: translateY(-2px);
 }
-.balance-item.saltmate {
-  /* ▼▼▼ [수정/추가됨] 화려한 디자인 적용 ▼▼▼ */
-  background: linear-gradient(
-    135deg,
-    #6f42c1,
-    #a96ef0
-  ); /* 보라색 계열 그라데이션 */
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 8px 20px rgba(111, 66, 193, 0.4);
-  position: relative;
-  overflow: hidden;
+/* ▼▼▼ [신규] 출금 신청 관련 스타일 추가 ▼▼▼ */
+.withdrawal-action {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid hsla(0, 0%, 100%, 0.2);
 }
-
-.balance-item.saltmate:hover {
-  transform: translateY(-5px) scale(1.03);
-  box-shadow: 0 12px 25px rgba(111, 66, 193, 0.6);
+.withdrawal-button {
+  width: 100%;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-
-/* 반짝이는 효과를 위한 가상 요소 */
-.balance-item.saltmate::before {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 20px;
-  height: 200%;
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  transform: rotate(25deg);
-  animation: shimmer 4s infinite linear;
+.withdrawal-button:disabled {
+  background-color: #5a6268;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
-
-.balance-item.saltmate span {
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 텍스트에 그림자 효과 */
-}
-
-@keyframes shimmer {
-  from {
-    left: -100%;
-  }
-  to {
-    left: 200%;
-  }
+.withdrawal-notice {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.8em;
+  opacity: 0.9;
+  text-align: center;
 }
 </style>
