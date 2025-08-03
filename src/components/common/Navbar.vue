@@ -12,7 +12,7 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
-        <template v-if="!userProfile?.isAdmin">
+        <template v-if="!isAdmin">
           <li>
             <router-link to="/shop" class="nav-link">투자 상품</router-link>
           </li>
@@ -21,12 +21,6 @@
               >내 투자 현황</router-link
             >
           </li>
-          <router-link to="/network-tree" class="feature-card">
-            <div class="card-icon"><i class="fas fa-sitemap"></i></div>
-            <h3>나의 추천 네트워크</h3>
-            <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
-            <span class="card-enter">확인하기 &rarr;</span>
-          </router-link>
         </template>
 
         <li>
@@ -47,13 +41,13 @@
         </template>
 
         <template v-if="user">
-          <li v-if="!userProfile?.isAdmin">
+          <li v-if="!isAdmin">
             <router-link to="/profile" class="nav-link user-profile">
               <i class="fas fa-user-circle"></i>
               {{ userProfile?.name || user.email }}
             </router-link>
           </li>
-          <li v-if="userProfile?.isAdmin">
+          <li v-if="isAdmin">
             <router-link
               to="/admin-dashboard"
               class="nav-link admin-dashboard-link"
@@ -77,8 +71,7 @@ import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-// ▼▼▼ [수정됨] onSnapshot 대신 getDoc을 사용합니다 ▼▼▼
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
 export default {
   name: "AppNavbar",
@@ -87,60 +80,58 @@ export default {
     const user = ref(null);
     const isMobileMenuOpen = ref(false);
     const userProfile = ref(null);
+    const isAdmin = ref(false); // [수정] isAdmin 상태를 별도로 관리
     let unsubscribeAuth = null;
+    let unsubscribeProfile = null;
 
     const logoLink = computed(() => {
-      if (!user.value) {
-        return "/login";
-      }
-      if (userProfile.value && userProfile.value.isAdmin) {
-        return "/admin-dashboard";
-      }
-      return "/dashboard";
+      if (!user.value) return "/login";
+      return isAdmin.value ? "/admin-dashboard" : "/dashboard";
     });
 
-    // ▼▼▼ [수정됨] 타이밍 문제를 해결하기 위해 onMounted 로직 전체 수정 ▼▼▼
+    // ▼▼▼ [최종 수정] 커스텀 클레임을 확인하는 로직으로 변경 ▼▼▼
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+        user.value = currentUser;
+
+        if (unsubscribeProfile) unsubscribeProfile();
+
         if (currentUser) {
-          user.value = currentUser;
-          // Firestore에서 프로필 정보를 한번만 가져와서 확정합니다. (실시간 대신)
+          // 1. 토큰에서 커스텀 클레임(admin 여부)을 직접 가져옴
+          const idTokenResult = await currentUser.getIdTokenResult();
+          isAdmin.value = idTokenResult.claims.admin === true;
+
+          // 2. (선택적) 화면 표시에 필요한 사용자 이름 등은 계속 DB에서 가져옴
           const userDocRef = doc(db, "users", currentUser.uid);
-          const docSnap = await getDoc(userDocRef); // 프로필 로드를 기다립니다.
-          if (docSnap.exists()) {
-            userProfile.value = docSnap.data();
-          } else {
-            userProfile.value = null; // 프로필이 없는 경우
-          }
+          unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
+            userProfile.value = docSnap.exists() ? docSnap.data() : null;
+          });
         } else {
           // 로그아웃 상태
-          user.value = null;
           userProfile.value = null;
+          isAdmin.value = false;
         }
       });
     });
 
     onUnmounted(() => {
       if (unsubscribeAuth) unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
     });
     // ▲▲▲ 수정 완료 ▲▲▲
 
     const handleLogout = async () => {
       try {
         await signOut(auth);
-        alert("로그아웃 되었습니다.");
         router.push("/login");
-        closeMobileMenu();
       } catch (error) {
         console.error("로그아웃 오류:", error);
-        alert("로그아웃에 실패했습니다.");
       }
     };
 
     const toggleMobileMenu = () => {
       isMobileMenuOpen.value = !isMobileMenuOpen.value;
     };
-
     const closeMobileMenu = () => {
       isMobileMenuOpen.value = false;
     };
@@ -148,6 +139,7 @@ export default {
     return {
       user,
       userProfile,
+      isAdmin, // 템플릿에서 사용할 수 있도록 반환
       isMobileMenuOpen,
       logoLink,
       handleLogout,
