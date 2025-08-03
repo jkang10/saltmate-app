@@ -1,9 +1,12 @@
 <template>
   <div class="page-container">
     <header class="page-header">
-      <h1><i class="fas fa-sitemap"></i> 나의 추천 네트워크</h1>
+      <h1><i class="fas fa-sitemap"></i> 네트워크</h1>
       <p class="description">
-        나를 기준으로 한 하위 추천 라인을 시각적으로 확인합니다.
+        <span v-if="isAdminView">전체 회원의 추천 네트워크를 확인합니다.</span>
+        <span v-else
+          >나를 기준으로 한 하위 추천 라인을 시각적으로 확인합니다.</span
+        >
       </p>
     </header>
 
@@ -40,48 +43,103 @@ export default {
     const isLoading = ref(true);
     const error = ref(null);
     const chartOption = reactive({});
+    const isAdminView = ref(false); // 관리자 뷰인지 여부
 
-    const nodes = [];
-    const links = [];
+    // --- 관리자용: 전체 네트워크 생성 ---
+    const fetchAllNetworks = async () => {
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      const nodes = [];
+      const links = [];
+      const userMap = new Map();
 
-    // 하위 라인 탐색 재귀 함수
-    const fetchDownline = async (parentId, parentName, level, maxLevel) => {
-      if (level > maxLevel) return;
-
-      const q = query(
-        collection(db, "users"),
-        where("uplineReferrer", "==", parentId),
-      );
-      const querySnapshot = await getDocs(q);
-
-      for (const userDoc of querySnapshot.docs) {
+      // 1. 모든 사용자를 노드로 추가하고, Map에 저장
+      usersSnapshot.forEach((userDoc) => {
         const userData = { id: userDoc.id, ...userDoc.data() };
+        userMap.set(userData.id, userData);
 
-        // 노드 추가 (노드 크기는 투자금액에 비례하도록 설정)
+        const isRoot = !userData.uplineReferrer; // 최상위 노드 여부
         nodes.push({
           id: userData.id,
           name: userData.name,
           value: userData.investmentAmount || 10000,
-          symbolSize: 15 + Math.log(userData.investmentAmount || 10000) * 2,
-          category: level, // 레벨별로 카테고리(색상) 지정
-          label: {
-            show: true,
-            formatter: "{b}", // 이름(b) 표시
-          },
+          symbolSize: isRoot
+            ? 40
+            : 15 + Math.log(userData.investmentAmount || 10000) * 2,
+          category: isRoot ? "최상위" : "일반",
+          label: { show: true, formatter: "{b}" },
+          itemStyle: isRoot ? { borderColor: "#ffc107", borderWidth: 3 } : {},
         });
+      });
 
-        // 링크 추가
-        links.push({
-          source: parentId,
-          target: userData.id,
-        });
+      // 2. 사용자들을 순회하며 링크 생성
+      userMap.forEach((user) => {
+        if (user.uplineReferrer && userMap.has(user.uplineReferrer)) {
+          links.push({
+            source: user.uplineReferrer,
+            target: user.id,
+          });
+        }
+      });
 
-        // 다음 레벨 탐색
-        await fetchDownline(userData.id, userData.name, level + 1, maxLevel);
-      }
+      setChartOption(nodes, links, ["최상위", "일반"]);
     };
 
-    // 네트워크 데이터 빌드 메인 함수
+    // --- 일반 사용자용: 내 하위 네트워크 생성 ---
+    const fetchMyDownline = async (userId) => {
+      const nodes = [];
+      const links = [];
+
+      const currentUserSnap = await getDoc(doc(db, "users", userId));
+      if (!currentUserSnap.exists())
+        throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+      const me = { id: currentUserSnap.id, ...currentUserSnap.data() };
+
+      // 1. 루트 노드 (본인) 추가
+      nodes.push({
+        id: me.id,
+        name: `${me.name} (나)`,
+        value: me.investmentAmount || 10000,
+        symbolSize: 50,
+        category: 0,
+        label: {
+          show: true,
+          formatter: "{b}",
+          fontSize: 14,
+          fontWeight: "bold",
+        },
+        itemStyle: { borderColor: "#ffc107", borderWidth: 3 },
+      });
+
+      // 2. 하위 라인 데이터 재귀적으로 불러오기
+      const fetchRecursive = async (parentId, level, maxLevel) => {
+        if (level > maxLevel) return;
+        const q = query(
+          collection(db, "users"),
+          where("uplineReferrer", "==", parentId),
+        );
+        const querySnapshot = await getDocs(q);
+
+        for (const userDoc of querySnapshot.docs) {
+          const userData = { id: userDoc.id, ...userDoc.data() };
+          nodes.push({
+            id: userData.id,
+            name: userData.name,
+            value: userData.investmentAmount || 10000,
+            symbolSize: 15 + Math.log(userData.investmentAmount || 10000) * 2,
+            category: level,
+            label: { show: true, formatter: "{b}" },
+          });
+          links.push({ source: parentId, target: userData.id });
+          await fetchRecursive(userData.id, level + 1, maxLevel);
+        }
+      };
+
+      await fetchRecursive(me.id, 1, 3); // 최대 3레벨
+      setChartOption(nodes, links, ["나", "1대", "2대", "3대"]);
+    };
+
+    // --- 메인 로직 ---
     const buildNetworkTree = async () => {
       isLoading.value = true;
       if (!auth.currentUser) {
@@ -91,38 +149,18 @@ export default {
       }
 
       try {
-        const currentUserRef = doc(db, "users", auth.currentUser.uid);
-        const currentUserSnap = await getDoc(currentUserRef);
-        if (!currentUserSnap.exists()) {
-          throw new Error("사용자 정보를 찾을 수 없습니다.");
+        const currentUserProfile = await getDoc(
+          doc(db, "users", auth.currentUser.uid),
+        );
+        const isAdmin =
+          currentUserProfile.exists() && currentUserProfile.data().isAdmin;
+        isAdminView.value = isAdmin; // 관리자 뷰 여부 설정
+
+        if (isAdmin) {
+          await fetchAllNetworks(); // 관리자는 전체 네트워크 조회
+        } else {
+          await fetchMyDownline(auth.currentUser.uid); // 일반 사용자는 내 하위 네트워크 조회
         }
-
-        const me = { id: currentUserSnap.id, ...currentUserSnap.data() };
-
-        // 1. 루트 노드 (본인) 추가
-        nodes.push({
-          id: me.id,
-          name: `${me.name} (나)`,
-          value: me.investmentAmount || 10000,
-          symbolSize: 50, // 본인은 더 크게 표시
-          category: 0, // 카테고리 0번 (본인)
-          label: {
-            show: true,
-            formatter: "{b}",
-            fontSize: 14,
-            fontWeight: "bold",
-          },
-          itemStyle: {
-            borderColor: "#ffc107",
-            borderWidth: 3,
-          },
-        });
-
-        // 2. 하위 라인 데이터 불러오기 (최대 3레벨)
-        await fetchDownline(me.id, me.name, 1, 3);
-
-        // 3. 차트 옵션 설정
-        setChartOption();
       } catch (e) {
         console.error("네트워크 트리 생성 오류:", e);
         error.value = "데이터를 불러오는 데 실패했습니다.";
@@ -131,7 +169,7 @@ export default {
       }
     };
 
-    const setChartOption = () => {
+    const setChartOption = (nodes, links, categories) => {
       Object.assign(chartOption, {
         tooltip: {
           formatter: (params) => {
@@ -140,35 +178,18 @@ export default {
             }
           },
         },
-        legend: [
-          {
-            data: ["나", "1대", "2대", "3대"],
-            textStyle: { color: "#333" },
-          },
-        ],
+        legend: [{ data: categories, textStyle: { color: "#333" } }],
         series: [
           {
             type: "graph",
             layout: "force",
-            roam: true, // 확대/축소, 이동 가능
+            roam: true,
             draggable: true,
-            categories: [
-              { name: "나" },
-              { name: "1대" },
-              { name: "2대" },
-              { name: "3대" },
-            ],
+            categories: categories.map((c) => ({ name: c })),
             data: nodes,
             links: links,
-            force: {
-              repulsion: 200, // 노드 간 밀어내는 힘
-              edgeLength: 60, // 간선 기본 길이
-              gravity: 0.1,
-            },
-            lineStyle: {
-              color: "source",
-              curveness: 0.1,
-            },
+            force: { repulsion: 200, edgeLength: 60, gravity: 0.1 },
+            lineStyle: { color: "source", curveness: 0.1 },
           },
         ],
       });
@@ -176,11 +197,7 @@ export default {
 
     onMounted(buildNetworkTree);
 
-    return {
-      isLoading,
-      error,
-      chartOption,
-    };
+    return { isLoading, error, chartOption, isAdminView };
   },
 };
 </script>
