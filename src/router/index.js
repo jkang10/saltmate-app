@@ -31,6 +31,14 @@ const routes = [
     component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [수정됨] NetworkTreePage 경로 추가 및 이전 경로와의 쉼표(,) 연결 확인 ▼▼▼
+  {
+    path: "/network-tree",
+    name: "NetworkTreePage",
+    component: () => import("@/views/NetworkTreePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 수정 완료 ▲▲▲
   {
     path: "/my-investments",
     name: "MyInvestmentsPage",

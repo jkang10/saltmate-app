@@ -131,6 +131,12 @@
           <span class="card-enter">분석하기 &rarr;</span>
         </router-link>
       </div>
+      <router-link to="/network-tree" class="feature-card">
+        <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+        <h3>나의 추천 네트워크</h3>
+        <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+        <span class="card-enter">확인하기 &rarr;</span>
+      </router-link>
     </main>
 
     <TransactionHistoryModal

@@ -21,6 +21,12 @@
               >내 투자 현황</router-link
             >
           </li>
+          <router-link to="/network-tree" class="feature-card">
+            <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+            <h3>나의 추천 네트워크</h3>
+            <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
         </template>
 
         <li>
