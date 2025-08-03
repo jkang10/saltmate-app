@@ -23,11 +23,6 @@
               >내 투자 현황</router-link
             >
           </li>
-          <li>
-            <router-link to="/nft-marketplace" class="nav-link"
-              >NFT 마켓플레이스</router-link
-            >
-          </li>
         </template>
 
         <li>
