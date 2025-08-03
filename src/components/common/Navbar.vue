@@ -12,6 +12,13 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
+        <template v-if="isAdmin">
+          <li>
+            <router-link to="/admin-dashboard" class="nav-link admin-main-link">
+              <i class="fas fa-tools"></i> 관리자 대시보드
+            </router-link>
+          </li>
+        </template>
         <template v-if="!isAdmin">
           <li>
             <router-link to="/shop" class="nav-link">투자 상품</router-link>
@@ -47,14 +54,6 @@
               {{ userProfile?.name || user.email }}
             </router-link>
           </li>
-          <li v-if="isAdmin">
-            <router-link
-              to="/admin-dashboard"
-              class="nav-link admin-dashboard-link"
-            >
-              <i class="fas fa-tools"></i> 관리자 대시보드
-            </router-link>
-          </li>
           <li>
             <button @click="handleLogout" class="nav-link logout-button">
               <i class="fas fa-sign-out-alt"></i> 로그아웃
@@ -80,7 +79,7 @@ export default {
     const user = ref(null);
     const isMobileMenuOpen = ref(false);
     const userProfile = ref(null);
-    const isAdmin = ref(false); // [수정] isAdmin 상태를 별도로 관리
+    const isAdmin = ref(false);
     let unsubscribeAuth = null;
     let unsubscribeProfile = null;
 
@@ -89,7 +88,6 @@ export default {
       return isAdmin.value ? "/admin-dashboard" : "/dashboard";
     });
 
-    // ▼▼▼ [최종 수정] 커스텀 클레임을 확인하는 로직으로 변경 ▼▼▼
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
         user.value = currentUser;
@@ -97,17 +95,14 @@ export default {
         if (unsubscribeProfile) unsubscribeProfile();
 
         if (currentUser) {
-          // 1. 토큰에서 커스텀 클레임(admin 여부)을 직접 가져옴
           const idTokenResult = await currentUser.getIdTokenResult();
           isAdmin.value = idTokenResult.claims.admin === true;
 
-          // 2. (선택적) 화면 표시에 필요한 사용자 이름 등은 계속 DB에서 가져옴
           const userDocRef = doc(db, "users", currentUser.uid);
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
             userProfile.value = docSnap.exists() ? docSnap.data() : null;
           });
         } else {
-          // 로그아웃 상태
           userProfile.value = null;
           isAdmin.value = false;
         }
@@ -118,7 +113,6 @@ export default {
       if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
     });
-    // ▲▲▲ 수정 완료 ▲▲▲
 
     const handleLogout = async () => {
       try {
@@ -139,7 +133,7 @@ export default {
     return {
       user,
       userProfile,
-      isAdmin, // 템플릿에서 사용할 수 있도록 반환
+      isAdmin,
       isMobileMenuOpen,
       logoLink,
       handleLogout,
@@ -151,7 +145,7 @@ export default {
 </script>
 
 <style scoped>
-/* 스타일은 기존과 동일 (변경 없음) */
+/* 기존 스타일에서 admin-main-link 스타일 추가 */
 .navbar-container {
   display: flex;
   justify-content: space-between;
@@ -218,9 +212,6 @@ export default {
   background-color: #28a745;
   padding: 10px 18px;
 }
-.primary-button:hover {
-  background-color: #218838;
-}
 .logout-button {
   background: none;
   border: none;
@@ -229,12 +220,15 @@ export default {
   color: white;
   font-size: 1.1em;
 }
-.user-profile,
-.admin-dashboard-link {
+.user-profile {
   background-color: rgba(255, 255, 255, 0.15);
   padding: 8px 15px;
   border-radius: 20px;
   font-weight: 500;
+}
+.admin-main-link {
+  font-weight: bold;
+  background-color: hsla(0, 0%, 100%, 0.2);
 }
 .hamburger-menu {
   display: none;
@@ -286,8 +280,7 @@ export default {
     padding: 12px 0;
     border-radius: 8px;
   }
-  .user-profile,
-  .admin-dashboard-link {
+  .user-profile {
     width: auto;
     margin: 0 auto;
   }
