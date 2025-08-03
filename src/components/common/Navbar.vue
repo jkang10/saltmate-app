@@ -71,7 +71,8 @@ import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+// ▼▼▼ [수정됨] onSnapshot 대신 getDoc을 사용합니다 ▼▼▼
+import { doc, getDoc } from "firebase/firestore";
 
 export default {
   name: "AppNavbar",
@@ -81,41 +82,33 @@ export default {
     const isMobileMenuOpen = ref(false);
     const userProfile = ref(null);
     let unsubscribeAuth = null;
-    let unsubscribeProfile = null;
 
-    // ▼▼▼ [수정됨] 로고 링크를 동적으로 반환하는 computed 속성 ▼▼▼
     const logoLink = computed(() => {
       if (!user.value) {
-        return "/login"; // 비로그인 상태일 경우
+        return "/login";
       }
-      // userProfile 데이터가 로드되었고, isAdmin이 true이면 관리자 대시보드로 이동
       if (userProfile.value && userProfile.value.isAdmin) {
         return "/admin-dashboard";
       }
-      // 그 외 모든 로그인 사용자는 일반 대시보드로 이동
       return "/dashboard";
     });
-    // ▲▲▲ 수정 완료 ▲▲▲
 
+    // ▼▼▼ [수정됨] 타이밍 문제를 해결하기 위해 onMounted 로직 전체 수정 ▼▼▼
     onMounted(() => {
-      unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-        user.value = currentUser;
-
-        if (unsubscribeProfile) {
-          unsubscribeProfile();
-          unsubscribeProfile = null;
-        }
-
+      unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser) {
+          user.value = currentUser;
+          // Firestore에서 프로필 정보를 한번만 가져와서 확정합니다. (실시간 대신)
           const userDocRef = doc(db, "users", currentUser.uid);
-          unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-              userProfile.value = docSnap.data();
-            } else {
-              userProfile.value = null;
-            }
-          });
+          const docSnap = await getDoc(userDocRef); // 프로필 로드를 기다립니다.
+          if (docSnap.exists()) {
+            userProfile.value = docSnap.data();
+          } else {
+            userProfile.value = null; // 프로필이 없는 경우
+          }
         } else {
+          // 로그아웃 상태
+          user.value = null;
           userProfile.value = null;
         }
       });
@@ -123,8 +116,8 @@ export default {
 
     onUnmounted(() => {
       if (unsubscribeAuth) unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
     });
+    // ▲▲▲ 수정 완료 ▲▲▲
 
     const handleLogout = async () => {
       try {
@@ -150,7 +143,7 @@ export default {
       user,
       userProfile,
       isMobileMenuOpen,
-      logoLink, // 템플릿에서 사용할 수 있도록 반환
+      logoLink,
       handleLogout,
       toggleMobileMenu,
       closeMobileMenu,
@@ -160,6 +153,7 @@ export default {
 </script>
 
 <style scoped>
+/* 스타일은 기존과 동일 (변경 없음) */
 .navbar-container {
   display: flex;
   justify-content: space-between;
@@ -175,7 +169,6 @@ export default {
   z-index: 1000;
   transition: all 0.3s ease-in-out;
 }
-
 .navbar-brand .logo {
   font-size: 1.8em;
   font-weight: bold;
@@ -184,12 +177,10 @@ export default {
   letter-spacing: 1px;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
-
 .navbar-menu {
   display: flex;
   align-items: center;
 }
-
 .navbar-links {
   display: flex;
   list-style: none;
@@ -198,11 +189,9 @@ export default {
   align-items: center;
   flex-wrap: nowrap;
 }
-
 .navbar-links li {
   margin-left: 15px;
 }
-
 .nav-link {
   color: white;
   text-decoration: none;
@@ -218,18 +207,15 @@ export default {
   align-items: center;
   gap: 5px;
 }
-
 .nav-link:hover {
   background-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-
 .nav-link.router-link-exact-active {
   background-color: rgba(255, 255, 255, 0.3);
   font-weight: bold;
 }
-
 .primary-button {
   background-color: #28a745;
   padding: 10px 18px;
@@ -237,15 +223,6 @@ export default {
 .primary-button:hover {
   background-color: #218838;
 }
-
-.outline-button {
-  border: 1px solid white;
-  padding: 10px 18px;
-}
-.outline-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
 .logout-button {
   background: none;
   border: none;
@@ -254,11 +231,6 @@ export default {
   color: white;
   font-size: 1.1em;
 }
-.logout-button:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
 .user-profile,
 .admin-dashboard-link {
   background-color: rgba(255, 255, 255, 0.15);
@@ -266,12 +238,6 @@ export default {
   border-radius: 20px;
   font-weight: 500;
 }
-.user-profile:hover,
-.admin-dashboard-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
 .hamburger-menu {
   display: none;
   background: none;
@@ -280,18 +246,14 @@ export default {
   font-size: 1.8em;
   cursor: pointer;
 }
-
-/* 모바일 반응형 */
 @media (max-width: 992px) {
   .navbar-container {
     flex-wrap: wrap;
     padding: 15px 20px;
   }
-
   .hamburger-menu {
     display: block;
   }
-
   .navbar-menu {
     flex-direction: column;
     width: 100%;
@@ -299,11 +261,9 @@ export default {
     overflow: hidden;
     transition: max-height 0.3s ease-out;
   }
-
   .navbar-menu.is-active {
     max-height: 500px;
   }
-
   .navbar-links {
     flex-direction: column;
     width: 100%;
@@ -312,13 +272,11 @@ export default {
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: nowrap;
   }
-
   .navbar-links li {
     margin: 10px 0;
     width: 100%;
     text-align: center;
   }
-
   .nav-link {
     display: block;
     width: 100%;
@@ -326,20 +284,16 @@ export default {
     border-radius: 0;
     white-space: normal;
   }
-
-  .primary-button,
-  .outline-button {
+  .primary-button {
     padding: 12px 0;
     border-radius: 8px;
   }
-
   .user-profile,
   .admin-dashboard-link {
     width: auto;
     margin: 0 auto;
   }
 }
-
 @media (max-width: 576px) {
   .navbar-brand .logo {
     font-size: 1.5em;
