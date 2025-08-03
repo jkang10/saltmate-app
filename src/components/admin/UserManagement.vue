@@ -4,6 +4,10 @@
     <p>회원 목록을 조회하고 사용자 권한을 관리합니다.</p>
 
     <div v-if="loading" class="loading-spinner"></div>
+    <div v-if="error" class="error-state">
+      <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
+      <p class="error-details">{{ error }}</p>
+    </div>
 
     <table v-if="!loading && users.length > 0" class="user-table">
       <thead>
@@ -55,7 +59,8 @@ import {
 } from "firebase/firestore";
 
 const users = ref([]);
-const loading = ref(true);
+const loading = ref(true); // ◀◀◀ 이 코드를 추가하세요.
+const error = ref(null);
 
 // Firestore의 Timestamp 객체를 날짜 문자열로 변환하는 함수
 const formatDate = (timestamp) => {

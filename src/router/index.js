@@ -19,6 +19,13 @@ const routes = [
     name: "LoginPage",
     component: () => import("@/views/LoginPage.vue"),
   },
+  // ▼▼▼ [신규] 비밀번호 찾기 페이지 경로 추가 ▼▼▼
+  {
+    path: "/reset-password",
+    name: "ResetPasswordPage",
+    component: () => import("@/views/ResetPasswordPage.vue"),
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/dashboard",
     name: "DashboardPage",
