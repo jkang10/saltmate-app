@@ -119,6 +119,14 @@ const routes = [
           import("@/components/admin/SubscriptionManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
+      // ▼▼▼ [신규] 주간 정산 관리 페이지 라우트 추가 ▼▼▼
+      {
+        path: "weekly-payouts",
+        name: "AdminWeeklyPayoutManagement",
+        component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
+        meta: { requiresAuth: true, isAdmin: true },
+      },
+      // ▲▲▲ 라우트 추가 완료 ▲▲▲
       {
         path: "marketing-plan",
         name: "AdminMarketingPlanManagement",
@@ -230,16 +238,13 @@ router.beforeEach(async (to, from, next) => {
       console.error("사용자 프로필을 불러오는 중 오류 발생:", error);
     }
 
-    // ▼▼▼ [수정] 로그인/회원가입 페이지 접근 시 관리자/일반사용자 분기 처리 ▼▼▼
     if (to.name === "LoginPage" || to.name === "SignupPage") {
       if (userProfile && userProfile.isAdmin) {
-        next("/admin-dashboard"); // 관리자는 관리자 대시보드로
+        next("/admin-dashboard");
       } else {
-        next("/dashboard"); // 일반 사용자는 일반 대시보드로
+        next("/dashboard");
       }
-    }
-    // ▲▲▲ [수정] 완료 ▲▲▲
-    else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
+    } else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
       alert("관리자 권한이 없습니다.");
       next("/dashboard");
     } else if (requiresNFT) {

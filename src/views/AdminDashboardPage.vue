@@ -35,6 +35,14 @@
           </li>
           <li>
             <router-link
+              to="/admin-dashboard/weekly-payouts"
+              class="nav-item"
+              active-class="active-link"
+              ><i class="fas fa-calendar-check"></i> 주간 정산 관리</router-link
+            >
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/marketing-plan"
               class="nav-item"
               active-class="active-link"
