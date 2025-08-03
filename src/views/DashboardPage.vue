@@ -121,6 +121,16 @@
         </router-link>
       </div>
     </main>
+
+    <TransactionHistoryModal
+      v-if="historyModal.visible"
+      :balanceType="historyModal.type"
+      @close="historyModal.visible = false"
+    />
+    <UpgradeTierModal
+      v-if="upgradeModalVisible"
+      @close="upgradeModalVisible = false"
+    />
   </div>
 </template>
 
@@ -128,17 +138,20 @@
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
+import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 
 export default {
   name: "DashboardPage",
-  // [신규] 모달 컴포넌트 등록
-  // components: { TransactionHistoryModal, UpgradeTierModal },
+  components: {
+    TransactionHistoryModal,
+    UpgradeTierModal,
+  },
   data() {
     return {
       userProfile: null,
       loadingUser: true,
       error: null,
-      // [신규] 모달 상태 관리
       historyModal: {
         visible: false,
         type: "",
@@ -207,31 +220,23 @@ export default {
         this.loadingUser = false;
       }
     },
-    // [신규] 등급 뱃지 클래스 반환
     getTierClass(tier) {
       if (!tier) return "default";
       if (tier === "승인대기중") return "pending";
       return tier.toLowerCase();
     },
-    // [신규] 거래내역 모달 열기
     openHistoryModal(type) {
-      console.log(`${type} 내역 조회를 시작합니다.`);
-      // this.historyModal.type = type;
-      // this.historyModal.visible = true;
-      alert(`${type} 내역 조회 기능은 모달 컴포넌트 생성 후 연동됩니다.`);
+      this.historyModal.type = type;
+      this.historyModal.visible = true;
     },
-    // [신규] 등급 추가 구매 모달 열기
     openUpgradeModal() {
-      console.log("등급 추가 구매를 시작합니다.");
-      // this.upgradeModalVisible = true;
-      alert("등급 추가 구매 기능은 모달 컴포넌트 생성 후 연동됩니다.");
+      this.upgradeModalVisible = true;
     },
   },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일은 그대로 유지 */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
