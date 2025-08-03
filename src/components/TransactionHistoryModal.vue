@@ -125,6 +125,11 @@ export default {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+
+  /* ▼▼▼ 이 부분을 추가해주세요 ▼▼▼ */
+  background-color: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 .modal-header {
   display: flex;
