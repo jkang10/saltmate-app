@@ -56,7 +56,7 @@
             <span>{{
               (userProfile?.saltmatePoints || 0).toLocaleString()
             }}</span>
-            <small>P</small>
+            <small>SaltMate</small>
           </div>
         </div>
         <div class="upgrade-action">
@@ -470,5 +470,53 @@ export default {
 .upgrade-button:hover:not(:disabled) {
   background-color: #e0a800;
   transform: translateY(-2px);
+}
+.balance-item.saltmate {
+  /* ▼▼▼ [수정/추가됨] 화려한 디자인 적용 ▼▼▼ */
+  background: linear-gradient(
+    135deg,
+    #6f42c1,
+    #a96ef0
+  ); /* 보라색 계열 그라데이션 */
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 20px rgba(111, 66, 193, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.balance-item.saltmate:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 12px 25px rgba(111, 66, 193, 0.6);
+}
+
+/* 반짝이는 효과를 위한 가상 요소 */
+.balance-item.saltmate::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 20px;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(25deg);
+  animation: shimmer 4s infinite linear;
+}
+
+.balance-item.saltmate span {
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 텍스트에 그림자 효과 */
+}
+
+@keyframes shimmer {
+  from {
+    left: -100%;
+  }
+  to {
+    left: 200%;
+  }
 }
 </style>

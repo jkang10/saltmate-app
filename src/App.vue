@@ -11,9 +11,6 @@
           <router-link to="/my-investments" class="nav-link"
             >내 수익 현황</router-link
           >
-          <router-link to="/nft-marketplace" class="nav-link"
-            >NFT 마켓플레이스</router-link
-          >
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
           <router-link to="/about" class="nav-link"
             >솔트메이트 소개</router-link

@@ -99,7 +99,8 @@ export default {
     },
     formatAmount(amount) {
       const sign = amount > 0 ? "+" : "";
-      const unit = this.balanceType === "CASH" ? "원" : "P";
+      // ▼▼▼ [수정됨] P -> SaltMate ▼▼▼
+      const unit = this.balanceType === "CASH" ? "원" : "SaltMate";
       return `${sign}${amount.toLocaleString()} ${unit}`;
     },
   },
