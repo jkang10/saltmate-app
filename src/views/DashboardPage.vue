@@ -63,11 +63,16 @@
             class="balance-item saltmate"
             @click="openHistoryModal('SALTMATE')"
           >
-            <label><i class="fas fa-gifts"></i> 솔트메이트</label>
-            <span>{{
-              (userProfile?.saltmatePoints || 0).toLocaleString()
-            }}</span>
-            <small>SaltMate</small>
+            <div class="balance-content">
+              <div class="balance-label">
+                <i class="fas fa-gifts"></i> 솔트메이트
+              </div>
+              <div class="balance-value">
+                {{ (userProfile?.saltmatePoints || 0).toLocaleString() }}
+              </div>
+              <div class="balance-unit">SaltMate</div>
+            </div>
+            <div class="shimmer-effect"></div>
           </div>
         </div>
         <div class="upgrade-action">
@@ -99,6 +104,13 @@
             </div>
           </div>
           <span class="card-enter">자세히 보기 &rarr;</span>
+        </router-link>
+
+        <router-link to="/nft-marketplace" class="feature-card nft">
+          <div class="card-icon"><i class="fas fa-gem"></i></div>
+          <h3>NFT 마켓플레이스</h3>
+          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+          <span class="card-enter">입장하기 &rarr;</span>
         </router-link>
         <router-link to="/network-tree" class="feature-card">
           <div class="card-icon"><i class="fas fa-sitemap"></i></div>
@@ -146,6 +158,7 @@
 </template>
 
 <script>
+// 스크립트 부분은 기존과 동일 (변경 없음)
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -255,7 +268,7 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일 */
+/* 기존 스타일 ... */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
@@ -364,7 +377,9 @@ export default {
 .balance-item:hover {
   background: rgba(0, 0, 0, 0.25);
 }
-.balance-item label {
+
+/* ▼▼▼ [수정됨] 기존 label, span, small 대신 새로운 디자인 적용 ▼▼▼ */
+.balance-item.cash label {
   display: block;
   font-size: 1em;
   margin-bottom: 8px;
@@ -374,53 +389,81 @@ export default {
   align-items: center;
   gap: 8px;
 }
-.balance-item span {
+.balance-item.cash span {
   font-size: 2em;
   font-weight: 700;
   line-height: 1;
 }
-.balance-item small {
+.balance-item.cash small {
   font-size: 1em;
   margin-left: 5px;
 }
+
 .balance-item.saltmate {
-  background: linear-gradient(135deg, #6f42c1, #a96ef0);
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 8px 20px rgba(111, 66, 193, 0.4);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
   position: relative;
   overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 20px;
+  transition: all 0.3s ease;
 }
 .balance-item.saltmate:hover {
-  transform: translateY(-5px) scale(1.03);
-  box-shadow: 0 12px 25px rgba(111, 66, 193, 0.6);
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 15px 30px rgba(118, 75, 162, 0.5);
 }
-.balance-item.saltmate::before {
-  content: "";
+.balance-content {
+  text-align: center;
+  z-index: 1;
+}
+.balance-label {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1em;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-bottom: 15px;
+}
+.balance-value {
+  font-size: 2.8em;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.balance-unit {
+  font-size: 1.2em;
+  font-weight: 500;
+  opacity: 0.9;
+  letter-spacing: 1px;
+  margin-top: 5px;
+}
+.shimmer-effect {
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 20px;
-  height: 200%;
+  top: 0;
+  left: -150%;
+  width: 75%;
+  height: 100%;
   background: linear-gradient(
     to right,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.2) 50%,
     rgba(255, 255, 255, 0) 100%
   );
-  transform: rotate(25deg);
-  animation: shimmer 4s infinite linear;
-}
-.balance-item.saltmate span {
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transform: skewX(-25deg);
+  animation: shimmer 5s infinite;
 }
 @keyframes shimmer {
-  from {
-    left: -100%;
-  }
-  to {
-    left: 200%;
+  100% {
+    left: 150%;
   }
 }
+/* ▲▲▲ 디자인 수정 완료 ▲▲▲ */
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -476,6 +519,9 @@ export default {
 }
 .feature-card.mall .card-icon {
   color: #6f42c1;
+}
+.feature-card.nft .card-icon {
+  color: #17a2b8;
 }
 .feature-card.revenue .card-icon {
   color: #dc3545;
