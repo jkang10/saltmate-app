@@ -29,7 +29,10 @@
               {{ user.isAdmin ? "Admin" : "User" }}
             </span>
           </td>
-          <td>
+          <td class="actions">
+            <button @click="openTokenModal(user)" class="btn btn-sm btn-info">
+              토큰 관리
+            </button>
             <button @click="toggleAdmin(user)" class="btn btn-sm btn-secondary">
               권한 변경
             </button>
@@ -44,6 +47,13 @@
     <div v-if="!loading && users.length === 0" class="no-data">
       표시할 사용자가 없습니다.
     </div>
+
+    <TokenTransferModal
+      v-if="isTokenModalVisible"
+      :user="selectedUser"
+      @close="isTokenModalVisible = false"
+      @token-updated="fetchUsers"
+    />
   </div>
 </template>
 
@@ -51,12 +61,17 @@
 import { ref, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-// ▼▼▼ [수정됨] Cloud Function 호출을 위해 추가 ▼▼▼
 import { getFunctions, httpsCallable } from "firebase/functions";
+// [신규] 모달 컴포넌트 임포트
+import TokenTransferModal from "./TokenTransferModal.vue";
 
 const users = ref([]);
 const loading = ref(true);
 const error = ref(null);
+
+// [신규] 모달 상태 관리를 위한 변수 추가
+const isTokenModalVisible = ref(false);
+const selectedUser = ref(null);
 
 const formatDate = (timestamp) => {
   if (!timestamp || !timestamp.toDate) return "날짜 정보 없음";
@@ -79,8 +94,6 @@ const fetchUsers = async () => {
   }
 };
 
-// ▼▼▼ [수정됨] 관리자 권한 변경 로직 전체 수정 ▼▼▼
-// 이제 DB와 인증 토큰(Custom Claim)을 함께 변경하는 백엔드 함수를 호출합니다.
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
   const confirmation = confirm(
@@ -89,17 +102,11 @@ const toggleAdmin = async (user) => {
     }' (으)로 지정하시겠습니까?`,
   );
   if (!confirmation) return;
-
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
-
-    // 백엔드 함수는 이메일을 인자로 받습니다.
-    await setUserAdminClaim({ email: user.email });
-
-    // 화면에 즉시 반영
+    await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
     user.isAdmin = newStatus;
-
     alert(
       "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
     );
@@ -110,14 +117,9 @@ const toggleAdmin = async (user) => {
 };
 
 const deleteUser = async (userId) => {
-  const confirmation = confirm(
-    "정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
-  );
-  if (!confirmation) return;
-
+  if (!confirm("정말로 이 사용자를 삭제하시겠습니까?")) return;
   try {
-    // 참고: 이 로직은 Firestore DB의 문서만 삭제합니다.
-    // Firebase Authentication의 실제 계정은 삭제되지 않으므로, 필요 시 별도 기능 구현이 필요합니다.
+    // 참고: Firestore DB 문서만 삭제합니다. Authentication 계정은 별도 삭제가 필요합니다.
     await deleteDoc(doc(db, "users", userId));
     users.value = users.value.filter((user) => user.id !== userId);
     alert("사용자가 성공적으로 삭제되었습니다.");
@@ -127,13 +129,19 @@ const deleteUser = async (userId) => {
   }
 };
 
+// [신규] 모달을 열기 위한 메소드 추가
+const openTokenModal = (user) => {
+  selectedUser.value = user;
+  isTokenModalVisible.value = true;
+};
+
 onMounted(() => {
   fetchUsers();
 });
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일 (변경 없음) */
+/* 기존 스타일과 동일하되, 버튼 색상 및 간격 등 추가 */
 .user-management {
   background-color: #fff;
   padding: 30px;
@@ -172,10 +180,10 @@ onMounted(() => {
   color: #fff;
 }
 .admin-badge {
-  background-color: #dc3545; /* 빨간색 */
+  background-color: #dc3545;
 }
 .user-badge {
-  background-color: #007bff; /* 파란색 */
+  background-color: #007bff;
 }
 .btn {
   border: none;
@@ -199,6 +207,10 @@ onMounted(() => {
   background-color: #dc3545;
   color: white;
 }
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+} /* 토큰 관리 버튼 색상 */
 .loading-spinner {
   border: 4px solid rgba(0, 0, 0, 0.1);
   width: 36px;
@@ -222,5 +234,11 @@ onMounted(() => {
 .error-state .error-details {
   color: #dc3545;
   font-size: 0.9em;
+}
+.actions button {
+  margin-right: 5px;
+}
+.actions button:last-child {
+  margin-right: 0;
 }
 </style>

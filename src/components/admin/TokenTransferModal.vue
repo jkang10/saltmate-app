@@ -25,7 +25,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label>수량 (회수 시 음수 입력)</label>
+          <label>수량 (회수 시 -50 처럼 음수로 입력)</label>
           <input
             type="number"
             v-model.number="form.quantity"
@@ -50,7 +50,7 @@
             취소
           </button>
           <button type="submit" class="btn-primary" :disabled="isProcessing">
-            <span v-if="isProcessing">처리 중...</span>
+            <span v-if="isProcessing" class="spinner-small"></span>
             <span v-else>작업 실행</span>
           </button>
         </footer>
@@ -63,6 +63,7 @@
 import { reactive, ref, defineProps, defineEmits } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
+// 부모 컴포넌트로부터 user 객체를 받습니다.
 const props = defineProps({
   user: {
     type: Object,
@@ -70,7 +71,8 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close"]);
+// 부모 컴포넌트로 이벤트를 보냅니다.
+const emit = defineEmits(["close", "token-updated"]);
 
 const form = reactive({
   tokenType: "COBS",
@@ -108,7 +110,8 @@ const handleTransfer = async () => {
       reason: form.reason,
     });
     alert(result.data.message);
-    emit("close"); // 성공 시 모달 닫기
+    emit("token-updated"); // 부모 컴포넌트에 토큰 변경 사실 알림
+    emit("close");
   } catch (err) {
     console.error("토큰 전송/회수 오류:", err);
     error.value = `작업 실패: ${err.message}`;
@@ -119,7 +122,6 @@ const handleTransfer = async () => {
 </script>
 
 <style scoped>
-/* 이전 모달들과 유사한 스타일 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -135,6 +137,9 @@ const handleTransfer = async () => {
 .modal-content {
   width: 90%;
   max-width: 450px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 .modal-header {
   display: flex;
@@ -185,6 +190,7 @@ const handleTransfer = async () => {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 6px;
+  box-sizing: border-box;
 }
 .error-message {
   color: #dc3545;
@@ -193,6 +199,35 @@ const handleTransfer = async () => {
 }
 .btn-primary,
 .btn-secondary {
-  /* 버튼 스타일 */
+  border: none;
+  border-radius: 5px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-primary:disabled {
+  background-color: #a0c9ff;
+}
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
