@@ -50,64 +50,65 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
-import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
+// ▼▼▼ [수정됨] Cloud Function 호출을 위해 추가 ▼▼▼
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const users = ref([]);
-const loading = ref(true); // ◀◀◀ 이 코드를 추가하세요.
+const loading = ref(true);
 const error = ref(null);
 
-// Firestore의 Timestamp 객체를 날짜 문자열로 변환하는 함수
 const formatDate = (timestamp) => {
   if (!timestamp || !timestamp.toDate) return "날짜 정보 없음";
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
 
-// Firestore에서 모든 사용자 정보를 가져오는 함수
 const fetchUsers = async () => {
+  loading.value = true;
   try {
     const querySnapshot = await getDocs(collection(db, "users"));
     users.value = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-  } catch (error) {
-    console.error("사용자 정보를 불러오는 중 오류 발생:", error);
-    alert("사용자 정보를 불러오는 데 실패했습니다.");
+  } catch (err) {
+    console.error("사용자 정보를 불러오는 중 오류 발생:", err);
+    error.value = "사용자 정보를 불러오는 데 실패했습니다.";
   } finally {
     loading.value = false;
   }
 };
 
-// 사용자의 관리자 권한을 토글(변경)하는 함수
+// ▼▼▼ [수정됨] 관리자 권한 변경 로직 전체 수정 ▼▼▼
+// 이제 DB와 인증 토큰(Custom Claim)을 함께 변경하는 백엔드 함수를 호출합니다.
 const toggleAdmin = async (user) => {
+  const newStatus = !user.isAdmin;
   const confirmation = confirm(
-    `'${user.name}' 사용자의 권한을 '${
-      user.isAdmin ? "일반 사용자" : "관리자"
-    }' (으)로 변경하시겠습니까?`,
+    `'${user.name}' 사용자를 '${
+      newStatus ? "관리자" : "일반 사용자"
+    }' (으)로 지정하시겠습니까?`,
   );
   if (!confirmation) return;
 
   try {
-    const userRef = doc(db, "users", user.id);
-    await updateDoc(userRef, {
-      isAdmin: !user.isAdmin,
-    });
+    const functions = getFunctions();
+    const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
+
+    // 백엔드 함수는 이메일을 인자로 받습니다.
+    await setUserAdminClaim({ email: user.email });
+
     // 화면에 즉시 반영
-    user.isAdmin = !user.isAdmin;
-    alert("사용자 권한이 성공적으로 변경되었습니다.");
+    user.isAdmin = newStatus;
+
+    alert(
+      "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
+    );
   } catch (error) {
     console.error("권한 변경 중 오류 발생:", error);
-    alert("권한 변경에 실패했습니다.");
+    alert(`권한 변경에 실패했습니다: ${error.message}`);
   }
 };
 
-// Firestore에서 사용자를 삭제하는 함수
 const deleteUser = async (userId) => {
   const confirmation = confirm(
     "정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
@@ -115,8 +116,9 @@ const deleteUser = async (userId) => {
   if (!confirmation) return;
 
   try {
+    // 참고: 이 로직은 Firestore DB의 문서만 삭제합니다.
+    // Firebase Authentication의 실제 계정은 삭제되지 않으므로, 필요 시 별도 기능 구현이 필요합니다.
     await deleteDoc(doc(db, "users", userId));
-    // 화면에서 즉시 제거
     users.value = users.value.filter((user) => user.id !== userId);
     alert("사용자가 성공적으로 삭제되었습니다.");
   } catch (error) {
@@ -125,13 +127,13 @@ const deleteUser = async (userId) => {
   }
 };
 
-// 컴포넌트가 마운트될 때 사용자 정보를 가져옴
 onMounted(() => {
   fetchUsers();
 });
 </script>
 
 <style scoped>
+/* 기존 스타일과 동일 (변경 없음) */
 .user-management {
   background-color: #fff;
   padding: 30px;
@@ -211,9 +213,14 @@ onMounted(() => {
     transform: rotate(360deg);
   }
 }
-.no-data {
+.no-data,
+.error-state {
   text-align: center;
   padding: 50px;
   color: #777;
+}
+.error-state .error-details {
+  color: #dc3545;
+  font-size: 0.9em;
 }
 </style>
