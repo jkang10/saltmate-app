@@ -3,9 +3,7 @@
     :class="{ 'navbar-container': true, 'navbar-expanded': isMobileMenuOpen }"
   >
     <div class="navbar-brand">
-      <router-link :to="user ? '/dashboard' : '/login'" class="logo"
-        >솔트메이트</router-link
-      >
+      <router-link :to="logoLink" class="logo">솔트메이트</router-link>
     </div>
 
     <button class="hamburger-menu" @click="toggleMobileMenu">
@@ -14,7 +12,15 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
-        <template v-if="!userProfile?.isAdmin">
+        <template v-if="isAdmin">
+          <li>
+            <router-link to="/admin-dashboard" class="nav-link admin-main-link">
+              <i class="fas fa-tools"></i> 관리자 대시보드
+            </router-link>
+          </li>
+        </template>
+
+        <template v-if="!isAdmin">
           <li>
             <router-link to="/shop" class="nav-link">투자 상품</router-link>
           </li>
@@ -43,18 +49,10 @@
         </template>
 
         <template v-if="user">
-          <li v-if="!userProfile?.isAdmin">
+          <li v-if="!isAdmin">
             <router-link to="/profile" class="nav-link user-profile">
               <i class="fas fa-user-circle"></i>
               {{ userProfile?.name || user.email }}
-            </router-link>
-          </li>
-          <li v-if="userProfile?.isAdmin">
-            <router-link
-              to="/admin-dashboard"
-              class="nav-link admin-dashboard-link"
-            >
-              <i class="fas fa-tools"></i> 관리자 대시보드
             </router-link>
           </li>
           <li>
@@ -82,31 +80,32 @@ export default {
     const user = ref(null);
     const isMobileMenuOpen = ref(false);
     const userProfile = ref(null);
+    const isAdmin = ref(false);
     let unsubscribeAuth = null;
     let unsubscribeProfile = null;
 
-    const isAdmin = computed(() => userProfile.value?.isAdmin === true);
+    const logoLink = computed(() => {
+      if (!user.value) return "/login";
+      return isAdmin.value ? "/admin-dashboard" : "/dashboard";
+    });
 
     onMounted(() => {
-      unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
         user.value = currentUser;
 
-        if (unsubscribeProfile) {
-          unsubscribeProfile();
-          unsubscribeProfile = null;
-        }
+        if (unsubscribeProfile) unsubscribeProfile();
 
         if (currentUser) {
+          const idTokenResult = await currentUser.getIdTokenResult(true);
+          isAdmin.value = idTokenResult.claims.admin === true;
+
           const userDocRef = doc(db, "users", currentUser.uid);
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-              userProfile.value = docSnap.data();
-            } else {
-              userProfile.value = null;
-            }
+            userProfile.value = docSnap.exists() ? docSnap.data() : null;
           });
         } else {
           userProfile.value = null;
+          isAdmin.value = false;
         }
       });
     });
@@ -119,28 +118,25 @@ export default {
     const handleLogout = async () => {
       try {
         await signOut(auth);
-        alert("로그아웃 되었습니다.");
         router.push("/login");
-        closeMobileMenu();
       } catch (error) {
         console.error("로그아웃 오류:", error);
-        alert("로그아웃에 실패했습니다.");
       }
     };
 
     const toggleMobileMenu = () => {
       isMobileMenuOpen.value = !isMobileMenuOpen.value;
     };
-
     const closeMobileMenu = () => {
       isMobileMenuOpen.value = false;
     };
 
     return {
       user,
-      isAdmin,
       userProfile,
+      isAdmin,
       isMobileMenuOpen,
+      logoLink,
       handleLogout,
       toggleMobileMenu,
       closeMobileMenu,
@@ -150,6 +146,7 @@ export default {
 </script>
 
 <style scoped>
+/* 스타일은 기존과 동일 */
 .navbar-container {
   display: flex;
   justify-content: space-between;
@@ -165,7 +162,6 @@ export default {
   z-index: 1000;
   transition: all 0.3s ease-in-out;
 }
-
 .navbar-brand .logo {
   font-size: 1.8em;
   font-weight: bold;
@@ -174,12 +170,10 @@ export default {
   letter-spacing: 1px;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
-
 .navbar-menu {
   display: flex;
   align-items: center;
 }
-
 .navbar-links {
   display: flex;
   list-style: none;
@@ -188,11 +182,9 @@ export default {
   align-items: center;
   flex-wrap: nowrap;
 }
-
 .navbar-links li {
   margin-left: 15px;
 }
-
 .nav-link {
   color: white;
   text-decoration: none;
@@ -208,34 +200,19 @@ export default {
   align-items: center;
   gap: 5px;
 }
-
 .nav-link:hover {
   background-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-
 .nav-link.router-link-exact-active {
   background-color: rgba(255, 255, 255, 0.3);
   font-weight: bold;
 }
-
 .primary-button {
   background-color: #28a745;
   padding: 10px 18px;
 }
-.primary-button:hover {
-  background-color: #218838;
-}
-
-.outline-button {
-  border: 1px solid white;
-  padding: 10px 18px;
-}
-.outline-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
 .logout-button {
   background: none;
   border: none;
@@ -244,24 +221,16 @@ export default {
   color: white;
   font-size: 1.1em;
 }
-.logout-button:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
-.user-profile,
-.admin-dashboard-link {
+.user-profile {
   background-color: rgba(255, 255, 255, 0.15);
   padding: 8px 15px;
   border-radius: 20px;
   font-weight: 500;
 }
-.user-profile:hover,
-.admin-dashboard-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+.admin-main-link {
+  font-weight: bold;
+  background-color: hsla(0, 0%, 100%, 0.2);
 }
-
 .hamburger-menu {
   display: none;
   background: none;
@@ -270,18 +239,14 @@ export default {
   font-size: 1.8em;
   cursor: pointer;
 }
-
-/* 모바일 반응형 */
 @media (max-width: 992px) {
   .navbar-container {
     flex-wrap: wrap;
     padding: 15px 20px;
   }
-
   .hamburger-menu {
     display: block;
   }
-
   .navbar-menu {
     flex-direction: column;
     width: 100%;
@@ -289,11 +254,9 @@ export default {
     overflow: hidden;
     transition: max-height 0.3s ease-out;
   }
-
   .navbar-menu.is-active {
     max-height: 500px;
   }
-
   .navbar-links {
     flex-direction: column;
     width: 100%;
@@ -302,13 +265,11 @@ export default {
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: nowrap;
   }
-
   .navbar-links li {
     margin: 10px 0;
     width: 100%;
     text-align: center;
   }
-
   .nav-link {
     display: block;
     width: 100%;
@@ -316,20 +277,15 @@ export default {
     border-radius: 0;
     white-space: normal;
   }
-
-  .primary-button,
-  .outline-button {
+  .primary-button {
     padding: 12px 0;
     border-radius: 8px;
   }
-
-  .user-profile,
-  .admin-dashboard-link {
+  .user-profile {
     width: auto;
     margin: 0 auto;
   }
 }
-
 @media (max-width: 576px) {
   .navbar-brand .logo {
     font-size: 1.5em;

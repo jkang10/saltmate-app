@@ -100,11 +100,11 @@
           </div>
           <span class="card-enter">자세히 보기 &rarr;</span>
         </router-link>
-        <router-link to="/nft-marketplace" class="feature-card nft">
-          <div class="card-icon"><i class="fas fa-gem"></i></div>
-          <h3>NFT 마켓플레이스</h3>
-          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
-          <span class="card-enter">입장하기 &rarr;</span>
+        <router-link to="/network-tree" class="feature-card">
+          <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+          <h3>나의 추천 네트워크</h3>
+          <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+          <span class="card-enter">확인하기 &rarr;</span>
         </router-link>
         <router-link to="/my-equity" class="feature-card equity">
           <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
@@ -131,12 +131,6 @@
           <span class="card-enter">분석하기 &rarr;</span>
         </router-link>
       </div>
-      <router-link to="/network-tree" class="feature-card">
-        <div class="card-icon"><i class="fas fa-sitemap"></i></div>
-        <h3>나의 추천 네트워크</h3>
-        <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
-        <span class="card-enter">확인하기 &rarr;</span>
-      </router-link>
     </main>
 
     <TransactionHistoryModal
@@ -191,12 +185,10 @@ export default {
         100;
       return Math.min(progress, 100);
     },
-    // ▼▼▼ [수정됨] isWithdrawalEnabled 로직을 computed 안으로 이동 ▼▼▼
     isWithdrawalEnabled() {
       const now = new Date();
-      const day = now.getDay(); // 0:일, 1:월, 2:화, 3:수, 4:목, 5:금, 6:토
+      const day = now.getDay();
       const hour = now.getHours();
-      // 화요일(2)이고, 시간이 9시 이상 17시 미만일 때 true 반환 (17시는 5 PM)
       return day === 2 && hour >= 9 && hour < 17;
     },
   },
@@ -206,7 +198,6 @@ export default {
         this.listenToUserProfile(user.uid);
       } else {
         this.loadingUser = false;
-        // 로그인 페이지로 리다이렉트 또는 다른 처리
       }
     });
   },
@@ -264,7 +255,7 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일하되, withdrawal 관련 스타일 추가 */
+/* 기존 스타일과 동일 */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
@@ -486,9 +477,6 @@ export default {
 .feature-card.mall .card-icon {
   color: #6f42c1;
 }
-.feature-card.nft .card-icon {
-  color: #17a2b8;
-}
 .feature-card.revenue .card-icon {
   color: #dc3545;
 }
@@ -533,7 +521,6 @@ export default {
   background-color: #e0a800;
   transform: translateY(-2px);
 }
-/* ▼▼▼ [신규] 출금 신청 관련 스타일 추가 ▼▼▼ */
 .withdrawal-action {
   margin-top: 15px;
   padding-top: 15px;
