@@ -4,15 +4,6 @@
       <h1><i class="fas fa-tools"></i> 관리자 대시보드</h1>
       <p class="description">솔트메이트 서비스의 다양한 항목을 관리합니다.</p>
     </header>
-
-    <div class="temp-admin-box">
-      <p>
-        <strong>관리자 권한 설정:</strong><br />아래 이메일을 가진 사용자의 인증
-        토큰에 관리자 권한을 부여합니다.
-      </p>
-      <input v-model="targetEmail" placeholder="관리자로 지정할 계정 이메일" />
-      <button @click="setAdminClaim">관리자 권한 부여</button>
-    </div>
     <main class="content-wrapper admin-layout">
       <aside class="admin-sidebar card glassmorphism">
         <h2>관리 메뉴</h2>
@@ -133,50 +124,12 @@
 </template>
 
 <script>
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { ref } from "vue";
-
 export default {
   name: "AdminDashboardPage",
-  setup() {
-    const targetEmail = ref("");
-
-    const setAdminClaim = async () => {
-      if (!targetEmail.value) {
-        alert("관리자로 지정할 계정의 이메일을 입력해주세요.");
-        return;
-      }
-      if (
-        !confirm(
-          `정말로 '${targetEmail.value}' 계정을 관리자로 지정하시겠습니까?`,
-        )
-      ) {
-        return;
-      }
-
-      try {
-        const functions = getFunctions();
-        const setUserAdmin = httpsCallable(functions, "setUserAdminClaim");
-        const result = await setUserAdmin({ email: targetEmail.value });
-
-        console.log(result.data.message);
-        alert(
-          result.data.message +
-            "\n\n이제 해당 계정으로 로그아웃 후 다시 로그인해주세요.",
-        );
-      } catch (err) {
-        console.error(err);
-        alert("관리자 지정에 실패했습니다. 오류: " + err.message);
-      }
-    };
-
-    return { targetEmail, setAdminClaim };
-  },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일 */
 .admin-dashboard-page {
   padding: 20px;
   max-width: 1200px;
@@ -280,34 +233,54 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.5);
   min-height: 500px;
 }
-
-/* 임시 버튼 스타일 */
-.temp-admin-box {
-  background: #fff3cd;
-  border: 1px solid #ffeeba;
-  padding: 20px;
-  border-radius: 10px;
-  text-align: center;
-  margin-bottom: 30px;
+@media (max-width: 992px) {
+  .admin-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-sidebar {
+    flex: none;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  .admin-sidebar h2 {
+    text-align: left;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .admin-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+  }
+  .admin-nav li {
+    margin-bottom: 0;
+  }
+  .admin-nav .nav-item {
+    padding: 10px 12px;
+    font-size: 1em;
+    gap: 8px;
+  }
 }
-.temp-admin-box p {
-  margin-bottom: 15px;
-  line-height: 1.5;
-}
-.temp-admin-box input {
-  padding: 8px 12px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  margin-right: 10px;
-  font-size: 1em;
-}
-.temp-admin-box button {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
+@media (max-width: 576px) {
+  .admin-dashboard-page {
+    padding: 10px;
+  }
+  .page-header h1 {
+    font-size: 2.2em;
+  }
+  .admin-content,
+  .admin-sidebar {
+    padding: 20px;
+  }
+  .admin-nav {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .admin-nav .nav-item {
+    justify-content: center;
+  }
 }
 </style>
