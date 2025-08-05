@@ -122,12 +122,12 @@ export default {
 }
 .modal-content {
   width: 90%;
-  max-width: 500px;
+  /* ▼▼▼ [수정] 최대 너비를 500px에서 700px로 변경 ▼▼▼ */
+  max-width: 700px;
+  /* ▲▲▲ 수정 완료 ▲▲▲ */
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-
-  /* ▼▼▼ 이 부분을 추가해주세요 ▼▼▼ */
   background-color: #fff;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);

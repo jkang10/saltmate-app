@@ -49,9 +49,9 @@
         </template>
 
         <template v-if="user">
-          <li v-if="!isAdmin">
-            <router-link to="/profile" class="nav-link user-profile">
-              <i class="fas fa-user-circle"></i>
+          <li v-if="!isAdmin" class="nav-link welcome-text">
+            <span>환영합니다,</span>
+            <router-link to="/profile" class="user-profile-link">
               {{ userProfile?.name || user.email }}
             </router-link>
           </li>
@@ -290,5 +290,24 @@ export default {
   .navbar-brand .logo {
     font-size: 1.5em;
   }
+}
+.welcome-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.user-profile-link {
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 20px;
+  transition: background-color 0.3s ease;
+}
+.user-profile-link:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 </style>

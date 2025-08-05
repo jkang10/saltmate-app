@@ -13,9 +13,9 @@
           <tr>
             <th>정산 주차</th>
             <th>회원명</th>
-            <th>투자금 수익</th>
-            <th>매칭 보너스</th>
-            <th>총 수익</th>
+            <th>총 수익(Gross)</th>
+            <th>실지급 현금(Net)</th>
+            <th>실지급 SaltMate(Net)</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -23,9 +23,31 @@
           <tr v-for="req in requests" :key="req.id">
             <td>{{ req.weekId }}</td>
             <td>{{ req.userName }}</td>
-            <td>{{ req.roiBonus.toLocaleString() }} 원</td>
-            <td>{{ req.matchingBonus.toLocaleString() }} P</td>
-            <td>{{ req.totalBonus.toLocaleString() }}</td>
+            <td>
+              {{
+                req.totalBonus.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })
+              }}
+              원
+            </td>
+
+            <td class="final-amount cash">
+              {{
+                calculateFinalPayout(req).cash.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })
+              }}
+              원
+            </td>
+            <td class="final-amount saltmate">
+              {{
+                calculateFinalPayout(req).saltmate.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })
+              }}
+              SaltMate
+            </td>
             <td class="actions">
               <button @click="approvePayout(req.id)" class="btn-approve">
                 승인
@@ -100,12 +122,36 @@ export default {
         alert("처리 중 오류가 발생했습니다.");
       }
     },
+    // ▼▼▼ [신규] 최종 지급액을 계산하는 메소드 추가 ▼▼▼
+    calculateFinalPayout(req) {
+      const companyFeeRate = 0.05;
+      let finalCash = 0;
+      let finalSaltmate = 0;
+
+      // 1. 투자금 수익 계산
+      if (req.roiBonus > 0) {
+        const netRoi = req.roiBonus * (1 - companyFeeRate);
+        finalCash += netRoi * 0.3;
+        finalSaltmate += netRoi * 0.7;
+      }
+
+      // 2. 1대 매칭 보너스 계산
+      if (req.matchingBonus > 0) {
+        const netMatching = req.matchingBonus * (1 - companyFeeRate);
+        finalSaltmate += netMatching; // 전액 SaltMate로 지급
+      }
+
+      return {
+        cash: finalCash,
+        saltmate: finalSaltmate,
+      };
+    },
   },
 };
 </script>
 
 <style scoped>
-/* 이전 SubscriptionManager와 유사한 스타일 사용 */
+/* 기존 스타일과 동일하되, 강조 표시를 위한 스타일 추가 */
 .payout-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
@@ -163,5 +209,14 @@ export default {
 }
 .btn-approve {
   background-color: #28a745;
+}
+.final-amount {
+  font-weight: bold;
+}
+.final-amount.cash {
+  color: #007bff;
+}
+.final-amount.saltmate {
+  color: #6f42c1;
 }
 </style>
