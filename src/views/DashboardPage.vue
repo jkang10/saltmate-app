@@ -95,12 +95,14 @@
             <div class="token-item">
               <img src="@/assets/COBS.png" alt="COBS" />
               <span>{{
-                (userProfile?.cobsBalance || 0).toLocaleString()
+                (userProfile?.tokens?.cobs || 0).toLocaleString()
               }}</span>
             </div>
             <div class="token-item">
               <img src="@/assets/BND_LOGO.png" alt="BND" />
-              <span>{{ (userProfile?.bndBalance || 0).toLocaleString() }}</span>
+              <span>{{
+                (userProfile?.tokens?.bnd || 0).toLocaleString()
+              }}</span>
             </div>
           </div>
           <span class="card-enter">자세히 보기 &rarr;</span>
