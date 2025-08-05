@@ -6,12 +6,69 @@
     </header>
 
     <main class="content-wrapper card glassmorphism">
-      <h2><i class="fas fa-wrench"></i> 기능 준비 중</h2>
-      <p>
-        나의 지분 정보 확인 기능은 현재 준비 중에 있습니다.
-        <br />
-        곧 멋진 모습으로 찾아뵙겠습니다!
-      </p>
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>지분 정보를 불러오는 중입니다...</p>
+      </div>
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+      </div>
+      <div v-else>
+        <section class="summary-section">
+          <div class="summary-card">
+            <label>나의 총 지분율</label>
+            <span>{{ (equityData.totalPercentage || 0).toFixed(4) }} %</span>
+          </div>
+          <div class="summary-card">
+            <label>총 투자 원금</label>
+            <span
+              >{{ (equityData.totalInvestment || 0).toLocaleString() }} 원</span
+            >
+          </div>
+          <div class="summary-card">
+            <label>예상 누적 배당금</label>
+            <span
+              >{{
+                (equityData.estimatedDividends || 0).toLocaleString()
+              }}
+              원</span
+            >
+          </div>
+        </section>
+
+        <section class="history-section">
+          <h2>지분 변동 내역</h2>
+          <div v-if="equityHistory.length === 0" class="empty-state">
+            <p>지분 변동 내역이 없습니다.</p>
+          </div>
+          <div v-else class="table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>내용</th>
+                  <th>변동 지분율</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in equityHistory" :key="item.id">
+                  <td>{{ formatDate(item.date) }}</td>
+                  <td>{{ item.reason }}</td>
+                  <td
+                    :class="[
+                      'amount',
+                      item.change > 0 ? 'positive' : 'negative',
+                    ]"
+                  >
+                    {{ item.change > 0 ? "+" : ""
+                    }}{{ item.change.toFixed(4) }} %
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
       <router-link to="/dashboard" class="back-button">
         <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
       </router-link>
@@ -20,83 +77,140 @@
 </template>
 
 <script>
+import { auth, db } from "@/firebaseConfig";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+} from "firebase/firestore";
+
 export default {
   name: "MyEquityPage",
+  data() {
+    return {
+      equityData: {},
+      equityHistory: [],
+      isLoading: true,
+      error: null,
+    };
+  },
+  async created() {
+    await this.fetchEquityData();
+  },
+  methods: {
+    async fetchEquityData() {
+      this.isLoading = true;
+      this.error = null;
+      if (!auth.currentUser) {
+        this.error = "로그인이 필요합니다.";
+        this.isLoading = false;
+        return;
+      }
+
+      try {
+        const userId = auth.currentUser.uid;
+
+        // 1. 'equity' 컬렉션에서 사용자 지분 요약 정보 조회
+        const equityRef = doc(db, "equity", userId);
+        const equitySnap = await getDoc(equityRef);
+        if (equitySnap.exists()) {
+          this.equityData = equitySnap.data();
+        }
+
+        // 2. 'equity_history' 컬렉션에서 사용자 지분 변동 내역 조회
+        const historyQuery = query(
+          collection(db, "equity_history"),
+          where("userId", "==", userId),
+          orderBy("date", "desc"),
+        );
+        const historySnapshot = await getDocs(historyQuery);
+        this.equityHistory = historySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (e) {
+        console.error("지분 정보 조회 오류:", e);
+        this.error = "지분 정보를 불러오는 데 실패했습니다.";
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    formatDate(timestamp) {
+      if (!timestamp?.toDate) return "";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    },
+  },
 };
 </script>
 
 <style scoped>
+/* 이전 페이지와 유사한 스타일 */
 .page-container {
   padding: 20px;
   max-width: 1000px;
-  margin: 70px auto 20px auto;
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-}
-.page-header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.page-header h1 {
-  font-size: 2.8em;
-  color: #333;
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
+  margin: 70px auto 20px;
 }
 .page-header h1 i {
-  color: #fd7e14; /* 지분 아이콘 색상 */
-}
-.page-header .description {
-  font-size: 1.1em;
-  color: #666;
+  color: #fd7e14;
 }
 .content-wrapper {
-  padding: 50px 30px;
+  padding: 30px;
+}
+
+.summary-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+.summary-card {
+  background-color: #f8f9fa;
+  padding: 25px;
+  border-radius: 12px;
   text-align: center;
+  border: 1px solid #e9ecef;
 }
-.content-wrapper h2 {
-  font-size: 2em;
-  color: #333;
-  margin-bottom: 20px;
-}
-.content-wrapper p {
-  font-size: 1.1em;
-  color: #555;
-  margin-bottom: 30px;
-  line-height: 1.6;
-}
-.card.glassmorphism {
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-.back-button {
-  background-color: #6c757d;
-  color: white;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
+.summary-card label {
+  display: block;
+  color: #666;
   font-size: 1em;
-  text-decoration: none;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 20px;
+  margin-bottom: 10px;
 }
-.back-button:hover {
-  background-color: #5a6268;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.summary-card span {
+  font-size: 2em;
+  font-weight: bold;
+  color: #333;
+}
+
+.history-section h2 {
+  /* 이전과 동일 */
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.history-table th,
+.history-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+.history-table thead th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+.amount {
+  font-weight: bold;
+  text-align: right;
+}
+.amount.positive {
+  color: #28a745;
+}
+.amount.negative {
+  color: #dc3545;
 }
 </style>
