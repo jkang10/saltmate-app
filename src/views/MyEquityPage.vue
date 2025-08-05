@@ -1,18 +1,17 @@
 <template>
-  <div class="my-equity-page">
+  <div class="page-container">
     <header class="page-header">
-      <h1><i class="fas fa-chart-pie"></i> 나의 지분 관리</h1>
-      <p class="description">
-        솔트메이트 프로젝트에 대한 회원님의 지분 현황을 확인합니다.
-      </p>
+      <h1><i class="fas fa-chart-pie"></i> 나의 지분 정보</h1>
+      <p class="description">나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
     </header>
 
     <main class="content-wrapper card glassmorphism">
-      <h2>지분 현황</h2>
+      <h2><i class="fas fa-wrench"></i> 기능 준비 중</h2>
       <p>
-        여기에 회원님의 총 지분율, 지분 가치, 관련 배당금 내역 등을 표시합니다.
+        나의 지분 정보 확인 기능은 현재 준비 중에 있습니다.
+        <br />
+        곧 멋진 모습으로 찾아뵙겠습니다!
       </p>
-      <p>이 페이지는 현재 개발 중입니다.</p>
       <router-link to="/dashboard" class="back-button">
         <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
       </router-link>
@@ -27,7 +26,7 @@ export default {
 </script>
 
 <style scoped>
-.my-equity-page {
+.page-container {
   padding: 20px;
   max-width: 1000px;
   margin: 70px auto 20px auto;
@@ -35,12 +34,10 @@ export default {
   flex-direction: column;
   gap: 30px;
 }
-
 .page-header {
   text-align: center;
   margin-bottom: 20px;
 }
-
 .page-header h1 {
   font-size: 2.8em;
   color: #333;
@@ -50,36 +47,28 @@ export default {
   align-items: center;
   gap: 15px;
 }
-
 .page-header h1 i {
-  color: #27ae60; /* 지분 아이콘 색상 */
+  color: #fd7e14; /* 지분 아이콘 색상 */
 }
-
 .page-header .description {
   font-size: 1.1em;
   color: #666;
 }
-
 .content-wrapper {
-  padding: 30px;
+  padding: 50px 30px;
   text-align: center;
 }
-
 .content-wrapper h2 {
   font-size: 2em;
   color: #333;
   margin-bottom: 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  padding-bottom: 15px;
 }
-
 .content-wrapper p {
   font-size: 1.1em;
   color: #555;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
   line-height: 1.6;
 }
-
 .card.glassmorphism {
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(12px);
@@ -88,7 +77,6 @@ export default {
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
-
 .back-button {
   background-color: #6c757d;
   color: white;
@@ -106,27 +94,9 @@ export default {
   gap: 10px;
   margin-top: 20px;
 }
-
 .back-button:hover {
   background-color: #5a6268;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-/* 반응형 디자인 */
-@media (max-width: 768px) {
-  .page-header h1 {
-    font-size: 2.2em;
-  }
-  .content-wrapper {
-    padding: 20px;
-  }
-  .content-wrapper h2 {
-    font-size: 1.8em;
-  }
-  .back-button {
-    padding: 10px 20px;
-    font-size: 0.9em;
-  }
 }
 </style>
