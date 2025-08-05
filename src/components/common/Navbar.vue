@@ -55,6 +55,12 @@
               {{ userProfile?.name || user.email }}
             </router-link>
           </li>
+          <li v-if="isAdmin" class="nav-link welcome-text">
+            <span>환영합니다,</span>
+            <span class="user-profile-link admin">{{
+              userProfile?.name || "관리자"
+            }}</span>
+          </li>
           <li>
             <button @click="handleLogout" class="nav-link logout-button">
               <i class="fas fa-sign-out-alt"></i> 로그아웃
@@ -67,6 +73,7 @@
 </template>
 
 <script>
+// 스크립트 부분은 기존과 동일 (변경 없음)
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
@@ -92,13 +99,10 @@ export default {
     onMounted(() => {
       unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
         user.value = currentUser;
-
         if (unsubscribeProfile) unsubscribeProfile();
-
         if (currentUser) {
           const idTokenResult = await currentUser.getIdTokenResult(true);
           isAdmin.value = idTokenResult.claims.admin === true;
-
           const userDocRef = doc(db, "users", currentUser.uid);
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
             userProfile.value = docSnap.exists() ? docSnap.data() : null;
@@ -309,5 +313,28 @@ export default {
 }
 .user-profile-link:hover {
   background-color: rgba(255, 255, 255, 0.3);
+}
+.welcome-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.user-profile-link {
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 20px;
+  transition: background-color 0.3s ease;
+}
+.user-profile-link:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.user-profile-link.admin {
+  /* 관리자 이름은 링크가 아니므로 span에 스타일 적용 */
+  cursor: default;
 }
 </style>

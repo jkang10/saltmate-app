@@ -1,8 +1,5 @@
 <template>
   <div class="dashboard-container">
-    <header class="dashboard-header">
-      <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
-    </header>
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
@@ -286,14 +283,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 30px;
-}
-.dashboard-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-.dashboard-header h2 {
-  font-size: 2.2em;
-  color: #333;
 }
 .card {
   background: #fff;
