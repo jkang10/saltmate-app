@@ -128,7 +128,85 @@ export default {
 </script>
 
 <style scoped>
-/* ... (기본 모달 스타일) ... */
+/* ▼▼▼ [수정됨] 완전한 모달 스타일 추가 ▼▼▼ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+}
+.modal-content {
+  width: 90%;
+  max-width: 500px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.2em;
+}
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 20px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
+}
+.btn-primary,
+.btn-secondary {
+  border: none;
+  border-radius: 5px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 설정 목록 스타일 */
 .settings-list {
   display: flex;
   flex-direction: column;
@@ -153,8 +231,6 @@ export default {
   color: #666;
   margin: 0;
 }
-
-/* 토글 스위치 스타일 */
 .switch {
   grid-area: switch;
   position: relative;
@@ -200,4 +276,3 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 </style>
-s

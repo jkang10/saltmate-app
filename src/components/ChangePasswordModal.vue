@@ -101,24 +101,20 @@ export default {
       }
 
       try {
-        // 1. 현재 비밀번호로 재인증
         const credential = EmailAuthProvider.credential(
           user.email,
           this.currentPassword,
         );
         await reauthenticateWithCredential(user, credential);
 
-        // 2. 새 비밀번호로 업데이트
         await updatePassword(user, this.newPassword);
 
         this.successMessage = "비밀번호가 성공적으로 변경되었습니다.";
-        setTimeout(() => this.$emit("close"), 2000); // 2초 후 모달 닫기
+        setTimeout(() => this.$emit("close"), 2000);
       } catch (err) {
         console.error("비밀번호 변경 오류:", err.code);
         if (err.code === "auth/wrong-password") {
           this.error = "현재 비밀번호가 올바르지 않습니다.";
-        } else if (err.code === "auth/requires-recent-login") {
-          this.error = "보안을 위해 최근에 다시 로그인한 후 시도해주세요.";
         } else {
           this.error = "오류가 발생했습니다. 다시 시도해주세요.";
         }
@@ -131,12 +127,52 @@ export default {
 </script>
 
 <style scoped>
-/* 이전 모달들과 유사한 스타일 */
+/* ▼▼▼ [수정됨] 완전한 모달 스타일 추가 ▼▼▼ */
 .modal-overlay {
-  z-index: 1001; /* 다른 모달 위에 표시될 수 있도록 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
 }
 .modal-content {
+  width: 90%;
   max-width: 450px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.2em;
+}
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 20px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
 }
 .form-group {
   margin-bottom: 15px;
@@ -153,6 +189,11 @@ export default {
   border-radius: 6px;
   box-sizing: border-box;
 }
+.error-message {
+  color: #dc3545;
+  text-align: center;
+  margin-top: 15px;
+}
 .success-message {
   color: #155724;
   background-color: #d4edda;
@@ -161,5 +202,35 @@ export default {
   border-radius: 5px;
   text-align: center;
   margin-bottom: 15px;
+}
+.btn-primary,
+.btn-secondary {
+  border: none;
+  border-radius: 5px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -169,7 +169,6 @@ export default {
       if (!timestamp?.toDate) return "N/A";
       return timestamp.toDate().toLocaleDateString("ko-KR");
     },
-    // [수정됨] alert 대신 모달을 열도록 변경
     openChangePasswordModal() {
       this.isPasswordModalVisible = true;
     },
@@ -203,6 +202,12 @@ export default {
 }
 .content-wrapper {
   padding: 30px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 .loading-state,
 .error-state {
@@ -235,7 +240,6 @@ export default {
   gap: 30px;
 }
 
-/* 왼쪽 프로필 정보 */
 .profile-info-section {
   background-color: #fff;
   padding: 25px;
@@ -289,7 +293,6 @@ export default {
   color: #333;
 }
 
-/* 오른쪽 상세 정보 */
 .profile-details-section {
   display: flex;
   flex-direction: column;
