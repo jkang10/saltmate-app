@@ -128,7 +128,6 @@ export default {
 </script>
 
 <style scoped>
-/* ▼▼▼ [수정됨] 완전한 모달 스타일 추가 ▼▼▼ */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -206,7 +205,6 @@ export default {
   }
 }
 
-/* 설정 목록 스타일 */
 .settings-list {
   display: flex;
   flex-direction: column;
@@ -215,11 +213,14 @@ export default {
 .setting-item {
   display: grid;
   grid-template-columns: 1fr 60px;
-  grid-template-areas: "label switch" "desc switch";
+  grid-template-areas:
+    "label switch"
+    "desc switch";
   gap: 5px 15px;
   align-items: center;
 }
-.setting-item label {
+.setting-item label[for] {
+  /* label 태그 중 for 속성이 있는 것만 선택 */
   grid-area: label;
   font-weight: bold;
   font-size: 1.1em;
@@ -237,6 +238,7 @@ export default {
   display: inline-block;
   width: 50px;
   height: 28px;
+  justify-self: center;
 }
 .switch input {
   opacity: 0;
