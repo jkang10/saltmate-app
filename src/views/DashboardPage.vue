@@ -88,13 +88,60 @@
       </section>
 
       <div class="dashboard-grid">
-        <router-link to="/my-tokens" class="feature-card tokens"> <div class="card-icon"><i class="fas fa-coins"></i></div> <h3>보유 토큰 현황</h3> <p>COBS, BND 토큰의 수량과 가치를 확인하세요.</p> <div class="token-glance"> <div class="token-item"> <img src="@/assets/COBS.png" alt="COBS" /> <span>{{ (userProfile?.cobsBalance || 0).toLocaleString() }}</span> </div> <div class="token-item"> <img src="@/assets/BND_LOGO.png" alt="BND" /> <span>{{ (userProfile?.bndBalance || 0).toLocaleString() }}</span> </div> </div> <span class="card-enter">자세히 보기 &rarr;</span> </router-link>
-        <router-link to="/nft-marketplace" class="feature-card nft"> <div class="card-icon"><i class="fas fa-gem"></i></div> <h3>NFT 마켓플레이스</h3> <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p> <span class="card-enter">입장하기 &rarr;</span> </router-link>
-        <router-link to="/network-tree" class="feature-card"> <div class="card-icon"><i class="fas fa-sitemap"></i></div> <h3>나의 추천 네트워크</h3> <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p> <span class="card-enter">확인하기 &rarr;</span> </router-link>
-        <router-link to="/my-equity" class="feature-card equity"> <div class="card-icon"><i class="fas fa-chart-pie"></i></div> <h3>지분 정보</h3> <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p> <span class="card-enter">확인하기 &rarr;</span> </router-link>
-        <router-link to="/my-events" class="feature-card events"> <div class="card-icon"><i class="fas fa-calendar-alt"></i></div> <h3>이벤트 공간</h3> <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p> <span class="card-enter">참여하기 &rarr;</span> </router-link>
-        <router-link to="/mall" class="feature-card mall"> <div class="card-icon"><i class="fas fa-store"></i></div> <h3>솔트메이트 몰</h3> <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p> <span class="card-enter">둘러보기 &rarr;</span> </router-link>
-        <router-link to="/my-investments" class="feature-card revenue"> <div class="card-icon"><i class="fas fa-chart-line"></i></div> <h3>내 수익 현황</h3> <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p> <span class="card-enter">분석하기 &rarr;</span> </router-link>
+        <router-link to="/my-tokens" class="feature-card tokens">
+          <div class="card-icon"><i class="fas fa-coins"></i></div>
+          <h3>보유 토큰 현황</h3>
+          <p>COBS, BND 토큰의 수량과 가치를 확인하세요.</p>
+          <div class="token-glance">
+            <div class="token-item">
+              <img src="@/assets/COBS.png" alt="COBS" />
+              <span>{{
+                (userProfile?.cobsBalance || 0).toLocaleString()
+              }}</span>
+            </div>
+            <div class="token-item">
+              <img src="@/assets/BND_LOGO.png" alt="BND" />
+              <span>{{ (userProfile?.bndBalance || 0).toLocaleString() }}</span>
+            </div>
+          </div>
+          <span class="card-enter">자세히 보기 &rarr;</span>
+        </router-link>
+        <router-link to="/nft-marketplace" class="feature-card nft">
+          <div class="card-icon"><i class="fas fa-gem"></i></div>
+          <h3>NFT 마켓플레이스</h3>
+          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+          <span class="card-enter">입장하기 &rarr;</span>
+        </router-link>
+        <router-link to="/network-tree" class="feature-card">
+          <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+          <h3>나의 추천 네트워크</h3>
+          <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+          <span class="card-enter">확인하기 &rarr;</span>
+        </router-link>
+        <router-link to="/my-equity" class="feature-card equity">
+          <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+          <h3>지분 정보</h3>
+          <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
+          <span class="card-enter">확인하기 &rarr;</span>
+        </router-link>
+        <router-link to="/my-events" class="feature-card events">
+          <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+          <h3>이벤트 공간</h3>
+          <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
+          <span class="card-enter">참여하기 &rarr;</span>
+        </router-link>
+        <router-link to="/mall" class="feature-card mall">
+          <div class="card-icon"><i class="fas fa-store"></i></div>
+          <h3>솔트메이트 몰</h3>
+          <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+          <span class="card-enter">둘러보기 &rarr;</span>
+        </router-link>
+        <router-link to="/my-investments" class="feature-card revenue">
+          <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+          <h3>내 수익 현황</h3>
+          <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
+          <span class="card-enter">분석하기 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
