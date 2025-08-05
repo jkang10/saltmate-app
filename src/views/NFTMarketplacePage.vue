@@ -5,7 +5,7 @@
       <p class="description">보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
     </header>
 
-    <main class="content-wrapper card glassmorphism">
+    <main class="content-wrapper card">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
         <p>NFT 정보를 불러오는 중입니다...</p>
@@ -14,40 +14,55 @@
         <p>{{ error }}</p>
       </div>
       <div v-else>
+        <section class="summary-section">
+          <div class="summary-card">
+            <label>총 보유 NFT</label>
+            <span>{{ myNfts.length }} 개</span>
+          </div>
+          <div class="summary-card">
+            <label>PLATINUM</label>
+            <span>{{ countByTier("PLATINUM") }} 개</span>
+          </div>
+          <div class="summary-card">
+            <label>DIAMOND</label>
+            <span>{{ countByTier("DIAMOND") }} 개</span>
+          </div>
+          <div class="summary-card">
+            <label>GOLD</label>
+            <span>{{ countByTier("GOLD") }} 개</span>
+          </div>
+        </section>
+
         <section class="nft-gallery">
           <h2>나의 보유 NFT</h2>
           <div v-if="myNfts.length === 0" class="empty-state">
             <p>보유하고 있는 NFT가 없습니다.</p>
           </div>
           <div v-else class="nft-grid">
-            <div v-for="nft in myNfts" :key="nft.id" class="nft-card">
-              <img :src="nft.imageUrl" :alt="nft.name" class="nft-image" />
-              <div class="nft-info">
-                <h3 class="nft-name">{{ nft.name }}</h3>
-                <p class="nft-description">{{ nft.description }}</p>
-                <span :class="['nft-tier-badge', nft.tier]">{{
-                  nft.tier
-                }}</span>
+            <div v-for="nft in myNfts" :key="nft.id" class="nft-card-container">
+              <div class="nft-card">
+                <div class="nft-card-front">
+                  <img :src="nft.imageUrl" :alt="nft.name" class="nft-image" />
+                  <div class="nft-info">
+                    <h3 class="nft-name">{{ nft.name }}</h3>
+                    <span :class="['nft-tier-badge', nft.tier]">{{
+                      nft.tier
+                    }}</span>
+                  </div>
+                </div>
+                <div class="nft-card-back">
+                  <h4>{{ nft.name }}</h4>
+                  <p>{{ nft.description }}</p>
+                  <div class="nft-properties">
+                    <div class="property">
+                      <strong>발행일:</strong
+                      ><span>{{ formatDate(nft.mintDate) }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </section>
-
-        <section class="benefits-section">
-          <h2>NFT 멤버십 혜택</h2>
-          <ul class="benefits-list">
-            <li>
-              <strong>GOLD TIER:</strong> 솔트메이트 몰 5% 할인 쿠폰 매월 지급
-            </li>
-            <li>
-              <strong>DIAMOND TIER:</strong> 솔트메이트 몰 10% 할인 및 월간 특별
-              상품 제공
-            </li>
-            <li>
-              <strong>PLATINUM TIER:</strong> 모든 혜택 포함 및 분기별 오프라인
-              이벤트 우선 초청
-            </li>
-          </ul>
         </section>
       </div>
       <router-link to="/dashboard" class="back-button">
@@ -82,20 +97,17 @@ export default {
         this.isLoading = false;
         return;
       }
-
       try {
-        // 'nfts' 컬렉션에서 현재 로그인한 사용자의 ID를 가진 NFT 문서를 조회합니다.
         const q = query(
           collection(db, "nfts"),
           where("ownerId", "==", auth.currentUser.uid),
         );
         const querySnapshot = await getDocs(q);
 
-        // Firestore에서 가져온 데이터를 컴포넌트의 데이터에 맞게 가공합니다.
         this.myNfts = querySnapshot.docs.map((doc) => ({
           id: doc.id,
-          // 예시 이미지 URL입니다. 실제로는 Firestore에 저장된 URL을 사용해야 합니다.
-          imageUrl: doc.data().imageUrl || "https://via.placeholder.com/300",
+          imageUrl:
+            doc.data().imageUrl || "https://via.placeholder.com/400x500",
           ...doc.data(),
         }));
       } catch (e) {
@@ -105,12 +117,19 @@ export default {
         this.isLoading = false;
       }
     },
+    countByTier(tier) {
+      return this.myNfts.filter((nft) => nft.tier === tier).length;
+    },
+    formatDate(timestamp) {
+      if (!timestamp?.toDate) return "N/A";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    },
   },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일과 유사하게 구성 */
+/* 페이지 기본 스타일 */
 .page-container {
   padding: 20px;
   max-width: 1200px;
@@ -122,67 +141,108 @@ export default {
 }
 .page-header h1 {
   font-size: 2.8em;
-  color: #333;
+  color: #1a1a1a;
 }
 .page-header h1 i {
   color: #17a2b8;
 }
 .page-header .description {
   font-size: 1.1em;
-  color: #666;
+  color: #555;
 }
 .content-wrapper {
   padding: 30px;
-}
-.loading-state,
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: #666;
+  background-color: #f8f9fa;
+  border-radius: 15px;
 }
 
-.nft-gallery h2,
-.benefits-section h2 {
+/* 요약 섹션 */
+.summary-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 50px;
+}
+.summary-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+.summary-card label {
+  display: block;
+  color: #666;
+  font-size: 1em;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+.summary-card span {
+  font-size: 2em;
+  font-weight: bold;
+  color: #333;
+}
+
+/* NFT 갤러리 */
+.nft-gallery h2 {
   font-size: 1.8em;
   color: #333;
   margin-bottom: 25px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid #dee2e6;
   padding-bottom: 15px;
 }
 .nft-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+}
+
+.nft-card-container {
+  perspective: 1000px;
 }
 .nft-card {
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
+  width: 100%;
+  height: 400px;
+  position: relative;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+  cursor: pointer;
 }
-.nft-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+.nft-card-container:hover .nft-card {
+  transform: rotateY(180deg);
+}
+.nft-card-front,
+.nft-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+.nft-card-front {
+  background-color: #fff;
 }
 .nft-image {
   width: 100%;
-  height: 250px;
+  height: 100%;
   object-fit: cover;
-  display: block;
 }
 .nft-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   padding: 20px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  color: white;
 }
 .nft-name {
   margin: 0 0 10px 0;
-  font-size: 1.2em;
-}
-.nft-description {
-  font-size: 0.9em;
-  color: #555;
-  margin-bottom: 15px;
+  font-size: 1.4em;
+  text-shadow: 0 1px 3px black;
 }
 .nft-tier-badge {
   display: inline-block;
@@ -190,7 +250,6 @@ export default {
   border-radius: 15px;
   font-size: 0.8em;
   font-weight: bold;
-  color: white;
 }
 .nft-tier-badge.GOLD {
   background-color: #ffd700;
@@ -205,23 +264,55 @@ export default {
   color: #333;
 }
 
-.benefits-section {
-  margin-top: 50px;
+.nft-card-back {
+  background: linear-gradient(135deg, #495057, #343a40);
+  color: white;
+  transform: rotateY(180deg);
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
-.benefits-list {
-  list-style: none;
-  padding: 0;
-  text-align: left;
+.nft-card-back h4 {
+  font-size: 1.5em;
+  margin-bottom: 15px;
 }
-.benefits-list li {
-  background-color: #f8f9fa;
-  padding: 15px;
+.nft-card-back p {
+  font-size: 0.95em;
+  line-height: 1.6;
+  flex-grow: 1;
+}
+.nft-properties {
+  font-size: 0.9em;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 15px;
+}
+.property {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* 돌아가기 버튼 */
+.back-button {
+  background: #007bff;
+  color: white;
+  padding: 12px 25px;
+  border: none;
   border-radius: 8px;
-  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
 }
 .back-button:hover {
-  background-color: #5a6268;
+  background-color: #0056b3;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
 }
 </style>

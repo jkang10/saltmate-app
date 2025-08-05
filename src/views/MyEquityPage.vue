@@ -5,7 +5,7 @@
       <p class="description">나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
     </header>
 
-    <main class="content-wrapper card glassmorphism">
+    <main class="content-wrapper card">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
         <p>지분 정보를 불러오는 중입니다...</p>
@@ -16,23 +16,35 @@
       <div v-else>
         <section class="summary-section">
           <div class="summary-card">
-            <label>나의 총 지분율</label>
-            <span>{{ (equityData.totalPercentage || 0).toFixed(4) }} %</span>
+            <i class="card-icon fas fa-percentage"></i>
+            <div class="card-content">
+              <label>나의 총 지분율</label>
+              <span>{{ (equityData.totalPercentage || 0).toFixed(4) }} %</span>
+            </div>
           </div>
           <div class="summary-card">
-            <label>총 투자 원금</label>
-            <span
-              >{{ (equityData.totalInvestment || 0).toLocaleString() }} 원</span
-            >
+            <i class="card-icon fas fa-database"></i>
+            <div class="card-content">
+              <label>총 투자 원금</label>
+              <span
+                >{{
+                  (equityData.totalInvestment || 0).toLocaleString()
+                }}
+                원</span
+              >
+            </div>
           </div>
           <div class="summary-card">
-            <label>예상 누적 배당금</label>
-            <span
-              >{{
-                (equityData.estimatedDividends || 0).toLocaleString()
-              }}
-              원</span
-            >
+            <i class="card-icon fas fa-hand-holding-usd"></i>
+            <div class="card-content">
+              <label>예상 누적 배당금</label>
+              <span
+                >{{
+                  (equityData.estimatedDividends || 0).toLocaleString()
+                }}
+                원</span
+              >
+            </div>
           </div>
         </section>
 
@@ -114,14 +126,12 @@ export default {
       try {
         const userId = auth.currentUser.uid;
 
-        // 1. 'equity' 컬렉션에서 사용자 지분 요약 정보 조회
         const equityRef = doc(db, "equity", userId);
         const equitySnap = await getDoc(equityRef);
         if (equitySnap.exists()) {
           this.equityData = equitySnap.data();
         }
 
-        // 2. 'equity_history' 컬렉션에서 사용자 지분 변동 내역 조회
         const historyQuery = query(
           collection(db, "equity_history"),
           where("userId", "==", userId),
@@ -148,46 +158,84 @@ export default {
 </script>
 
 <style scoped>
-/* 이전 페이지와 유사한 스타일 */
+/* 페이지 기본 스타일 */
 .page-container {
   padding: 20px;
   max-width: 1000px;
   margin: 70px auto 20px;
 }
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 {
+  font-size: 2.8em;
+  color: #1a1a1a;
+}
 .page-header h1 i {
   color: #fd7e14;
 }
+.page-header .description {
+  font-size: 1.1em;
+  color: #555;
+}
 .content-wrapper {
   padding: 30px;
+  background-color: #f8f9fa;
+  border-radius: 15px;
+}
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #666;
 }
 
+/* 요약 섹션 */
 .summary-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 40px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 25px;
+  margin-bottom: 50px;
 }
 .summary-card {
-  background-color: #f8f9fa;
+  background: white;
   padding: 25px;
   border-radius: 12px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 20px;
   border: 1px solid #e9ecef;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
-.summary-card label {
+.card-icon {
+  font-size: 2.5em;
+  color: #fd7e14;
+}
+.card-content label {
   display: block;
   color: #666;
   font-size: 1em;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  font-weight: 500;
 }
-.summary-card span {
-  font-size: 2em;
+.card-content span {
+  font-size: 1.8em;
   font-weight: bold;
   color: #333;
 }
 
+/* 내역 섹션 */
 .history-section h2 {
-  /* 이전과 동일 */
+  font-size: 1.8em;
+  color: #333;
+  margin-bottom: 25px;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 15px;
+}
+.table-container {
+  max-height: 500px;
+  overflow-y: auto;
 }
 .history-table {
   width: 100%;
@@ -212,5 +260,29 @@ export default {
 }
 .amount.negative {
   color: #dc3545;
+}
+
+/* 돌아가기 버튼 */
+.back-button {
+  background: #007bff;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+}
+.back-button:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
 }
 </style>
