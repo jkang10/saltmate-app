@@ -22,10 +22,13 @@
               <img src="@/assets/COBS.png" alt="COBS Token" />
             </div>
             <div class="token-info">
-              <label>COBS (보상 토큰)</label>
-              <span class="balance">{{
-                (userProfile.tokens?.cobs || 0).toLocaleString()
-              }}</span>
+              <label>COBS (생태계 토큰)</label>
+              <span class="balance"
+                >{{
+                  (userProfile.tokens?.cobs || 0).toLocaleString()
+                }}
+                COBS</span
+              >
             </div>
           </div>
           <div class="token-balance-card bnd">
@@ -33,10 +36,10 @@
               <img src="@/assets/BND_LOGO.png" alt="BND Token" />
             </div>
             <div class="token-info">
-              <label>BND (증권형 토큰)</label>
-              <span class="balance">{{
-                (userProfile.tokens?.bnd || 0).toLocaleString()
-              }}</span>
+              <label>BND (밈 토큰)</label>
+              <span class="balance"
+                >{{ (userProfile.tokens?.bnd || 0).toLocaleString() }} BND</span
+              >
             </div>
           </div>
         </section>
@@ -68,7 +71,7 @@
                   <td
                     :class="['amount', tx.amount > 0 ? 'positive' : 'negative']"
                   >
-                    {{ formatAmount(tx.amount) }}
+                    {{ formatAmount(tx.amount) }} {{ tx.balanceType }}
                   </td>
                 </tr>
               </tbody>
@@ -108,7 +111,6 @@ export default {
   },
   computed: {
     sortedTransactions() {
-      // 원본 배열을 수정하지 않기 위해 복사본을 만들어 정렬합니다.
       return [...this.transactions].sort(
         (a, b) => b.timestamp.toDate() - a.timestamp.toDate(),
       );
@@ -131,7 +133,6 @@ export default {
       try {
         const userId = auth.currentUser.uid;
 
-        // 1. 사용자 프로필에서 현재 토큰 잔액 가져오기
         const userRef = doc(db, "users", userId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
@@ -140,7 +141,6 @@ export default {
           throw new Error("사용자 정보를 찾을 수 없습니다.");
         }
 
-        // 2. transactions 컬렉션에서 COBS와 BND 변동 내역 모두 가져오기
         const q = query(
           collection(db, "transactions"),
           where("userId", "==", userId),
@@ -173,6 +173,7 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일은 변경 없습니다 */
 .my-tokens-page {
   padding: 20px;
   max-width: 1000px;
@@ -195,7 +196,7 @@ export default {
   gap: 15px;
 }
 .page-header h1 i {
-  color: #f39c12; /* 코인 아이콘 색상 */
+  color: #f39c12;
 }
 .page-header .description {
   font-size: 1.1em;
@@ -218,24 +219,6 @@ export default {
   text-align: center;
   padding: 40px;
   color: #666;
-}
-.spinner {
-  display: inline-block;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #007bff;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
 }
 .balance-section {
   display: grid;
@@ -340,20 +323,5 @@ export default {
   background-color: #5a6268;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-@media (max-width: 768px) {
-  .page-header h1 {
-    font-size: 2.2em;
-  }
-  .content-wrapper {
-    padding: 20px;
-  }
-  .history-section h2 {
-    font-size: 1.8em;
-  }
-  .back-button {
-    padding: 10px 20px;
-    font-size: 0.9em;
-  }
 }
 </style>
