@@ -1,5 +1,9 @@
 <template>
   <div class="dashboard-container">
+    <header class="dashboard-header">
+      <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
+    </header>
+
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
@@ -23,7 +27,9 @@
             <div
               class="progress-bar-fill"
               :style="{ width: cycleProgress + '%' }"
-            ></div>
+            >
+              <i class="fas fa-running running-man"></i>
+            </div>
           </div>
           <div class="progress-labels">
             <span class="current-earnings"
@@ -284,6 +290,14 @@ export default {
   flex-direction: column;
   gap: 30px;
 }
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.dashboard-header h2 {
+  font-size: 2.2em;
+  color: #333;
+}
 .card {
   background: #fff;
   border-radius: 15px;
@@ -374,15 +388,35 @@ export default {
 .progress-bar-container {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  height: 20px;
+  border-radius: 20px;
+  height: 24px;
   overflow: hidden;
+  position: relative;
 }
 .progress-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, #17a2b8, #28a745);
-  border-radius: 10px;
-  transition: width 0.5s ease-in-out;
+  border-radius: 20px;
+  transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.running-man {
+  color: white;
+  font-size: 1.2em;
+  margin-right: 10px;
+  animation: running-animation 0.7s infinite alternate;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+@keyframes running-animation {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-3px);
+  }
 }
 .progress-labels {
   display: flex;
