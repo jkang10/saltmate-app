@@ -1,9 +1,5 @@
 <template>
   <div class="dashboard-container">
-    <header class="dashboard-header">
-      <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
-    </header>
-
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
