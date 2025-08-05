@@ -1,129 +1,128 @@
 <template>
-  <div class="page-container">
+  <div class="my-tokens-page">
     <header class="page-header">
-      <h1><i class="fas fa-chart-line"></i> 내 수익 현황</h1>
+      <h1><i class="fas fa-coins"></i> 나의 토큰 관리</h1>
       <p class="description">
-        기간별, 유형별 수익 발생 내역을 상세히 확인합니다.
+        보유하신 COBS 및 BND 토큰의 상세 내역을 확인하고 관리합니다.
       </p>
     </header>
 
-    <main class="content-wrapper card">
-      <section class="filter-section">
-        <div class="filter-buttons">
-          <button
-            @click="setFilterDays(7)"
-            :class="{ active: activeFilter === 7 }"
-          >
-            최근 7일
-          </button>
-          <button
-            @click="setFilterDays(30)"
-            :class="{ active: activeFilter === 30 }"
-          >
-            최근 1개월
-          </button>
-          <button
-            @click="setFilterDays(90)"
-            :class="{ active: activeFilter === 90 }"
-          >
-            최근 3개월
-          </button>
-        </div>
-      </section>
+    <main class="content-wrapper card glassmorphism">
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>토큰 정보를 불러오는 중입니다...</p>
+      </div>
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+      </div>
+      <div v-else>
+        <section class="balance-section">
+          <div class="token-balance-card cobs">
+            <div class="token-icon">
+              <img src="@/assets/COBS.png" alt="COBS Token" />
+            </div>
+            <div class="token-info">
+              <label>COBS (생태계 토큰)</label>
+              <span class="balance"
+                >{{
+                  (userProfile.tokens?.cobs || 0).toLocaleString()
+                }}
+                COBS</span
+              >
+            </div>
+          </div>
+          <div class="token-balance-card bnd">
+            <div class="token-icon">
+              <img src="@/assets/BND_LOGO.png" alt="BND Token" />
+            </div>
+            <div class="token-info">
+              <label>BND (밈 토큰)</label>
+              <span class="balance"
+                >{{ (userProfile.tokens?.bnd || 0).toLocaleString() }} BND</span
+              >
+            </div>
+          </div>
+        </section>
 
-      <section class="summary-section">
-        <div class="summary-card cash">
-          <label>총 현금성 수익</label>
-          <span>{{ summary.cash.toLocaleString() }} 원</span>
-        </div>
-        <div class="summary-card saltmate">
-          <label>총 솔트메이트 수익</label>
-          <span>{{ summary.saltmate.toLocaleString() }} SaltMate</span>
-        </div>
-      </section>
-
-      <section class="details-section">
-        <h3>상세 내역</h3>
-        <div v-if="isLoading" class="loading-state">
-          <div class="spinner"></div>
-          <p>데이터를 불러오는 중입니다...</p>
-        </div>
-        <div v-else-if="error" class="error-state">
-          <p>{{ error }}</p>
-        </div>
-        <div v-else-if="transactions.length === 0" class="empty-state">
-          <p>선택된 기간에 해당하는 수익 내역이 없습니다.</p>
-        </div>
-        <div v-else class="table-container">
-          <table class="transaction-table">
-            <thead>
-              <tr>
-                <th>날짜</th>
-                <th>상세 내용</th>
-                <th>구분</th>
-                <th>금액</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="tx in transactions" :key="tx.id">
-                <td>{{ formatDate(tx.timestamp) }}</td>
-                <td>{{ tx.description }}</td>
-                <td>
-                  <span
-                    :class="[
-                      'balance-type-badge',
-                      tx.balanceType.toLowerCase(),
-                    ]"
-                    >{{ formatBalanceType(tx.balanceType) }}</span
+        <section class="history-section">
+          <h2>토큰 변동 내역</h2>
+          <div v-if="sortedTransactions.length === 0" class="empty-state">
+            <p>토큰 변동 내역이 없습니다.</p>
+          </div>
+          <div v-else class="table-container">
+            <table class="transaction-table">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>내용</th>
+                  <th>토큰 종류</th>
+                  <th>수량</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tx in sortedTransactions" :key="tx.id">
+                  <td>{{ formatDate(tx.timestamp) }}</td>
+                  <td>{{ tx.description }}</td>
+                  <td>
+                    <span :class="['token-badge', tx.balanceType]">{{
+                      tx.balanceType
+                    }}</span>
+                  </td>
+                  <td
+                    :class="['amount', tx.amount > 0 ? 'positive' : 'negative']"
                   >
-                </td>
-                <td
-                  :class="['amount', tx.amount > 0 ? 'positive' : 'negative']"
-                >
-                  {{ formatAmount(tx.amount, tx.balanceType) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+                    {{ formatAmount(tx.amount) }} {{ tx.balanceType }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <router-link to="/dashboard" class="back-button">
+        <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
+      </router-link>
     </main>
   </div>
 </template>
 
 <script>
-import { db, auth } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig";
 import {
+  doc,
+  getDoc,
   collection,
   query,
   where,
   orderBy,
   getDocs,
-  Timestamp,
 } from "firebase/firestore";
 
 export default {
-  name: "MyInvestmentsPage",
+  name: "MyTokensPage",
   data() {
     return {
+      userProfile: null,
       transactions: [],
-      summary: {
-        cash: 0,
-        saltmate: 0,
-      },
       isLoading: true,
       error: null,
-      activeFilter: 30,
     };
   },
+  computed: {
+    sortedTransactions() {
+      return [...this.transactions].sort(
+        (a, b) => b.timestamp.toDate() - a.timestamp.toDate(),
+      );
+    },
+  },
   async created() {
-    this.setFilterDays(this.activeFilter);
+    await this.fetchTokenData();
   },
   methods: {
-    async fetchTransactions(startDate, endDate) {
+    async fetchTokenData() {
       this.isLoading = true;
       this.error = null;
-      this.transactions = [];
 
       if (!auth.currentUser) {
         this.error = "로그인이 필요합니다.";
@@ -132,13 +131,20 @@ export default {
       }
 
       try {
-        // ▼▼▼ [수정됨] 현금(CASH)과 SaltMate 내역만 조회하도록 필터 추가 ▼▼▼
+        const userId = auth.currentUser.uid;
+
+        const userRef = doc(db, "users", userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          this.userProfile = userSnap.data();
+        } else {
+          throw new Error("사용자 정보를 찾을 수 없습니다.");
+        }
+
         const q = query(
           collection(db, "transactions"),
-          where("userId", "==", auth.currentUser.uid),
-          where("balanceType", "in", ["CASH", "SALTMATE"]), // 이 라인 추가
-          where("timestamp", ">=", startDate),
-          where("timestamp", "<=", endDate),
+          where("userId", "==", userId),
+          where("balanceType", "in", ["COBS", "BND"]),
           orderBy("timestamp", "desc"),
         );
 
@@ -147,81 +153,49 @@ export default {
           id: doc.id,
           ...doc.data(),
         }));
-
-        this.calculateSummary();
       } catch (e) {
-        console.error("수익 내역 조회 오류:", e);
-        if (e.code === "failed-precondition") {
-          this.error =
-            "데이터 조회를 위한 색인이 필요합니다. Firebase 콘솔에서 생성해주세요.";
-        } else {
-          this.error = "내역을 불러오는 데 실패했습니다.";
-        }
+        console.error("토큰 데이터 조회 오류:", e);
+        this.error = "토큰 정보를 불러오는 데 실패했습니다.";
       } finally {
         this.isLoading = false;
       }
     },
-    calculateSummary() {
-      const summaryData = this.transactions.reduce(
-        (acc, tx) => {
-          if (tx.amount > 0) {
-            if (tx.balanceType === "CASH") {
-              acc.cash += tx.amount;
-            } else if (tx.balanceType === "SALTMATE") {
-              acc.saltmate += tx.amount;
-            }
-          }
-          return acc;
-        },
-        { cash: 0, saltmate: 0 },
-      );
-      this.summary = summaryData;
-    },
-    setFilterDays(days) {
-      this.activeFilter = days;
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - days);
-
-      const startTimestamp = Timestamp.fromDate(startDate);
-      const endTimestamp = Timestamp.fromDate(endDate);
-
-      this.fetchTransactions(startTimestamp, endTimestamp);
-    },
     formatDate(timestamp) {
       if (!timestamp || !timestamp.toDate) return "";
-      return timestamp.toDate().toLocaleDateString("ko-KR");
+      return timestamp.toDate().toLocaleString("ko-KR");
     },
-    // ▼▼▼ [수정됨] 단위를 SaltMate로 통일 ▼▼▼
-    formatAmount(amount, balanceType) {
+    formatAmount(amount) {
       const sign = amount > 0 ? "+" : "";
-      const unit = balanceType === "CASH" ? "원" : "SaltMate";
-      return `${sign}${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}`;
-    },
-    // ▼▼▼ [신규] 표시될 타입 이름을 변환하는 함수 추가 ▼▼▼
-    formatBalanceType(type) {
-      if (type === "CASH") return "현금";
-      if (type === "SALTMATE") return "SaltMate";
-      return type; // COBS, BND 등 다른 타입도 대비
+      return `${sign}${amount.toLocaleString()}`;
     },
   },
 };
 </script>
 
 <style scoped>
-/* ... 기존 스타일 ... */
-.page-container {
+.my-tokens-page {
   padding: 20px;
   max-width: 1000px;
-  margin: 70px auto 20px;
+  margin: 70px auto 20px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 .page-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 .page-header h1 {
-  font-size: 2.5em;
+  font-size: 2.8em;
   color: #333;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+.page-header h1 i {
+  color: #f39c12;
 }
 .page-header .description {
   font-size: 1.1em;
@@ -230,65 +204,13 @@ export default {
 .content-wrapper {
   padding: 30px;
 }
-.filter-section {
-  margin-bottom: 30px;
-}
-.filter-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-.filter-buttons button {
-  background-color: #f0f2f5;
-  border: 1px solid #ddd;
-  color: #555;
-  padding: 10px 20px;
-  border-radius: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.filter-buttons button:hover {
-  background-color: #e2e6ea;
-}
-.filter-buttons button.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-.summary-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 40px;
-}
-.summary-card {
-  padding: 25px;
-  border-radius: 12px;
-  text-align: center;
-  color: white;
-}
-.summary-card.cash {
-  background: linear-gradient(135deg, #17a2b8, #20c997);
-}
-.summary-card.saltmate {
-  background: linear-gradient(135deg, #6f42c1, #a96ef0);
-}
-.summary-card label {
-  display: block;
-  font-size: 1.1em;
-  margin-bottom: 10px;
-  opacity: 0.9;
-}
-.summary-card span {
-  font-size: 2.2em;
-  font-weight: bold;
-}
-.details-section h3 {
-  font-size: 1.6em;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #eee;
-  padding-bottom: 10px;
+.card.glassmorphism {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 .loading-state,
 .empty-state,
@@ -297,25 +219,50 @@ export default {
   padding: 40px;
   color: #666;
 }
-.spinner {
-  display: inline-block;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #007bff;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
+.balance-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
 }
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.token-balance-card {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+.token-balance-card.cobs {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+}
+.token-balance-card.bnd {
+  background: linear-gradient(135deg, #6f42c1, #483d8b);
+}
+.token-icon img {
+  width: 50px;
+  height: 50px;
+  margin-right: 20px;
+}
+.token-info label {
+  display: block;
+  font-size: 1em;
+  opacity: 0.9;
+}
+.token-info .balance {
+  font-size: 2em;
+  font-weight: bold;
+}
+.history-section h2 {
+  font-size: 1.8em;
+  color: #333;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 15px;
 }
 .table-container {
-  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
 }
 .transaction-table {
   width: 100%;
@@ -331,22 +278,19 @@ export default {
   background-color: #f8f9fa;
   font-weight: bold;
 }
-
-/* ▼▼▼ [신규] saltmate 클래스에 대한 스타일 추가 ▼▼▼ */
-.balance-type-badge {
+.token-badge {
   padding: 4px 10px;
   border-radius: 12px;
   font-weight: bold;
   color: white;
   font-size: 0.85em;
 }
-.balance-type-badge.cash {
-  background-color: #17a2b8;
+.token-badge.COBS {
+  background-color: #007bff;
 }
-.balance-type-badge.saltmate {
+.token-badge.BND {
   background-color: #6f42c1;
 }
-
 .amount {
   font-weight: bold;
   text-align: right;
@@ -356,5 +300,27 @@ export default {
 }
 .amount.negative {
   color: #dc3545;
+}
+.back-button {
+  background-color: #6c757d;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  text-decoration: none;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 30px;
+}
+.back-button:hover {
+  background-color: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 </style>
