@@ -106,16 +106,14 @@ export default {
       error: null,
     };
   },
-
   computed: {
     sortedTransactions() {
-      // [...this.transactions] 로 배열의 복사본을 만든 후 정렬
+      // 원본 배열을 수정하지 않기 위해 복사본을 만들어 정렬합니다.
       return [...this.transactions].sort(
         (a, b) => b.timestamp.toDate() - a.timestamp.toDate(),
       );
     },
   },
-
   async created() {
     await this.fetchTokenData();
   },
@@ -175,17 +173,70 @@ export default {
 </script>
 
 <style scoped>
-.my-tokens-page { padding: 20px; max-width: 1000px; margin: 70px auto 20px auto; display: flex; flex-direction: column; gap: 30px; }
-.page-header { text-align: center; margin-bottom: 20px; }
-.page-header h1 { font-size: 2.8em; color: #333; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px; }
-.page-header h1 i { color: #f39c12; }
-.page-header .description { font-size: 1.1em; color: #666; }
-.content-wrapper { padding: 30px; }
-.card.glassmorphism { background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 15px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); }
-.loading-state, .empty-state { text-align: center; padding: 40px; color: #666; }
-.spinner { /* 스피너 스타일 */ }
-
-/* 잔액 섹션 */
+.my-tokens-page {
+  padding: 20px;
+  max-width: 1000px;
+  margin: 70px auto 20px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.page-header h1 {
+  font-size: 2.8em;
+  color: #333;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+.page-header h1 i {
+  color: #f39c12; /* 코인 아이콘 색상 */
+}
+.page-header .description {
+  font-size: 1.1em;
+  color: #666;
+}
+.content-wrapper {
+  padding: 30px;
+}
+.card.glassmorphism {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+.loading-state,
+.empty-state,
+.error-state {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+.spinner {
+  display: inline-block;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
 .balance-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -198,9 +249,14 @@ export default {
   padding: 20px;
   border-radius: 12px;
   color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
-.token-balance-card.cobs { background: linear-gradient(135deg, #007bff, #0056b3); }
-.token-balance-card.bnd { background: linear-gradient(135deg, #6f42c1, #483d8b); }
+.token-balance-card.cobs {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+}
+.token-balance-card.bnd {
+  background: linear-gradient(135deg, #6f42c1, #483d8b);
+}
 .token-icon img {
   width: 50px;
   height: 50px;
@@ -215,20 +271,87 @@ export default {
   font-size: 2em;
   font-weight: bold;
 }
-
-/* 내역 섹션 */
-.history-section h2 { font-size: 1.8em; color: #333; margin-bottom: 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.1); padding-bottom: 15px; }
-.table-container { max-height: 500px; overflow-y: auto; }
-.transaction-table { width: 100%; border-collapse: collapse; }
-.transaction-table th, .transaction-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-.transaction-table thead th { background-color: #f8f9fa; font-weight: bold; }
-.token-badge { padding: 4px 10px; border-radius: 12px; font-weight: bold; color: white; font-size: 0.85em; }
-.token-badge.COBS { background-color: #007bff; }
-.token-badge.BND { background-color: #6f42c1; }
-.amount { font-weight: bold; text-align: right; }
-.amount.positive { color: #28a745; }
-.amount.negative { color: #dc3545; }
+.history-section h2 {
+  font-size: 1.8em;
+  color: #333;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 15px;
+}
+.table-container {
+  max-height: 500px;
+  overflow-y: auto;
+}
+.transaction-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.transaction-table th,
+.transaction-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+.transaction-table thead th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+.token-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  color: white;
+  font-size: 0.85em;
+}
+.token-badge.COBS {
+  background-color: #007bff;
+}
+.token-badge.BND {
+  background-color: #6f42c1;
+}
+.amount {
+  font-weight: bold;
+  text-align: right;
+}
+.amount.positive {
+  color: #28a745;
+}
+.amount.negative {
+  color: #dc3545;
+}
 .back-button {
+  background-color: #6c757d;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  text-decoration: none;
+  transition:
+    background-color 0.3s ease,
+    transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 30px;
+}
+.back-button:hover {
+  background-color: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+@media (max-width: 768px) {
+  .page-header h1 {
+    font-size: 2.2em;
+  }
+  .content-wrapper {
+    padding: 20px;
+  }
+  .history-section h2 {
+    font-size: 1.8em;
+  }
+  .back-button {
     padding: 10px 20px;
     font-size: 0.9em;
   }
