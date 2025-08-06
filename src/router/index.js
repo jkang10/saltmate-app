@@ -19,13 +19,11 @@ const routes = [
     name: "LoginPage",
     component: () => import("@/views/LoginPage.vue"),
   },
-  // ▼▼▼ [신규] 비밀번호 찾기 페이지 경로 추가 ▼▼▼
   {
     path: "/reset-password",
     name: "ResetPasswordPage",
     component: () => import("@/views/ResetPasswordPage.vue"),
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/dashboard",
     name: "DashboardPage",
@@ -38,14 +36,12 @@ const routes = [
     component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] NetworkTreePage 경로 추가 및 이전 경로와의 쉼표(,) 연결 확인 ▼▼▼
   {
     path: "/network-tree",
     name: "NetworkTreePage",
     component: () => import("@/views/NetworkTreePage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 수정 완료 ▲▲▲
   {
     path: "/my-investments",
     name: "MyInvestmentsPage",
@@ -77,7 +73,6 @@ const routes = [
     component: () => import("@/views/UserProfilePage.vue"),
     meta: { requiresAuth: true },
   },
-  // --- 사용자용 추가 관리 페이지 라우트 ---
   {
     path: "/my-tokens",
     name: "MyTokensPage",
@@ -102,12 +97,14 @@ const routes = [
     component: () => import("@/views/MyOrdersPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [수정됨] AboutPage.vue -> AboutView.vue 로 파일명 수정 ▼▼▼
   {
     path: "/about",
     name: "AboutPage",
-    component: () => import("@/views/AboutPage.vue"),
+    component: () => import("@/views/AboutView.vue"),
     meta: { requiresAuth: true },
   },
+  // ▲▲▲ 수정 완료 ▲▲▲
   {
     path: "/my-events",
     name: "MyEventsPage",
@@ -140,14 +137,12 @@ const routes = [
           import("@/components/admin/SubscriptionManagement.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▼▼▼ [신규] 주간 정산 관리 페이지 라우트 추가 ▼▼▼
       {
         path: "weekly-payouts",
         name: "AdminWeeklyPayoutManagement",
         component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
         meta: { requiresAuth: true, isAdmin: true },
       },
-      // ▲▲▲ 라우트 추가 완료 ▲▲▲
       {
         path: "marketing-plan",
         name: "AdminMarketingPlanManagement",
@@ -248,27 +243,25 @@ router.beforeEach(async (to, from, next) => {
     alert("로그인이 필요한 페이지입니다. 로그인 해주세요.");
     next("/login");
   } else if (currentUser) {
-    let userProfile = null;
-    try {
-      const userRef = doc(db, "users", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        userProfile = userSnap.data();
-      }
-    } catch (error) {
-      console.error("사용자 프로필을 불러오는 중 오류 발생:", error);
-    }
+    // Custom Claim을 확인하여 관리자 여부를 판단
+    const idTokenResult = await currentUser.getIdTokenResult();
+    const isAdmin = idTokenResult.claims.admin === true;
 
     if (to.name === "LoginPage" || to.name === "SignupPage") {
-      if (userProfile && userProfile.isAdmin) {
+      if (isAdmin) {
         next("/admin-dashboard");
       } else {
         next("/dashboard");
       }
-    } else if (requiresAdmin && (!userProfile || !userProfile.isAdmin)) {
+    } else if (requiresAdmin && !isAdmin) {
       alert("관리자 권한이 없습니다.");
       next("/dashboard");
     } else if (requiresNFT) {
+      // requiresNFT 로직은 DB 조회가 필요할 수 있으므로 userProfile을 가져옵니다.
+      const userRef = doc(db, "users", currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const userProfile = userSnap.exists() ? userSnap.data() : null;
+
       if (!userProfile || !userProfile.hasNFT) {
         alert(
           "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다.",
