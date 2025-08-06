@@ -22,6 +22,7 @@
           <select v-model="form.tokenType">
             <option value="COBS">COBS</option>
             <option value="BND">BND</option>
+            <option value="SSC">SSC(스테이블 코인)</option>
           </select>
         </div>
         <div class="form-group">

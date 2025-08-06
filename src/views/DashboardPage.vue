@@ -103,6 +103,12 @@
                 (userProfile?.tokens?.bnd || 0).toLocaleString()
               }}</span>
             </div>
+            <div class="token-item">
+              <img src="@/assets/SSC_LOGO.png" alt="SSC" />
+              <span>{{
+                (userProfile?.tokens?.ssc || 0).toLocaleString()
+              }}</span>
+            </div>
           </div>
           <span class="card-enter">자세히 보기 &rarr;</span>
         </router-link>

@@ -144,7 +144,7 @@ export default {
         const q = query(
           collection(db, "transactions"),
           where("userId", "==", userId),
-          where("balanceType", "in", ["COBS", "BND"]),
+          where("balanceType", "in", ["COBS", "BND", "SSC"]),
           orderBy("timestamp", "desc"),
         );
 
@@ -239,6 +239,9 @@ export default {
 .token-balance-card.bnd {
   background: linear-gradient(135deg, #6f42c1, #483d8b);
 }
+.token-balance-card.ssc {
+  background: linear-gradient(135deg, #28a745, #218838);
+}
 .token-icon img {
   width: 50px;
   height: 50px;
@@ -290,6 +293,9 @@ export default {
 }
 .token-badge.BND {
   background-color: #6f42c1;
+}
+.token-badge.SSC {
+  background-color: #28a745;
 }
 .amount {
   font-weight: bold;
