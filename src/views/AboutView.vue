@@ -1,7 +1,7 @@
 <template>
   <div class="about-page-container">
     <swiper
-      :modules="[Navigation, Pagination, Autoplay, EffectFade]"
+      :modules="modules"
       :slides-per-view="1"
       :space-between="30"
       :loop="true"
@@ -17,38 +17,38 @@
       <swiper-slide class="slide-item">
         <div class="slide-content intro">
           <h1 class="title">SALT MATE</h1>
-          <p class="subtitle">�̷��� ���� ���ο� ��ġ, ��Ʈ����Ʈ�� �Բ�</p>
+          <p class="subtitle">미래를 여는 새로운 가치, 솔트메이트와 함께</p>
         </div>
       </swiper-slide>
 
       <swiper-slide class="slide-item">
         <div class="slide-content vision">
-          <h2 class="slide-title">�츮�� ����</h2>
+          <h2 class="slide-title">우리의 비전</h2>
           <p class="slide-text">
-            ��Ʈ����Ʈ�� �ܼ��� ���ڸ� �Ѿ�, ���� ������ �̷� ��ġ�� â���ϴ� ��������
-            ���°踦 �����մϴ�.
+            솔트메이트는 단순한 투자를 넘어, 지속 가능한 미래 가치를 창출하는
+            혁신적인 생태계를 구축합니다.
           </p>
         </div>
       </swiper-slide>
 
       <swiper-slide class="slide-item">
         <div class="slide-content core-values">
-          <h2 class="slide-title">�ٽ� ��ġ</h2>
+          <h2 class="slide-title">핵심 가치</h2>
           <div class="values-grid">
             <div class="value-item">
               <i class="fas fa-handshake"></i>
-              <h3>�ŷ�</h3>
-              <p>������ ���� ������ �������� �ý��� �</p>
+              <h3>신뢰</h3>
+              <p>투명한 정보 공개와 안정적인 시스템 운영</p>
             </div>
             <div class="value-item">
               <i class="fas fa-lightbulb"></i>
-              <h3>����</h3>
-              <p>����ü�� ����� ���� ���ο� ���� �з����� ����</p>
+              <h3>혁신</h3>
+              <p>블록체인 기술을 통한 새로운 투자 패러다임 제시</p>
             </div>
             <div class="value-item">
               <i class="fas fa-users"></i>
-              <h3>���</h3>
-              <p>������ ��ΰ� �Բ� �����ϴ� ����ȯ ����</p>
+              <h3>상생</h3>
+              <p>참여자 모두가 함께 성장하는 선순환 구조</p>
             </div>
           </div>
         </div>
@@ -56,10 +56,11 @@
 
       <swiper-slide class="slide-item">
         <div class="slide-content profit-model">
-          <h2 class="slide-title">���� ��</h2>
+          <h2 class="slide-title">수익 모델</h2>
           <p class="slide-text">
-            �������� ���� ���Ͱ� ��õ Ȱ���� ���� �߰� ����, �׸��� ���°� �⿩�� ����
-            ��ū ���ڳ�̱���. �ٰ�ȭ�� ���� ���� ���� �������� ������ �ش�ȭ�մϴ�.
+            안정적인 투자 수익과 추천 활동을 통한 추가 보상, 그리고 생태계
+            기여에 따른 토큰 이코노미까지. 다각화된 수익 모델을 통해 참여자의
+            이익을 극대화합니다.
           </p>
         </div>
       </swiper-slide>
@@ -67,10 +68,10 @@
       <swiper-slide class="slide-item">
         <div class="slide-content outro">
           <h2 class="slide-title">
-            ����, ��Ʈ����Ʈ�� �Բ�<br />�������� ���ڸ� �����ϼ���.
+            지금, 솔트메이트와 함께<br />성공적인 투자를 시작하세요.
           </h2>
           <router-link to="/dashboard" class="start-button">
-            ��ú���� �̵� <i class="fas fa-arrow-right"></i>
+            대시보드로 이동 <i class="fas fa-arrow-right"></i>
           </router-link>
         </div>
       </swiper-slide>
@@ -79,18 +80,18 @@
 </template>
 
 <script>
-// Swiper Vue.js ������Ʈ ����Ʈ
+// Swiper Vue.js 컴포넌트 임포트
 import { Swiper, SwiperSlide } from "swiper/vue";
 import { Navigation, Pagination, Autoplay, EffectFade } from "swiper/modules";
 
-// Swiper ��Ÿ�� ����Ʈ
+// Swiper 스타일 임포트
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "swiper/css/effect-fade";
 
 export default {
-  name: "AboutPage",
+  name: "AboutView", // 컴포넌트 이름도 AboutView로 변경
   components: {
     Swiper,
     SwiperSlide,
@@ -106,8 +107,9 @@ export default {
 <style scoped>
 .about-page-container {
   width: 100%;
-  height: 100vh; /* ȭ�� ��ü ���� */
+  height: 100vh;
   overflow: hidden;
+  margin-top: -70px; /* Navbar 높이만큼 끌어올려 채우기 */
 }
 
 .intro-swiper {
@@ -126,7 +128,6 @@ export default {
   color: white;
 }
 
-/* ��� �̹��� �� �������� */
 .slide-item::before {
   content: "";
   position: absolute;
@@ -136,11 +137,10 @@ export default {
   height: 100%;
   background-size: cover;
   background-position: center;
-  filter: brightness(0.6); /* ��� ��Ӱ� */
+  filter: brightness(0.6);
   z-index: -1;
 }
 
-/* �����̵庰 ��� �̹��� ���� */
 .slide-item:nth-child(1)::before {
   background-image: url("https://images.unsplash.com/photo-1554224155-1696413565d3?q=80&w=2940&auto=format&fit=crop");
 }
@@ -185,7 +185,6 @@ export default {
   line-height: 1.8;
 }
 
-/* �ٽ� ��ġ ���� */
 .values-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -207,7 +206,6 @@ export default {
   margin-bottom: 10px;
 }
 
-/* ���� ��ư */
 .start-button {
   display: inline-flex;
   align-items: center;
@@ -228,7 +226,6 @@ export default {
   box-shadow: 0 8px 20px rgba(0, 123, 255, 0.4);
 }
 
-/* Swiper �׺���̼�/���������̼� ��Ÿ�� Ŀ���͸���¡ */
 :deep(.swiper-button-next),
 :deep(.swiper-button-prev) {
   color: white;
