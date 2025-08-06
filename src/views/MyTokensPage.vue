@@ -3,7 +3,7 @@
     <header class="page-header">
       <h1><i class="fas fa-coins"></i> 나의 토큰 관리</h1>
       <p class="description">
-        보유하신 COBS 및 BND 토큰의 상세 내역을 확인하고 관리합니다.
+        보유하신 COBS, BND 및 SSC 토큰의 상세 내역을 확인합니다.
       </p>
     </header>
 
@@ -39,6 +39,17 @@
               <label>BND (밈 토큰)</label>
               <span class="balance"
                 >{{ (userProfile.tokens?.bnd || 0).toLocaleString() }} BND</span
+              >
+            </div>
+          </div>
+          <div class="token-balance-card ssc">
+            <div class="token-icon">
+              <img src="@/assets/SSC_LOGO.png" alt="SSC Token" />
+            </div>
+            <div class="token-info">
+              <label>SSC (스테이블 코인)</label>
+              <span class="balance"
+                >{{ (userProfile.tokens?.ssc || 0).toLocaleString() }} SSC</span
               >
             </div>
           </div>
