@@ -37,12 +37,6 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/network-tree",
-    name: "NetworkTreePage",
-    component: () => import("@/views/NetworkTreePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
     path: "/my-investments",
     name: "MyInvestmentsPage",
     component: () => import("@/views/MyInvestmentsPage.vue"),
@@ -61,11 +55,39 @@ const routes = [
     component: () => import("@/views/CommunityPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [신규] 6개 게시판 및 글쓰기/상세보기 경로 추가 ▼▼▼
+  {
+    path: "/community/:category", // 동적 라우팅으로 모든 게시판 처리
+    name: "Board",
+    component: () => import("@/views/community/Board.vue"),
+    props: true, // category 값을 props로 전달
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/community/write",
+    name: "PostWrite",
+    component: () => import("@/views/community/PostWritePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/community/post/:postId",
+    name: "PostDetail",
+    component: () => import("@/views/community/PostDetailPage.vue"),
+    props: true,
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
+  {
+    path: "/network-tree",
+    name: "NetworkTreePage",
+    component: () => import("@/views/NetworkTreePage.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: "/nft-marketplace",
     name: "NftMarketplacePage",
     component: () => import("@/views/NFTMarketplacePage.vue"),
-    meta: { requiresAuth: true, requiresNFT: true },
+    meta: { requiresAuth: true },
   },
   {
     path: "/profile",
@@ -97,21 +119,12 @@ const routes = [
     component: () => import("@/views/MyOrdersPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] AboutPage.vue -> AboutView.vue 로 파일명 수정 ▼▼▼
-  {
-    path: "/about",
-    name: "AboutPage",
-    component: () => import("@/views/AboutView.vue"),
-    meta: { requiresAuth: true },
-  },
-  // ▲▲▲ 수정 완료 ▲▲▲
   {
     path: "/my-events",
     name: "MyEventsPage",
     component: () => import("@/views/MyEventsPage.vue"),
     meta: { requiresAuth: true },
   },
-  // --- 관리자 대시보드 라우트 ---
   {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
@@ -206,7 +219,6 @@ const routes = [
       },
     ],
   },
-  // 404 Not Found 페이지
   {
     path: "/:catchAll(.*)",
     name: "NotFound",
@@ -234,7 +246,6 @@ const getCurrentUser = () => {
 
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
-  const requiresNFT = to.matched.some((record) => record.meta.requiresNFT);
   const requiresAdmin = to.matched.some((record) => record.meta.isAdmin);
 
   const currentUser = await getCurrentUser();
@@ -243,8 +254,7 @@ router.beforeEach(async (to, from, next) => {
     alert("로그인이 필요한 페이지입니다. 로그인 해주세요.");
     next("/login");
   } else if (currentUser) {
-    // Custom Claim을 확인하여 관리자 여부를 판단
-    const idTokenResult = await currentUser.getIdTokenResult();
+    const idTokenResult = await currentUser.getIdTokenResult(true);
     const isAdmin = idTokenResult.claims.admin === true;
 
     if (to.name === "LoginPage" || to.name === "SignupPage") {
@@ -256,20 +266,6 @@ router.beforeEach(async (to, from, next) => {
     } else if (requiresAdmin && !isAdmin) {
       alert("관리자 권한이 없습니다.");
       next("/dashboard");
-    } else if (requiresNFT) {
-      // requiresNFT 로직은 DB 조회가 필요할 수 있으므로 userProfile을 가져옵니다.
-      const userRef = doc(db, "users", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userProfile = userSnap.exists() ? userSnap.data() : null;
-
-      if (!userProfile || !userProfile.hasNFT) {
-        alert(
-          "이 페이지는 공장 지분 연동 NFT를 보유한 솔트메이트만 접근할 수 있습니다.",
-        );
-        next("/dashboard");
-      } else {
-        next();
-      }
     } else {
       next();
     }
