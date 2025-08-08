@@ -12,6 +12,42 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
+        <template v-if="isAdmin">
+          <li>
+            <router-link to="/admin-dashboard" class="nav-link admin-main-link">
+              <i class="fas fa-tools"></i> 관리자 대시보드
+            </router-link>
+          </li>
+        </template>
+
+        <template v-if="!isAdmin">
+          <li>
+            <router-link to="/shop" class="nav-link">등급 선택</router-link>
+          </li>
+          <li>
+            <router-link to="/my-investments" class="nav-link"
+              >내 수익 현황</router-link
+            >
+          </li>
+        </template>
+
+        <li>
+          <router-link to="/community" class="nav-link">커뮤니티</router-link>
+        </li>
+        <li>
+          <router-link to="/about" class="nav-link"
+            >솔트메이트 소개</router-link
+          >
+        </li>
+
+        <template v-if="!user">
+          <li>
+            <router-link to="/login" class="nav-link primary-button"
+              >로그인</router-link
+            >
+          </li>
+        </template>
+
         <template v-if="user">
           <li v-if="!isAdmin" class="nav-link welcome-text">
             <span>환영합니다,</span>
@@ -37,7 +73,6 @@
 </template>
 
 <script>
-// 스크립트 부분은 기존과 동일합니다.
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
@@ -64,9 +99,11 @@ export default {
       unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
         user.value = currentUser;
         if (unsubscribeProfile) unsubscribeProfile();
+
         if (currentUser) {
           const idTokenResult = await currentUser.getIdTokenResult(true);
           isAdmin.value = idTokenResult.claims.admin === true;
+
           const userDocRef = doc(db, "users", currentUser.uid);
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
             userProfile.value = docSnap.exists() ? docSnap.data() : null;
@@ -114,7 +151,6 @@ export default {
 </script>
 
 <style scoped>
-/* 스타일은 기존과 동일 */
 .navbar-container {
   display: flex;
   justify-content: space-between;
@@ -189,12 +225,6 @@ export default {
   color: white;
   font-size: 1.1em;
 }
-.user-profile {
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-weight: 500;
-}
 .admin-main-link {
   font-weight: bold;
   background-color: hsla(0, 0%, 100%, 0.2);
@@ -206,6 +236,29 @@ export default {
   color: white;
   font-size: 1.8em;
   cursor: pointer;
+}
+.welcome-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 8px 0; /* padding 조정 */
+}
+.user-profile-link {
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 20px;
+  transition: background-color 0.3s ease;
+}
+.user-profile-link:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.user-profile-link.admin {
+  cursor: default;
 }
 @media (max-width: 992px) {
   .navbar-container {
@@ -231,7 +284,6 @@ export default {
     margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid rgba(255, 255, 255, 0.2);
-    flex-wrap: nowrap;
   }
   .navbar-links li {
     margin: 10px 0;
@@ -243,62 +295,15 @@ export default {
     width: 100%;
     padding: 12px 0;
     border-radius: 0;
-    white-space: normal;
   }
   .primary-button {
     padding: 12px 0;
     border-radius: 8px;
-  }
-  .user-profile {
-    width: auto;
-    margin: 0 auto;
   }
 }
 @media (max-width: 576px) {
   .navbar-brand .logo {
     font-size: 1.5em;
   }
-}
-.welcome-text {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.user-profile-link {
-  font-weight: bold;
-  color: white;
-  text-decoration: none;
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 6px 12px;
-  border-radius: 20px;
-  transition: background-color 0.3s ease;
-}
-.user-profile-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-.welcome-text {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.user-profile-link {
-  font-weight: bold;
-  color: white;
-  text-decoration: none;
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 6px 12px;
-  border-radius: 20px;
-  transition: background-color 0.3s ease;
-}
-.user-profile-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-.user-profile-link.admin {
-  /* 관리자 이름은 링크가 아니므로 span에 스타일 적용 */
-  cursor: default;
 }
 </style>
