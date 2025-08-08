@@ -287,6 +287,29 @@ export default {
     openCycleEarningsModal() {
       this.isCycleModalVisible = true;
     },
+    // ▼▼▼ [신규] 최신 공지사항 3개를 불러오는 함수 추가 ▼▼▼
+    async fetchNotices() {
+      try {
+        const q = query(
+          collection(db, "posts"),
+          where("category", "==", "notices"), // 공지사항 카테고리만 필터링
+          orderBy("createdAt", "desc"),
+          limit(3),
+        );
+        const querySnapshot = await getDocs(q);
+        this.notices = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.error("공지사항을 불러오는 중 오류 발생:", error);
+      }
+    },
+    formatDate(timestamp) {
+      if (!timestamp?.toDate) return "";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    },
+    // ▲▲▲ 추가 완료 ▲▲▲
   },
 };
 </script>
