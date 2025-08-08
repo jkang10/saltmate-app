@@ -92,6 +92,14 @@ const routes = [
     component: () => import("@/views/UserProfilePage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [신규] '솔트메이트 소개' 페이지 경로 추가 ▼▼▼
+  {
+    path: "/about",
+    name: "AboutView",
+    component: () => import("@/views/AboutView.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-tokens",
     name: "MyTokensPage",
