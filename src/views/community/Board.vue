@@ -8,6 +8,7 @@
       <div class="board-actions">
         <input type="text" placeholder="검색..." class="search-input" />
         <router-link
+          v-if="isAdmin"
           :to="{ path: '/community/write', query: { category: category } }"
           class="write-button"
         >
@@ -17,6 +18,9 @@
 
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
+      </div>
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
       </div>
       <table v-else-if="posts.length > 0" class="post-table">
         <thead>
@@ -44,11 +48,8 @@
 </template>
 
 <script>
-import { db } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-// ▼▼▼ [수정됨] 사용하지 않는 useRouter 제거 ▼▼▼
-// import { useRouter } from 'vue-router';
-// ▲▲▲ 수정 완료 ▲▲▲
 
 export default {
   name: "BoardPage",
@@ -57,6 +58,8 @@ export default {
     return {
       posts: [],
       isLoading: true,
+      error: null,
+      isAdmin: false,
       boardInfo: {
         notices: { title: "공지사항", icon: "fas fa-bullhorn" },
         "nft-bids": { title: "NFT 입찰 정보", icon: "fas fa-gavel" },
@@ -75,12 +78,18 @@ export default {
       return this.boardInfo[this.category]?.icon || "fas fa-clipboard-list";
     },
   },
-  created() {
-    this.fetchPosts();
+  async created() {
+    const user = auth.currentUser;
+    if (user) {
+      const idTokenResult = await user.getIdTokenResult();
+      this.isAdmin = idTokenResult.claims.admin === true;
+    }
+    await this.fetchPosts();
   },
   methods: {
     async fetchPosts() {
       this.isLoading = true;
+      this.error = null;
       try {
         const q = query(
           collection(db, "posts"),
@@ -92,9 +101,14 @@ export default {
           id: doc.id,
           ...doc.data(),
         }));
-      } catch (error) {
-        console.error("게시글 조회 오류:", error);
-        alert("게시글을 불러오는 데 실패했습니다.");
+      } catch (e) {
+        console.error("게시글 조회 오류:", e);
+        if (e.code === "failed-precondition") {
+          this.error =
+            "데이터 조회를 위한 색인(Index)이 필요합니다. 브라우저 개발자 도구(F12) 콘솔에서 Firestore가 제안하는 링크를 클릭하여 생성해주세요.";
+        } else {
+          this.error = "게시글을 불러오는 데 실패했습니다.";
+        }
       } finally {
         this.isLoading = false;
       }
@@ -111,7 +125,6 @@ export default {
 </script>
 
 <style scoped>
-/* 게시판 페이지 스타일 */
 .board-page {
   max-width: 1000px;
   margin: 70px auto 20px;
@@ -147,6 +160,9 @@ export default {
   border-radius: 6px;
   text-decoration: none;
   font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .post-table {
   width: 100%;
@@ -171,7 +187,8 @@ export default {
   text-align: left;
 }
 .loading-state,
-.empty-state {
+.empty-state,
+.error-state {
   text-align: center;
   padding: 40px;
   color: #666;

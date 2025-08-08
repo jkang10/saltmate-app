@@ -6,7 +6,6 @@
         솔트메이트 사용자들과 자유롭게 소통하고 정보를 공유하는 공간입니다.
       </p>
     </header>
-
     <main class="community-main">
       <section class="forum-list card glassmorphism">
         <h2><i class="fas fa-list-alt"></i> 게시판</h2>
@@ -37,7 +36,6 @@
           </li>
         </ul>
       </section>
-
       <section class="post-list card glassmorphism">
         <h2><i class="fas fa-newspaper"></i> 최신 게시글</h2>
         <div class="search-and-write">
@@ -46,11 +44,14 @@
             placeholder="게시글 검색..."
             class="search-input"
           />
-          <router-link to="/community/write" class="write-post-button">
+          <router-link
+            v-if="isAdmin"
+            to="/community/write"
+            class="write-post-button"
+          >
             <i class="fas fa-pen"></i> 글쓰기
           </router-link>
         </div>
-
         <ul class="posts">
           <li v-for="post in recentPosts" :key="post.id" class="post-item">
             <router-link :to="`/community/post/${post.id}`" class="post-link">
@@ -63,43 +64,55 @@
             </router-link>
           </li>
           <li v-if="recentPosts.length === 0" class="no-posts">
-            아직 게시글이 없습니다. 첫 글을 작성해보세요!
+            아직 게시글이 없습니다.
           </li>
         </ul>
-        <router-link to="/community/all-posts" class="view-all-button">
-          모든 게시글 보기 <i class="fas fa-arrow-right"></i>
-        </router-link>
       </section>
     </main>
   </div>
 </template>
 
 <script>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { auth, db } from "@/firebaseConfig"; // db 임포트
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore"; // Firestore 함수 임포트
 
 export default {
   name: "CommunityPage",
   setup() {
-    // 임시 데이터 (나중에 Firebase/API 연동으로 대체)
-    const recentPosts = ref([
-      {
-        id: 1,
-        title: "솔트메이트 새 소식: 여름 프로모션 안내",
-        author: "관리자",
-        date: "2024-07-27",
-        views: 125,
-      },
-      {
-        id: 2,
-        title: "투자 성공 후기 공유합니다!",
-        author: "투자왕김솔트",
-        date: "2024-07-26",
-        views: 88,
-      },
-    ]);
+    const recentPosts = ref([]);
+    const isAdmin = ref(false);
+
+    // [수정됨] 실제 데이터 로딩 및 관리자 확인 로직 추가
+    onMounted(async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const idTokenResult = await user.getIdTokenResult();
+        isAdmin.value = idTokenResult.claims.admin === true;
+
+        // 최신글 5개 가져오기
+        const q = query(
+          collection(db, "posts"),
+          orderBy("createdAt", "desc"),
+          limit(5),
+        );
+        const querySnapshot = await getDocs(q);
+        recentPosts.value = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title,
+            author: data.authorName,
+            date: data.createdAt?.toDate().toLocaleDateString("ko-KR") || "",
+            views: data.views || 0,
+          };
+        });
+      }
+    });
 
     return {
       recentPosts,
+      isAdmin,
     };
   },
 };
