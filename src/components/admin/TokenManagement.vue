@@ -1,13 +1,13 @@
 <template>
   <div class="token-management">
-    <h3><i class="fas fa-coins"></i> 토큰 관리 (COBS, BND)</h3>
+    <h3><i class="fas fa-coins"></i> 토큰 관리 (COBS, BND, SSC)</h3>
     <p>토큰의 발행, 소각 및 유통 현황을 관리합니다.</p>
 
     <section class="card summary-section">
       <h4>토큰 현황</h4>
-      <div class="summary-grid">
+      <div class="summary-grid-3">
         <div class="token-card cobs">
-          <h5>COBS (보상 토큰)</h5>
+          <h5>COBS (생태계 토큰)</h5>
           <p>
             총 발행량:
             <span>{{
@@ -32,7 +32,7 @@
           </p>
         </div>
         <div class="token-card bnd">
-          <h5>BND (증권형 토큰)</h5>
+          <h5>BND (밈 토큰)</h5>
           <p>
             총 발행량:
             <span>{{
@@ -56,6 +56,31 @@
             }}</strong>
           </p>
         </div>
+        <div class="token-card ssc">
+          <h5>SSC (스테이블 코인)</h5>
+          <p>
+            총 발행량:
+            <span>{{
+              (tokenomics.SSC?.totalSupply || 0).toLocaleString()
+            }}</span>
+          </p>
+          <p>
+            총 소각량:
+            <span>{{
+              (tokenomics.SSC?.totalBurned || 0).toLocaleString()
+            }}</span>
+          </p>
+          <hr />
+          <p>
+            현재 유통량:
+            <strong>{{
+              (
+                (tokenomics.SSC?.totalSupply || 0) -
+                (tokenomics.SSC?.totalBurned || 0)
+              ).toLocaleString()
+            }}</strong>
+          </p>
+        </div>
       </div>
     </section>
 
@@ -68,6 +93,7 @@
             <select v-model="actionForm.tokenType">
               <option value="COBS">COBS</option>
               <option value="BND">BND</option>
+              <option value="SSC">SSC</option>
             </select>
           </div>
           <div class="form-group">
@@ -117,6 +143,7 @@
               <th>이메일</th>
               <th>COBS 보유량</th>
               <th>BND 보유량</th>
+              <th>SSC 보유량</th>
             </tr>
           </thead>
           <tbody>
@@ -125,6 +152,7 @@
               <td>{{ user.email }}</td>
               <td>{{ (user.tokens?.cobs || 0).toLocaleString() }}</td>
               <td>{{ (user.tokens?.bnd || 0).toLocaleString() }}</td>
+              <td>{{ (user.tokens?.ssc || 0).toLocaleString() }}</td>
             </tr>
           </tbody>
         </table>
@@ -151,7 +179,6 @@ const isProcessing = ref(false);
 const userList = ref([]);
 const isLoadingUsers = ref(true);
 
-// 토큰 현황 실시간 구독
 onMounted(() => {
   const tokenomicsRef = doc(db, "configuration", "tokenomics");
   onSnapshot(tokenomicsRef, (docSnap) => {
@@ -213,7 +240,6 @@ const executeTokenAction = async () => {
 </script>
 
 <style scoped>
-/* 페이지 및 카드 공통 스타일 */
 .token-management {
   display: flex;
   flex-direction: column;
@@ -229,11 +255,9 @@ h3,
 h4 {
   margin-top: 0;
 }
-
-/* 요약 섹션 */
-.summary-grid {
+.summary-grid-3 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
 }
 .token-card {
@@ -246,6 +270,9 @@ h4 {
 }
 .token-card.bnd {
   background: linear-gradient(135deg, #6f42c1, #483d8b);
+}
+.token-card.ssc {
+  background: linear-gradient(135deg, #28a745, #218838);
 }
 .token-card h5 {
   margin: 0 0 15px 0;
@@ -264,8 +291,6 @@ h4 {
 .token-card strong {
   font-size: 1.5em;
 }
-
-/* 작업 섹션 */
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -300,8 +325,6 @@ h4 {
   background-color: #a0c9ff;
   cursor: not-allowed;
 }
-
-/* 회원 보유 현황 */
 .table-container {
   max-height: 400px;
   overflow-y: auto;
@@ -322,8 +345,5 @@ thead th {
 .loading-state {
   text-align: center;
   padding: 20px;
-}
-.spinner {
-  /* 로딩 스피너 스타일 */
 }
 </style>
