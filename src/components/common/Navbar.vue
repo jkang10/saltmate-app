@@ -19,6 +19,7 @@
             </router-link>
           </li>
         </template>
+
         <template v-if="!isAdmin">
           <li>
             <router-link to="/shop" class="nav-link">등급 선택</router-link>
@@ -38,6 +39,7 @@
             >솔트메이트 소개</router-link
           >
         </li>
+
         <template v-if="!user">
           <li>
             <router-link to="/login" class="nav-link primary-button"
@@ -128,7 +130,6 @@ export default {
     const toggleMobileMenu = () => {
       isMobileMenuOpen.value = !isMobileMenuOpen.value;
     };
-
     const closeMobileMenu = () => {
       isMobileMenuOpen.value = false;
     };
@@ -148,7 +149,6 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일은 변경 없습니다. */
 .navbar-container {
   display: flex;
   justify-content: space-between;

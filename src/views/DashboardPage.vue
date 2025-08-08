@@ -16,6 +16,7 @@
         </li>
       </ul>
     </section>
+
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
@@ -258,7 +259,7 @@ export default {
       if (user) {
         this.listenToUserProfile(user.uid);
         this.fetchMarketingPlan();
-        this.fetchNotices(); // 공지사항 불러오기
+        this.fetchNotices();
       } else {
         this.loadingUser = false;
       }
@@ -341,29 +342,6 @@ export default {
 </script>
 
 <style scoped>
-.welcome-text {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  white-space: nowrap;
-  padding: 8px 0;
-}
-.user-profile-link {
-  font-weight: bold;
-  color: white;
-  text-decoration: none;
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 6px 12px;
-  border-radius: 20px;
-  transition: background-color 0.3s ease;
-}
-.user-profile-link:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-.user-profile-link.admin {
-  cursor: default;
-}
 .clickable {
   cursor: pointer;
   text-decoration: underline;
@@ -378,6 +356,57 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 30px;
+}
+.notice-section {
+  padding: 20px 25px;
+}
+.notice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+.notice-header h3 {
+  margin: 0;
+  font-size: 1.4em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.more-link {
+  font-size: 0.9em;
+  color: #007bff;
+  text-decoration: none;
+  font-weight: bold;
+}
+.notice-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.notice-link {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 5px;
+  text-decoration: none;
+  color: #333;
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+.notice-link:hover {
+  background-color: #f8f9fa;
+}
+.notice-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+.notice-date {
+  color: #888;
+  flex-shrink: 0;
 }
 .card {
   background: #fff;
