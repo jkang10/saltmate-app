@@ -1,9 +1,5 @@
 <template>
   <div class="dashboard-container">
-    <header class="dashboard-header">
-      <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
-    </header>
-
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
@@ -95,7 +91,7 @@
         <router-link to="/my-tokens" class="feature-card tokens">
           <div class="card-icon"><i class="fas fa-coins"></i></div>
           <h3>보유 토큰 현황</h3>
-          <p>COBS, BND 토큰의 수량과 가치를 확인하세요.</p>
+          <p>COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.</p>
           <div class="token-glance">
             <div class="token-item">
               <img src="@/assets/COBS.png" alt="COBS" />
@@ -107,6 +103,12 @@
               <img src="@/assets/BND_LOGO.png" alt="BND" />
               <span>{{
                 (userProfile?.tokens?.bnd || 0).toLocaleString()
+              }}</span>
+            </div>
+            <div class="token-item">
+              <img src="@/assets/SSC_LOGO.png" alt="SSC" />
+              <span>{{
+                (userProfile?.tokens?.ssc || 0).toLocaleString()
               }}</span>
             </div>
           </div>
@@ -304,14 +306,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 30px;
-}
-.dashboard-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-.dashboard-header h2 {
-  font-size: 2.2em;
-  color: #333;
 }
 .card {
   background: #fff;

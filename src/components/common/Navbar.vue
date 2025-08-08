@@ -12,42 +12,6 @@
 
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
-        <template v-if="isAdmin">
-          <li>
-            <router-link to="/admin-dashboard" class="nav-link admin-main-link">
-              <i class="fas fa-tools"></i> 관리자 대시보드
-            </router-link>
-          </li>
-        </template>
-
-        <template v-if="!isAdmin">
-          <li>
-            <router-link to="/shop" class="nav-link">투자 상품</router-link>
-          </li>
-          <li>
-            <router-link to="/my-investments" class="nav-link"
-              >내 투자 현황</router-link
-            >
-          </li>
-        </template>
-
-        <li>
-          <router-link to="/community" class="nav-link">커뮤니티</router-link>
-        </li>
-        <li>
-          <router-link to="/about" class="nav-link"
-            >솔트메이트 소개</router-link
-          >
-        </li>
-
-        <template v-if="!user">
-          <li>
-            <router-link to="/login" class="nav-link primary-button"
-              >로그인</router-link
-            >
-          </li>
-        </template>
-
         <template v-if="user">
           <li v-if="!isAdmin" class="nav-link welcome-text">
             <span>환영합니다,</span>
@@ -73,7 +37,7 @@
 </template>
 
 <script>
-// 스크립트 부분은 기존과 동일 (변경 없음)
+// 스크립트 부분은 기존과 동일합니다.
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
