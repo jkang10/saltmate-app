@@ -38,7 +38,7 @@
         </div>
         <div class="summary-card saltmate">
           <label>총 솔트메이트 수익</label>
-          <span>{{ summary.saltmate.toLocaleString() }} P</span>
+          <span>{{ summary.saltmate.toLocaleString() }} SaltMate</span>
         </div>
       </section>
 
@@ -74,7 +74,7 @@
                       'balance-type-badge',
                       tx.balanceType.toLowerCase(),
                     ]"
-                    >{{ tx.balanceType === "CASH" ? "현금" : "SaltMate" }}</span
+                    >{{ formatBalanceType(tx.balanceType) }}</span
                   >
                 </td>
                 <td
@@ -113,17 +113,17 @@ export default {
       },
       isLoading: true,
       error: null,
-      activeFilter: 30, // 기본값: 최근 1개월
+      activeFilter: 30,
     };
   },
   async created() {
-    this.setFilterDays(this.activeFilter); // 컴포넌트 생성 시 기본 필터로 데이터 조회
+    this.setFilterDays(this.activeFilter);
   },
   methods: {
     async fetchTransactions(startDate, endDate) {
       this.isLoading = true;
       this.error = null;
-      this.transactions = []; // 초기화
+      this.transactions = [];
 
       if (!auth.currentUser) {
         this.error = "로그인이 필요합니다.";
@@ -163,7 +163,6 @@ export default {
       const summaryData = this.transactions.reduce(
         (acc, tx) => {
           if (tx.amount > 0) {
-            // 수익만 계산
             if (tx.balanceType === "CASH") {
               acc.cash += tx.amount;
             } else if (tx.balanceType === "SALTMATE") {
@@ -182,7 +181,6 @@ export default {
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - days);
 
-      // Firestore Timestamp 객체로 변환
       const startTimestamp = Timestamp.fromDate(startDate);
       const endTimestamp = Timestamp.fromDate(endDate);
 
@@ -194,8 +192,27 @@ export default {
     },
     formatAmount(amount, balanceType) {
       const sign = amount > 0 ? "+" : "";
-      const unit = balanceType === "CASH" ? "원" : "SaltMate";
-      return `${sign}${amount.toLocaleString()} ${unit}`;
+      // ▼▼▼ [수정됨] 단위 통일 ▼▼▼
+      const unitMap = {
+        CASH: "원",
+        SALTMATE: "SaltMate",
+        COBS: "COBS",
+        BND: "BND",
+        SSC: "SSC",
+      };
+      const unit = unitMap[balanceType] || balanceType;
+      return `${sign}${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}`;
+    },
+    // ▼▼▼ [수정됨] 모든 토큰 타입을 올바르게 표시하도록 로직 변경 ▼▼▼
+    formatBalanceType(type) {
+      const typeMap = {
+        CASH: "현금",
+        SALTMATE: "SaltMate",
+        COBS: "COBS",
+        BND: "BND",
+        SSC: "SSC",
+      };
+      return typeMap[type] || type;
     },
   },
 };
@@ -336,7 +353,7 @@ export default {
 .transaction-table td:nth-child(4) {
   text-align: right;
 }
-
+/* ▼▼▼ [수정됨] COBS, BND, SSC 뱃지 스타일 추가 ▼▼▼ */
 .balance-type-badge {
   padding: 4px 10px;
   border-radius: 12px;
@@ -350,7 +367,15 @@ export default {
 .balance-type-badge.saltmate {
   background-color: #6f42c1;
 }
-
+.balance-type-badge.cobs {
+  background-color: #007bff;
+}
+.balance-type-badge.bnd {
+  background-color: #483d8b;
+}
+.balance-type-badge.ssc {
+  background-color: #28a745;
+}
 .amount {
   font-weight: bold;
 }
