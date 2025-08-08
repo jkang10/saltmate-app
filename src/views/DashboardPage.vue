@@ -1,5 +1,21 @@
 <template>
   <div class="dashboard-container">
+    <section v-if="notices.length > 0" class="notice-section card">
+      <div class="notice-header">
+        <h3><i class="fas fa-bullhorn"></i> 공지사항</h3>
+        <router-link to="/community/notices" class="more-link"
+          >더보기</router-link
+        >
+      </div>
+      <ul class="notice-list">
+        <li v-for="notice in notices" :key="notice.id">
+          <router-link :to="`/community/post/${notice.id}`" class="notice-link">
+            <span class="notice-title">{{ notice.title }}</span>
+            <span class="notice-date">{{ formatDate(notice.createdAt) }}</span>
+          </router-link>
+        </li>
+      </ul>
+    </section>
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
@@ -177,7 +193,6 @@
 <script>
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-// ▼▼▼ [수정됨] 필요한 모든 Firestore 함수를 임포트 ▼▼▼
 import {
   collection,
   query,
@@ -189,7 +204,6 @@ import {
   getDoc,
   onSnapshot,
 } from "firebase/firestore";
-// ▲▲▲ 수정 완료 ▲▲▲
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -208,6 +222,7 @@ export default {
       userProfile: null,
       loadingUser: true,
       error: null,
+      notices: [],
       historyModal: { visible: false, type: "" },
       upgradeModalVisible: false,
       isWithdrawalModalVisible: false,
@@ -243,6 +258,7 @@ export default {
       if (user) {
         this.listenToUserProfile(user.uid);
         this.fetchMarketingPlan();
+        this.fetchNotices(); // 공지사항 불러오기
       } else {
         this.loadingUser = false;
       }
@@ -281,6 +297,27 @@ export default {
         this.marketingPlan = docSnap.data();
       }
     },
+    async fetchNotices() {
+      try {
+        const q = query(
+          collection(db, "posts"),
+          where("category", "==", "notices"),
+          orderBy("createdAt", "desc"),
+          limit(3),
+        );
+        const querySnapshot = await getDocs(q);
+        this.notices = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.error("공지사항 로딩 오류:", error);
+      }
+    },
+    formatDate(timestamp) {
+      if (!timestamp?.toDate) return "";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    },
     getTierClass(tier) {
       if (!tier) return "default";
       if (tier === "승인대기중") return "pending";
@@ -299,34 +336,34 @@ export default {
     openCycleEarningsModal() {
       this.isCycleModalVisible = true;
     },
-    // ▼▼▼ [신규] 최신 공지사항 3개를 불러오는 함수 추가 ▼▼▼
-    async fetchNotices() {
-      try {
-        const q = query(
-          collection(db, "posts"),
-          where("category", "==", "notices"), // 공지사항 카테고리만 필터링
-          orderBy("createdAt", "desc"),
-          limit(3),
-        );
-        const querySnapshot = await getDocs(q);
-        this.notices = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (error) {
-        console.error("공지사항을 불러오는 중 오류 발생:", error);
-      }
-    },
-    formatDate(timestamp) {
-      if (!timestamp?.toDate) return "";
-      return timestamp.toDate().toLocaleDateString("ko-KR");
-    },
-    // ▲▲▲ 추가 완료 ▲▲▲
   },
 };
 </script>
 
 <style scoped>
+.welcome-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 8px 0;
+}
+.user-profile-link {
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 20px;
+  transition: background-color 0.3s ease;
+}
+.user-profile-link:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.user-profile-link.admin {
+  cursor: default;
+}
 .clickable {
   cursor: pointer;
   text-decoration: underline;
