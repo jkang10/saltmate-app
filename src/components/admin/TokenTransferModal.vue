@@ -15,6 +15,9 @@
           <p>
             BND: <strong>{{ (user.tokens?.bnd || 0).toLocaleString() }}</strong>
           </p>
+          <p>
+            SSC: <strong>{{ (user.tokens?.ssc || 0).toLocaleString() }}</strong>
+          </p>
         </div>
 
         <div class="form-group">
@@ -22,7 +25,7 @@
           <select v-model="form.tokenType">
             <option value="COBS">COBS</option>
             <option value="BND">BND</option>
-            <option value="SSC">SSC(스테이블 코인)</option>
+            <option value="SSC">SSC (스테이블 코인)</option>
           </select>
         </div>
         <div class="form-group">
@@ -64,7 +67,6 @@
 import { reactive, ref, defineProps, defineEmits } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-// 부모 컴포넌트로부터 user 객체를 받습니다.
 const props = defineProps({
   user: {
     type: Object,
@@ -72,7 +74,6 @@ const props = defineProps({
   },
 });
 
-// 부모 컴포넌트로 이벤트를 보냅니다.
 const emit = defineEmits(["close", "token-updated"]);
 
 const form = reactive({
@@ -111,7 +112,7 @@ const handleTransfer = async () => {
       reason: form.reason,
     });
     alert(result.data.message);
-    emit("token-updated"); // 부모 컴포넌트에 토큰 변경 사실 알림
+    emit("token-updated");
     emit("close");
   } catch (err) {
     console.error("토큰 전송/회수 오류:", err);
@@ -123,6 +124,7 @@ const handleTransfer = async () => {
 </script>
 
 <style scoped>
+/* 기존 스타일과 동일 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -176,6 +178,7 @@ const handleTransfer = async () => {
   padding: 10px;
   border-radius: 8px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 .form-group {
   margin-bottom: 15px;
