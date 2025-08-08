@@ -11,12 +11,30 @@
       <section class="forum-list card glassmorphism">
         <h2><i class="fas fa-list-alt"></i> 게시판</h2>
         <ul>
-          <li><router-link to="/community/free">자유 게시판</router-link></li>
+          <li><router-link to="/community/notices">공지사항</router-link></li>
           <li>
-            <router-link to="/community/questions">질문 게시판</router-link>
+            <router-link to="/community/nft-bids">NFT 입찰 정보</router-link>
           </li>
-          <li><router-link to="/community/reviews">투자 후기</router-link></li>
-          <li class="coming-soon">건의사항 (준비 중)</li>
+          <li>
+            <router-link to="/community/equity-info"
+              >지분 공지 정보</router-link
+            >
+          </li>
+          <li>
+            <router-link to="/community/salt-tech"
+              >소금 기술 이야기</router-link
+            >
+          </li>
+          <li>
+            <router-link to="/community/solein-tech"
+              >스마트 솔레인 테크</router-link
+            >
+          </li>
+          <li>
+            <router-link to="/community/deep-sea-water"
+              >해양 심층수</router-link
+            >
+          </li>
         </ul>
       </section>
 
@@ -78,20 +96,6 @@ export default {
         date: "2024-07-26",
         views: 88,
       },
-      {
-        id: 3,
-        title: "공장 지분 NFT 관련 질문 드립니다.",
-        author: "NFT초보",
-        date: "2024-07-25",
-        views: 52,
-      },
-      {
-        id: 4,
-        title: "다음 투자 상품은 언제 나오나요?",
-        author: "기다림의미학",
-        date: "2024-07-24",
-        views: 70,
-      },
     ]);
 
     return {
@@ -107,44 +111,37 @@ export default {
   max-width: 1200px;
   margin: 30px auto;
 }
-
 .page-header {
   text-align: center;
   margin-bottom: 40px;
 }
-
 .page-header h1 {
   font-size: 3em;
   color: #333;
   margin-bottom: 10px;
 }
-
 .page-header .description {
   font-size: 1.1em;
   color: #666;
 }
-
 .community-main {
   display: grid;
-  grid-template-columns: 250px 1fr; /* 게시판 목록 | 게시글 목록 */
+  grid-template-columns: 250px 1fr;
   gap: 30px;
 }
-
 @media (max-width: 992px) {
   .community-main {
-    grid-template-columns: 1fr; /* 태블릿 이하에서는 세로로 배치 */
+    grid-template-columns: 1fr;
   }
   .forum-list {
     margin-bottom: 20px;
   }
 }
-
 .forum-list,
 .post-list {
   padding: 30px;
   border-radius: 12px;
 }
-
 .forum-list h2,
 .post-list h2 {
   font-size: 1.8em;
@@ -157,16 +154,13 @@ export default {
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
 }
-
 .forum-list ul {
   list-style: none;
   padding: 0;
 }
-
 .forum-list ul li {
   margin-bottom: 10px;
 }
-
 .forum-list ul li a,
 .forum-list ul li.coming-soon {
   display: block;
@@ -180,26 +174,15 @@ export default {
     color 0.3s ease;
   font-weight: 500;
 }
-
 .forum-list ul li a:hover {
   background-color: rgba(0, 123, 255, 0.1);
   color: #007bff;
 }
-
-.forum-list ul li.coming-soon {
-  color: #999;
-  font-style: italic;
-  cursor: not-allowed;
-  background-color: rgba(0, 0, 0, 0.01);
-  opacity: 0.7;
-}
-
 .search-and-write {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
 }
-
 .search-input {
   flex-grow: 1;
   padding: 10px 15px;
@@ -209,11 +192,9 @@ export default {
   outline: none;
   transition: border-color 0.3s ease;
 }
-
 .search-input:focus {
   border-color: #007bff;
 }
-
 .write-post-button {
   background-color: #28a745;
   color: white;
@@ -229,16 +210,13 @@ export default {
   gap: 8px;
   transition: background-color 0.3s ease;
 }
-
 .write-post-button:hover {
   background-color: #218838;
 }
-
 .posts {
   list-style: none;
   padding: 0;
 }
-
 .post-item {
   margin-bottom: 12px;
   background-color: rgba(255, 255, 255, 0.4);
@@ -248,45 +226,33 @@ export default {
     background-color 0.3s ease,
     transform 0.2s ease;
 }
-
 .post-item:hover {
   background-color: rgba(255, 255, 255, 0.6);
   transform: translateY(-3px);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
-
 .post-link {
   display: flex;
   flex-direction: column;
   text-decoration: none;
   color: #333;
 }
-
 .post-title {
   font-size: 1.1em;
   font-weight: bold;
   margin-bottom: 5px;
   color: #34495e;
 }
-
 .post-meta {
   font-size: 0.85em;
   color: #777;
 }
-
-.post-author,
-.post-date,
-.post-views {
-  margin-right: 8px;
-}
-
 .no-posts {
   text-align: center;
   color: #888;
   padding: 30px;
   font-style: italic;
 }
-
 .view-all-button {
   display: inline-flex;
   align-items: center;
@@ -300,12 +266,9 @@ export default {
   margin-top: 20px;
   transition: background-color 0.3s ease;
 }
-
 .view-all-button:hover {
   background-color: #0056b3;
 }
-
-/* Glassmorphism 스타일 */
 .card {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 16px;

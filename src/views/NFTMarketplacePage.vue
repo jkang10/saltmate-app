@@ -14,10 +14,66 @@
         <p>{{ error }}</p>
       </div>
       <div v-else>
+        <section class="filter-tabs">
+          <button
+            @click="setFilter('All')"
+            :class="{ active: activeFilter === 'All' }"
+          >
+            전체
+          </button>
+          <button
+            @click="setFilter('영암공장')"
+            :class="{ active: activeFilter === '영암공장' }"
+          >
+            영암공장
+          </button>
+          <button
+            @click="setFilter('양양공장')"
+            :class="{ active: activeFilter === '양양공장' }"
+          >
+            양양공장
+          </button>
+          <button
+            @click="setFilter('테마파크')"
+            :class="{ active: activeFilter === '테마파크' }"
+          >
+            테마파크
+          </button>
+          <button
+            @click="setFilter('K-medical NFT')"
+            :class="{ active: activeFilter === 'K-medical NFT' }"
+          >
+            K-medical NFT
+          </button>
+          <button
+            @click="setFilter('해양심층수 워터')"
+            :class="{ active: activeFilter === '해양심층수 워터' }"
+          >
+            해양심층수 워터
+          </button>
+          <button
+            @click="setFilter('고체 소금')"
+            :class="{ active: activeFilter === '고체 소금' }"
+          >
+            고체 소금
+          </button>
+          <button
+            @click="setFilter('액상 소금')"
+            :class="{ active: activeFilter === '액상 소금' }"
+          >
+            액상 소금
+          </button>
+          <button
+            @click="setFilter('제품')"
+            :class="{ active: activeFilter === '제품' }"
+          >
+            제품
+          </button>
+        </section>
         <section class="summary-section">
           <div class="summary-card">
             <label>총 보유 NFT</label>
-            <span>{{ myNfts.length }} 개</span>
+            <span>{{ allNfts.length }} 개</span>
           </div>
           <div class="summary-card">
             <label>PLATINUM</label>
@@ -34,12 +90,16 @@
         </section>
 
         <section class="nft-gallery">
-          <h2>나의 보유 NFT</h2>
-          <div v-if="myNfts.length === 0" class="empty-state">
-            <p>보유하고 있는 NFT가 없습니다.</p>
+          <h2>나의 보유 NFT ({{ filteredNfts.length }}개)</h2>
+          <div v-if="filteredNfts.length === 0" class="empty-state">
+            <p>해당 종류의 NFT가 없습니다.</p>
           </div>
           <div v-else class="nft-grid">
-            <div v-for="nft in myNfts" :key="nft.id" class="nft-card-container">
+            <div
+              v-for="nft in filteredNfts"
+              :key="nft.id"
+              class="nft-card-container"
+            >
               <div class="nft-card">
                 <div class="nft-card-front">
                   <img :src="nft.imageUrl" :alt="nft.name" class="nft-image" />
@@ -80,10 +140,20 @@ export default {
   name: "NFTMarketplacePage",
   data() {
     return {
-      myNfts: [],
+      allNfts: [],
       isLoading: true,
       error: null,
+      activeFilter: "All",
     };
+  },
+  computed: {
+    filteredNfts() {
+      if (this.activeFilter === "All") {
+        return this.allNfts;
+      }
+      // Firestore 문서에 NFT 종류를 식별할 'type' 필드가 있다고 가정합니다.
+      return this.allNfts.filter((nft) => nft.type === this.activeFilter);
+    },
   },
   async created() {
     await this.fetchMyNfts();
@@ -104,7 +174,7 @@ export default {
         );
         const querySnapshot = await getDocs(q);
 
-        this.myNfts = querySnapshot.docs.map((doc) => ({
+        this.allNfts = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           imageUrl:
             doc.data().imageUrl || "https://via.placeholder.com/400x500",
@@ -118,18 +188,20 @@ export default {
       }
     },
     countByTier(tier) {
-      return this.myNfts.filter((nft) => nft.tier === tier).length;
+      return this.allNfts.filter((nft) => nft.tier === tier).length;
     },
     formatDate(timestamp) {
       if (!timestamp?.toDate) return "N/A";
       return timestamp.toDate().toLocaleDateString("ko-KR");
+    },
+    setFilter(filter) {
+      this.activeFilter = filter;
     },
   },
 };
 </script>
 
 <style scoped>
-/* 페이지 기본 스타일 */
 .page-container {
   padding: 20px;
   max-width: 1200px;
@@ -155,8 +227,32 @@ export default {
   background-color: #f8f9fa;
   border-radius: 15px;
 }
-
-/* 요약 섹션 */
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 20px;
+}
+.filter-tabs button {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  color: #555;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-tabs button:hover {
+  background-color: #e2e6ea;
+}
+.filter-tabs button.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
 .summary-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -183,8 +279,6 @@ export default {
   font-weight: bold;
   color: #333;
 }
-
-/* NFT 갤러리 */
 .nft-gallery h2 {
   font-size: 1.8em;
   color: #333;
@@ -197,7 +291,6 @@ export default {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 30px;
 }
-
 .nft-card-container {
   perspective: 1000px;
 }
@@ -263,7 +356,6 @@ export default {
   background-color: #e5e4e2;
   color: #333;
 }
-
 .nft-card-back {
   background: linear-gradient(135deg, #495057, #343a40);
   color: white;
@@ -291,8 +383,6 @@ export default {
   display: flex;
   justify-content: space-between;
 }
-
-/* 돌아가기 버튼 */
 .back-button {
   background: #007bff;
   color: white;

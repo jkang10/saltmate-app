@@ -15,39 +15,35 @@
       </div>
       <div v-else>
         <section class="summary-section">
-          <div class="summary-card">
-            <i class="card-icon fas fa-percentage"></i>
+          <div class="summary-card main">
+            <i class="card-icon fas fa-globe-asia"></i>
             <div class="card-content">
               <label>나의 총 지분율</label>
               <span>{{ (equityData.totalPercentage || 0).toFixed(4) }} %</span>
             </div>
           </div>
-          <div class="summary-card">
-            <i class="card-icon fas fa-database"></i>
-            <div class="card-content">
-              <label>총 투자 원금</label>
-              <span
-                >{{
-                  (equityData.totalInvestment || 0).toLocaleString()
-                }}
-                원</span
-              >
-            </div>
+          <div class="summary-card sub">
+            <label>영암공장</label>
+            <span
+              >{{ (equityData.types?.["영암공장"] || 0).toFixed(4) }} %</span
+            >
           </div>
-          <div class="summary-card">
-            <i class="card-icon fas fa-hand-holding-usd"></i>
-            <div class="card-content">
-              <label>예상 누적 배당금</label>
-              <span
-                >{{
-                  (equityData.estimatedDividends || 0).toLocaleString()
-                }}
-                원</span
-              >
-            </div>
+          <div class="summary-card sub">
+            <label>양양공장</label>
+            <span
+              >{{ (equityData.types?.["양양공장"] || 0).toFixed(4) }} %</span
+            >
+          </div>
+          <div class="summary-card sub">
+            <label>글로벌 생산공장</label>
+            <span
+              >{{
+                (equityData.types?.["글로벌 생산공장"] || 0).toFixed(4)
+              }}
+              %</span
+            >
           </div>
         </section>
-
         <section class="history-section">
           <h2>지분 변동 내역</h2>
           <div v-if="equityHistory.length === 0" class="empty-state">
@@ -158,7 +154,6 @@ export default {
 </script>
 
 <style scoped>
-/* 페이지 기본 스타일 */
 .page-container {
   padding: 20px;
   max-width: 1000px;
@@ -184,58 +179,55 @@ export default {
   background-color: #f8f9fa;
   border-radius: 15px;
 }
-.loading-state,
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-
-/* 요약 섹션 */
 .summary-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
   margin-bottom: 50px;
 }
 .summary-card {
   background: white;
   padding: 25px;
   border-radius: 12px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+.summary-card.main {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 20px;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  text-align: left;
+  background-color: #f0f3ff;
 }
 .card-icon {
   font-size: 2.5em;
   color: #fd7e14;
 }
 .card-content label {
-  display: block;
   color: #666;
-  font-size: 1em;
+  font-size: 1.1em;
   margin-bottom: 8px;
   font-weight: 500;
 }
 .card-content span {
-  font-size: 1.8em;
+  font-size: 2.2em;
   font-weight: bold;
   color: #333;
 }
-
-/* 내역 섹션 */
+.summary-card.sub label {
+  font-size: 1em;
+}
+.summary-card.sub span {
+  font-size: 1.5em;
+}
 .history-section h2 {
   font-size: 1.8em;
   color: #333;
   margin-bottom: 25px;
   border-bottom: 1px solid #dee2e6;
   padding-bottom: 15px;
-}
-.table-container {
-  max-height: 500px;
-  overflow-y: auto;
 }
 .history-table {
   width: 100%;
@@ -261,8 +253,6 @@ export default {
 .amount.negative {
   color: #dc3545;
 }
-
-/* 돌아가기 버튼 */
 .back-button {
   background: #007bff;
   color: white;
