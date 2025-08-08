@@ -46,7 +46,9 @@
 <script>
 import { db } from "@/firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { useRouter } from "vue-router";
+// ▼▼▼ [수정됨] 사용하지 않는 useRouter 제거 ▼▼▼
+// import { useRouter } from 'vue-router';
+// ▲▲▲ 수정 완료 ▲▲▲
 
 export default {
   name: "BoardPage",

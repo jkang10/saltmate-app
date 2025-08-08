@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { auth, db } from "@/firebaseConfig";
+import { auth } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 
 const routes = [
   {
@@ -55,12 +54,11 @@ const routes = [
     component: () => import("@/views/CommunityPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [신규] 6개 게시판 및 글쓰기/상세보기 경로 추가 ▼▼▼
   {
-    path: "/community/:category", // 동적 라우팅으로 모든 게시판 처리
+    path: "/community/:category",
     name: "Board",
     component: () => import("@/views/community/Board.vue"),
-    props: true, // category 값을 props로 전달
+    props: true,
     meta: { requiresAuth: true },
   },
   {
@@ -76,7 +74,6 @@ const routes = [
     props: true,
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/network-tree",
     name: "NetworkTreePage",
@@ -135,83 +132,70 @@ const routes = [
         path: "users",
         name: "AdminUserManagement",
         component: () => import("@/components/admin/UserManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "centers",
         name: "AdminCenterManagement",
         component: () => import("@/components/admin/CenterManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",
         component: () =>
           import("@/components/admin/SubscriptionManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "weekly-payouts",
         name: "AdminWeeklyPayoutManagement",
         component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "marketing-plan",
         name: "AdminMarketingPlanManagement",
         component: () =>
           import("@/components/admin/MarketingPlanManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "investments",
         name: "AdminInvestmentManagement",
         component: () => import("@/components/admin/InvestmentManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "notices-community",
         name: "AdminNoticesCommunity",
         component: () =>
           import("@/components/admin/NoticesCommunityManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "events",
         name: "AdminEventManagement",
         component: () => import("@/components/admin/EventManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "products",
         name: "AdminProductManagement",
         component: () => import("@/components/admin/ProductManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "orders-delivery",
         name: "AdminOrderDeliveryManagement",
         component: () =>
           import("@/components/admin/OrderDeliveryManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "tokens",
         name: "AdminTokenManagement",
         component: () => import("@/components/admin/TokenManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "nfts",
         name: "AdminNFTManagement",
         component: () => import("@/components/admin/NFTManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "equity",
         name: "AdminEquityManagement",
         component: () => import("@/components/admin/EquityManagement.vue"),
-        meta: { requiresAuth: true, isAdmin: true },
       },
       {
         path: "",
