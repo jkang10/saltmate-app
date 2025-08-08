@@ -1,11 +1,15 @@
 <template>
   <div class="dashboard-container">
+    <header class="dashboard-header">
+      <h2>환영합니다, {{ userProfile?.name || "솔트메이트" }}님!</h2>
+    </header>
+
     <main class="dashboard-content">
       <section class="performance-card card">
         <div class="card-header">
           <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
           <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{
-            userProfile?.tier || "Loding.."
+            userProfile?.tier
           }}</span>
         </div>
         <div class="investment-info">
@@ -18,7 +22,10 @@
           >
         </div>
         <div class="performance-body">
-          <h4>수익 사이클 (300%)</h4>
+          <h4>
+            수익 사이클 ({{ cycleProgress.toFixed(1) }}% /
+            {{ (marketingPlan?.cycleCapMultiplier || 3) * 100 }}%)
+          </h4>
           <div class="progress-bar-container">
             <div
               class="progress-bar-fill"
@@ -28,16 +35,15 @@
             </div>
           </div>
           <div class="progress-labels">
-            <span class="current-earnings"
-              >{{
-                (userProfile?.currentCycleEarnings || 0).toLocaleString()
-              }}
-              원</span
+            <span
+              class="current-earnings clickable"
+              @click="openCycleEarningsModal"
             >
-            <span class="cycle-cap"
-              >달성 목표:
-              {{ (userProfile?.cycleCap || 0).toLocaleString() }} 원</span
-            >
+              {{ (userProfile?.currentCycleEarnings || 0).toLocaleString() }} 원
+            </span>
+            <span class="cycle-cap">
+              달성 목표: {{ (userProfile?.cycleCap || 0).toLocaleString() }} 원
+            </span>
           </div>
         </div>
         <div class="balances">
@@ -84,71 +90,7 @@
           </button>
         </div>
       </section>
-
-      <div class="dashboard-grid">
-        <router-link to="/my-tokens" class="feature-card tokens">
-          <div class="card-icon"><i class="fas fa-coins"></i></div>
-          <h3>보유 토큰 현황</h3>
-          <p>COBS, BND 토큰의 수량과 가치를 확인하세요.</p>
-          <div class="token-glance">
-            <div class="token-item">
-              <img src="@/assets/COBS.png" alt="COBS" />
-              <span>{{
-                (userProfile?.tokens?.cobs || 0).toLocaleString()
-              }}</span>
-            </div>
-            <div class="token-item">
-              <img src="@/assets/BND_LOGO.png" alt="BND" />
-              <span>{{
-                (userProfile?.tokens?.bnd || 0).toLocaleString()
-              }}</span>
-            </div>
-            <div class="token-item">
-              <img src="@/assets/SSC_LOGO.png" alt="SSC" />
-              <span>{{
-                (userProfile?.tokens?.ssc || 0).toLocaleString()
-              }}</span>
-            </div>
-          </div>
-          <span class="card-enter">자세히 보기 &rarr;</span>
-        </router-link>
-        <router-link to="/nft-marketplace" class="feature-card nft">
-          <div class="card-icon"><i class="fas fa-gem"></i></div>
-          <h3>NFT 마켓플레이스</h3>
-          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
-          <span class="card-enter">입장하기 &rarr;</span>
-        </router-link>
-        <router-link to="/network-tree" class="feature-card">
-          <div class="card-icon"><i class="fas fa-sitemap"></i></div>
-          <h3>나의 추천 네트워크</h3>
-          <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
-          <span class="card-enter">확인하기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-equity" class="feature-card equity">
-          <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
-          <h3>지분 정보</h3>
-          <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
-          <span class="card-enter">확인하기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-events" class="feature-card events">
-          <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
-          <h3>이벤트 공간</h3>
-          <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
-          <span class="card-enter">참여하기 &rarr;</span>
-        </router-link>
-        <router-link to="/mall" class="feature-card mall">
-          <div class="card-icon"><i class="fas fa-store"></i></div>
-          <h3>솔트메이트 몰</h3>
-          <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
-          <span class="card-enter">둘러보기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-investments" class="feature-card revenue">
-          <div class="card-icon"><i class="fas fa-chart-line"></i></div>
-          <h3>내 수익 현황</h3>
-          <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
-          <span class="card-enter">분석하기 &rarr;</span>
-        </router-link>
-      </div>
+      <div class="dashboard-grid"></div>
     </main>
 
     <TransactionHistoryModal
@@ -165,16 +107,21 @@
       :userProfile="userProfile"
       @close="isWithdrawalModalVisible = false"
     />
+    <CycleEarningsModal
+      v-if="isCycleModalVisible"
+      @close="isCycleModalVisible = false"
+    />
   </div>
 </template>
 
 <script>
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
+import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
 
 export default {
   name: "DashboardPage",
@@ -182,108 +129,59 @@ export default {
     TransactionHistoryModal,
     UpgradeTierModal,
     WithdrawalRequestModal,
+    CycleEarningsModal,
   },
   data() {
     return {
       userProfile: null,
       loadingUser: true,
       error: null,
-      historyModal: {
-        visible: false,
-        type: "",
-      },
+      historyModal: { visible: false, type: "" },
       upgradeModalVisible: false,
       isWithdrawalModalVisible: false,
+      isCycleModalVisible: false,
+      marketingPlan: null,
       unsubscribe: null,
     };
   },
   computed: {
-    cycleProgress() {
-      if (
-        !this.userProfile ||
-        !this.userProfile.cycleCap ||
-        this.userProfile.cycleCap === 0
-      ) {
-        return 0;
-      }
-      const progress =
-        (this.userProfile.currentCycleEarnings / this.userProfile.cycleCap) *
-        100;
-      return Math.min(progress, 100);
-    },
-    isWithdrawalEnabled() {
-      const now = new Date();
-      const day = now.getDay();
-      const hour = now.getHours();
-      return day === 2 && hour >= 9 && hour < 17;
-    },
+    // ...
   },
   created() {
     onAuthStateChanged(auth, (user) => {
       if (user) {
         this.listenToUserProfile(user.uid);
+        this.fetchMarketingPlan();
       } else {
         this.loadingUser = false;
       }
     });
   },
-  unmounted() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-    }
-  },
+  // ...
   methods: {
-    listenToUserProfile(uid) {
-      this.loadingUser = true;
-      const userRef = doc(db, "users", uid);
-      this.unsubscribe = onSnapshot(
-        userRef,
-        (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            this.userProfile = {
-              ...data,
-              tier: data.tier || "BRONZE",
-              investmentAmount: data.investmentAmount || 0,
-              cycleCap: data.cycleCap || 0,
-              currentCycleEarnings: data.currentCycleEarnings || 0,
-              cashBalance: data.cashBalance || 0,
-              saltmatePoints: data.saltmatePoints || 0,
-              cobsBalance: data.cobsBalance || 0,
-              bndBalance: data.bndBalance || 0,
-            };
-          } else {
-            this.error = "사용자 프로필을 찾을 수 없습니다.";
-          }
-          this.loadingUser = false;
-        },
-        (e) => {
-          console.error("사용자 프로필 실시간 수신 실패:", e);
-          this.error = "프로필 로딩에 실패했습니다.";
-          this.loadingUser = false;
-        },
-      );
+    // ...
+    async fetchMarketingPlan() {
+      const planRef = doc(db, "configuration", "marketingPlan");
+      const docSnap = await getDoc(planRef);
+      if (docSnap.exists()) {
+        this.marketingPlan = docSnap.data();
+      }
     },
-    getTierClass(tier) {
-      if (!tier) return "default";
-      if (tier === "승인대기중") return "pending";
-      return tier.toLowerCase();
-    },
-    openHistoryModal(type) {
-      this.historyModal.type = type;
-      this.historyModal.visible = true;
-    },
-    openUpgradeModal() {
-      this.upgradeModalVisible = true;
-    },
-    openWithdrawalModal() {
-      this.isWithdrawalModalVisible = true;
+    openCycleEarningsModal() {
+      this.isCycleModalVisible = true;
     },
   },
 };
 </script>
 
 <style scoped>
+.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+.clickable:hover {
+  color: #aed6f1;
+}
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;

@@ -30,6 +30,12 @@
             </span>
           </td>
           <td class="actions">
+            <button
+              @click="openBalanceModal(user)"
+              class="btn btn-sm btn-success"
+            >
+              잔액 조정
+            </button>
             <button @click="openTokenModal(user)" class="btn btn-sm btn-info">
               토큰 관리
             </button>
@@ -54,6 +60,12 @@
       @close="isTokenModalVisible = false"
       @token-updated="fetchUsers"
     />
+    <BalanceAdjustmentModal
+      v-if="isBalanceModalVisible"
+      :user="selectedUser"
+      @close="isBalanceModalVisible = false"
+      @balance-updated="fetchUsers"
+    />
   </div>
 </template>
 
@@ -62,15 +74,14 @@ import { ref, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-// [신규] 모달 컴포넌트 임포트
 import TokenTransferModal from "./TokenTransferModal.vue";
+import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
 
 const users = ref([]);
 const loading = ref(true);
 const error = ref(null);
-
-// [신규] 모달 상태 관리를 위한 변수 추가
 const isTokenModalVisible = ref(false);
+const isBalanceModalVisible = ref(false);
 const selectedUser = ref(null);
 
 const formatDate = (timestamp) => {
@@ -87,7 +98,7 @@ const fetchUsers = async () => {
       ...doc.data(),
     }));
   } catch (err) {
-    console.error("사용자 정보를 불러오는 중 오류 발생:", err);
+    console.error("사용자 정보 로딩 오류:", err);
     error.value = "사용자 정보를 불러오는 데 실패했습니다.";
   } finally {
     loading.value = false;
@@ -96,48 +107,45 @@ const fetchUsers = async () => {
 
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
-  const confirmation = confirm(
-    `'${user.name}' 사용자를 '${
-      newStatus ? "관리자" : "일반 사용자"
-    }' (으)로 지정하시겠습니까?`,
-  );
-  if (!confirmation) return;
+  if (
+    !confirm(
+      `'${user.name}'을(를) '${newStatus ? "관리자" : "일반 사용자"}'로 변경하시겠습니까?`,
+    )
+  )
+    return;
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
     await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
     user.isAdmin = newStatus;
-    alert(
-      "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
-    );
+    alert("권한이 변경되었습니다. 해당 사용자는 재로그인해야 적용됩니다.");
   } catch (error) {
-    console.error("권한 변경 중 오류 발생:", error);
-    alert(`권한 변경에 실패했습니다: ${error.message}`);
+    alert(`권한 변경 실패: ${error.message}`);
   }
 };
 
 const deleteUser = async (userId) => {
   if (!confirm("정말로 이 사용자를 삭제하시겠습니까?")) return;
   try {
-    // 참고: Firestore DB 문서만 삭제합니다. Authentication 계정은 별도 삭제가 필요합니다.
     await deleteDoc(doc(db, "users", userId));
     users.value = users.value.filter((user) => user.id !== userId);
-    alert("사용자가 성공적으로 삭제되었습니다.");
+    alert("사용자가 삭제되었습니다.");
   } catch (error) {
-    console.error("사용자 삭제 중 오류 발생:", error);
     alert("사용자 삭제에 실패했습니다.");
   }
 };
 
-// [신규] 모달을 열기 위한 메소드 추가
 const openTokenModal = (user) => {
   selectedUser.value = user;
   isTokenModalVisible.value = true;
 };
 
-onMounted(() => {
-  fetchUsers();
-});
+const openBalanceModal = (user) => {
+  selectedUser.value = user;
+  isBalanceModalVisible.value = true;
+};
+
+onMounted(fetchUsers);
 </script>
 
 <style scoped>
