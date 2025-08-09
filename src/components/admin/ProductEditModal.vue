@@ -1,6 +1,6 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
-    <div class.modal-content card>
+    <div class="modal-content card">
       <header class="modal-header">
         <h3>{{ isNew ? "새 상품 등록" : "상품 정보 수정" }}</h3>
         <button @click="$emit('close')" class="close-button">&times;</button>
@@ -72,13 +72,9 @@
 
 <script>
 import { db, storage } from "@/firebaseConfig";
-import {
-  doc,
-  setDoc,
-  addDoc,
-  collection,
-  serverTimestamp,
-} from "firebase/firestore";
+// ▼▼▼ [수정됨] 사용하지 않는 addDoc 제거 ▼▼▼
+import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
+// ▲▲▲ 수정 완료 ▲▲▲
 import {
   ref as storageRef,
   uploadBytes,
@@ -125,28 +121,23 @@ export default {
         this.imagePreviewUrl = URL.createObjectURL(file);
       }
     },
-    // ▼▼▼ [수정됨] 상품 저장 로직 전체 수정 ▼▼▼
     async saveProduct() {
       this.isSaving = true;
       try {
         if (this.isNew) {
-          // --- 새 상품 등록 ---
           if (!this.selectedFile) {
             alert("새 상품 등록 시에는 이미지가 필수입니다.");
             this.isSaving = false;
             return;
           }
-          // 1. Firestore 문서 ID를 미리 생성
           const newProductRef = doc(collection(db, "products"));
           const newProductId = newProductRef.id;
 
-          // 2. 생성된 ID를 경로로 사용하여 이미지 업로드
           const imagePath = `product-images/${newProductId}/${this.selectedFile.name}`;
           const imageRef = storageRef(storage, imagePath);
           await uploadBytes(imageRef, this.selectedFile);
           const imageUrl = await getDownloadURL(imageRef);
 
-          // 3. 이미지 URL을 포함하여 Firestore 문서 저장
           const newProductData = {
             ...this.product,
             imageUrl: imageUrl,
@@ -155,11 +146,9 @@ export default {
           await setDoc(newProductRef, newProductData);
           alert("새 상품이 등록되었습니다.");
         } else {
-          // --- 기존 상품 수정 ---
-          let imageUrl = this.product.imageUrl; // 기본값은 기존 이미지
+          let imageUrl = this.product.imageUrl;
           const productRef = doc(db, "products", this.product.id);
 
-          // 1. 새 이미지가 선택된 경우에만 업로드 후 URL 교체
           if (this.selectedFile) {
             const imagePath = `product-images/${this.product.id}/${this.selectedFile.name}`;
             const imageRef = storageRef(storage, imagePath);
@@ -167,7 +156,6 @@ export default {
             imageUrl = await getDownloadURL(imageRef);
           }
 
-          // 2. 최종 데이터 Firestore에 저장
           const dataToSave = { ...this.product, imageUrl: imageUrl };
           delete dataToSave.id;
           await setDoc(productRef, dataToSave, { merge: true });
@@ -183,13 +171,11 @@ export default {
         this.isSaving = false;
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
   },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일 */
 .modal-overlay {
   position: fixed;
   top: 0;
