@@ -155,7 +155,7 @@
           <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
           <span class="card-enter">참여하기 &rarr;</span>
         </router-link>
-        <router-link to="/mall" class="feature-card mall">
+        <router-link to="/shop" class="feature-card mall">
           <div class="card-icon"><i class="fas fa-store"></i></div>
           <h3>솔트메이트 몰</h3>
           <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
