@@ -57,9 +57,11 @@
 </template>
 
 <script>
-import { auth, db } from "@/firebaseConfig";
+// ▼▼▼ [수정됨] 사용하지 않는 auth 제거 ▼▼▼
+import { db } from "@/firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+// ▲▲▲ 수정 완료 ▲▲▲
 
 export default {
   name: "MallPage",
