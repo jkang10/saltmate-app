@@ -7,10 +7,15 @@
       </p>
     </header>
 
+    <nav class="sub-nav">
+      <router-link to="/shop" class="sub-nav-item">상품 목록</router-link>
+      <router-link to="/my-orders" class="sub-nav-item active"
+        >나의 주문 내역</router-link
+      >
+    </nav>
     <main class="content-wrapper card">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
-        <p>주문 내역을 불러오는 중입니다...</p>
       </div>
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
@@ -43,9 +48,6 @@
           </tbody>
         </table>
       </div>
-      <router-link to="/dashboard" class="back-button">
-        <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
-      </router-link>
     </main>
   </div>
 </template>

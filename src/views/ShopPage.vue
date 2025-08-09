@@ -5,6 +5,14 @@
       <p class="description">SaltMate 포인트로 특별한 상품을 만나보세요.</p>
     </header>
 
+    <nav class="sub-nav">
+      <router-link to="/shop" class="sub-nav-item active"
+        >상품 목록</router-link
+      >
+      <router-link to="/my-orders" class="sub-nav-item"
+        >나의 주문 내역</router-link
+      >
+    </nav>
     <main class="content-wrapper card">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
@@ -107,7 +115,7 @@ export default {
         });
 
         alert(result.data.message);
-        this.$router.push("/my-orders"); // 주문 완료 후 내 주문 내역으로 이동
+        this.$router.push("/my-orders");
       } catch (error) {
         console.error("주문 실패:", error);
         alert(`주문에 실패했습니다: ${error.message}`);
@@ -126,6 +134,37 @@ export default {
 .page-header {
   text-align: center;
   margin-bottom: 30px;
+}
+.page-header h1 {
+  font-size: 2.8em;
+}
+.page-header p {
+  font-size: 1.1em;
+  color: #666;
+}
+.sub-nav {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 15px;
+}
+.sub-nav-item {
+  text-decoration: none;
+  color: #555;
+  font-weight: bold;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+.sub-nav-item.router-link-exact-active,
+.sub-nav-item:hover {
+  background-color: #007bff;
+  color: white;
+}
+.content-wrapper {
+  padding: 30px;
 }
 .product-grid {
   display: grid;
