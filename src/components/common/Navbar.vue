@@ -29,6 +29,11 @@
               >내 수익 현황</router-link
             >
           </li>
+          <li>
+            <router-link to="/my-orders" class="nav-link"
+              >나의 주문 내역</router-link
+            >
+          </li>
         </template>
 
         <li>
@@ -39,7 +44,6 @@
             >솔트메이트 소개</router-link
           >
         </li>
-
         <template v-if="!user">
           <li>
             <router-link to="/login" class="nav-link primary-button"
