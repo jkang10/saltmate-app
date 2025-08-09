@@ -6,6 +6,17 @@
         <button @click="$emit('close')" class="close-button">&times;</button>
       </header>
       <form class="modal-body" @submit.prevent="saveProduct">
+        <div class="form-group image-upload-group">
+          <label>상품 이미지</label>
+          <img
+            :src="imagePreviewUrl"
+            alt="상품 이미지 미리보기"
+            class="image-preview"
+            v-if="imagePreviewUrl"
+          />
+          <input type="file" @change="handleFileSelect" accept="image/*" />
+          <small>이미지를 선택하지 않으면 기존 이미지가 유지됩니다.</small>
+        </div>
         <div class="form-group">
           <label>상품명</label>
           <input type="text" v-model="product.name" required />
@@ -52,7 +63,7 @@
 </template>
 
 <script>
-import { db } from "@/firebaseConfig";
+import { db, storage } from "@/firebaseConfig"; // storage 임포트
 import {
   doc,
   setDoc,
@@ -60,6 +71,11 @@ import {
   collection,
   serverTimestamp,
 } from "firebase/firestore";
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage"; // storage 관련 함수 임포트
 
 export default {
   name: "ProductEditModal",
@@ -73,7 +89,10 @@ export default {
         stock: 0,
         description: "",
         isActive: true,
+        imageUrl: null,
       },
+      selectedFile: null, // [신규] 선택된 이미지 파일
+      imagePreviewUrl: null, // [신규] 이미지 미리보기 URL
       isSaving: false,
     };
   },
@@ -85,31 +104,54 @@ export default {
   created() {
     if (!this.isNew) {
       this.product = { ...this.productData };
+      if (this.product.imageUrl) {
+        this.imagePreviewUrl = this.product.imageUrl; // 기존 이미지 미리보기 설정
+      }
     }
   },
   methods: {
+    handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        this.selectedFile = file;
+        this.imagePreviewUrl = URL.createObjectURL(file); // 로컬에서 미리보기 생성
+      }
+    },
     async saveProduct() {
       this.isSaving = true;
       try {
+        let imageUrl = this.product.imageUrl; // 기본값은 기존 이미지 URL
+
+        // 1. 새 이미지가 선택된 경우, Firebase Storage에 업로드
+        if (this.selectedFile) {
+          const productId = this.isNew
+            ? doc(collection(db, "products")).id
+            : this.product.id;
+          const imagePath = `product-images/${productId}/${this.selectedFile.name}`;
+          const imageRef = storageRef(storage, imagePath);
+
+          await uploadBytes(imageRef, this.selectedFile);
+          imageUrl = await getDownloadURL(imageRef); // 업로드 후 다운로드 URL 받기
+        }
+
+        const dataToSave = {
+          ...this.product,
+          imageUrl: imageUrl, // 최종 이미지 URL로 업데이트
+        };
+
         if (this.isNew) {
-          // 새 상품 등록
-          await addDoc(collection(db, "products"), {
-            ...this.product,
-            createdAt: serverTimestamp(),
-          });
+          // 2-1. 새 상품 등록 (Firestore)
+          dataToSave.createdAt = serverTimestamp();
+          await addDoc(collection(db, "products"), dataToSave);
           alert("새 상품이 등록되었습니다.");
         } else {
-          // 기존 상품 수정
+          // 2-2. 기존 상품 수정 (Firestore)
           const productRef = doc(db, "products", this.product.id);
-
-          // ▼▼▼ [수정됨] 불필요한 id 변수 생성을 막는 방식으로 변경 ▼▼▼
-          const dataToSave = { ...this.product };
-          delete dataToSave.id; // 저장할 데이터에서 id 필드만 제거
-          // ▲▲▲ 수정 완료 ▲▲▲
-
+          delete dataToSave.id; // 데이터에서 id 필드만 제거
           await setDoc(productRef, dataToSave, { merge: true });
           alert("상품 정보가 수정되었습니다.");
         }
+
         this.$emit("product-saved");
         this.$emit("close");
       } catch (error) {
@@ -124,6 +166,17 @@ export default {
 </script>
 
 <style scoped>
+.image-upload-group {
+  margin-bottom: 20px;
+}
+.image-preview {
+  max-width: 100%;
+  height: auto;
+  max-height: 200px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
 .modal-overlay {
   position: fixed;
   top: 0;
