@@ -155,13 +155,7 @@
           <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
           <span class="card-enter">참여하기 &rarr;</span>
         </router-link>
-        <router-link to="/game-zone" class="feature-card game">
-          <div class="card-icon"><i class="fas fa-gamepad"></i></div>
-          <h3>럭키 룰렛</h3>
-          <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
-          <span class="card-enter">게임 시작 &rarr;</span>
-        </router-link>
-        <router-link to="/shop" class="feature-card mall">
+        <router-link to="/mall" class="feature-card mall">
           <div class="card-icon"><i class="fas fa-store"></i></div>
           <h3>솔트메이트 몰</h3>
           <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
@@ -361,16 +355,10 @@ export default {
   margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
-  gap: 0; /* 간격 제거 */
+  gap: 30px;
 }
 .notice-section {
   padding: 20px 25px;
-  margin-bottom: 30px; /* 공지사항과 아래 컨텐츠 사이 간격 */
-}
-.dashboard-content {
-  display: flex;
-  flex-direction: column;
-  gap: 30px; /* 메인 컨텐츠 내부 간격 */
 }
 .notice-header {
   display: flex;
@@ -776,9 +764,5 @@ export default {
   font-size: 0.8em;
   opacity: 0.9;
   text-align: center;
-}
-/* DashboardPage.vue 의 <style scoped> 안에 추가 */
-.feature-card.game .card-icon {
-  color: #e74c3c; /* 게임 아이콘 색상 */
 }
 </style>
