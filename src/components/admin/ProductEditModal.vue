@@ -71,15 +71,9 @@
 </template>
 
 <script>
-import { db, storage } from "@/firebaseConfig";
-// ▼▼▼ [수정됨] 사용하지 않는 addDoc 제거 ▼▼▼
+import { db } from "@/firebaseConfig";
 import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
-// ▲▲▲ 수정 완료 ▲▲▲
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions"; // httpsCallable 임포트
 
 export default {
   name: "ProductEditModal",
@@ -121,42 +115,57 @@ export default {
         this.imagePreviewUrl = URL.createObjectURL(file);
       }
     },
+    // ▼▼▼ [최종 수정] 상품 저장 로직 전체 변경 ▼▼▼
     async saveProduct() {
       this.isSaving = true;
       try {
-        if (this.isNew) {
-          if (!this.selectedFile) {
+        let imageUrl = this.product.imageUrl;
+
+        // 1. 새 이미지가 선택된 경우, Cloud Function을 통해 업로드
+        if (this.selectedFile) {
+          if (this.isNew && !this.selectedFile) {
             alert("새 상품 등록 시에는 이미지가 필수입니다.");
             this.isSaving = false;
             return;
           }
-          const newProductRef = doc(collection(db, "products"));
-          const newProductId = newProductRef.id;
+          const reader = new FileReader();
+          reader.readAsDataURL(this.selectedFile);
 
-          const imagePath = `product-images/${newProductId}/${this.selectedFile.name}`;
-          const imageRef = storageRef(storage, imagePath);
-          await uploadBytes(imageRef, this.selectedFile);
-          const imageUrl = await getDownloadURL(imageRef);
+          await new Promise((resolve, reject) => {
+            reader.onload = async () => {
+              const base64Data = reader.result.split(",")[1];
+              const functions = getFunctions();
+              const uploadProductImage = httpsCallable(
+                functions,
+                "uploadProductImage",
+              );
 
-          const newProductData = {
-            ...this.product,
-            imageUrl: imageUrl,
-            createdAt: serverTimestamp(),
-          };
-          await setDoc(newProductRef, newProductData);
+              const productId = this.isNew
+                ? doc(collection(db, "products")).id
+                : this.product.id;
+
+              const result = await uploadProductImage({
+                productId: productId,
+                fileData: base64Data,
+                fileName: this.selectedFile.name,
+              });
+
+              imageUrl = result.data.imageUrl;
+              resolve();
+            };
+            reader.onerror = (error) => reject(error);
+          });
+        }
+
+        // 2. Firestore에 상품 정보 저장
+        const dataToSave = { ...this.product, imageUrl: imageUrl };
+
+        if (this.isNew) {
+          dataToSave.createdAt = serverTimestamp();
+          await addDoc(collection(db, "products"), dataToSave);
           alert("새 상품이 등록되었습니다.");
         } else {
-          let imageUrl = this.product.imageUrl;
           const productRef = doc(db, "products", this.product.id);
-
-          if (this.selectedFile) {
-            const imagePath = `product-images/${this.product.id}/${this.selectedFile.name}`;
-            const imageRef = storageRef(storage, imagePath);
-            await uploadBytes(imageRef, this.selectedFile);
-            imageUrl = await getDownloadURL(imageRef);
-          }
-
-          const dataToSave = { ...this.product, imageUrl: imageUrl };
           delete dataToSave.id;
           await setDoc(productRef, dataToSave, { merge: true });
           alert("상품 정보가 수정되었습니다.");
@@ -166,11 +175,12 @@ export default {
         this.$emit("close");
       } catch (error) {
         console.error("상품 저장 오류:", error);
-        alert("상품 저장에 실패했습니다.");
+        alert(`상품 저장에 실패했습니다: ${error.message}`);
       } finally {
         this.isSaving = false;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
   },
 };
 </script>
