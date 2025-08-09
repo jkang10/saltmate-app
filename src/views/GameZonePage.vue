@@ -40,7 +40,6 @@ export default {
       canPlay: true,
       resultMessage: "",
       prizes: [
-        // 백엔드의 상품 목록과 순서/내용이 일치해야 합니다.
         { name: "10 SaltMate", points: 10, color: "#FFDDC1" },
         { name: "50 SaltMate", points: 50, color: "#FFABAB" },
         { name: "100 SaltMate", points: 100, color: "#FFC3A0" },
@@ -87,7 +86,6 @@ export default {
       }
       this.ctx.restore();
 
-      // 룰렛 포인터 (화살표)
       this.ctx.fillStyle = "#C0392B";
       this.ctx.beginPath();
       this.ctx.moveTo(canvas.width - 20, canvas.height / 2 - 15);
@@ -114,7 +112,7 @@ export default {
       } catch (error) {
         console.error("룰렛 오류:", error);
         this.resultMessage = `오류: ${error.message}`;
-        if (error.code.includes("already-exists")) {
+        if (error.code && error.code.includes("already-exists")) {
           this.canPlay = false;
         }
         this.isSpinning = false;
@@ -123,18 +121,22 @@ export default {
     animateSpin(prizeIndex, prizeData) {
       const numPrizes = this.prizes.length;
       const arc = 360 / numPrizes;
-      const stopAngle = prizeIndex * arc + arc / 2;
-      const totalRotation = 360 * 5 + (360 - stopAngle); // 5바퀴 + 최종 위치
+      const stopAngle = prizeIndex * arc + Math.random() * (arc - 20) + 10;
+      const totalRotation = 360 * 5 + stopAngle;
 
-      let currentRotation = 0;
-      const animation = () => {
-        const easeOut = 1 - Math.pow(1 - currentRotation / totalRotation, 4);
+      let start = null;
+      const duration = 4000; // 4초 동안 회전
+
+      const animationStep = (timestamp) => {
+        if (!start) start = timestamp;
+        const progress = timestamp - start;
+        const easeOut = 1 - Math.pow(1 - Math.min(progress / duration, 1), 4);
         const rotationAngle = (easeOut * totalRotation * Math.PI) / 180;
+
         this.drawRoulette(rotationAngle);
 
-        if (currentRotation < totalRotation) {
-          currentRotation += 20; // 스피드 조절
-          requestAnimationFrame(animation);
+        if (progress < duration) {
+          requestAnimationFrame(animationStep);
         } else {
           this.isSpinning = false;
           if (prizeData.points > 0) {
@@ -145,7 +147,7 @@ export default {
           this.canPlay = false;
         }
       };
-      requestAnimationFrame(animation);
+      requestAnimationFrame(animationStep);
     },
   },
 };
@@ -153,9 +155,25 @@ export default {
 
 <style scoped>
 .page-container {
+  padding: 20px;
   max-width: 800px;
+  margin: 70px auto 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 {
+  font-size: 2.8em;
+}
+.page-header p {
+  font-size: 1.1em;
+  color: #666;
 }
 .content-wrapper {
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 .roulette-container {
@@ -179,6 +197,14 @@ export default {
   border: 5px solid white;
   cursor: pointer;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s;
+}
+.spin-button:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+.spin-button:not(:disabled):hover {
+  background-color: #c0392b;
 }
 .result-message {
   margin-top: 20px;
