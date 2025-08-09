@@ -10,12 +10,14 @@
     <main class="content-wrapper card">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
+        <p>주문 내역을 불러오는 중입니다...</p>
       </div>
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
       </div>
       <div v-else-if="orders.length === 0" class="empty-state">
         <p>주문 내역이 없습니다.</p>
+        <router-link to="/shop" class="btn-primary">쇼핑하러 가기</router-link>
       </div>
       <div v-else class="table-container">
         <table>
@@ -41,6 +43,9 @@
           </tbody>
         </table>
       </div>
+      <router-link to="/dashboard" class="back-button">
+        <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
+      </router-link>
     </main>
   </div>
 </template>
@@ -117,13 +122,10 @@ export default {
   padding: 20px;
   max-width: 1000px;
   margin: 70px auto 20px auto;
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
 }
 .page-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
 }
 .page-header h1 {
   font-size: 2.8em;
@@ -148,8 +150,25 @@ export default {
   padding: 40px;
   color: #666;
 }
+.empty-state p {
+  margin-bottom: 20px;
+}
 .spinner {
-  /* 로딩 스피너 스타일 */
+  display: inline-block;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 .table-container {
   overflow-x: auto;
@@ -187,5 +206,35 @@ thead th {
 }
 .status-badge.cancelled {
   background-color: #6c757d;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+}
+.back-button {
+  background: #007bff;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+}
+.back-button:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
 }
 </style>
