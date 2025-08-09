@@ -1,320 +1,192 @@
 <template>
-  <div class="shop-page">
+  <div class="page-container">
     <header class="page-header">
-      <h1><i class="fas fa-gem"></i> 등급 선택</h1>
-      <p class="description">
-        솔트메이트의 등급을 구독하여 더 많은 혜택을 누리세요.
-      </p>
+      <h1><i class="fas fa-store"></i> 솔트메이트 몰</h1>
+      <p class="description">SaltMate 포인트로 특별한 상품을 만나보세요.</p>
     </header>
 
-    <div v-if="isLoading" class="loading-container">
-      <div class="spinner"></div>
-      <p>등급 정보를 불러오는 중입니다...</p>
-    </div>
-
-    <div v-else-if="error" class="error-container">
-      <p>{{ error }}</p>
-    </div>
-
-    <main v-else class="tiers-grid">
-      <div
-        v-for="tier in tiers"
-        :key="tier.amount"
-        :class="['tier-card', tier.name.toLowerCase()]"
-      >
-        <div class="tier-header">
-          <h3 class="tier-name">{{ tier.name }}</h3>
-          <p v-if="tier.isSubscription" class="subscription-badge">매월 구독</p>
+    <main class="content-wrapper card">
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+      </div>
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+      </div>
+      <div v-else class="product-grid">
+        <div v-for="product in products" :key="product.id" class="product-card">
+          <img
+            :src="product.imageUrl || 'https://via.placeholder.com/300'"
+            alt="상품 이미지"
+            class="product-image"
+          />
+          <div class="product-info">
+            <h3 class="product-name">{{ product.name }}</h3>
+            <p class="product-description">{{ product.description }}</p>
+            <div class="product-details">
+              <span class="product-price"
+                >{{ (product.price || 0).toLocaleString() }} P</span
+              >
+              <span class="product-stock"
+                >남은 수량: {{ product.stock || 0 }}개</span
+              >
+            </div>
+            <button
+              @click="purchaseProduct(product)"
+              class="buy-button"
+              :disabled="product.stock === 0"
+            >
+              {{ product.stock > 0 ? "구매하기" : "품절" }}
+            </button>
+          </div>
         </div>
-        <div class="tier-price">
-          <span class="amount">{{ tier.amount.toLocaleString() }}</span>
-          <span class="currency">원</span>
-        </div>
-        <ul class="tier-features">
-          <li><i class="fas fa-check"></i> 직접 추천 보너스 3%</li>
-          <li><i class="fas fa-check"></i> 1대 매칭 보너스 3%</li>
-          <li><i class="fas fa-check"></i> 300% 수익 순환</li>
-        </ul>
-        <button
-          @click="requestSubscription(tier)"
-          class="purchase-button"
-          :disabled="isProcessing || hasPendingRequest"
-        >
-          <span v-if="isProcessing" class="spinner-small"></span>
-          <span v-else-if="userProfile && userProfile.tier === tier.name"
-            >현재 나의 등급</span
-          >
-          <span v-else-if="hasPendingRequest">승인 대기중</span>
-          <span v-else>이 등급으로 구독 신청</span>
-        </button>
       </div>
     </main>
   </div>
 </template>
 
 <script>
-import { db, auth } from "@/firebaseConfig";
-import {
-  doc,
-  getDoc,
-  addDoc,
-  collection,
-  serverTimestamp,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { db } from "@/firebaseConfig";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default {
   name: "ShopPage",
-  setup() {
-    const router = useRouter();
-    const tiers = ref([]);
-    const userProfile = ref(null);
-    const hasPendingRequest = ref(false);
-    const isLoading = ref(true);
-    const isProcessing = ref(false);
-    const error = ref(null);
-
-    const fetchData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (user) {
-          // 1. 사용자 프로필 정보 가져오기 (현재 등급 확인용)
-          const userRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) userProfile.value = userSnap.data();
-
-          // 2. 이 사용자의 'pending' 상태 요청이 있는지 확인
-          const q = query(
-            collection(db, "subscription_requests"),
-            where("userId", "==", user.uid),
-            where("status", "==", "pending"),
-          );
-          const requestSnap = await getDocs(q);
-          hasPendingRequest.value = !requestSnap.empty;
-        }
-
-        // 3. 등급 설정 정보 가져오기
-        const configRef = doc(db, "configuration", "marketingPlan");
-        const configSnap = await getDoc(configRef);
-        if (configSnap.exists()) {
-          const configTiers = configSnap.data().tiers;
-          tiers.value = Object.entries(configTiers)
-            .map(([amount, details]) => ({
-              amount: Number(amount),
-              ...details,
-            }))
-            .sort((a, b) => a.amount - b.amount);
-        } else {
-          throw new Error("등급 설정 정보를 찾을 수 없습니다.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-        error.value = "정보를 불러오는 데 실패했습니다.";
-      } finally {
-        isLoading.value = false;
-      }
-    };
-
-    const requestSubscription = async (tierInfo) => {
-      isProcessing.value = true;
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          alert("로그인이 필요합니다.");
-          router.push("/login");
-          return;
-        }
-
-        if (
-          window.confirm(
-            `'${
-              tierInfo.name
-            }' 등급을 구독 신청하시겠습니까?\n관리자 승인 후 등급이 적용됩니다.`,
-          )
-        ) {
-          // 'investments' 대신 'subscription_requests'에 문서 생성
-          await addDoc(collection(db, "subscription_requests"), {
-            userId: user.uid,
-            userName: userProfile.value?.name || user.email,
-            userEmail: user.email,
-            requestedAmount: tierInfo.amount,
-            requestedTier: tierInfo.name,
-            status: "pending", // '승인 대기' 상태로 생성
-            createdAt: serverTimestamp(),
-          });
-          alert("구독 신청이 완료되었습니다. 관리자 승인을 기다려주세요.");
-          hasPendingRequest.value = true; // 신청 후 버튼 상태 즉시 변경
-        }
-      } catch (err) {
-        console.error("Failed to process request:", err);
-        alert("처리 중 오류가 발생했습니다.");
-      } finally {
-        isProcessing.value = false;
-      }
-    };
-
-    onMounted(fetchData);
-
+  data() {
     return {
-      tiers,
-      userProfile,
-      hasPendingRequest,
-      isLoading,
-      isProcessing,
-      error,
-      requestSubscription,
+      products: [],
+      isLoading: true,
+      error: null,
     };
+  },
+  async created() {
+    await this.fetchProducts();
+  },
+  methods: {
+    async fetchProducts() {
+      this.isLoading = true;
+      try {
+        const q = query(
+          collection(db, "products"),
+          where("isActive", "==", true),
+          orderBy("createdAt", "desc"),
+        );
+        const querySnapshot = await getDocs(q);
+        this.products = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.error("상품 목록 조회 오류:", error);
+        this.error = "상품을 불러오는 데 실패했습니다.";
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async purchaseProduct(product) {
+      const quantity = prompt(
+        `'${product.name}' 상품을 몇 개 구매하시겠습니까?`,
+        "1",
+      );
+      if (!quantity || isNaN(quantity) || Number(quantity) <= 0) {
+        return;
+      }
+
+      if (
+        !confirm(
+          `${Number(quantity).toLocaleString()}개를 구매합니다. ${(product.price * Number(quantity)).toLocaleString()}P가 차감됩니다.`,
+        )
+      )
+        return;
+
+      try {
+        const functions = getFunctions();
+        const placeOrder = httpsCallable(functions, "placeOrder");
+        const result = await placeOrder({
+          productId: product.id,
+          quantity: Number(quantity),
+        });
+
+        alert(result.data.message);
+        this.$router.push("/my-orders"); // 주문 완료 후 내 주문 내역으로 이동
+      } catch (error) {
+        console.error("주문 실패:", error);
+        alert(`주문에 실패했습니다: ${error.message}`);
+      }
+    },
   },
 };
 </script>
 
 <style scoped>
-.shop-page {
+.page-container {
   max-width: 1200px;
-  margin: 70px auto 20px auto;
+  margin: 70px auto 20px;
   padding: 20px;
 }
-
 .page-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
 }
-.page-header h1 {
-  font-size: 2.5em;
-  margin-bottom: 10px;
-}
-.page-header .description {
-  font-size: 1.2em;
-  color: #666;
-}
-
-.loading-container,
-.error-container {
-  text-align: center;
-  padding: 50px;
-  font-size: 1.2em;
-}
-
-.tiers-grid {
+.product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 25px;
 }
-
-.tier-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 15px;
-  padding: 30px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
+.product-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+.product-image {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+}
+.product-info {
+  padding: 20px;
+}
+.product-name {
+  font-size: 1.3em;
+  margin: 0 0 10px;
+}
+.product-description {
+  font-size: 0.9em;
+  color: #666;
+  min-height: 40px;
+}
+.product-details {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
 }
-
-.tier-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
-}
-
-.tier-header {
-  min-height: 60px;
-}
-
-.tier-name {
-  font-size: 1.8em;
+.product-price {
+  font-size: 1.5em;
   font-weight: bold;
   color: #007bff;
 }
-
-.subscription-badge {
-  display: inline-block;
-  background-color: #17a2b8;
-  color: white;
-  font-size: 0.8em;
-  padding: 4px 10px;
-  border-radius: 12px;
-  margin-top: 5px;
+.product-stock {
+  font-size: 0.9em;
+  color: #888;
 }
-
-.tier-price {
-  margin: 20px 0;
-  font-size: 2.5em;
-  font-weight: bold;
-}
-.tier-price .currency {
-  font-size: 0.5em;
-  margin-left: 5px;
-  color: #333;
-}
-
-.tier-features {
-  list-style: none;
-  padding: 0;
-  margin: 20px 0;
-  text-align: left;
-  color: #555;
-  flex-grow: 1;
-}
-.tier-features li {
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.tier-features i {
-  color: #28a745;
-}
-
-.purchase-button {
+.buy-button {
   width: 100%;
-  padding: 15px;
-  font-size: 1.1em;
-  font-weight: bold;
+  background-color: #28a745;
   color: white;
-  background-color: #007bff;
   border: none;
+  padding: 12px;
   border-radius: 8px;
+  font-weight: bold;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin-top: auto;
 }
-.purchase-button:hover:not(:disabled) {
-  background-color: #0056b3;
-}
-.purchase-button:disabled {
-  background-color: #a0c9ff;
+.buy-button:disabled {
+  background-color: #6c757d;
   cursor: not-allowed;
-}
-
-.spinner,
-.spinner-small {
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  display: inline-block;
-}
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top-color: #007bff;
-}
-.spinner-small {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-top-color: #fff;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
