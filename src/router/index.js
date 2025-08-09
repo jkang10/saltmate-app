@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { auth, db } from "@/firebaseConfig";
+import { auth } from "@/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 
 const routes = [
   {
@@ -111,28 +110,24 @@ const routes = [
     component: () => import("@/views/MyEquityPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/my-orders' 경로 추가 ▼▼▼
   {
     path: "/my-orders",
     name: "MyOrdersPage",
     component: () => import("@/views/MyOrdersPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-events",
     name: "MyEventsPage",
     component: () => import("@/views/MyEventsPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/about' 경로 추가 ▼▼▼
   {
     path: "/about",
     name: "AboutView",
     component: () => import("@/views/AboutView.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
