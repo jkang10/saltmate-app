@@ -100,8 +100,9 @@ export default {
 
       try {
         const functions = getFunctions();
+        // ▼▼▼ [수정됨] 함수 이름을 'spinRoulette'으로 정확히 호출합니다. ▼▼▼
         const spinRoulette = httpsCallable(functions, "spinRoulette");
-        const result = await spinRoulette();
+        const result = await spinRoulette(); // 인자 없이 호출
 
         const winningPrize = result.data.prize;
         const prizeIndex = this.prizes.findIndex(
@@ -125,7 +126,7 @@ export default {
       const totalRotation = 360 * 5 + stopAngle;
 
       let start = null;
-      const duration = 4000; // 4초 동안 회전
+      const duration = 4000;
 
       const animationStep = (timestamp) => {
         if (!start) start = timestamp;
