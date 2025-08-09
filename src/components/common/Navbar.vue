@@ -44,6 +44,7 @@
             >솔트메이트 소개</router-link
           >
         </li>
+
         <template v-if="!user">
           <li>
             <router-link to="/login" class="nav-link primary-button"
@@ -154,6 +155,7 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일은 변경 없습니다 */
 .navbar-container {
   display: flex;
   justify-content: space-between;
