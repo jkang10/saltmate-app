@@ -92,14 +92,21 @@ export default {
       this.isSaving = true;
       try {
         if (this.isNew) {
+          // 새 상품 등록
           await addDoc(collection(db, "products"), {
             ...this.product,
             createdAt: serverTimestamp(),
           });
           alert("새 상품이 등록되었습니다.");
         } else {
+          // 기존 상품 수정
           const productRef = doc(db, "products", this.product.id);
-          const { id, ...dataToSave } = this.product; // id는 문서 경로에만 사용되므로 데이터에서 제외
+
+          // ▼▼▼ [수정됨] 불필요한 id 변수 생성을 막는 방식으로 변경 ▼▼▼
+          const dataToSave = { ...this.product };
+          delete dataToSave.id; // 저장할 데이터에서 id 필드만 제거
+          // ▲▲▲ 수정 완료 ▲▲▲
+
           await setDoc(productRef, dataToSave, { merge: true });
           alert("상품 정보가 수정되었습니다.");
         }
