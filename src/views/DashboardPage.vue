@@ -167,6 +167,12 @@
           <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
           <span class="card-enter">분석하기 &rarr;</span>
         </router-link>
+        <router-link to="/game-zone" class="feature-card game">
+          <div class="card-icon"><i class="fas fa-gamepad"></i></div>
+          <h3>럭키 룰렛</h3>
+          <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
+          <span class="card-enter">게임 시작 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
@@ -342,6 +348,9 @@ export default {
 </script>
 
 <style scoped>
+.feature-card.game .card-icon {
+  color: #e74c3c; /* 게임 아이콘 색상 */
+}
 .clickable {
   cursor: pointer;
   text-decoration: underline;
