@@ -30,11 +30,19 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/shop",
-    name: "ShopPage",
+    path: "/mall",
+    name: "MallPage", // ShopPage -> MallPage로 변경 또는 확인
     component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [신규] 게임 존 페이지 경로 추가 ▼▼▼
+  {
+    path: "/game-zone",
+    name: "GameZonePage",
+    component: () => import("@/views/GameZonePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-investments",
     name: "MyInvestmentsPage",
