@@ -217,26 +217,33 @@ thead th {
   text-decoration: none;
   font-weight: bold;
 }
-.back-button {
-  background: #007bff;
-  color: white;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: bold;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 40px;
-  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+.sub-nav {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 15px;
 }
-.back-button:hover {
-  background-color: #0056b3;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+.sub-nav-item {
+  text-decoration: none;
+  color: #555;
+  font-weight: bold;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+.sub-nav-item.router-link-exact-active,
+.sub-nav-item:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+/* ▼▼▼ [신규] 모바일 화면에서 메뉴가 세로로 표시되도록 수정 ▼▼▼ */
+@media (max-width: 768px) {
+  .sub-nav {
+    flex-direction: column;
+    align-items: center;
+  }
 }
 </style>
