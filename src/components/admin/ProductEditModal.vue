@@ -1,6 +1,6 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content card">
+    <div class.modal-content card>
       <header class="modal-header">
         <h3>{{ isNew ? "새 상품 등록" : "상품 정보 수정" }}</h3>
         <button @click="$emit('close')" class="close-button">&times;</button>
@@ -14,9 +14,17 @@
             class="image-preview"
             v-if="imagePreviewUrl"
           />
-          <input type="file" @change="handleFileSelect" accept="image/*" />
-          <small>이미지를 선택하지 않으면 기존 이미지가 유지됩니다.</small>
+          <input
+            type="file"
+            @change="handleFileSelect"
+            accept="image/*"
+            :required="isNew"
+          />
+          <small v-if="!isNew"
+            >이미지를 새로 선택하지 않으면 기존 이미지가 유지됩니다.</small
+          >
         </div>
+
         <div class="form-group">
           <label>상품명</label>
           <input type="text" v-model="product.name" required />
@@ -63,7 +71,7 @@
 </template>
 
 <script>
-import { db, storage } from "@/firebaseConfig"; // storage 임포트
+import { db, storage } from "@/firebaseConfig";
 import {
   doc,
   setDoc,
@@ -75,7 +83,7 @@ import {
   ref as storageRef,
   uploadBytes,
   getDownloadURL,
-} from "firebase/storage"; // storage 관련 함수 임포트
+} from "firebase/storage";
 
 export default {
   name: "ProductEditModal",
@@ -91,8 +99,8 @@ export default {
         isActive: true,
         imageUrl: null,
       },
-      selectedFile: null, // [신규] 선택된 이미지 파일
-      imagePreviewUrl: null, // [신규] 이미지 미리보기 URL
+      selectedFile: null,
+      imagePreviewUrl: null,
       isSaving: false,
     };
   },
@@ -105,7 +113,7 @@ export default {
     if (!this.isNew) {
       this.product = { ...this.productData };
       if (this.product.imageUrl) {
-        this.imagePreviewUrl = this.product.imageUrl; // 기존 이미지 미리보기 설정
+        this.imagePreviewUrl = this.product.imageUrl;
       }
     }
   },
@@ -114,40 +122,54 @@ export default {
       const file = event.target.files[0];
       if (file) {
         this.selectedFile = file;
-        this.imagePreviewUrl = URL.createObjectURL(file); // 로컬에서 미리보기 생성
+        this.imagePreviewUrl = URL.createObjectURL(file);
       }
     },
+    // ▼▼▼ [수정됨] 상품 저장 로직 전체 수정 ▼▼▼
     async saveProduct() {
       this.isSaving = true;
       try {
-        let imageUrl = this.product.imageUrl; // 기본값은 기존 이미지 URL
-
-        // 1. 새 이미지가 선택된 경우, Firebase Storage에 업로드
-        if (this.selectedFile) {
-          const productId = this.isNew
-            ? doc(collection(db, "products")).id
-            : this.product.id;
-          const imagePath = `product-images/${productId}/${this.selectedFile.name}`;
-          const imageRef = storageRef(storage, imagePath);
-
-          await uploadBytes(imageRef, this.selectedFile);
-          imageUrl = await getDownloadURL(imageRef); // 업로드 후 다운로드 URL 받기
-        }
-
-        const dataToSave = {
-          ...this.product,
-          imageUrl: imageUrl, // 최종 이미지 URL로 업데이트
-        };
-
         if (this.isNew) {
-          // 2-1. 새 상품 등록 (Firestore)
-          dataToSave.createdAt = serverTimestamp();
-          await addDoc(collection(db, "products"), dataToSave);
+          // --- 새 상품 등록 ---
+          if (!this.selectedFile) {
+            alert("새 상품 등록 시에는 이미지가 필수입니다.");
+            this.isSaving = false;
+            return;
+          }
+          // 1. Firestore 문서 ID를 미리 생성
+          const newProductRef = doc(collection(db, "products"));
+          const newProductId = newProductRef.id;
+
+          // 2. 생성된 ID를 경로로 사용하여 이미지 업로드
+          const imagePath = `product-images/${newProductId}/${this.selectedFile.name}`;
+          const imageRef = storageRef(storage, imagePath);
+          await uploadBytes(imageRef, this.selectedFile);
+          const imageUrl = await getDownloadURL(imageRef);
+
+          // 3. 이미지 URL을 포함하여 Firestore 문서 저장
+          const newProductData = {
+            ...this.product,
+            imageUrl: imageUrl,
+            createdAt: serverTimestamp(),
+          };
+          await setDoc(newProductRef, newProductData);
           alert("새 상품이 등록되었습니다.");
         } else {
-          // 2-2. 기존 상품 수정 (Firestore)
+          // --- 기존 상품 수정 ---
+          let imageUrl = this.product.imageUrl; // 기본값은 기존 이미지
           const productRef = doc(db, "products", this.product.id);
-          delete dataToSave.id; // 데이터에서 id 필드만 제거
+
+          // 1. 새 이미지가 선택된 경우에만 업로드 후 URL 교체
+          if (this.selectedFile) {
+            const imagePath = `product-images/${this.product.id}/${this.selectedFile.name}`;
+            const imageRef = storageRef(storage, imagePath);
+            await uploadBytes(imageRef, this.selectedFile);
+            imageUrl = await getDownloadURL(imageRef);
+          }
+
+          // 2. 최종 데이터 Firestore에 저장
+          const dataToSave = { ...this.product, imageUrl: imageUrl };
+          delete dataToSave.id;
           await setDoc(productRef, dataToSave, { merge: true });
           alert("상품 정보가 수정되었습니다.");
         }
@@ -161,22 +183,13 @@ export default {
         this.isSaving = false;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
   },
 };
 </script>
 
 <style scoped>
-.image-upload-group {
-  margin-bottom: 20px;
-}
-.image-preview {
-  max-width: 100%;
-  height: auto;
-  max-height: 200px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-}
+/* 기존 스타일과 동일 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -215,6 +228,8 @@ export default {
 }
 .modal-body {
   padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
 }
 .modal-footer {
   display: flex;
@@ -222,6 +237,17 @@ export default {
   gap: 10px;
   padding: 15px 20px;
   border-top: 1px solid #eee;
+}
+.image-upload-group {
+  margin-bottom: 20px;
+}
+.image-preview {
+  max-width: 100%;
+  height: auto;
+  max-height: 200px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
 }
 .form-group {
   margin-bottom: 15px;
@@ -232,7 +258,8 @@ export default {
   margin-bottom: 5px;
 }
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   width: 100%;
   padding: 10px;
   border: 1px solid #ccc;
