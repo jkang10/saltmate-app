@@ -16,17 +16,37 @@
         <div v-else-if="transactions.length === 0" class="empty-state">
           <p>수익 사이클에 누적된 내역이 없습니다.</p>
         </div>
-        <ul v-else class="transaction-list">
-          <li v-for="tx in transactions" :key="tx.id" class="transaction-item">
-            <div class="tx-info">
-              <span class="tx-description">{{ tx.description }}</span>
-              <span class="tx-date">{{ formatDate(tx.timestamp) }}</span>
-            </div>
-            <div class="tx-amount positive">
-              + {{ (tx.grossAmount || 0).toLocaleString() }} 원
-            </div>
-          </li>
-        </ul>
+        <div v-else class="table-container">
+          <table class="transaction-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>상세 내용</th>
+                <th>구분</th>
+                <th>누적 금액 (수수료 차감 전)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="tx in transactions" :key="tx.id">
+                <td>{{ formatDate(tx.timestamp) }}</td>
+                <td>{{ tx.description }}</td>
+                <td>
+                  <span
+                    :class="[
+                      'balance-type-badge',
+                      tx.balanceType.toLowerCase(),
+                    ]"
+                  >
+                    {{ formatBalanceType(tx.balanceType) }}
+                  </span>
+                </td>
+                <td class="amount positive">
+                  + {{ getGrossAmount(tx).toLocaleString() }} 원
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -60,7 +80,6 @@ export default {
       }
 
       try {
-        // 수익 사이클에 기여하는 모든 종류의 거래를 조회합니다.
         const q = query(
           collection(db, "transactions"),
           where("userId", "==", auth.currentUser.uid),
@@ -68,26 +87,10 @@ export default {
           orderBy("timestamp", "desc"),
         );
         const querySnapshot = await getDocs(q);
-
-        // grossAmount를 기준으로 내역을 구성합니다. (실제 사이클 누적액 기준)
-        const mappedTransactions = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
-          // grossAmount 계산 (예시: 추천 보너스의 경우)
-          // 실제 데이터 구조에 따라 이 부분을 조정해야 할 수 있습니다.
-          let grossAmount = data.amount; // 기본값
-          if (data.type === "DIRECT_BONUS") {
-            // 30/70으로 나뉘기 전의 총액을 계산해야 함
-            // 예: grossBonus = (cashBonus + saltmateBonus) / (1 - feeRate)
-            // 단순화를 위해 임시로 amount를 그대로 사용
-          }
-          return {
-            id: doc.id,
-            ...data,
-            grossAmount: grossAmount,
-          };
-        });
-
-        this.transactions = mappedTransactions;
+        this.transactions = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
       } catch (e) {
         console.error("수익 사이클 내역 조회 오류:", e);
         this.error = "내역을 불러오는 데 실패했습니다.";
@@ -99,12 +102,38 @@ export default {
       if (!timestamp || !timestamp.toDate) return "";
       return timestamp.toDate().toLocaleString("ko-KR");
     },
+    getGrossAmount(transaction) {
+      // 사이클 누적액은 수수료(5%) 차감 전 금액(Gross) 기준입니다.
+      // 현재 amount는 수수료 차감 후 30/70으로 나뉜 금액이므로, 원래 총액을 역산합니다.
+      const feeRate = 0.05;
+      if (
+        transaction.type === "DIRECT_BONUS" ||
+        transaction.type === "ROI_BONUS"
+      ) {
+        // 현금과 Saltmate로 나뉘기 전의 총액
+        return (
+          transaction.amount /
+          ((transaction.balanceType === "CASH" ? 0.3 : 0.7) * (1 - feeRate))
+        );
+      }
+      // 매칭 보너스는 100% Saltmate로 지급되므로 역산 방식이 다릅니다.
+      if (transaction.type === "MATCHING_BONUS") {
+        return transaction.amount / (1 - feeRate);
+      }
+      return transaction.amount; // 기타 경우는 일단 그대로 표시
+    },
+    formatBalanceType(type) {
+      const typeMap = {
+        CASH: "현금",
+        SALTMATE: "SaltMate",
+      };
+      return typeMap[type] || type;
+    },
   },
 };
 </script>
 
 <style scoped>
-/* TransactionHistoryModal.vue 와 동일한 스타일 사용 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -119,7 +148,7 @@ export default {
 }
 .modal-content {
   width: 90%;
-  max-width: 500px;
+  max-width: 700px; /* 가로 사이즈 확장 */
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -169,46 +198,42 @@ export default {
   animation: spin 1s linear infinite;
   margin-bottom: 15px;
 }
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.table-container {
+  max-height: 500px;
+  overflow-y: auto;
 }
-.transaction-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.transaction-table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.transaction-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 5px;
+.transaction-table th,
+.transaction-table td {
+  padding: 12px 15px;
+  text-align: left;
   border-bottom: 1px solid #f0f0f0;
 }
-.transaction-item:last-child {
-  border-bottom: none;
-}
-.tx-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tx-description {
-  font-weight: 500;
-}
-.tx-date {
-  font-size: 0.8em;
-  color: #888;
-}
-.tx-amount {
+.transaction-table thead th {
+  background-color: #f8f9fa;
   font-weight: bold;
-  font-size: 1.1em;
 }
-.tx-amount.positive {
+.balance-type-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  color: white;
+  font-size: 0.85em;
+}
+.balance-type-badge.cash {
+  background-color: #17a2b8;
+}
+.balance-type-badge.saltmate {
+  background-color: #6f42c1;
+}
+.amount {
+  font-weight: bold;
+  text-align: right;
+}
+.amount.positive {
   color: #28a745;
 }
 </style>
