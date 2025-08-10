@@ -1,7 +1,8 @@
 <template>
   <div class="page-container">
     <header class="page-header">
-      <h1><i class="fas fa-treasure-chest"></i> 보물상자 열기</h1>
+      <!-- 원래: fas fa-treasure-chest → 무료 대체: fas fa-gem -->
+      <h1><i class="fas fa-gem"></i> 보물상자 열기</h1>
       <p class="description">
         매일 한 번, 행운의 상자를 열어 SaltMate 포인트를 획득하세요!
       </p>
@@ -18,7 +19,8 @@
             @click="openBox(index)"
             :class="{ disabled: isOpening || hasPlayed }"
           >
-            <i class="fas fa-box-full box-icon"></i>
+            <!-- 원래: fas fa-box-full → 무료 대체: fas fa-box -->
+            <i class="fas fa-box box-icon"></i>
           </div>
         </div>
         <p v-if="hasPlayed" class="play-limit-message">
@@ -28,73 +30,42 @@
 
       <div v-if="resultMessage" class="result-phase">
         <div class="result-box" :class="{ open: showResult }">
+          <!-- fa-box-open은 무료 버전에서도 지원 -->
           <i class="fas fa-box-open box-icon-open"></i>
-          <div class="prize-display" v-html="prizeHtml"></div>
+          <p class="result-message">{{ resultMessage }}</p>
         </div>
-        <p class="result-message" v-html="resultMessage"></p>
-        <router-link to="/dashboard" class="back-button">
-          <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
-        </router-link>
       </div>
     </main>
   </div>
 </template>
 
 <script>
-import { getFunctions, httpsCallable } from "firebase/functions";
-
 export default {
   name: "TreasureBoxPage",
   data() {
     return {
-      boxes: [{}, {}, {}],
+      boxes: Array(6).fill(null),
       isOpening: false,
       hasPlayed: false,
       resultMessage: "",
-      prizeHtml: "",
       showResult: false,
     };
   },
   methods: {
-    async openBox(selectedIndex) {
+    openBox(index) {
       if (this.isOpening || this.hasPlayed) return;
+
       this.isOpening = true;
-
-      // 선택된 상자에 애니메이션 효과 추가
-      const boxElements = this.$el.querySelectorAll(".box-container");
-      boxElements.forEach((box, index) => {
-        if (index === selectedIndex) {
-          box.classList.add("selected");
-        } else {
-          box.classList.add("unselected");
-        }
-      });
-
-      try {
-        const functions = getFunctions();
-        const openTreasureBox = httpsCallable(functions, "openTreasureBox");
-        const result = await openTreasureBox();
-
-        const winningPrize = result.data.prize;
-
-        // 애니메이션 효과 후 결과 표시
-        setTimeout(() => {
-          this.showResult = true;
-          this.prizeHtml = `${winningPrize.points.toLocaleString()} <small>P</small>`;
-          if (winningPrize.points > 0) {
-            this.resultMessage = `🎉 <strong>${winningPrize.name}</strong>을 획득했습니다! 🎉`;
-          } else {
-            this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
-          }
-        }, 1500); // 1.5초 후 결과 표시
-      } catch (error) {
-        console.error("보물상자 오류:", error);
-        this.resultMessage = `오류: ${error.message}`;
-        if (error.code && error.code.includes("already-exists")) {
-          this.hasPlayed = true;
-        }
-        this.isOpening = false; // 오류 발생 시 즉시 상태 해제
-      }
+      setTimeout(() => {
+        const prize =
+          Math.random() > 0.5
+            ? "축하합니다! 100P 획득!"
+            : "아쉽습니다! 빈 상자입니다.";
+        this.resultMessage = prize;
+        this.showResult = true;
+        this.hasPlayed = true;
+        this.isOpening = false;
+      }, 1000);
     },
   },
 };
@@ -102,8 +73,8 @@ export default {
 
 <style scoped>
 .page-container {
-  max-width: 800px;
-  margin: 70px auto 20px;
+  max-width: 900px;
+  margin: 0 auto;
   padding: 20px;
 }
 .page-header {
@@ -111,149 +82,43 @@ export default {
   margin-bottom: 30px;
 }
 .page-header h1 {
-  font-size: 2.8em;
+  font-size: 2em;
 }
-.page-header h1 i {
-  color: #e67e22;
-}
-.page-header p {
-  font-size: 1.1em;
+.description {
   color: #666;
 }
-.content-wrapper {
+.selection-phase {
   text-align: center;
-  padding: 30px;
-  border-radius: 15px;
-}
-.card {
-  background: #fff;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-}
-.selection-phase h2 {
-  font-size: 1.8em;
-  margin-bottom: 30px;
 }
 .box-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  gap: 20px;
   justify-content: center;
-  gap: 30px;
+  margin-top: 20px;
 }
 .box-container {
+  width: 100px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   cursor: pointer;
-  transition: all 0.3s ease;
-}
-.box-container:hover {
-  transform: translateY(-10px) scale(1.1);
 }
 .box-container.disabled {
-  cursor: not-allowed;
   opacity: 0.5;
+  pointer-events: none;
 }
-.box-container.disabled:hover {
-  transform: none;
-}
-.box-icon {
-  font-size: 100px;
-  color: #d35400;
-}
-.play-limit-message {
-  margin-top: 30px;
-  font-weight: bold;
-  color: #c0392b;
+.box-icon,
+.box-icon-open {
+  font-size: 60px;
+  color: #f4a261;
 }
 .result-phase {
-  animation: fadeIn 0.5s ease;
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.result-box {
-  position: relative;
-}
-.box-icon-open {
-  font-size: 150px;
-  color: #f39c12;
-}
-.prize-display {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  font-size: 2.5em;
-  font-weight: bold;
-  color: #fff;
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-  opacity: 0;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.result-box.open .prize-display {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
+  text-align: center;
 }
 .result-message {
-  margin-top: 20px;
-  font-size: 1.2em;
+  margin-top: 10px;
   font-weight: bold;
-}
-.back-button {
-  background: #007bff;
-  color: white;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: bold;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 40px;
-  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
-}
-.back-button:hover {
-  background-color: #0056b3;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
-}
-
-/* 선택 애니메이션 */
-.box-container.selected {
-  animation: selectedBox 1.5s forwards;
-}
-.box-container.unselected {
-  animation: unselectedBox 1.5s forwards;
-}
-@keyframes selectedBox {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-20px) scale(1.2);
-  }
-  100% {
-    transform: translateY(0) scale(1.1);
-  }
-}
-@keyframes unselectedBox {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.3;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.8);
-    display: none;
-  }
 }
 </style>
