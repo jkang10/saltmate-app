@@ -15,7 +15,7 @@
             v-for="(box, index) in boxes"
             :key="index"
             class="box-container"
-            @click="openBox(index)"
+            @click="openBox"
             :class="{ disabled: hasPlayed }"
           >
             <i class="fas fa-box-full box-icon"></i>
@@ -47,7 +47,7 @@ export default {
   name: "TreasureBoxPage",
   data() {
     return {
-      boxes: [{}, {}, {}], // 3개의 상자
+      boxes: [{}, {}, {}],
       isOpening: false,
       hasPlayed: false,
       resultMessage: "",
@@ -56,7 +56,8 @@ export default {
     };
   },
   methods: {
-    async openBox(index) {
+    // ▼▼▼ [수정됨] 사용하지 않는 'index' 매개변수 제거 ▼▼▼
+    async openBox() {
       if (this.isOpening || this.hasPlayed) return;
       this.isOpening = true;
 
@@ -75,7 +76,7 @@ export default {
           } else {
             this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
           }
-        }, 1000); // 1초 후 결과 표시
+        }, 1000);
       } catch (error) {
         console.error("보물상자 오류:", error);
         this.resultMessage = `오류: ${error.message}`;
@@ -87,6 +88,7 @@ export default {
         this.hasPlayed = true;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
   },
 };
 </script>
@@ -94,12 +96,31 @@ export default {
 <style scoped>
 .page-container {
   max-width: 800px;
+  margin: 70px auto 20px;
+  padding: 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 {
+  font-size: 2.8em;
 }
 .page-header h1 i {
   color: #e67e22;
 }
+.page-header p {
+  font-size: 1.1em;
+  color: #666;
+}
 .content-wrapper {
   text-align: center;
+  padding: 30px;
+  border-radius: 15px;
+}
+.card {
+  background: #fff;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
 .selection-phase h2 {
   font-size: 1.8em;
@@ -173,6 +194,25 @@ export default {
   font-weight: bold;
 }
 .back-button {
-  /* 이전과 동일 */
+  background: #007bff;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+}
+.back-button:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
 }
 </style>
