@@ -173,6 +173,12 @@
           <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
           <span class="card-enter">게임 시작 &rarr;</span>
         </router-link>
+        <router-link to="/treasure-box" class="feature-card treasure">
+          <div class="card-icon"><i class="fas fa-treasure-chest"></i></div>
+          <h3>보물상자 열기</h3>
+          <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
+          <span class="card-enter">참여하기 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
@@ -773,5 +779,8 @@ export default {
   font-size: 0.8em;
   opacity: 0.9;
   text-align: center;
+}
+.feature-card.treasure .card-icon {
+  color: #e67e22; /* 보물상자 아이콘 색상 */
 }
 </style>

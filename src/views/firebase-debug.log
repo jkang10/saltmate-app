@@ -1,0 +1,90 @@
+[debug] [2025-08-10T01:15:39.587Z] ----------------------------------------------------------------------
+[debug] [2025-08-10T01:15:39.590Z] Command:       C:\nvm4w\nodejs\node.exe C:\nvm4w\nodejs\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions
+[debug] [2025-08-10T01:15:39.590Z] CLI Version:   14.12.0
+[debug] [2025-08-10T01:15:39.590Z] Platform:      win32
+[debug] [2025-08-10T01:15:39.590Z] Node Version:  v20.19.4
+[debug] [2025-08-10T01:15:39.590Z] Time:          Sun Aug 10 2025 10:15:39 GMT+0900 (대한민국 표준시)
+[debug] [2025-08-10T01:15:39.590Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-08-10T01:15:39.723Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-08-10T01:15:39.724Z] > authorizing via signed-in user (sjrodem@gmail.com)
+[debug] [2025-08-10T01:15:39.724Z] [iam] checking project saltmate-project for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2025-08-10T01:15:39.725Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:39.725Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:39.726Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project:testIamPermissions [none]
+[debug] [2025-08-10T01:15:39.726Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project:testIamPermissions x-goog-quota-user=projects/saltmate-project
+[debug] [2025-08-10T01:15:39.726Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-08-10T01:15:40.021Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project:testIamPermissions 200
+[debug] [2025-08-10T01:15:40.022Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-08-10T01:15:40.022Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:40.022Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:40.022Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/saltmate-project/serviceAccounts/saltmate-project@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2025-08-10T01:15:40.022Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/saltmate-project/serviceAccounts/saltmate-project@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2025-08-10T01:15:41.106Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/saltmate-project/serviceAccounts/saltmate-project@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2025-08-10T01:15:41.106Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/saltmate-project/serviceAccounts/saltmate-project@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'saltmate-project'...
+[info] 
+[info] i  deploying functions 
+[debug] [2025-08-10T01:15:41.110Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:41.110Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:41.110Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project [none]
+[debug] [2025-08-10T01:15:41.318Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project 200
+[debug] [2025-08-10T01:15:41.318Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/saltmate-project {"projectNumber":"285568911553","projectId":"saltmate-project","lifecycleState":"ACTIVE","name":"saltmate-project","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-07-26T11:07:42.882928Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2025-08-10T01:15:41.321Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:41.321Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:41.321Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/saltmate-project/adminSdkConfig [none]
+[debug] [2025-08-10T01:15:42.948Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/saltmate-project/adminSdkConfig 200
+[debug] [2025-08-10T01:15:42.948Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/saltmate-project/adminSdkConfig {"projectId":"saltmate-project","storageBucket":"saltmate-project.firebasestorage.app"}
+[debug] [2025-08-10T01:15:42.948Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:42.948Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:42.948Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/saltmate-project/configs [none]
+[debug] [2025-08-10T01:15:43.367Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/saltmate-project/configs 200
+[debug] [2025-08-10T01:15:43.367Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/saltmate-project/configs {}
+[debug] [2025-08-10T01:15:43.368Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] !  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2025-08-10T01:15:44.040Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "lint": "eslint .",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^4.9.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0",
+    "firebase-functions-test": "^3.1.0"
+  },
+  "private": true
+}
+[debug] [2025-08-10T01:15:44.040Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2025-08-10T01:15:44.041Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-08-10T01:15:44.047Z] Found firebase-functions binary at 'g:\projects\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8361
+
+[debug] [2025-08-10T01:15:44.440Z] Got response from /__/functions.yaml {"endpoints":{"createNewUser":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"createNewUser"},"requestSubscriptionUpgrade":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"requestSubscriptionUpgrade"},"onSubscriptionApproved":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/saltmate-project/databases/(default)/documents/subscription_requests/{requestId}"},"retry":false},"labels":{},"entryPoint":"onSubscriptionApproved"},"generateWeeklyPayouts":{"platform":"gcfv1","availableMemoryMb":1024,"timeoutSeconds":300,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every monday 01:00","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Asia/Seoul"},"labels":{},"entryPoint":"generateWeeklyPayouts"},"onWeeklyPayoutApproved":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/saltmate-project/databases/(default)/documents/weekly_payout_requests/{payoutId}"},"retry":false},"labels":{},"entryPoint":"onWeeklyPayoutApproved"},"setUserAdminClaim":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"setUserAdminClaim"},"updateTokenSupply":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"updateTokenSupply"},"transferTokensToUser":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"transferTokensToUser"},"adjustUserBalance":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"adjustUserBalance"},"placeOrder":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"placeOrder"},"uploadProductImage":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"uploadProductImage"},"spinRoulette":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"spinRoulette"},"openTreasureBox":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"callableTrigger":{},"entryPoint":"openTreasureBox"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[info] i  functions: preparing functions directory for uploading... 
+[info] i  functions: packaged g:\projects\functions (89.11 KB) for uploading 
+[debug] [2025-08-10T01:15:48.542Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:48.542Z] Checked if tokens are valid: true, expires at: 1754789493035
+[debug] [2025-08-10T01:15:48.542Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v1/projects/saltmate-project/locations/-/functions [none]

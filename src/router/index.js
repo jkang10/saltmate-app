@@ -140,6 +140,14 @@ const routes = [
     component: () => import("@/views/GameZonePage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [신규] 보물상자 페이지 경로 추가 ▼▼▼
+  {
+    path: "/treasure-box",
+    name: "TreasureBoxPage",
+    component: () => import("@/views/TreasureBoxPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
