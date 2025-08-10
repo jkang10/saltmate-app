@@ -29,22 +29,18 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [신규] 솔트메이트 몰 페이지 경로 추가 ▼▼▼
+  {
+    path: "/shop",
+    name: "ShopPage",
+    component: () => import("@/views/ShopPage.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: "/mall",
     name: "MallPage",
-    component: () => import("@/views/MallPage.vue"), // 새로운 MallPage 컴포넌트를 가리킴
+    component: () => import("@/views/MallPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
-  // ▼▼▼ [신규] 게임 존 페이지 경로 추가 ▼▼▼
-  {
-    path: "/game-zone",
-    name: "GameZonePage",
-    component: () => import("@/views/GameZonePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-investments",
     name: "MyInvestmentsPage",
@@ -136,6 +132,12 @@ const routes = [
     path: "/about",
     name: "AboutView",
     component: () => import("@/views/AboutView.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/game-zone",
+    name: "GameZonePage",
+    component: () => import("@/views/GameZonePage.vue"),
     meta: { requiresAuth: true },
   },
   {
