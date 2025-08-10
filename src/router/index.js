@@ -29,13 +29,6 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ... (기존 경로들)
-  {
-    path: "/shop",
-    name: "ShopPage",
-    component: () => import("@/views/ShopPage.vue"),
-    meta: { requiresAuth: true },
-  },
   // ▼▼▼ [신규] 솔트메이트 몰 페이지 경로 추가 ▼▼▼
   {
     path: "/mall",
