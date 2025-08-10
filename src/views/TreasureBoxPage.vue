@@ -15,8 +15,8 @@
             v-for="(box, index) in boxes"
             :key="index"
             class="box-container"
-            @click="openBox"
-            :class="{ disabled: hasPlayed }"
+            @click="openBox(index)"
+            :class="{ disabled: isOpening || hasPlayed }"
           >
             <i class="fas fa-box-full box-icon"></i>
           </div>
@@ -56,10 +56,19 @@ export default {
     };
   },
   methods: {
-    // ▼▼▼ [수정됨] 사용하지 않는 'index' 매개변수 제거 ▼▼▼
-    async openBox() {
+    async openBox(selectedIndex) {
       if (this.isOpening || this.hasPlayed) return;
       this.isOpening = true;
+
+      // 선택된 상자에 애니메이션 효과 추가
+      const boxElements = this.$el.querySelectorAll(".box-container");
+      boxElements.forEach((box, index) => {
+        if (index === selectedIndex) {
+          box.classList.add("selected");
+        } else {
+          box.classList.add("unselected");
+        }
+      });
 
       try {
         const functions = getFunctions();
@@ -68,6 +77,7 @@ export default {
 
         const winningPrize = result.data.prize;
 
+        // 애니메이션 효과 후 결과 표시
         setTimeout(() => {
           this.showResult = true;
           this.prizeHtml = `${winningPrize.points.toLocaleString()} <small>P</small>`;
@@ -76,19 +86,16 @@ export default {
           } else {
             this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
           }
-        }, 1000);
+        }, 1500); // 1.5초 후 결과 표시
       } catch (error) {
         console.error("보물상자 오류:", error);
         this.resultMessage = `오류: ${error.message}`;
         if (error.code && error.code.includes("already-exists")) {
           this.hasPlayed = true;
         }
-      } finally {
-        this.isOpening = false;
-        this.hasPlayed = true;
+        this.isOpening = false; // 오류 발생 시 즉시 상태 해제
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
   },
 };
 </script>
@@ -133,7 +140,7 @@ export default {
 }
 .box-container {
   cursor: pointer;
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 .box-container:hover {
   transform: translateY(-10px) scale(1.1);
@@ -214,5 +221,39 @@ export default {
   background-color: #0056b3;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+}
+
+/* 선택 애니메이션 */
+.box-container.selected {
+  animation: selectedBox 1.5s forwards;
+}
+.box-container.unselected {
+  animation: unselectedBox 1.5s forwards;
+}
+@keyframes selectedBox {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.2);
+  }
+  100% {
+    transform: translateY(0) scale(1.1);
+  }
+}
+@keyframes unselectedBox {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+    display: none;
+  }
 }
 </style>
