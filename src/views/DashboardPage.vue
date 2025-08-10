@@ -174,7 +174,7 @@
           <span class="card-enter">게임 시작 &rarr;</span>
         </router-link>
         <router-link to="/treasure-box" class="feature-card treasure">
-          <div class="card-icon"><i class="fas fa-treasure-chest"></i></div>
+          <div class="card-icon"><i class="fas fa-box"></i></div>
           <h3>보물상자 열기</h3>
           <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
           <span class="card-enter">참여하기 &rarr;</span>
