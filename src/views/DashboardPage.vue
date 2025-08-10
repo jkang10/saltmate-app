@@ -367,7 +367,7 @@ export default {
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
-  margin: 70px auto 20px; /* 상단 여백은 유지 (네비게이션 바 높이) */
+  margin: 0px auto 20px; /* 상단 여백은 유지 (네비게이션 바 높이) 70px */
   display: flex;
   flex-direction: column;
   gap: 0; /* 자식 요소간의 기본 간격 제거 */
