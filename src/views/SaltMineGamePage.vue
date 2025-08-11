@@ -31,6 +31,13 @@
           <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
           <button @click="mineSalt" class="mine-button">채굴하기</button>
         </div>
+
+        <div class="log-card card">
+          <h3>이벤트 로그</h3>
+          <div class="log-box" id="logBox">
+            <div v-for="(log, index) in logs" :key="index" v-html="log"></div>
+          </div>
+        </div>
       </div>
 
       <aside class="game-sidebar">
@@ -38,9 +45,7 @@
           <h3>업그레이드 상점</h3>
           <div class="shop-items">
             <div v-for="item in shopItems" :key="item.id" class="shop-item">
-              <div class="item-icon">
-                <i :class="item.icon"></i>
-              </div>
+              <div class="item-icon"><i :class="item.icon"></i></div>
               <div class="item-info">
                 <strong>{{ item.name }}</strong>
                 <small
@@ -57,13 +62,37 @@
             </div>
           </div>
         </div>
+
         <div class="sell-card card">
           <h3>소금 판매소</h3>
+          <div class="gold-salt-display">
+            <i class="fas fa-medal"></i>
+            <span
+              >보유 황금 소금:
+              <strong>{{ gold.toLocaleString() }}</strong> 개</span
+            >
+          </div>
           <p>현재 시세: <strong>1,000 소금 = 1 SaltMate</strong></p>
           <button @click="sellSalt" :disabled="isSelling || salt < 1000">
             <span v-if="isSelling">판매 중...</span>
             <span v-else>모두 판매하기</span>
           </button>
+        </div>
+
+        <div class="achievement-card card">
+          <h3>업적</h3>
+          <div class="achievement-list">
+            <div
+              v-for="ach in achievements"
+              :key="ach.id"
+              class="achievement-item"
+              :class="{ unlocked: ach.unlocked }"
+              :title="ach.desc"
+            >
+              <span class="ach-icon">{{ ach.icon }}</span>
+              <span class="ach-name">{{ ach.name }}</span>
+            </div>
+          </div>
         </div>
       </aside>
     </main>
@@ -78,11 +107,13 @@ export default {
   data() {
     return {
       salt: 0,
+      gold: 0,
       perClick: 1,
       perSecond: 0,
       upgrades: {},
       isSelling: false,
       gameInterval: null,
+      logs: [],
     };
   },
   computed: {
@@ -129,18 +160,50 @@ export default {
         ),
       }));
     },
-    // ▼▼▼ [신규] 현재 장비 아이콘을 계산하는 computed 속성 추가 ▼▼▼
     currentPickaxeIcon() {
       if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
       if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
       if ((this.upgrades["miner"] || 0) > 0) return "fas fa-cogs";
-      return "fas fa-pickaxe"; // 기본 곡괭이 아이콘
+      return "fas fa-pickaxe";
     },
-    // ▲▲▲ 추가 완료 ▲▲▲
+    achievements() {
+      const ACH_DEFS = [
+        {
+          id: "salt_1000",
+          name: "초보 광부",
+          desc: "소금 1,000개 모으기",
+          icon: "⛏️",
+          unlocked: this.salt >= 1000,
+        },
+        {
+          id: "salt_10000",
+          name: "숙련된 광부",
+          desc: "소금 10,000개 모으기",
+          icon: "⚒️",
+          unlocked: this.salt >= 10000,
+        },
+        {
+          id: "gold_1",
+          name: "첫 발견",
+          desc: "황금 소금 1개 발견하기",
+          icon: "✨",
+          unlocked: this.gold >= 1,
+        },
+        {
+          id: "automation_expert",
+          name: "자동화 전문가",
+          desc: "채굴 로봇 구매하기",
+          icon: "🤖",
+          unlocked: (this.upgrades["robot"] || 0) > 0,
+        },
+      ];
+      return ACH_DEFS;
+    },
   },
   mounted() {
     this.loadGame();
     this.gameInterval = setInterval(this.gameTick, 1000);
+    this.logEvent("게임에 오신 것을 환영합니다!");
   },
   unmounted() {
     clearInterval(this.gameInterval);
@@ -152,6 +215,7 @@ export default {
       if (savedData) {
         const state = JSON.parse(savedData);
         this.salt = state.salt || 0;
+        this.gold = state.gold || 0;
         this.perClick = state.perClick || 1;
         this.perSecond = state.perSecond || 0;
         this.upgrades = state.upgrades || {};
@@ -160,6 +224,7 @@ export default {
     saveGame() {
       const state = {
         salt: this.salt,
+        gold: this.gold,
         perClick: this.perClick,
         perSecond: this.perSecond,
         upgrades: this.upgrades,
@@ -171,6 +236,13 @@ export default {
     },
     mineSalt() {
       this.salt += this.perClick;
+      // 황금 소금 발견 랜덤 이벤트
+      if (Math.random() < 0.01) {
+        // 1% 확률
+        this.gold++;
+        this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
+        this.saveGame();
+      }
     },
     buyUpgrade(itemId) {
       const item = this.shopItems.find((i) => i.id === itemId);
@@ -179,12 +251,10 @@ export default {
       this.salt -= item.cost;
       this.upgrades[itemId] = (this.upgrades[itemId] || 0) + 1;
 
-      if (item.gps) {
-        this.perSecond += item.gps;
-      }
-      if (item.type === "click") {
-        this.perClick += item.add;
-      }
+      if (item.gps) this.perSecond += item.gps;
+      if (item.type === "click") this.perClick += item.add;
+
+      this.logEvent(`'${item.name}' 업그레이드 구매!`);
       this.saveGame();
     },
     async sellSalt() {
@@ -193,17 +263,19 @@ export default {
         return;
       }
       this.isSelling = true;
+      const saltToSell = Math.floor(this.salt);
 
       try {
         const functions = getFunctions();
         const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        const result = await sellSaltForPoints({
-          saltAmount: Math.floor(this.salt),
-        });
+        const result = await sellSaltForPoints({ saltAmount: saltToSell });
 
         const { awardedPoints, soldSalt } = result.data;
         this.salt -= soldSalt;
         this.saveGame();
+        this.logEvent(
+          `소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`,
+        );
         alert(
           `소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`,
         );
@@ -214,28 +286,29 @@ export default {
         this.isSelling = false;
       }
     },
+    logEvent(message) {
+      const time = new Date().toLocaleTimeString();
+      this.logs.unshift(`[${time}] ${message}`);
+      if (this.logs.length > 50) {
+        this.logs.pop();
+      }
+      // 로그가 추가된 후 스크롤을 맨 위로 이동
+      this.$nextTick(() => {
+        const logBox = this.$el.querySelector("#logBox");
+        if (logBox) logBox.scrollTop = 0;
+      });
+    },
   },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일은 변경 없습니다. */
 .page-container {
   max-width: 1100px;
   margin: 70px auto 20px;
   padding: 20px;
   background-color: #f0f2f5;
   border-radius: 15px;
-}
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-.page-header h1 {
-  color: #1e293b;
-}
-.page-header p {
-  color: #475569;
 }
 .page-header h1 i {
   color: #ffd166;
@@ -251,7 +324,6 @@ export default {
     grid-template-columns: 1fr;
   }
 }
-
 .game-main {
   display: flex;
   flex-direction: column;
@@ -279,7 +351,6 @@ export default {
   font-size: 0.9em;
   margin-top: 5px;
 }
-
 .mine-area {
   text-align: center;
   padding: 40px;
@@ -318,29 +389,45 @@ export default {
 .mine-button:hover {
   transform: scale(1.05);
 }
-
+.log-card {
+  padding: 20px;
+}
+.log-card h3 {
+  margin-top: 0;
+}
+.log-box {
+  height: 150px;
+  overflow-y: auto;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: left;
+  font-size: 0.9em;
+}
 .game-sidebar {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 .shop-card,
-.sell-card {
+.sell-card,
+.achievement-card {
   padding: 20px;
 }
 .shop-card h3,
-.sell-card h3 {
+.sell-card h3,
+.achievement-card h3 {
   margin-top: 0;
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 10px;
   color: #1e293b;
 }
-
 .shop-items {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 300px;
+  max-height: 250px;
   overflow-y: auto;
   padding-right: 10px;
 }
@@ -355,7 +442,7 @@ export default {
 .item-icon {
   font-size: 1.8em;
   color: #ffd166;
-  width: 40px; /* 아이콘 영역 너비 고정 */
+  width: 40px;
   text-align: center;
 }
 .item-info {
@@ -381,9 +468,19 @@ export default {
   color: #94a3b8;
   cursor: not-allowed;
 }
-
 .sell-card {
   text-align: center;
+}
+.gold-salt-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+.gold-salt-display i {
+  color: #f1c40f;
 }
 .sell-card p {
   font-size: 1.1em;
@@ -404,7 +501,28 @@ export default {
   background-color: #94a3b8;
   cursor: not-allowed;
 }
-
+.achievement-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.achievement-item {
+  background-color: #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+}
+.achievement-item.unlocked {
+  background-color: #d1fae5;
+  color: #065f46;
+  opacity: 1;
+}
+.ach-icon {
+  font-size: 1.2em;
+}
 .card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
