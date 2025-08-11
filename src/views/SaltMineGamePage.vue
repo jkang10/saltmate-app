@@ -25,7 +25,9 @@
         </div>
 
         <div class="mine-area card">
-          <div class="mine-visual">⛏️</div>
+          <div class="mine-visual">
+            <i :class="currentPickaxeIcon"></i>
+          </div>
           <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
           <button @click="mineSalt" class="mine-button">채굴하기</button>
         </div>
@@ -127,6 +129,14 @@ export default {
         ),
       }));
     },
+    // ▼▼▼ [신규] 현재 장비 아이콘을 계산하는 computed 속성 추가 ▼▼▼
+    currentPickaxeIcon() {
+      if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
+      if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
+      if ((this.upgrades["miner"] || 0) > 0) return "fas fa-cogs";
+      return "fas fa-pickaxe"; // 기본 곡괭이 아이콘
+    },
+    // ▲▲▲ 추가 완료 ▲▲▲
   },
   mounted() {
     this.loadGame();
@@ -209,12 +219,12 @@ export default {
 </script>
 
 <style scoped>
-/* ▼▼▼ [수정됨] 전체적인 레이아웃 및 디자인 수정 ▼▼▼ */
+/* 기존 스타일은 변경 없습니다. */
 .page-container {
   max-width: 1100px;
   margin: 70px auto 20px;
   padding: 20px;
-  background-color: #f0f2f5; /* 밝은 회색 배경으로 변경 */
+  background-color: #f0f2f5;
   border-radius: 15px;
 }
 .page-header {
@@ -223,10 +233,10 @@ export default {
 }
 .page-header h1 {
   color: #1e293b;
-} /* 어두운 텍스트 색상 */
+}
 .page-header p {
   color: #475569;
-} /* 약간 더 밝은 텍스트 색상 */
+}
 .page-header h1 i {
   color: #ffd166;
 }
@@ -345,6 +355,8 @@ export default {
 .item-icon {
   font-size: 1.8em;
   color: #ffd166;
+  width: 40px; /* 아이콘 영역 너비 고정 */
+  text-align: center;
 }
 .item-info {
   flex-grow: 1;
