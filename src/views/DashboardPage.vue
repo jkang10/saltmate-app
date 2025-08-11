@@ -185,6 +185,12 @@
           <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
           <span class="card-enter">플레이 &rarr;</span>
         </router-link>
+        <router-link to="/salt-mine-game" class="feature-card salt-mine-game">
+          <div class="card-icon"><i class="fas fa-gem"></i></div>
+          <h3>소금 광산</h3>
+          <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
+          <span class="card-enter">입장하기 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
@@ -792,5 +798,8 @@ export default {
 }
 .feature-card.salt-game .card-icon {
   color: #3498db;
+}
+.feature-card.salt-mine-game .card-icon {
+  color: #ffd166;
 }
 </style>

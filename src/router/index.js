@@ -156,6 +156,14 @@ const routes = [
     meta: { requiresAuth: true },
   },
   // ▲▲▲ 추가 완료 ▲▲▲
+  // ▼▼▼ [신규] 소금광산 게임 페이지 경로 추가 ▼▼▼
+  {
+    path: "/salt-mine-game",
+    name: "SaltMineGamePage",
+    component: () => import("@/views/SaltMineGamePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
