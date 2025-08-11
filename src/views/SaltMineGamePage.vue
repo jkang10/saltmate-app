@@ -214,11 +214,19 @@ export default {
   max-width: 1100px;
   margin: 70px auto 20px;
   padding: 20px;
+  background-color: #f0f2f5; /* 밝은 회색 배경으로 변경 */
+  border-radius: 15px;
 }
 .page-header {
   text-align: center;
   margin-bottom: 30px;
 }
+.page-header h1 {
+  color: #1e293b;
+} /* 어두운 텍스트 색상 */
+.page-header p {
+  color: #475569;
+} /* 약간 더 밝은 텍스트 색상 */
 .page-header h1 i {
   color: #ffd166;
 }
@@ -245,7 +253,7 @@ export default {
   gap: 15px;
 }
 .stat {
-  background-color: #1e293b;
+  background-color: #ffffff;
   padding: 15px;
   border-radius: 10px;
   text-align: center;
@@ -253,11 +261,11 @@ export default {
 .stat span {
   font-size: 1.5em;
   font-weight: bold;
-  color: #e2e8f0;
+  color: #1e293b;
 }
 .stat small {
   display: block;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 0.9em;
   margin-top: 5px;
 }
@@ -313,8 +321,9 @@ export default {
 .shop-card h3,
 .sell-card h3 {
   margin-top: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e2e8f0;
   padding-bottom: 10px;
+  color: #1e293b;
 }
 
 .shop-items {
@@ -329,7 +338,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 15px;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: #f8fafc;
   padding: 10px;
   border-radius: 8px;
 }
@@ -340,21 +349,24 @@ export default {
 .item-info {
   flex-grow: 1;
 }
+.item-info strong {
+  color: #1e293b;
+}
 .item-info small {
-  color: #94a3b8;
+  color: #64748b;
 }
 .buy-upgrade-button {
-  background-color: #334155;
+  background-color: #475569;
   color: #e2e8f0;
-  border: 1px solid #475569;
+  border: 1px solid #64748b;
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
 }
 .buy-upgrade-button:disabled {
-  background-color: #1e293b;
-  color: #475569;
+  background-color: #e2e8f0;
+  color: #94a3b8;
   cursor: not-allowed;
 }
 
@@ -363,6 +375,7 @@ export default {
 }
 .sell-card p {
   font-size: 1.1em;
+  color: #334155;
 }
 .sell-card button {
   width: 100%;
@@ -376,17 +389,13 @@ export default {
   cursor: pointer;
 }
 .sell-card button:disabled {
-  background-color: #475569;
+  background-color: #94a3b8;
   cursor: not-allowed;
 }
 
 .card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-}
-body {
-  background-color: #020617;
-  color: #e2e8f0;
 }
 </style>
