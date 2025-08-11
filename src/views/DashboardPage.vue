@@ -179,6 +179,12 @@
           <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
           <span class="card-enter">참여하기 &rarr;</span>
         </router-link>
+        <router-link to="/salt-game" class="feature-card salt-game">
+          <div class="card-icon"><i class="fas fa-gem"></i></div>
+          <h3>소금 결정 키우기</h3>
+          <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
+          <span class="card-enter">플레이 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
@@ -783,5 +789,8 @@ export default {
 }
 .feature-card.treasure .card-icon {
   color: #e67e22; /* 보물상자 아이콘 색상 */
+}
+.feature-card.salt-game .card-icon {
+  color: #3498db;
 }
 </style>
