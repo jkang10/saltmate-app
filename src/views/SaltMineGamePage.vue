@@ -36,20 +36,29 @@
           <h3>업그레이드 상점</h3>
           <div class="shop-items">
             <div v-for="item in shopItems" :key="item.id" class="shop-item">
+              <div class="item-icon">
+                <i :class="item.icon"></i>
+              </div>
               <div class="item-info">
                 <strong>{{ item.name }}</strong>
-                <small>{{ item.desc }}</small>
+                <small
+                  >{{ item.desc }} (보유: {{ upgrades[item.id] || 0 }})</small
+                >
               </div>
-              <button @click="buyUpgrade(item.id)" :disabled="salt < item.cost">
-                구매 ({{ item.cost.toLocaleString() }} 소금)
+              <button
+                @click="buyUpgrade(item.id)"
+                :disabled="salt < item.cost"
+                class="buy-upgrade-button"
+              >
+                {{ item.cost.toLocaleString() }}
               </button>
             </div>
           </div>
         </div>
         <div class="sell-card card">
           <h3>소금 판매소</h3>
-          <p>현재 시세: <strong>10 소금 = 1 SaltMate</strong></p>
-          <button @click="sellSalt" :disabled="isSelling || salt < 10">
+          <p>현재 시세: <strong>1,000 소금 = 1 SaltMate</strong></p>
+          <button @click="sellSalt" :disabled="isSelling || salt < 1000">
             <span v-if="isSelling">판매 중...</span>
             <span v-else>모두 판매하기</span>
           </button>
@@ -83,6 +92,7 @@ export default {
           baseCost: 50,
           gps: 1,
           desc: "초당 +1 소금",
+          icon: "fas fa-cogs",
         },
         {
           id: "drill",
@@ -90,6 +100,7 @@ export default {
           baseCost: 300,
           gps: 5,
           desc: "초당 +5 소금",
+          icon: "fas fa-tools",
         },
         {
           id: "robot",
@@ -97,6 +108,7 @@ export default {
           baseCost: 2000,
           gps: 25,
           desc: "초당 +25 소금",
+          icon: "fas fa-robot",
         },
         {
           id: "pick_upgrade",
@@ -105,6 +117,7 @@ export default {
           type: "click",
           add: 1,
           desc: "클릭당 +1 소금",
+          icon: "fas fa-pickaxe",
         },
       ];
       return SHOP_DEFS.map((item) => ({
@@ -165,7 +178,10 @@ export default {
       this.saveGame();
     },
     async sellSalt() {
-      if (this.isSelling || this.salt < 10) return;
+      if (this.isSelling || this.salt < 1000) {
+        alert("1,000개 이상의 소금만 판매할 수 있습니다.");
+        return;
+      }
       this.isSelling = true;
 
       try {
@@ -176,7 +192,7 @@ export default {
         });
 
         const { awardedPoints, soldSalt } = result.data;
-        this.salt -= soldSalt; // 서버에서 처리된 만큼만 차감
+        this.salt -= soldSalt;
         this.saveGame();
         alert(
           `소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`,
@@ -193,8 +209,15 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [수정됨] 전체적인 레이아웃 및 디자인 수정 ▼▼▼ */
 .page-container {
   max-width: 1100px;
+  margin: 70px auto 20px;
+  padding: 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 .page-header h1 i {
   color: #ffd166;
@@ -203,31 +226,42 @@ export default {
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 20px;
+  align-items: start;
 }
+@media (max-width: 900px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .game-main {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 .top-stats {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 15px;
 }
 .stat {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: #1e293b;
   padding: 15px;
   border-radius: 10px;
-  flex-grow: 1;
+  text-align: center;
 }
 .stat span {
   font-size: 1.5em;
   font-weight: bold;
+  color: #e2e8f0;
 }
 .stat small {
   display: block;
-  color: #9aa6b2;
+  color: #94a3b8;
   font-size: 0.9em;
+  margin-top: 5px;
 }
+
 .mine-area {
   text-align: center;
   padding: 40px;
@@ -235,6 +269,22 @@ export default {
 .mine-visual {
   font-size: 4em;
   margin-bottom: 15px;
+  animation: bounce 2s infinite;
+}
+@keyframes bounce {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-20px);
+  }
+  60% {
+    transform: translateY(-10px);
+  }
 }
 .mine-button {
   padding: 15px 30px;
@@ -244,7 +294,13 @@ export default {
   color: #1e293b;
   border: none;
   border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.2s;
 }
+.mine-button:hover {
+  transform: scale(1.05);
+}
+
 .game-sidebar {
   display: flex;
   flex-direction: column;
@@ -254,25 +310,83 @@ export default {
 .sell-card {
   padding: 20px;
 }
+.shop-card h3,
+.sell-card h3 {
+  margin-top: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+}
+
 .shop-items {
   display: flex;
   flex-direction: column;
   gap: 10px;
   max-height: 300px;
   overflow-y: auto;
+  padding-right: 10px;
 }
 .shop-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 15px;
   background-color: rgba(0, 0, 0, 0.2);
   padding: 10px;
   border-radius: 8px;
 }
+.item-icon {
+  font-size: 1.8em;
+  color: #ffd166;
+}
+.item-info {
+  flex-grow: 1;
+}
 .item-info small {
-  color: #9aa6b2;
+  color: #94a3b8;
+}
+.buy-upgrade-button {
+  background-color: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.buy-upgrade-button:disabled {
+  background-color: #1e293b;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.sell-card {
+  text-align: center;
 }
 .sell-card p {
   font-size: 1.1em;
+}
+.sell-card button {
+  width: 100%;
+  padding: 12px;
+  font-size: 1em;
+  font-weight: bold;
+  background-color: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sell-card button:disabled {
+  background-color: #475569;
+  cursor: not-allowed;
+}
+
+.card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+}
+body {
+  background-color: #020617;
+  color: #e2e8f0;
 }
 </style>
