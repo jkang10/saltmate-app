@@ -29,14 +29,12 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 불필요한 /shop 경로 삭제 ▼▼▼
-  // {
-  //   path: "/shop",
-  //   name: "ShopPage",
-  //   component: () => import("@/views/ShopPage.vue"),
-  //   meta: { requiresAuth: true },
-  // },
-  // ▲▲▲ 삭제 완료 ▲▲▲
+  {
+    path: "/shop",
+    name: "ShopPage",
+    component: () => import("@/views/ShopPage.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: "/mall",
     name: "MallPage",
@@ -141,7 +139,84 @@ const routes = [
     component: () => import("@/views/AdminDashboardPage.vue"),
     meta: { requiresAuth: true, isAdmin: true },
     children: [
-      // ... (관리자 페이지 자식 경로는 기존과 동일)
+      {
+        path: "users",
+        name: "AdminUserManagement",
+        component: () => import("@/components/admin/UserManagement.vue"),
+      },
+      {
+        path: "centers",
+        name: "AdminCenterManagement",
+        component: () => import("@/components/admin/CenterManagement.vue"),
+      },
+      {
+        path: "subscriptions",
+        name: "AdminSubscriptionManagement",
+        component: () =>
+          import("@/components/admin/SubscriptionManagement.vue"),
+      },
+      {
+        path: "weekly-payouts",
+        name: "AdminWeeklyPayoutManagement",
+        component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
+      },
+      {
+        path: "marketing-plan",
+        name: "AdminMarketingPlanManagement",
+        component: () =>
+          import("@/components/admin/MarketingPlanManagement.vue"),
+      },
+      {
+        path: "investments",
+        name: "AdminInvestmentManagement",
+        component: () => import("@/components/admin/InvestmentManagement.vue"),
+      },
+      {
+        path: "notices-community",
+        name: "AdminNoticesCommunity",
+        component: () =>
+          import("@/components/admin/NoticesCommunityManagement.vue"),
+      },
+      {
+        path: "events",
+        name: "AdminEventManagement",
+        component: () => import("@/components/admin/EventManagement.vue"),
+      },
+      {
+        path: "products",
+        name: "AdminProductManagement",
+        component: () => import("@/components/admin/ProductManagement.vue"),
+      },
+      {
+        path: "orders-delivery",
+        name: "AdminOrderDeliveryManagement",
+        component: () =>
+          import("@/components/admin/OrderDeliveryManagement.vue"),
+      },
+      {
+        path: "withdrawals",
+        name: "AdminWithdrawalManagement",
+        component: () => import("@/components/admin/WithdrawalManagement.vue"),
+      },
+      {
+        path: "tokens",
+        name: "AdminTokenManagement",
+        component: () => import("@/components/admin/TokenManagement.vue"),
+      },
+      {
+        path: "nfts",
+        name: "AdminNFTManagement",
+        component: () => import("@/components/admin/NFTManagement.vue"),
+      },
+      {
+        path: "equity",
+        name: "AdminEquityManagement",
+        component: () => import("@/components/admin/EquityManagement.vue"),
+      },
+      {
+        path: "",
+        redirect: { name: "AdminUserManagement" },
+      },
     ],
   },
   {
@@ -172,6 +247,7 @@ const getCurrentUser = () => {
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some((record) => record.meta.isAdmin);
+
   const currentUser = await getCurrentUser();
 
   if (requiresAuth && !currentUser) {
