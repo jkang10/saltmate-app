@@ -5,9 +5,11 @@
     <div class="navbar-brand">
       <router-link :to="logoLink" class="logo">솔트메이트</router-link>
     </div>
+
     <button class="hamburger-menu" @click="toggleMobileMenu">
       <i class="fas fa-bars"></i>
     </button>
+
     <div :class="{ 'navbar-menu': true, 'is-active': isMobileMenuOpen }">
       <ul class="navbar-links" @click="closeMobileMenu">
         <template v-if="isAdmin">
@@ -17,6 +19,7 @@
             </router-link>
           </li>
         </template>
+
         <template v-if="!isAdmin">
           <li>
             <router-link to="/mall" class="nav-link">솔트메이트 몰</router-link>
@@ -26,7 +29,13 @@
               >내 수익 현황</router-link
             >
           </li>
+          <li>
+            <router-link to="/my-orders" class="nav-link"
+              >나의 주문 내역</router-link
+            >
+          </li>
         </template>
+
         <li>
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
         </li>
@@ -35,6 +44,7 @@
             >솔트메이트 소개</router-link
           >
         </li>
+
         <template v-if="!user">
           <li>
             <router-link to="/login" class="nav-link primary-button"
@@ -42,6 +52,7 @@
             >
           </li>
         </template>
+
         <template v-if="user">
           <li v-if="!isAdmin" class="nav-link welcome-text">
             <span>환영합니다,</span>
