@@ -30,13 +30,13 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/shop",
+    path: "/shop", // 등급 선택 페이지
     name: "ShopPage",
     component: () => import("@/views/ShopPage.vue"),
     meta: { requiresAuth: true },
   },
   {
-    path: "/mall",
+    path: "/mall", // 솔트메이트 몰
     name: "MallPage",
     component: () => import("@/views/MallPage.vue"),
     meta: { requiresAuth: true },
@@ -45,13 +45,6 @@ const routes = [
     path: "/my-investments",
     name: "MyInvestmentsPage",
     component: () => import("@/views/MyInvestmentsPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/investment/:id",
-    name: "InvestmentDetailPage",
-    component: () => import("@/views/InvestmentDetailPage.vue"),
-    props: true,
     meta: { requiresAuth: true },
   },
   {
@@ -105,18 +98,6 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/my-nfts",
-    name: "MyNFTsPage",
-    component: () => import("@/views/MyNFTsPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/my-equity",
-    name: "MyEquityPage",
-    component: () => import("@/views/MyEquityPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
     path: "/my-orders",
     name: "MyOrdersPage",
     component: () => import("@/views/MyOrdersPage.vue"),
@@ -140,30 +121,18 @@ const routes = [
     component: () => import("@/views/GameZonePage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [신규] 보물상자 페이지 경로 추가 ▼▼▼
   {
     path: "/treasure-box",
     name: "TreasureBoxPage",
     component: () => import("@/views/TreasureBoxPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
-  // ▼▼▼ [신규] 소금 결정 키우기 게임 페이지 경로 추가 ▼▼▼
-  {
-    path: "/salt-game",
-    name: "SaltCrystalGamePage",
-    component: () => import("@/views/SaltCrystalGamePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  // ▲▲▲ 추가 완료 ▲▲▲
-  // ▼▼▼ [신규] 소금광산 게임 페이지 경로 추가 ▼▼▼
   {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
     component: () => import("@/views/SaltMineGamePage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
@@ -174,11 +143,6 @@ const routes = [
         path: "users",
         name: "AdminUserManagement",
         component: () => import("@/components/admin/UserManagement.vue"),
-      },
-      {
-        path: "centers",
-        name: "AdminCenterManagement",
-        component: () => import("@/components/admin/CenterManagement.vue"),
       },
       {
         path: "subscriptions",
@@ -198,22 +162,6 @@ const routes = [
           import("@/components/admin/MarketingPlanManagement.vue"),
       },
       {
-        path: "investments",
-        name: "AdminInvestmentManagement",
-        component: () => import("@/components/admin/InvestmentManagement.vue"),
-      },
-      {
-        path: "notices-community",
-        name: "AdminNoticesCommunity",
-        component: () =>
-          import("@/components/admin/NoticesCommunityManagement.vue"),
-      },
-      {
-        path: "events",
-        name: "AdminEventManagement",
-        component: () => import("@/components/admin/EventManagement.vue"),
-      },
-      {
         path: "products",
         name: "AdminProductManagement",
         component: () => import("@/components/admin/ProductManagement.vue"),
@@ -224,27 +172,15 @@ const routes = [
         component: () =>
           import("@/components/admin/OrderDeliveryManagement.vue"),
       },
-      // ▼▼▼ [신규] 관리자 출금 관리 페이지 경로 추가 ▼▼▼
       {
         path: "withdrawals",
         name: "AdminWithdrawalManagement",
         component: () => import("@/components/admin/WithdrawalManagement.vue"),
       },
-      // ▲▲▲ 추가 완료 ▲▲▲
       {
         path: "tokens",
         name: "AdminTokenManagement",
         component: () => import("@/components/admin/TokenManagement.vue"),
-      },
-      {
-        path: "nfts",
-        name: "AdminNFTManagement",
-        component: () => import("@/components/admin/NFTManagement.vue"),
-      },
-      {
-        path: "equity",
-        name: "AdminEquityManagement",
-        component: () => import("@/components/admin/EquityManagement.vue"),
       },
       {
         path: "",

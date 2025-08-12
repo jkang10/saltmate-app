@@ -1,4 +1,11 @@
-# SPA 리디렉션 규칙
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # NPM 캐시를 사용하지 않도록 설정
+  NPM_FLAGS = "--no-cache"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
