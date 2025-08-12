@@ -44,8 +44,7 @@
 </template>
 
 <script>
-// TODO: 백엔드에 실제 출금 요청을 보내는 Cloud Function 연동이 필요합니다.
-// import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default {
   name: "WithdrawalRequestModal",
@@ -81,16 +80,14 @@ export default {
 
       this.isProcessing = true;
       try {
-        // const functions = getFunctions();
-        // const requestWithdrawal = httpsCallable(functions, 'requestWithdrawal');
-        // await requestWithdrawal({ amount: this.amount });
+        const functions = getFunctions();
+        const requestWithdrawal = httpsCallable(functions, "requestWithdrawal");
+        const result = await requestWithdrawal({ amount: this.amount });
 
-        console.log(`출금 요청 금액: ${this.amount}`);
-        alert(
-          `${this.amount.toLocaleString()}원 출금 신청이 완료되었습니다. (백엔드 연동 필요)`,
-        );
+        alert(result.data.message);
         this.$emit("close");
       } catch (err) {
+        console.error("출금 신청 오류:", err);
         this.error = `신청 실패: ${err.message}`;
       } finally {
         this.isProcessing = false;

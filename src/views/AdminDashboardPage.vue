@@ -92,10 +92,20 @@
           </li>
           <li>
             <router-link
+              to="/admin-dashboard/withdrawals"
+              class="nav-item"
+              active-class="active-link"
+            >
+              <i class="fas fa-hand-holding-usd"></i> 출금 신청 관리
+            </router-link>
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/tokens"
               class="nav-item"
               active-class="active-link"
-              ><i class="fas fa-coins"></i> 토큰관리 (COBS, BND)</router-link
+              ><i class="fas fa-coins"></i> 토큰관리 (COBS, BND,
+              SSC)</router-link
             >
           </li>
           <li>

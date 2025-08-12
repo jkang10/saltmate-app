@@ -224,6 +224,13 @@ const routes = [
         component: () =>
           import("@/components/admin/OrderDeliveryManagement.vue"),
       },
+      // ▼▼▼ [신규] 관리자 출금 관리 페이지 경로 추가 ▼▼▼
+      {
+        path: "withdrawals",
+        name: "AdminWithdrawalManagement",
+        component: () => import("@/components/admin/WithdrawalManagement.vue"),
+      },
+      // ▲▲▲ 추가 완료 ▲▲▲
       {
         path: "tokens",
         name: "AdminTokenManagement",
