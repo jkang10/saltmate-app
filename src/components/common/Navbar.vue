@@ -155,6 +155,7 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일은 변경 없습니다 */
 .navbar-container {
   display: flex;
   justify-content: space-between;
