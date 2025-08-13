@@ -30,12 +30,6 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/shop",
-    name: "ShopPage",
-    component: () => import("@/views/ShopPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
     path: "/mall",
     name: "MallPage",
     component: () => import("@/views/MallPage.vue"),
