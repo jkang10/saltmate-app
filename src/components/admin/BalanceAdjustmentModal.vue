@@ -91,5 +91,28 @@ const handleAdjustment = async () => {
 </script>
 
 <style scoped>
-/* 기존 모달들과 유사한 스타일 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modal-content {
+  width: 90%;
+  max-width: 450px;
+}
+.current-balances {
+  display: flex;
+  gap: 20px;
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
 </style>

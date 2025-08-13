@@ -10,6 +10,7 @@
     <main class="content-wrapper card">
       <div class="roulette-container">
         <canvas ref="rouletteCanvas" width="500" height="500"></canvas>
+        <div class="roulette-pointer"></div>
         <button
           @click="spin"
           class="spin-button"
@@ -70,28 +71,21 @@ export default {
         this.ctx.beginPath();
         this.ctx.fillStyle = this.prizes[i].color;
         this.ctx.moveTo(0, 0);
-        this.ctx.arc(0, 0, canvas.width / 2 - 10, -arc / 2, arc / 2);
+        this.ctx.arc(0, 0, canvas.width / 2 - 10, -arc / 2, arc / 2, false);
         this.ctx.fill();
 
         this.ctx.save();
         this.ctx.fillStyle = "#333";
         this.ctx.font = "bold 16px Noto Sans KR";
-        this.ctx.textAlign = "center";
+        this.ctx.textAlign = "right";
         this.ctx.textBaseline = "middle";
-        this.ctx.rotate(0);
-        this.ctx.fillText(this.prizes[i].name, canvas.width / 4, 0);
+        this.ctx.rotate(arc / 2);
+        this.ctx.fillText(this.prizes[i].name, canvas.width / 2 - 30, 0);
         this.ctx.restore();
 
         this.ctx.rotate(arc);
       }
       this.ctx.restore();
-
-      this.ctx.fillStyle = "#C0392B";
-      this.ctx.beginPath();
-      this.ctx.moveTo(canvas.width - 20, canvas.height / 2 - 15);
-      this.ctx.lineTo(canvas.width, canvas.height / 2);
-      this.ctx.lineTo(canvas.width - 20, canvas.height / 2 + 15);
-      this.ctx.fill();
     },
     async spin() {
       if (this.isSpinning) return;
@@ -100,9 +94,8 @@ export default {
 
       try {
         const functions = getFunctions();
-        // ▼▼▼ [수정됨] 함수 이름을 'spinRoulette'으로 정확히 호출합니다. ▼▼▼
         const spinRoulette = httpsCallable(functions, "spinRoulette");
-        const result = await spinRoulette(); // 인자 없이 호출
+        const result = await spinRoulette();
 
         const winningPrize = result.data.prize;
         const prizeIndex = this.prizes.findIndex(
@@ -123,7 +116,7 @@ export default {
       const numPrizes = this.prizes.length;
       const arc = 360 / numPrizes;
       const stopAngle = prizeIndex * arc + Math.random() * (arc - 20) + 10;
-      const totalRotation = 360 * 5 + stopAngle;
+      const totalRotation = 360 * 5 + (360 - stopAngle);
 
       let start = null;
       const duration = 4000;
@@ -156,25 +149,15 @@ export default {
 
 <style scoped>
 .page-container {
-  padding: 20px;
   max-width: 800px;
   margin: 70px auto 20px;
+  padding: 20px;
 }
 .page-header {
   text-align: center;
   margin-bottom: 30px;
 }
-.page-header h1 {
-  font-size: 2.8em;
-}
-.page-header p {
-  font-size: 1.1em;
-  color: #666;
-}
 .content-wrapper {
-  padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 .roulette-container {
@@ -182,6 +165,18 @@ export default {
   width: 500px;
   height: 500px;
   margin: 0 auto;
+}
+.roulette-pointer {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 20px solid transparent;
+  border-bottom: 20px solid transparent;
+  border-left: 30px solid #c0392b;
+  z-index: 10;
 }
 .spin-button {
   position: absolute;
@@ -198,14 +193,6 @@ export default {
   border: 5px solid white;
   cursor: pointer;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  transition: background-color 0.2s;
-}
-.spin-button:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-}
-.spin-button:not(:disabled):hover {
-  background-color: #c0392b;
 }
 .result-message {
   margin-top: 20px;

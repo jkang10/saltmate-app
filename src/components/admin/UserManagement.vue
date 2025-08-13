@@ -1,7 +1,7 @@
 <template>
   <div class="user-management">
     <h3><i class="fas fa-users-cog"></i> 회원 관리</h3>
-    <p>회원 목록을 조회하고 사용자 권한을 관리합니다.</p>
+    <p>회원 목록을 조회하고 사용자 잔액, 토큰 및 권한을 관리합니다.</p>
 
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state">
@@ -14,7 +14,8 @@
         <tr>
           <th>이름</th>
           <th>이메일</th>
-          <th>가입일</th>
+          <th>현금성 수익</th>
+          <th>솔트메이트</th>
           <th>관리자 여부</th>
           <th>관리</th>
         </tr>
@@ -23,7 +24,8 @@
         <tr v-for="user in users" :key="user.id">
           <td>{{ user.name }}</td>
           <td>{{ user.email }}</td>
-          <td>{{ formatDate(user.createdAt) }}</td>
+          <td>{{ (user.cashBalance || 0).toLocaleString() }} 원</td>
+          <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
           <td>
             <span :class="user.isAdmin ? 'admin-badge' : 'user-badge'">
               {{ user.isAdmin ? "Admin" : "User" }}
@@ -72,7 +74,14 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  deleteDoc,
+  query,
+  orderBy,
+} from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
 import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
@@ -92,13 +101,14 @@ const formatDate = (timestamp) => {
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    const querySnapshot = await getDocs(collection(db, "users"));
+    const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
     users.value = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
   } catch (err) {
-    console.error("사용자 정보 로딩 오류:", err);
+    console.error("사용자 정보를 불러오는 중 오류 발생:", err);
     error.value = "사용자 정보를 불러오는 데 실패했습니다.";
   } finally {
     loading.value = false;
@@ -107,20 +117,23 @@ const fetchUsers = async () => {
 
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
-  if (
-    !confirm(
-      `'${user.name}'을(를) '${newStatus ? "관리자" : "일반 사용자"}'로 변경하시겠습니까?`,
-    )
-  )
-    return;
+  const confirmation = confirm(
+    `'${user.name}' 사용자를 '${
+      newStatus ? "관리자" : "일반 사용자"
+    }' (으)로 지정하시겠습니까?`,
+  );
+  if (!confirmation) return;
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
     await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
     user.isAdmin = newStatus;
-    alert("권한이 변경되었습니다. 해당 사용자는 재로그인해야 적용됩니다.");
+    alert(
+      "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
+    );
   } catch (error) {
-    alert(`권한 변경 실패: ${error.message}`);
+    console.error("권한 변경 중 오류 발생:", error);
+    alert(`권한 변경에 실패했습니다: ${error.message}`);
   }
 };
 
@@ -129,8 +142,9 @@ const deleteUser = async (userId) => {
   try {
     await deleteDoc(doc(db, "users", userId));
     users.value = users.value.filter((user) => user.id !== userId);
-    alert("사용자가 삭제되었습니다.");
+    alert("사용자가 성공적으로 삭제되었습니다.");
   } catch (error) {
+    console.error("사용자 삭제 중 오류 발생:", error);
     alert("사용자 삭제에 실패했습니다.");
   }
 };
@@ -149,7 +163,6 @@ onMounted(fetchUsers);
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일하되, 버튼 색상 및 간격 등 추가 */
 .user-management {
   background-color: #fff;
   padding: 30px;
@@ -218,7 +231,11 @@ onMounted(fetchUsers);
 .btn-info {
   background-color: #17a2b8;
   color: white;
-} /* 토큰 관리 버튼 색상 */
+}
+.btn-success {
+  background-color: #28a745;
+  color: white;
+}
 .loading-spinner {
   border: 4px solid rgba(0, 0, 0, 0.1);
   width: 36px;
