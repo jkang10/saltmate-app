@@ -29,14 +29,12 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 불필요한 /shop 경로 삭제 ▼▼▼
-  // {
-  //   path: "/shop",
-  //   name: "ShopPage",
-  //   component: () => import("@/views/ShopPage.vue"),
-  //   meta: { requiresAuth: true },
-  // },
-  // ▲▲▲ 삭제 완료 ▲▲▲
+  {
+    path: "/shop",
+    name: "ShopPage",
+    component: () => import("@/views/ShopPage.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: "/mall",
     name: "MallPage",
@@ -100,6 +98,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/my-equity",
+    name: "MyEquityPage",
+    component: () => import("@/views/MyEquityPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/my-orders",
     name: "MyOrdersPage",
     component: () => import("@/views/MyOrdersPage.vue"),
@@ -142,9 +146,18 @@ const routes = [
     meta: { requiresAuth: true, isAdmin: true },
     children: [
       {
+        path: "", // 기본 자식 경로
+        redirect: { name: "AdminUserManagement" },
+      },
+      {
         path: "users",
         name: "AdminUserManagement",
         component: () => import("@/components/admin/UserManagement.vue"),
+      },
+      {
+        path: "centers",
+        name: "AdminCenterManagement",
+        component: () => import("@/components/admin/CenterManagement.vue"),
       },
       {
         path: "subscriptions",
@@ -162,6 +175,22 @@ const routes = [
         name: "AdminMarketingPlanManagement",
         component: () =>
           import("@/components/admin/MarketingPlanManagement.vue"),
+      },
+      {
+        path: "investments",
+        name: "AdminInvestmentManagement",
+        component: () => import("@/components/admin/InvestmentManagement.vue"),
+      },
+      {
+        path: "notices-community",
+        name: "AdminNoticesCommunity",
+        component: () =>
+          import("@/components/admin/NoticesCommunityManagement.vue"),
+      },
+      {
+        path: "events",
+        name: "AdminEventManagement",
+        component: () => import("@/components/admin/EventManagement.vue"),
       },
       {
         path: "products",
@@ -185,8 +214,14 @@ const routes = [
         component: () => import("@/components/admin/TokenManagement.vue"),
       },
       {
-        path: "",
-        redirect: { name: "AdminUserManagement" },
+        path: "nfts",
+        name: "AdminNFTManagement",
+        component: () => import("@/components/admin/NFTManagement.vue"),
+      },
+      {
+        path: "equity",
+        name: "AdminEquityManagement",
+        component: () => import("@/components/admin/EquityManagement.vue"),
       },
     ],
   },
@@ -218,6 +253,7 @@ const getCurrentUser = () => {
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some((record) => record.meta.isAdmin);
+
   const currentUser = await getCurrentUser();
 
   if (requiresAuth && !currentUser) {
