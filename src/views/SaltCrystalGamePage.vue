@@ -70,7 +70,7 @@ export default {
   data() {
     return {
       clicks: 0,
-      harvestGoal: 1000, // 수확 목표 점수
+      harvestGoal: 1000,
       crystalScale: 1,
       clickEffect: { visible: false, x: 0, y: 0 },
       isHarvesting: false,
@@ -129,7 +129,7 @@ export default {
         const awarded = result.data.awardedPoints;
         this.successMessage = `성공적으로 ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
 
-        this.clicks = 0; // 점수 초기화
+        this.clicks = 0;
         localStorage.setItem("saltCrystalClicks", this.clicks);
       } catch (err) {
         console.error("수확 오류:", err);
@@ -143,19 +143,29 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [수정됨] 페이지 중앙 정렬을 위해 스타일 수정 ▼▼▼ */
 .page-container {
   max-width: 800px;
+  margin: 70px auto 20px; /* 상하 여백, 좌우 자동(중앙정렬) */
+  padding: 20px;
+}
+/* ▲▲▲ 수정 완료 ▲▲▲ */
+
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 .page-header h1 i {
   color: #3498db;
 }
 .content-wrapper {
   padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 .game-area {
   text-align: center;
 }
-
 .crystal-container {
   position: relative;
   width: 200px;
@@ -171,7 +181,6 @@ export default {
   width: 100%;
   transition: transform 0.1s ease;
 }
-
 .click-effect {
   position: absolute;
   font-size: 1.5em;
@@ -190,7 +199,6 @@ export default {
     opacity: 0;
   }
 }
-
 .progress-section {
   margin: 30px 0;
 }
@@ -209,7 +217,6 @@ export default {
   border-radius: 10px;
   transition: width 0.2s;
 }
-
 .harvest-button {
   padding: 15px 30px;
   font-size: 1.2em;
@@ -224,7 +231,6 @@ export default {
   background-color: #bdc3c7;
   cursor: not-allowed;
 }
-
 .success-message,
 .error-message {
   margin-top: 15px;
@@ -236,7 +242,6 @@ export default {
 .error-message {
   color: #c0392b;
 }
-
 @keyframes glowing {
   0% {
     filter: drop-shadow(0 0 5px #3498db);
