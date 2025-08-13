@@ -8,6 +8,12 @@
     </header>
 
     <main class="content-wrapper card">
+      <div class="game-info">
+        <span v-if="!loadingStatus"
+          >오늘 남은 횟수: {{ playsLeft }} / {{ totalPlaysToday }}</span
+        >
+        <span v-else>플레이 정보 확인 중...</span>
+      </div>
       <div class="game-area">
         <div
           class="crystal-container"
@@ -45,9 +51,10 @@
         <button
           @click="harvest"
           class="harvest-button"
-          :disabled="!isHarvestable || isHarvesting"
+          :disabled="!isHarvestable || isHarvesting || playsLeft === 0"
         >
           <span v-if="isHarvesting">수확 중...</span>
+          <span v-else-if="playsLeft === 0">오늘 모두 수확했어요!</span>
           <span v-else
             >수확하기 ({{ awardedPoints.toLocaleString() }}P 획득)</span
           >
@@ -63,6 +70,8 @@
 </template>
 
 <script>
+import { auth, db } from "@/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default {
@@ -76,6 +85,9 @@ export default {
       isHarvesting: false,
       successMessage: "",
       error: "",
+      playsLeft: 0,
+      totalPlaysToday: 1,
+      loadingStatus: true,
     };
   },
   computed: {
@@ -89,15 +101,46 @@ export default {
       return Math.floor(this.clicks / 10);
     },
   },
-  mounted() {
+  async mounted() {
+    await this.getGameStatus();
     const savedClicks = localStorage.getItem("saltCrystalClicks");
     if (savedClicks) {
       this.clicks = parseInt(savedClicks, 10);
     }
   },
   methods: {
+    async getGameStatus() {
+      this.loadingStatus = true;
+      try {
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          const saltGameData = userData.saltGameData || { date: "", count: 0 };
+
+          const now = new Date();
+          const todayStr = now.toISOString().slice(0, 10);
+          const dayOfWeek = now.getDay();
+          const playLimits = [1, 1, 2, 1, 2, 1, 2];
+          this.totalPlaysToday = playLimits[dayOfWeek];
+
+          if (saltGameData.date === todayStr) {
+            this.playsLeft = this.totalPlaysToday - saltGameData.count;
+          } else {
+            this.playsLeft = this.totalPlaysToday;
+            this.clicks = 0; // 날짜가 바뀌었으면 클릭 수도 초기화
+            localStorage.setItem("saltCrystalClicks", "0");
+          }
+        }
+      } catch (error) {
+        console.error("게임 상태 조회 오류:", error);
+        this.error = "게임 상태를 불러오지 못했습니다.";
+      } finally {
+        this.loadingStatus = false;
+      }
+    },
     handleClick(event) {
-      if (this.isHarvestable) return;
+      if (this.isHarvestable || this.playsLeft === 0) return;
 
       this.clicks++;
       localStorage.setItem("saltCrystalClicks", this.clicks);
@@ -112,7 +155,8 @@ export default {
       setTimeout(() => (this.clickEffect.visible = false), 500);
     },
     async harvest() {
-      if (!this.isHarvestable || this.isHarvesting) return;
+      if (!this.isHarvestable || this.isHarvesting || this.playsLeft === 0)
+        return;
 
       this.isHarvesting = true;
       this.error = "";
@@ -127,13 +171,19 @@ export default {
         const result = await harvestSaltCrystals({ clicks: this.clicks });
 
         const awarded = result.data.awardedPoints;
-        this.successMessage = `성공적으로 ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
+        this.successMessage = `성공! ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
 
-        this.clicks = 0;
-        localStorage.setItem("saltCrystalClicks", this.clicks);
+        this.clicks = 0; // 점수 초기화
+        localStorage.setItem("saltCrystalClicks", "0");
+        await this.getGameStatus(); // 수확 후 게임 상태 즉시 갱신
+
+        setTimeout(() => (this.successMessage = ""), 3000); // 3초 후 성공 메시지 숨기기
       } catch (err) {
         console.error("수확 오류:", err);
-        this.error = `수확에 실패했습니다: ${err.message}`;
+        this.error = `수확 실패: ${err.message}`;
+        if (err.code?.includes("resource-exhausted")) {
+          await this.getGameStatus(); // 이미 모두 플레이한 경우 상태 갱신
+        }
       } finally {
         this.isHarvesting = false;
       }
@@ -143,25 +193,26 @@ export default {
 </script>
 
 <style scoped>
-/* ▼▼▼ [수정됨] 페이지 중앙 정렬을 위해 스타일 수정 ▼▼▼ */
 .page-container {
   max-width: 800px;
-  margin: 70px auto 20px; /* 상하 여백, 좌우 자동(중앙정렬) */
-  padding: 20px;
-}
-/* ▲▲▲ 수정 완료 ▲▲▲ */
-
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
 }
 .page-header h1 i {
   color: #3498db;
 }
 .content-wrapper {
   padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+.game-info {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background-color: #e9ecef;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.9em;
+  color: #495057;
 }
 .game-area {
   text-align: center;

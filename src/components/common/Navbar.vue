@@ -22,7 +22,7 @@
 
         <template v-if="!isAdmin">
           <li>
-            <router-link to="/shop" class="nav-link">등급 선택</router-link>
+            <router-link to="/mall" class="nav-link">솔트메이트 몰</router-link>
           </li>
           <li>
             <router-link to="/my-investments" class="nav-link"
