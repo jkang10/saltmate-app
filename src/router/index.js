@@ -29,12 +29,14 @@ const routes = [
     component: () => import("@/views/DashboardPage.vue"),
     meta: { requiresAuth: true },
   },
-  {
-    path: "/shop",
-    name: "ShopPage",
-    component: () => import("@/views/ShopPage.vue"),
-    meta: { requiresAuth: true },
-  },
+  // ▼▼▼ [수정됨] 불필요한 /shop 경로 삭제 ▼▼▼
+  // {
+  //   path: "/shop",
+  //   name: "ShopPage",
+  //   component: () => import("@/views/ShopPage.vue"),
+  //   meta: { requiresAuth: true },
+  // },
+  // ▲▲▲ 삭제 완료 ▲▲▲
   {
     path: "/mall",
     name: "MallPage",
@@ -97,14 +99,6 @@ const routes = [
     component: () => import("@/views/MyTokensPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/my-equity' 경로 추가 ▼▼▼
-  {
-    path: "/my-equity",
-    name: "MyEquityPage",
-    component: () => import("@/views/MyEquityPage.vue"),
-    meta: { requiresAuth: true },
-  },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-orders",
     name: "MyOrdersPage",
@@ -135,14 +129,6 @@ const routes = [
     component: () => import("@/views/TreasureBoxPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/salt-game' 경로 추가 ▼▼▼
-  {
-    path: "/salt-game",
-    name: "SaltCrystalGamePage",
-    component: () => import("@/views/SaltCrystalGamePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
@@ -232,7 +218,6 @@ const getCurrentUser = () => {
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some((record) => record.meta.isAdmin);
-
   const currentUser = await getCurrentUser();
 
   if (requiresAuth && !currentUser) {
