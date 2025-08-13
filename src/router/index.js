@@ -30,6 +30,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/shop",
+    name: "ShopPage",
+    component: () => import("@/views/ShopPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/mall",
     name: "MallPage",
     component: () => import("@/views/MallPage.vue"),
@@ -91,14 +97,12 @@ const routes = [
     component: () => import("@/views/MyTokensPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/my-equity' 경로 확인/추가 ▼▼▼
   {
     path: "/my-equity",
     name: "MyEquityPage",
     component: () => import("@/views/MyEquityPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-orders",
     name: "MyOrdersPage",
@@ -129,14 +133,12 @@ const routes = [
     component: () => import("@/views/TreasureBoxPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [수정됨] 누락되었던 '/salt-game' 경로 추가 ▼▼▼
   {
-    path: "/salt-game", // '소금 결정 키우기' 페이지 경로
+    path: "/salt-game",
     name: "SaltCrystalGamePage",
     component: () => import("@/views/SaltCrystalGamePage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
@@ -150,15 +152,35 @@ const routes = [
     meta: { requiresAuth: true, isAdmin: true },
     children: [
       {
+        path: "", // 기본 자식 경로
+        redirect: { name: "AdminUserManagement" },
+      },
+      {
         path: "users",
         name: "AdminUserManagement",
         component: () => import("@/components/admin/UserManagement.vue"),
       },
-      // ▼▼▼ [신규] 누락되었던 모든 관리자 페이지 경로 추가 ▼▼▼
       {
         path: "centers",
         name: "AdminCenterManagement",
         component: () => import("@/components/admin/CenterManagement.vue"),
+      },
+      {
+        path: "subscriptions",
+        name: "AdminSubscriptionManagement",
+        component: () =>
+          import("@/components/admin/SubscriptionManagement.vue"),
+      },
+      {
+        path: "weekly-payouts",
+        name: "AdminWeeklyPayoutManagement",
+        component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
+      },
+      {
+        path: "marketing-plan",
+        name: "AdminMarketingPlanManagement",
+        component: () =>
+          import("@/components/admin/MarketingPlanManagement.vue"),
       },
       {
         path: "investments",
@@ -166,9 +188,36 @@ const routes = [
         component: () => import("@/components/admin/InvestmentManagement.vue"),
       },
       {
+        path: "notices-community",
+        name: "AdminNoticesCommunity",
+        component: () =>
+          import("@/components/admin/NoticesCommunityManagement.vue"),
+      },
+      {
         path: "events",
         name: "AdminEventManagement",
         component: () => import("@/components/admin/EventManagement.vue"),
+      },
+      {
+        path: "products",
+        name: "AdminProductManagement",
+        component: () => import("@/components/admin/ProductManagement.vue"),
+      },
+      {
+        path: "orders-delivery",
+        name: "AdminOrderDeliveryManagement",
+        component: () =>
+          import("@/components/admin/OrderDeliveryManagement.vue"),
+      },
+      {
+        path: "withdrawals",
+        name: "AdminWithdrawalManagement",
+        component: () => import("@/components/admin/WithdrawalManagement.vue"),
+      },
+      {
+        path: "tokens",
+        name: "AdminTokenManagement",
+        component: () => import("@/components/admin/TokenManagement.vue"),
       },
       {
         path: "nfts",
@@ -179,17 +228,6 @@ const routes = [
         path: "equity",
         name: "AdminEquityManagement",
         component: () => import("@/components/admin/EquityManagement.vue"),
-      },
-      {
-        path: "notices-community",
-        name: "AdminNoticesCommunity",
-        component: () =>
-          import("@/components/admin/NoticesCommunityManagement.vue"),
-      },
-      // ▲▲▲ 추가 완료 ▲▲▲
-      {
-        path: "",
-        redirect: { name: "AdminUserManagement" },
       },
     ],
   },
