@@ -97,6 +97,14 @@ const routes = [
     component: () => import("@/views/MyTokensPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [수정됨] 누락되었던 '/my-equity' 경로 확인/추가 ▼▼▼
+  {
+    path: "/my-equity",
+    name: "MyEquityPage",
+    component: () => import("@/views/MyEquityPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/my-orders",
     name: "MyOrdersPage",
@@ -127,6 +135,14 @@ const routes = [
     component: () => import("@/views/TreasureBoxPage.vue"),
     meta: { requiresAuth: true },
   },
+  // ▼▼▼ [수정됨] 누락되었던 '/salt-game' 경로 추가 ▼▼▼
+  {
+    path: "/salt-game", // '소금 결정 키우기' 페이지 경로
+    name: "SaltCrystalGamePage",
+    component: () => import("@/views/SaltCrystalGamePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
@@ -145,11 +161,6 @@ const routes = [
         component: () => import("@/components/admin/UserManagement.vue"),
       },
       {
-        path: "centers",
-        name: "AdminCenterManagement",
-        component: () => import("@/components/admin/CenterManagement.vue"),
-      },
-      {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",
         component: () =>
@@ -165,22 +176,6 @@ const routes = [
         name: "AdminMarketingPlanManagement",
         component: () =>
           import("@/components/admin/MarketingPlanManagement.vue"),
-      },
-      {
-        path: "investments",
-        name: "AdminInvestmentManagement",
-        component: () => import("@/components/admin/InvestmentManagement.vue"),
-      },
-      {
-        path: "notices-community",
-        name: "AdminNoticesCommunity",
-        component: () =>
-          import("@/components/admin/NoticesCommunityManagement.vue"),
-      },
-      {
-        path: "events",
-        name: "AdminEventManagement",
-        component: () => import("@/components/admin/EventManagement.vue"),
       },
       {
         path: "products",
@@ -202,16 +197,6 @@ const routes = [
         path: "tokens",
         name: "AdminTokenManagement",
         component: () => import("@/components/admin/TokenManagement.vue"),
-      },
-      {
-        path: "nfts",
-        name: "AdminNFTManagement",
-        component: () => import("@/components/admin/NFTManagement.vue"),
-      },
-      {
-        path: "equity",
-        name: "AdminEquityManagement",
-        component: () => import("@/components/admin/EquityManagement.vue"),
       },
       {
         path: "",
