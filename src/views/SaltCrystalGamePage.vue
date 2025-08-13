@@ -128,7 +128,7 @@ export default {
             this.playsLeft = this.totalPlaysToday - saltGameData.count;
           } else {
             this.playsLeft = this.totalPlaysToday;
-            this.clicks = 0; // 날짜가 바뀌었으면 클릭 수도 초기화
+            this.clicks = 0;
             localStorage.setItem("saltCrystalClicks", "0");
           }
         }
@@ -140,7 +140,7 @@ export default {
       }
     },
     handleClick(event) {
-      if (this.isHarvestable || this.playsLeft === 0) return;
+      if (this.isHarvestable || this.playsLeft <= 0) return;
 
       this.clicks++;
       localStorage.setItem("saltCrystalClicks", this.clicks);
@@ -155,7 +155,7 @@ export default {
       setTimeout(() => (this.clickEffect.visible = false), 500);
     },
     async harvest() {
-      if (!this.isHarvestable || this.isHarvesting || this.playsLeft === 0)
+      if (!this.isHarvestable || this.isHarvesting || this.playsLeft <= 0)
         return;
 
       this.isHarvesting = true;
@@ -173,16 +173,16 @@ export default {
         const awarded = result.data.awardedPoints;
         this.successMessage = `성공! ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
 
-        this.clicks = 0; // 점수 초기화
+        this.clicks = 0;
         localStorage.setItem("saltCrystalClicks", "0");
-        await this.getGameStatus(); // 수확 후 게임 상태 즉시 갱신
+        await this.getGameStatus();
 
-        setTimeout(() => (this.successMessage = ""), 3000); // 3초 후 성공 메시지 숨기기
+        setTimeout(() => (this.successMessage = ""), 3000);
       } catch (err) {
         console.error("수확 오류:", err);
         this.error = `수확 실패: ${err.message}`;
         if (err.code?.includes("resource-exhausted")) {
-          await this.getGameStatus(); // 이미 모두 플레이한 경우 상태 갱신
+          await this.getGameStatus();
         }
       } finally {
         this.isHarvesting = false;
@@ -195,12 +195,20 @@ export default {
 <style scoped>
 .page-container {
   max-width: 800px;
+  margin: 70px auto 20px;
+  padding: 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 .page-header h1 i {
   color: #3498db;
 }
 .content-wrapper {
   padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   position: relative;
 }
 .game-info {
