@@ -154,44 +154,39 @@ const routes = [
         name: "AdminUserManagement",
         component: () => import("@/components/admin/UserManagement.vue"),
       },
+      // ▼▼▼ [신규] 누락되었던 모든 관리자 페이지 경로 추가 ▼▼▼
       {
-        path: "subscriptions",
-        name: "AdminSubscriptionManagement",
+        path: "centers",
+        name: "AdminCenterManagement",
+        component: () => import("@/components/admin/CenterManagement.vue"),
+      },
+      {
+        path: "investments",
+        name: "AdminInvestmentManagement",
+        component: () => import("@/components/admin/InvestmentManagement.vue"),
+      },
+      {
+        path: "events",
+        name: "AdminEventManagement",
+        component: () => import("@/components/admin/EventManagement.vue"),
+      },
+      {
+        path: "nfts",
+        name: "AdminNFTManagement",
+        component: () => import("@/components/admin/NFTManagement.vue"),
+      },
+      {
+        path: "equity",
+        name: "AdminEquityManagement",
+        component: () => import("@/components/admin/EquityManagement.vue"),
+      },
+      {
+        path: "notices-community",
+        name: "AdminNoticesCommunity",
         component: () =>
-          import("@/components/admin/SubscriptionManagement.vue"),
+          import("@/components/admin/NoticesCommunityManagement.vue"),
       },
-      {
-        path: "weekly-payouts",
-        name: "AdminWeeklyPayoutManagement",
-        component: () => import("@/components/admin/WeeklyPayoutManager.vue"),
-      },
-      {
-        path: "marketing-plan",
-        name: "AdminMarketingPlanManagement",
-        component: () =>
-          import("@/components/admin/MarketingPlanManagement.vue"),
-      },
-      {
-        path: "products",
-        name: "AdminProductManagement",
-        component: () => import("@/components/admin/ProductManagement.vue"),
-      },
-      {
-        path: "orders-delivery",
-        name: "AdminOrderDeliveryManagement",
-        component: () =>
-          import("@/components/admin/OrderDeliveryManagement.vue"),
-      },
-      {
-        path: "withdrawals",
-        name: "AdminWithdrawalManagement",
-        component: () => import("@/components/admin/WithdrawalManagement.vue"),
-      },
-      {
-        path: "tokens",
-        name: "AdminTokenManagement",
-        component: () => import("@/components/admin/TokenManagement.vue"),
-      },
+      // ▲▲▲ 추가 완료 ▲▲▲
       {
         path: "",
         redirect: { name: "AdminUserManagement" },

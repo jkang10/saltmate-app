@@ -1,27 +1,64 @@
 <template>
   <div class="marketing-plan-management">
     <h3><i class="fas fa-cogs"></i> 마케팅 플랜 관리</h3>
-    <p>수익 구조와 관련된 주요 변수를 설정합니다.</p>
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-    </div>
-    <div v-else class="card plan-form">
-      <div class="form-group">
-        <label for="cycle-multiplier">수익 사이클 배수 (%)</label>
-        <input
-          type="number"
-          id="cycle-multiplier"
-          v-model.number="plan.cycleCapMultiplierPercent"
-          step="10"
-        />
-        <small
-          >구독 원금 대비 수익 한도를 설정합니다. (예: 300 입력 시 300%
-          한도)</small
-        >
-      </div>
-      <button @click="savePlan" :disabled="isSaving" class="btn-primary">
-        <span v-if="isSaving">저장 중...</span>
-        <span v-else>설정 저장</span>
+    <p>회원 등급, 보너스 비율, 출금 정책 등 서비스의 핵심 규칙을 관리합니다.</p>
+
+    <div v-if="isLoading" class="loading-state">...</div>
+    <div v-else class="plan-editor">
+      <section class="card settings-section">
+        <h4>수익 분배 비율 설정</h4>
+        <div class="form-group">
+          <label>현금성 수익 (%)</label>
+          <input
+            type="number"
+            v-model.number="plan.distribution.cash"
+            min="0"
+            max="100"
+          />
+        </div>
+        <div class="form-group">
+          <label>솔트메이트 (%)</label>
+          <input
+            type="number"
+            v-model.number="plan.distribution.saltmate"
+            min="0"
+            max="100"
+          />
+        </div>
+      </section>
+      <section class="card settings-section">
+        <h4>출금 정책 설정</h4>
+        <div class="form-group">
+          <label>출금 가능 요일</label>
+          <select v-model.number="plan.withdrawal.day">
+            <option value="1">월요일</option>
+            <option value="2">화요일</option>
+            <option value="3">수요일</option>
+            <option value="4">목요일</option>
+            <option value="5">금요일</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>시작 시간 (0~23시)</label>
+          <input
+            type="number"
+            v-model.number="plan.withdrawal.startHour"
+            min="0"
+            max="23"
+          />
+        </div>
+        <div class="form-group">
+          <label>종료 시간 (0~23시)</label>
+          <input
+            type="number"
+            v-model.number="plan.withdrawal.endHour"
+            min="0"
+            max="23"
+          />
+        </div>
+      </section>
+      <button @click="savePlan" class="btn-primary">
+        <i class="fas fa-save"></i> 마케팅 플랜 저장
       </button>
     </div>
   </div>

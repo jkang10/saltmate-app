@@ -77,10 +77,12 @@ export default {
         this.ctx.save();
         this.ctx.fillStyle = "#333";
         this.ctx.font = "bold 16px Noto Sans KR";
+        // ▼▼▼ [수정됨] 텍스트 정렬 기준 변경 ▼▼▼
         this.ctx.textAlign = "right";
         this.ctx.textBaseline = "middle";
-        this.ctx.rotate(arc / 2);
+        this.ctx.rotate(arc / 2); // 텍스트를 슬라이스 중앙에 맞추기 위해 회전
         this.ctx.fillText(this.prizes[i].name, canvas.width / 2 - 30, 0);
+        // ▲▲▲ 수정 완료 ▲▲▲
         this.ctx.restore();
 
         this.ctx.rotate(arc);
