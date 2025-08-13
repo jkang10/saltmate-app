@@ -5,8 +5,7 @@
 
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state">
-      <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
-      <p class="error-details">{{ error }}</p>
+      <p>{{ error }}</p>
     </div>
 
     <table v-if="!loading && users.length > 0" class="user-table">
@@ -14,6 +13,7 @@
         <tr>
           <th>이름</th>
           <th>이메일</th>
+          <th>가입일</th>
           <th>현금성 수익</th>
           <th>솔트메이트</th>
           <th>관리자 여부</th>
@@ -24,6 +24,7 @@
         <tr v-for="user in users" :key="user.id">
           <td>{{ user.name }}</td>
           <td>{{ user.email }}</td>
+          <td>{{ formatDate(user.createdAt) }}</td>
           <td>{{ (user.cashBalance || 0).toLocaleString() }} 원</td>
           <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
           <td>
