@@ -46,7 +46,7 @@ export default {
         { name: "100 SaltMate", points: 100, color: "#FFC3A0" },
         { name: "500 SaltMate", points: 500, color: "#FF677D" },
         { name: "1,000 SaltMate", points: 1000, color: "#D4A5A5" },
-        { name: "꽝", points: 0, color: "#DDDDDD" },
+        { name: "꽝", points: 0, color: "#EEEEEE" },
       ],
       ctx: null,
     };
@@ -75,13 +75,13 @@ export default {
         this.ctx.fill();
 
         this.ctx.save();
-        this.ctx.fillStyle = "#333";
-        this.ctx.font = "bold 16px Noto Sans KR";
-        // ▼▼▼ [수정됨] 텍스트 정렬 기준 변경 ▼▼▼
-        this.ctx.textAlign = "right";
+        // ▼▼▼ [수정됨] 글씨 색상 및 정렬 위치 조정 ▼▼▼
+        this.ctx.fillStyle = "#34495e"; // 더 진한 글씨 색
+        this.ctx.font = "bold 18px Noto Sans KR";
+        this.ctx.textAlign = "right"; // 오른쪽 정렬
         this.ctx.textBaseline = "middle";
         this.ctx.rotate(arc / 2); // 텍스트를 슬라이스 중앙에 맞추기 위해 회전
-        this.ctx.fillText(this.prizes[i].name, canvas.width / 2 - 30, 0);
+        this.ctx.fillText(this.prizes[i].name, canvas.width / 2 - 25, 0); // 위치 조정
         // ▲▲▲ 수정 완료 ▲▲▲
         this.ctx.restore();
 
