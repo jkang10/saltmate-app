@@ -44,6 +44,12 @@
             </td>
             <td class="actions">
               <button
+                @click="openEditModal(user)"
+                class="btn btn-sm btn-primary"
+              >
+                수정
+              </button>
+              <button
                 @click="openBalanceModal(user)"
                 class="btn btn-sm btn-success"
               >
@@ -71,7 +77,7 @@
     </div>
 
     <div v-if="!loading && filteredUsers.length === 0" class="no-data">
-      표시할 사용자가 없습니다.
+      <p>표시할 사용자가 없습니다.</p>
     </div>
 
     <div v-if="totalPages > 1" class="pagination">
@@ -94,6 +100,13 @@
       @close="isBalanceModalVisible = false"
       @balance-updated="fetchUsers"
     />
+    <UserEditModal
+      v-if="isEditModalVisible"
+      :user="selectedUser"
+      :allUsers="users.filter((u) => u.id !== selectedUser.id)"
+      @close="isEditModalVisible = false"
+      @user-updated="fetchUsers"
+    />
   </div>
 </template>
 
@@ -111,25 +124,28 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
 import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
+import UserEditModal from "./UserEditModal.vue";
 
 const users = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
 const currentPage = ref(1);
-const itemsPerPage = ref(10); // 한 페이지에 표시할 회원 수
+const itemsPerPage = ref(10);
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
+const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
 
 const filteredUsers = computed(() => {
   if (!searchTerm.value) {
     return users.value;
   }
+  const lowerCaseSearch = searchTerm.value.toLowerCase();
   return users.value.filter(
     (user) =>
-      user.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.value.toLowerCase()),
+      (user.name && user.name.toLowerCase().includes(lowerCaseSearch)) ||
+      (user.email && user.email.toLowerCase().includes(lowerCaseSearch)),
   );
 });
 
@@ -176,9 +192,10 @@ const toggleAdmin = async (user) => {
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
-    // 백엔드 함수에 makeAdmin 파라미터를 전달해야 할 수 있습니다. (index.js 확인 필요)
     await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
-    user.isAdmin = newStatus;
+    // Firestore 문서 업데이트는 Cloud Function에서 처리하므로, 여기서는 UI만 갱신
+    const userInList = users.value.find((u) => u.id === user.id);
+    if (userInList) userInList.isAdmin = newStatus;
     alert(
       "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
     );
@@ -189,9 +206,8 @@ const toggleAdmin = async (user) => {
 };
 
 const deleteUser = async (userId) => {
-  if (!confirm("정말로 이 사용자를 삭제하시겠습니까?")) return;
+  if (!confirm("정말로 이 사용자를 삭제하시겠습니까? (복구 불가)")) return;
   try {
-    // 참고: Firestore DB 문서만 삭제합니다. Authentication 계정은 별도 삭제가 필요합니다.
     await deleteDoc(doc(db, "users", userId));
     users.value = users.value.filter((user) => user.id !== userId);
     alert("사용자가 성공적으로 삭제되었습니다.");
@@ -209,6 +225,11 @@ const openTokenModal = (user) => {
 const openBalanceModal = (user) => {
   selectedUser.value = user;
   isBalanceModalVisible.value = true;
+};
+
+const openEditModal = (user) => {
+  selectedUser.value = user;
+  isEditModalVisible.value = true;
 };
 
 onMounted(fetchUsers);
@@ -239,6 +260,9 @@ onMounted(fetchUsers);
   max-width: 400px;
   font-size: 1em;
 }
+.table-container {
+  overflow-x: auto;
+}
 .user-table {
   width: 100%;
   border-collapse: collapse;
@@ -255,6 +279,7 @@ onMounted(fetchUsers);
   background-color: #f8f9fa;
   font-weight: 600;
   color: #555;
+  white-space: nowrap;
 }
 .admin-badge,
 .user-badge {
@@ -289,6 +314,10 @@ onMounted(fetchUsers);
 .btn-sm {
   font-size: 0.85em;
 }
+.btn-primary {
+  background-color: #0d6efd;
+  color: white;
+}
 .btn-secondary {
   background-color: #6c757d;
   color: white;
@@ -298,11 +327,11 @@ onMounted(fetchUsers);
   color: white;
 }
 .btn-info {
-  background-color: #17a2b8;
+  background-color: #0dcaf0;
   color: white;
 }
 .btn-success {
-  background-color: #28a745;
+  background-color: #198754;
   color: white;
 }
 .loading-spinner {

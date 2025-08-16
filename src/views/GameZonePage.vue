@@ -61,28 +61,29 @@ export default {
       if (!canvas) return;
       const numPrizes = this.prizes.length;
       const arc = (Math.PI * 2) / numPrizes;
+      const radius = canvas.width / 2;
 
       this.ctx.clearRect(0, 0, canvas.width, canvas.height);
       this.ctx.save();
-      this.ctx.translate(canvas.width / 2, canvas.height / 2);
+      this.ctx.translate(radius, radius);
       this.ctx.rotate(rotationAngle);
 
       for (let i = 0; i < numPrizes; i++) {
         this.ctx.beginPath();
         this.ctx.fillStyle = this.prizes[i].color;
         this.ctx.moveTo(0, 0);
-        this.ctx.arc(0, 0, canvas.width / 2 - 10, -arc / 2, arc / 2, false);
+        this.ctx.arc(0, 0, radius - 10, -arc / 2, arc / 2, false);
         this.ctx.fill();
 
         this.ctx.save();
-        // ▼▼▼ [수정됨] 글씨 색상 및 정렬 위치 조정 ▼▼▼
-        this.ctx.fillStyle = "#34495e"; // 더 진한 글씨 색
-        this.ctx.font = "bold 18px Noto Sans KR";
-        this.ctx.textAlign = "right"; // 오른쪽 정렬
+        this.ctx.fillStyle = "#34495e";
+        this.ctx.font = "bold 16px Noto Sans KR";
+        this.ctx.textAlign = "right";
         this.ctx.textBaseline = "middle";
-        this.ctx.rotate(arc / 2); // 텍스트를 슬라이스 중앙에 맞추기 위해 회전
-        this.ctx.fillText(this.prizes[i].name, canvas.width / 2 - 25, 0); // 위치 조정
-        // ▲▲▲ 수정 완료 ▲▲▲
+
+        // 텍스트를 중앙에 위치시키기 위한 회전
+        this.ctx.rotate(0);
+        this.ctx.fillText(this.prizes[i].name, radius - 25, 0);
         this.ctx.restore();
 
         this.ctx.rotate(arc);
