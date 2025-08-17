@@ -457,260 +457,232 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-:root {
-  --bg: #041522;
-  --panel: #0b1f2d;
-  --card: #0e2a3c;
-  --accent: #4fd1c5;
-  --muted: #9fb3c8;
-  --danger: #ff6b6b;
-  --success: #68d391;
-  --font-family: "Press Start 2P", monospace;
+.deep-sea-container {
+  font-family: "Noto Sans KR", sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px;
+  background: linear-gradient(to bottom, #e0f7fa, #b2ebf2);
+  min-height: 100vh;
 }
-.page-container {
-  max-width: 1120px;
-  margin: 70px auto 20px;
-  padding: 20px;
-}
-.page-header {
+
+.header {
+  color: #00695c;
+  margin-bottom: 20px;
   text-align: center;
+}
+
+.subtitle {
+  color: #00897b;
   margin-bottom: 30px;
 }
-.page-header h1 i {
-  color: var(--accent);
+
+.game-area {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-bottom: 40px;
+  width: 90%;
+  max-width: 1200px;
 }
-.game-layout {
-  display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 20px;
-  align-items: start;
-}
-.game-main-panel {
+
+.left-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-.top-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-.stat {
-  background: var(--panel);
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.stat .label {
-  font-size: 10px;
-  color: var(--muted);
-  display: block;
-  margin-top: 4px;
-}
-.collect-area {
-  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 20px;
+}
+
+.water-drop-area {
+  background-color: #80deea;
+  border-radius: 15px;
   padding: 20px;
-}
-#collectBtn {
-  width: 148px;
-  height: 148px;
-  border-radius: 16px;
-  border: 3px solid #0c6b7b;
-  background: linear-gradient(180deg, #095b6a, #043f4a);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  font-size: 20px;
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
-  transform: translateY(0);
-  transition:
-    transform 0.07s ease,
-    box-shadow 0.07s ease;
-}
-#collectBtn:active {
-  transform: translateY(3px);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
-}
-.collect-btn-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-.collect-label {
-  font-size: 12px;
-}
-.sell-area {
-  margin-top: 8px;
+  margin-bottom: 20px;
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
-.resources-grid {
+
+.collect-button {
+  background-color: #00bcd4;
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  font-size: 1.1em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.collect-button:hover {
+  background-color: #00acc1;
+}
+
+.sell-info {
+  margin-top: 10px;
+  color: #263238;
+  font-size: 0.9em;
+}
+
+.status-area {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
 }
-.res-pill {
-  background: var(--card);
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+
+.status-item {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  color: #37474f;
 }
-.res-pill .small {
-  font-size: 10px;
-  color: var(--muted);
+
+.status-label {
+  font-size: 0.8em;
+  color: #78909c;
+  margin-bottom: 5px;
 }
-.game-sidebar {
+
+.status-value {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.right-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 400px;
 }
-.card {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.03),
-    rgba(255, 255, 255, 0.02)
-  );
-  padding: 15px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.shop {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
+
 .shop-item {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.shop-left {
-  display: flex;
   align-items: center;
-  gap: 10px;
+  color: #37474f;
 }
-.item-name {
-  font-size: 11px;
+
+.shop-info {
+  flex-grow: 1;
 }
-.icon {
-  width: 36px;
-  height: 36px;
-  image-rendering: pixelated;
+
+.shop-name {
+  font-weight: bold;
+  margin-bottom: 5px;
 }
-.btn {
-  background: var(--accent);
-  color: #012;
+
+.shop-desc {
+  font-size: 0.9em;
+  color: #78909c;
+}
+
+.shop-price {
+  font-weight: bold;
+  color: #1976d2;
+  margin-left: 15px;
+}
+
+.buy-button {
+  background-color: #1976d2;
+  color: white;
+  border: none;
   padding: 8px 12px;
-  border-radius: 10px;
-  border: 0;
+  border-radius: 5px;
   cursor: pointer;
-  font-weight: 700;
-  font-family: var(--font-family);
-}
-.btn.secondary {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--accent);
-}
-.btn.small {
-  padding: 6px 8px;
-  font-size: 11px;
-}
-.btn:disabled {
-  background: #555;
-  color: #999;
-  cursor: not-allowed;
-}
-.log {
-  height: 160px;
-  overflow: auto;
-  padding: 8px;
-  background: #031722;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 12px;
-  color: var(--muted);
-}
-.small {
-  font-size: 11px;
-  color: var(--muted);
-}
-.ach-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ach {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 8px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.4;
-  transition: opacity 0.3s;
-  font-size: 11px;
-}
-.ach.unlocked {
-  opacity: 1;
-  background: rgba(104, 211, 145, 0.1);
-}
-.badge {
-  font-size: 10px;
+  transition: background-color 0.3s ease;
+  font-size: 0.9em;
 }
 
-/* Modal */
-.overlay {
+.buy-button:hover {
+  background-color: #1565c0;
+}
+
+.event-log-area {
+  background-color: #f0f4c3;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  max-height: 300px;
+  overflow-y: auto;
+  color: #2e7d32;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.event-log-title {
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #2e7d32;
+}
+
+.sell-water-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  font-size: 1.1em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 20px;
+}
+
+.sell-water-button:hover {
+  background-color: #43a047;
+}
+
+.tutorial-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: none;
-  align-items: center;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
   justify-content: center;
-  z-index: 999;
-}
-.modal {
-  background: #08212e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  max-width: 560px;
-  width: 92%;
-  padding: 16px;
-}
-.overlay.show {
-  display: flex;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-}
-.tutorial-list {
-  margin: 12px 0 0 18px;
-  line-height: 1.65;
-  font-size: 13px;
+  z-index: 10;
 }
 
-@media (max-width: 900px) {
-  .game-layout {
-    grid-template-columns: 1fr;
-  }
-  #collectBtn {
-    width: 130px;
-    height: 130px;
-  }
+.tutorial-modal {
+  background-color: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  color: #37474f;
+}
+
+.tutorial-title {
+  font-size: 1.8em;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #00897b;
+}
+
+.tutorial-message {
+  line-height: 1.6;
+  margin-bottom: 30px;
+}
+
+.tutorial-button {
+  background-color: #00bcd4;
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.3s ease;
+}
+
+.tutorial-button:hover {
+  background-color: #00acc1;
 }
 </style>
