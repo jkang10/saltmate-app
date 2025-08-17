@@ -1,3 +1,5 @@
+// 파일 경로: src/components/admin/EquityGrantModal.vue
+
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content card">
@@ -17,12 +19,16 @@
         </div>
         <div class="form-group">
           <label>지분 종류</label>
-          <input
-            type="text"
-            v-model="form.equityType"
-            placeholder="예: 영암공장 2호기"
-            required
-          />
+          <select v-model="form.equityType" required>
+            <option disabled value="">지분 종류를 선택하세요</option>
+            <option
+              v-for="type in equityTypes"
+              :key="type.id"
+              :value="type.name"
+            >
+              {{ type.name }}
+            </option>
+          </select>
         </div>
         <div class="form-group">
           <label>새 지분율 (%)</label>
@@ -73,6 +79,7 @@ const form = reactive({
   reason: "",
 });
 const allUsers = ref([]);
+const equityTypes = ref([]); // [추가됨]
 const isSaving = ref(false);
 
 onMounted(async () => {
@@ -83,10 +90,16 @@ onMounted(async () => {
     ...doc.data(),
   }));
 
+  // [추가됨] 지분 종류 목록 불러오기
+  const equityTypesSnapshot = await getDocs(collection(db, "equityTypes"));
+  equityTypes.value = equityTypesSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
   // '지분 수정' 모드일 경우
   if (props.targetUser) {
     form.userId = props.targetUser.userId;
-    // 수정할 첫 번째 지분 종류를 기본값으로 설정 (필요시 수정)
     const firstType = Object.keys(props.targetUser.types)[0];
     if (firstType) {
       form.equityType = firstType;
@@ -104,12 +117,17 @@ const updateEquity = async () => {
   try {
     const functions = getFunctions();
     const updateUserEquity = httpsCallable(functions, "updateUserEquity");
-    await updateUserEquity({
+
+    // ▼▼▼ [수정됨] 오류 해결을 위해 순수 JavaScript 객체로 변환하여 전달 ▼▼▼
+    const payload = {
       userId: form.userId,
       equityType: form.equityType,
       newPercentage: form.newPercentage,
       reason: form.reason,
-    });
+    };
+    await updateUserEquity(payload);
+    // ▲▲▲ 수정 완료 ▲▲▲
+
     alert("지분 정보가 성공적으로 업데이트되었습니다.");
     emit("equity-updated");
     emit("close");
@@ -123,6 +141,7 @@ const updateEquity = async () => {
 </script>
 
 <style scoped>
+/* 스타일은 이전과 동일하므로 생략하지 않고 모두 포함합니다. */
 .modal-overlay {
   position: fixed;
   top: 0;

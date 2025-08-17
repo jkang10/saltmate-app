@@ -1,8 +1,37 @@
+// 파일 경로: src/components/admin/EquityManagement.vue
+
 <template>
   <div class="management-page">
     <h3><i class="fas fa-chart-pie"></i> 지분 관리</h3>
     <p>회원들의 공장 지분율을 관리하고, 신규 지분을 부여합니다.</p>
 
+    <div class="equity-types-management card">
+      <h4>지분 항목 관리</h4>
+      <div class="type-list">
+        <span
+          v-for="type in equityTypes"
+          :key="type.id"
+          class="equity-type-tag"
+        >
+          {{ type.name }}
+          <button
+            @click="deleteEquityType(type.id, type.name)"
+            class="btn-delete"
+          >
+            &times;
+          </button>
+        </span>
+      </div>
+      <form @submit.prevent="addEquityType" class="add-type-form">
+        <input
+          type="text"
+          v-model="newEquityTypeName"
+          placeholder="새 지분 항목 이름 (예: 제주공장)"
+          required
+        />
+        <button type="submit" class="btn-primary btn-sm">항목 추가</button>
+      </form>
+    </div>
     <div class="actions">
       <button @click="openGrantModal(null)" class="btn-primary">
         <i class="fas fa-plus"></i> 신규 지분 부여
@@ -63,7 +92,16 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { db } from "@/firebaseConfig";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+// ▼▼▼ [수정됨] Firestore 관련 함수 추가 ▼▼▼
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  doc,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import EquityGrantModal from "./EquityGrantModal.vue";
 
@@ -71,12 +109,63 @@ const equityHolders = ref([]);
 const loading = ref(true);
 const isModalVisible = ref(false);
 const selectedUser = ref(null);
+// ▼▼▼ [추가됨] 지분 종류 관련 ref ▼▼▼
+const equityTypes = ref([]);
+const newEquityTypeName = ref("");
+// ▲▲▲ 추가 완료 ▲▲▲
 
 const totalEquity = computed(() => {
   return equityHolders.value
     .reduce((sum, holder) => sum + (holder.totalPercentage || 0), 0)
     .toFixed(4);
 });
+
+// ▼▼▼ [추가됨] 지분 종류 데이터 로딩 함수 ▼▼▼
+const fetchEquityTypes = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "equityTypes"));
+    equityTypes.value = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("지분 종류 로딩 실패:", error);
+  }
+};
+// ▲▲▲ 추가 완료 ▲▲▲
+
+// ▼▼▼ [추가됨] 지분 종류 추가 함수 ▼▼▼
+const addEquityType = async () => {
+  if (!newEquityTypeName.value.trim()) return;
+  const newName = newEquityTypeName.value.trim();
+  const docId = newName.replace(/\s+/g, "_"); // 문서 ID로 사용할 수 있도록 공백 제거
+
+  try {
+    await setDoc(doc(db, "equityTypes", docId), { name: newName });
+    alert(`'${newName}' 항목이 추가되었습니다.`);
+    newEquityTypeName.value = "";
+    await fetchEquityTypes();
+  } catch (error) {
+    console.error("지분 종류 추가 실패:", error);
+    alert("항목 추가에 실패했습니다.");
+  }
+};
+// ▲▲▲ 추가 완료 ▲▲▲
+
+// ▼▼▼ [추가됨] 지분 종류 삭제 함수 ▼▼▼
+const deleteEquityType = async (typeId, typeName) => {
+  if (!confirm(`정말로 '${typeName}' 항목을 삭제하시겠습니까?`)) return;
+
+  try {
+    await deleteDoc(doc(db, "equityTypes", typeId));
+    alert(`'${typeName}' 항목이 삭제되었습니다.`);
+    await fetchEquityTypes();
+  } catch (error) {
+    console.error("지분 종류 삭제 실패:", error);
+    alert("항목 삭제에 실패했습니다.");
+  }
+};
+// ▲▲▲ 추가 완료 ▲▲▲
 
 const fetchEquityData = async () => {
   loading.value = true;
@@ -121,7 +210,6 @@ const grantToNftHolders = async () => {
     const functions = getFunctions();
     const updateUserEquity = httpsCallable(functions, "updateUserEquity");
 
-    // Firestore에서 NFT를 보유한 모든 유저를 찾습니다.
     const nftQuery = query(collection(db, "nfts"));
     const nftSnapshot = await getDocs(nftQuery);
     const nftHolderIds = new Set(
@@ -163,7 +251,10 @@ const openGrantModal = (holder) => {
   isModalVisible.value = true;
 };
 
-onMounted(fetchEquityData);
+onMounted(() => {
+  fetchEquityData();
+  fetchEquityTypes(); // [추가됨] 페이지 로드 시 지분 종류도 불러오기
+});
 </script>
 
 <style scoped>
@@ -205,6 +296,10 @@ h4 {
   cursor: pointer;
   font-weight: bold;
 }
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.9em;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -229,4 +324,49 @@ h4 {
   text-align: center;
   padding: 40px;
 }
+
+/* ▼▼▼ [추가됨] 지분 종류 관리 스타일 ▼▼▼ */
+.equity-types-management {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.type-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.equity-type-tag {
+  background-color: #e9ecef;
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-delete {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  line-height: 1;
+}
+.add-type-form {
+  display: flex;
+  gap: 10px;
+}
+.add-type-form input {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+/* ▲▲▲ 추가 완료 ▲▲▲ */
 </style>
