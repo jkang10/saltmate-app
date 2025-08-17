@@ -266,6 +266,7 @@ const shopItems = computed(() => {
   }));
 });
 
+// ▼▼▼ [수정됨] 업적 정의에서 불필요한 매개변수 제거 및 일관성 유지 ▼▼▼
 const ACH_DEFS = [
   { id: "first_click", name: "첫 채집", cond: (s) => s.water >= 1 },
   { id: "minerals_5", name: "미네랄 콜렉터", cond: (s) => s.minerals >= 5 },
@@ -274,9 +275,10 @@ const ACH_DEFS = [
   {
     id: "cps_20",
     name: "생산라인 가동",
-    cond: (s) => derived.value.perSecond >= 20,
+    cond: () => derived.value.perSecond >= 20, // 매개변수 's' 제거
   },
 ];
+// ▲▲▲ 수정 완료 ▲▲▲
 
 const achievements = computed(() => {
   return ACH_DEFS.map((a) => ({
@@ -367,8 +369,6 @@ function runEvent() {
       0.8,
       Math.round((derived.value.marketMultiplier + change) * 100) / 100,
     );
-    // This is a bit tricky as derived is computed. We should adjust a base state value instead.
-    // For simplicity, we'll log it, but a better implementation would have a state.marketBonus.
     addLog(`해류 변화로 시세 변동! (예상: x${newMultiplier.toFixed(2)})`);
   } else if (r < 0.75) {
     const bM =
