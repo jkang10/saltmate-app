@@ -191,6 +191,12 @@
           <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
           <span class="card-enter">입장하기 &rarr;</span>
         </router-link>
+        <router-link to="/deep-sea-game" class="feature-card deep-sea-game">
+          <div class="card-icon"><i class="fas fa-water"></i></div>
+          <h3>해양심층수 탐험</h3>
+          <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
+          <span class="card-enter">탐험 시작 &rarr;</span>
+        </router-link>
       </div>
     </main>
 
@@ -801,5 +807,8 @@ export default {
 }
 .feature-card.salt-mine-game .card-icon {
   color: #ffd166;
+}
+.feature-card.deep-sea-game .card-icon {
+  color: #17a2b8;
 }
 </style>

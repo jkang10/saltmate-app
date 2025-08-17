@@ -148,6 +148,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/deep-sea-game",
+    name: "DeepSeaGamePage",
+    component: () => import("@/views/DeepSeaGamePage.vue"),
+    meta: { requiresAuth: true }, // 로그인이 필요한 페이지로 설정
+  },
+  {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
     component: () => import("@/views/AdminDashboardPage.vue"),
