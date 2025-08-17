@@ -71,49 +71,44 @@ export default {
     let authUnsubscribe = null;
     let presenceRef = null;
 
-    const checkAuthState = () => {
-      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        // 이전 접속 기록이 있다면 정리
-        if (presenceRef) {
-          remove(presenceRef);
-          presenceRef = null;
-        }
+	const checkAuthState = () => {
+	  authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+	    if (presenceRef) {
+	      remove(presenceRef);
+	      presenceRef = null;
+	    }
 
-        // 사용자가 로그인한 경우
-        if (user) {
-          isLoggedIn.value = true;
-          
-          // 실시간 데이터베이스에 접속 상태 기록 설정
-          presenceRef = dbRef(rtdb, `presence/${user.uid}`);
-          const connectedRef = dbRef(rtdb, ".info/connected");
-          
-          onValue(connectedRef, (snap) => {
-            if (snap.val() === true) {
-              // 연결이 끊어지면 자동으로 데이터 삭제
-              onDisconnect(presenceRef).remove();
-              // 현재 사용자 접속 상태 기록
-              set(presenceRef, true);
-            }
-          });
-          
-          // 사용자 이름 가져오기
-          try {
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-              userName.value = userSnap.data().name || "사용자";
-            }
-          } catch (error) {
-            console.error("사용자 이름을 가져오는 중 오류 발생:", error);
-            userName.value = "사용자";
-          }
-        } else {
-          // 사용자가 로그아웃한 경우
-          isLoggedIn.value = false;
-          userName.value = "";
-        }
-      });
-    };
+	    if (user) {
+	      isLoggedIn.value = true;
+	      
+	      presenceRef = dbRef(rtdb, `presence/${user.uid}`);
+	      const connectedRef = dbRef(rtdb, ".info/connected");
+	      
+	      onValue(connectedRef, (snap) => {
+		if (snap.val() === true) {
+		  onDisconnect(presenceRef).remove();
+		  set(presenceRef, true);
+		}
+	      });
+	      
+	      try {
+		// ▼▼▼ [수정됨] 세미콜론 추가 ▼▼▼
+		const userRef = doc(db, "users", user.uid);
+		// ▲▲▲ 수정 완료 ▲▲▲
+		const userSnap = await getDoc(userRef);
+		if (userSnap.exists()) {
+		  userName.value = userSnap.data().name || "사용자";
+		}
+	      } catch (error) {
+		console.error("사용자 이름을 가져오는 중 오류 발생:", error);
+		userName.value = "사용자";
+	      }
+	    } else {
+	      isLoggedIn.value = false;
+	      userName.value = "";
+	    }
+	  });
+	};
 
     const logout = async () => {
       try {
