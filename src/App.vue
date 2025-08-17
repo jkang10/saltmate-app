@@ -42,6 +42,9 @@
   </div>
 </template>
 
+// 파일 경로: src/App.vue
+// <script> 부분 전체를 아래 코드로 교체해주세요.
+
 <script>
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import { auth, db, rtdb } from "@/firebaseConfig";
@@ -75,19 +78,18 @@ export default {
 
         if (user) {
           isLoggedIn.value = true;
-
+          
           presenceRef = dbRef(rtdb, `presence/${user.uid}`);
           const connectedRef = dbRef(rtdb, ".info/connected");
-
+          
           onValue(connectedRef, (snap) => {
             if (snap.val() === true) {
               onDisconnect(presenceRef).remove();
-              // ▼▼▼ [수정됨] serverTimestamp 대신 true를 사용하여 오류 해결 ▼▼▼
+              // ▼▼▼ [중요] 오류를 해결하기 위해 'serverTimestamp' 대신 'true'를 사용합니다. ▼▼▼
               set(presenceRef, true);
-              // ▲▲▲ 수정 완료 ▲▲▲
             }
           });
-
+          
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
