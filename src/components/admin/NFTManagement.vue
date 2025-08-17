@@ -1,8 +1,10 @@
+// 파일 경로: src/components/admin/NFTManagement.vue
+
 <template>
   <div class="management-container">
     <h3><i class="fas fa-gem"></i> NFT 관리</h3>
     <p>
-      사용자의 공장 지분 연동 NFT 보유 현황을 관리하고, 수동으로 발행하거나
+      사용자의 NFT 보유 현황을 관리하고, 수동으로 종류를 선택하여 발행하거나
       회수합니다.
     </p>
 
@@ -11,19 +13,25 @@
       <form @submit.prevent="issueNft">
         <div class="form-group">
           <label for="userSelect">대상 사용자 선택</label>
-          <select id="userSelect" v-model="selectedUserId" required>
+          <select id="userSelect" v-model="form.userId" required>
             <option disabled value="">NFT를 발행할 사용자를 선택하세요</option>
-            <option
-              v-for="user in usersWithoutNft"
-              :key="user.id"
-              :value="user.id"
-            >
+            <option v-for="user in allUsers" :key="user.id" :value="user.id">
               {{ user.name }} ({{ user.email }})
             </option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary">
-          선택한 사용자에게 NFT 발행
+        <div class="form-group">
+          <label for="nftTypeSelect">NFT 종류 선택</label>
+          <select id="nftTypeSelect" v-model="form.nftType" required>
+            <option disabled value="">발행할 NFT 종류를 선택하세요</option>
+            <option v-for="type in nftTypes" :key="type.id" :value="type.name">
+              {{ type.name }}
+            </option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" :disabled="isProcessing">
+          <span v-if="isProcessing">발행 중...</span>
+          <span v-else>선택한 사용자에게 NFT 발행</span>
         </button>
       </form>
     </div>
@@ -31,23 +39,40 @@
     <div class="nft-holders-list card">
       <h4>NFT 보유자 목록</h4>
       <div v-if="loading" class="loading-spinner"></div>
-      <table v-else-if="nftHolders.length > 0" class="holder-table">
+      <table v-else-if="nftHoldings.length > 0" class="holder-table">
         <thead>
           <tr>
             <th>보유자 이름</th>
-            <th>이메일</th>
-            <th>지분율</th>
+            <th>NFT 종류</th>
+            <th>총 지분율</th>
+            <th>세부 지분 현황</th>
             <th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="holder in nftHolders" :key="holder.id">
-            <td>{{ holder.name }}</td>
-            <td>{{ holder.email }}</td>
-            <td>{{ holder.equityPercentage || 0 }} %</td>
+          <tr v-for="holding in nftHoldings" :key="holding.nftId">
+            <td>{{ holding.userName }} ({{ holding.userEmail }})</td>
             <td>
-              <button @click="revokeNft(holder)" class="btn btn-sm btn-danger">
-                NFT 회수
+              <span class="nft-type-tag">{{ holding.nftType }}</span>
+            </td>
+            <td>{{ (holding.equity.totalPercentage || 0).toFixed(4) }} %</td>
+            <td>
+              <ul
+                v-if="
+                  holding.equity.types &&
+                  Object.keys(holding.equity.types).length > 0
+                "
+                class="details-list"
+              >
+                <li v-for="(perc, type) in holding.equity.types" :key="type">
+                  {{ type }}: {{ perc.toFixed(4) }}%
+                </li>
+              </ul>
+              <span v-else class="no-equity">-</span>
+            </td>
+            <td>
+              <button @click="revokeNft(holding)" class="btn btn-sm btn-danger">
+                이 NFT 회수
               </button>
             </td>
           </tr>
@@ -59,96 +84,163 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, reactive } from "vue";
 import { db } from "@/firebaseConfig";
-// 변경 후
-import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  writeBatch,
+  Timestamp,
+  addDoc,
+  deleteDoc,
+} from "firebase/firestore";
 
 const allUsers = ref([]);
+const nftTypes = ref([]);
+const nftHoldings = ref([]);
 const loading = ref(true);
-const selectedUserId = ref("");
+const isProcessing = ref(false);
 
-const nftHolders = computed(() => allUsers.value.filter((u) => u.hasNFT));
-const usersWithoutNft = computed(() => allUsers.value.filter((u) => !u.hasNFT));
+const form = reactive({
+  userId: "",
+  nftType: "",
+});
 
-const fetchUsers = async () => {
+const fetchData = async () => {
   loading.value = true;
   try {
-    const querySnapshot = await getDocs(collection(db, "users"));
-    allUsers.value = querySnapshot.docs.map((doc) => ({
+    // 1. 모든 사용자 정보 가져오기
+    const usersSnapshot = await getDocs(collection(db, "users"));
+    allUsers.value = usersSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
+
+    // 2. 모든 지분 정보 가져오기
+    const equitySnapshot = await getDocs(collection(db, "equity"));
+    const equityMap = new Map(
+      equitySnapshot.docs.map((doc) => [doc.id, doc.data()]),
+    );
+
+    // 3. 모든 사용자를 순회하며 각 사용자의 NFT 정보 가져오기
+    const holdings = [];
+    for (const user of allUsers.value) {
+      const userNftsSnapshot = await getDocs(
+        collection(db, `users/${user.id}/nfts`),
+      );
+      if (!userNftsSnapshot.empty) {
+        userNftsSnapshot.docs.forEach((nftDoc) => {
+          holdings.push({
+            nftId: nftDoc.id,
+            nftType: nftDoc.data().type,
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            equity: equityMap.get(user.id) || { totalPercentage: 0, types: {} },
+          });
+        });
+      }
+    }
+    nftHoldings.value = holdings;
   } catch (error) {
-    console.error("사용자 목록을 불러오는 중 오류 발생:", error);
+    console.error("데이터를 불러오는 중 오류 발생:", error);
   } finally {
     loading.value = false;
   }
 };
 
-const issueNft = async () => {
-  if (!selectedUserId.value) {
-    alert("NFT를 발행할 사용자를 선택해주세요.");
-    return;
-  }
-  const user = allUsers.value.find((u) => u.id === selectedUserId.value);
-  if (!confirm(`'${user.name}'님에게 NFT를 발행하시겠습니까?`)) return;
-
-  const batch = writeBatch(db);
-  const userRef = doc(db, "users", selectedUserId.value);
-  const equityRef = doc(db, "equity", selectedUserId.value); // 지분 문서도 함께 생성
-
-  // 1. 사용자 문서 업데이트 (hasNFT: true)
-  batch.update(userRef, { hasNFT: true });
-  // 2. 지분 문서 생성 (기본값 0%)
-  batch.set(equityRef, {
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
-    equityPercentage: 0,
-  });
-
+const fetchNftTypes = async () => {
   try {
-    await batch.commit();
-    alert("NFT가 성공적으로 발행되었습니다.");
-    selectedUserId.value = "";
-    await fetchUsers();
+    const querySnapshot = await getDocs(collection(db, "nftTypes"));
+    nftTypes.value = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
   } catch (error) {
-    console.error("NFT 발행 중 오류 발생:", error);
+    console.error("NFT 종류 목록을 불러오는 중 오류 발생:", error);
   }
 };
 
-const revokeNft = async (user) => {
+const issueNft = async () => {
+  if (!form.userId || !form.nftType) {
+    alert("사용자와 NFT 종류를 모두 선택해주세요.");
+    return;
+  }
+  const user = allUsers.value.find((u) => u.id === form.userId);
+  if (
+    !confirm(`'${user.name}'님에게 '${form.nftType}' NFT를 발행하시겠습니까?`)
+  )
+    return;
+
+  isProcessing.value = true;
+  try {
+    // 이제 users/{userId}/nfts 서브컬렉션에 문서를 추가합니다.
+    await addDoc(collection(db, `users/${form.userId}/nfts`), {
+      type: form.nftType,
+      issuedAt: Timestamp.now(),
+    });
+
+    // 지분 문서도 함께 생성 또는 업데이트 (해당 타입의 지분 0%로 초기화)
+    const equityRef = doc(db, "equity", form.userId);
+    const batch = writeBatch(db);
+    batch.set(
+      equityRef,
+      {
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        types: {
+          [form.nftType]: 0,
+        },
+      },
+      { merge: true },
+    ); // merge: true로 다른 지분 정보를 덮어쓰지 않도록 함
+    await batch.commit();
+
+    alert("NFT가 성공적으로 발행되었습니다.");
+    form.userId = "";
+    form.nftType = "";
+    await fetchData();
+  } catch (error) {
+    console.error("NFT 발행 중 오류 발생:", error);
+    alert("NFT 발행 중 오류가 발생했습니다.");
+  } finally {
+    isProcessing.value = false;
+  }
+};
+
+const revokeNft = async (holding) => {
   if (
     !confirm(
-      `'${user.name}'님의 NFT를 회수하시겠습니까? 이 작업은 해당 사용자의 지분 정보도 함께 삭제합니다.`,
+      `'${holding.userName}'님의 '${holding.nftType}' NFT를 회수하시겠습니까?`,
     )
   )
     return;
 
-  const batch = writeBatch(db);
-  const userRef = doc(db, "users", user.id);
-  const equityRef = doc(db, "equity", user.id);
-
-  // 1. 사용자 문서 업데이트 (hasNFT: false)
-  batch.update(userRef, { hasNFT: false });
-  // 2. 지분 문서 삭제
-  batch.delete(equityRef);
-
+  isProcessing.value = true;
   try {
-    await batch.commit();
+    // 지정된 NFT 문서만 삭제
+    const nftDocRef = doc(db, `users/${holding.userId}/nfts`, holding.nftId);
+    await deleteDoc(nftDocRef);
+
     alert("NFT가 성공적으로 회수되었습니다.");
-    await fetchUsers();
+    await fetchData();
   } catch (error) {
     console.error("NFT 회수 중 오류 발생:", error);
+    alert("NFT 회수 중 오류가 발생했습니다.");
+  } finally {
+    isProcessing.value = false;
   }
 };
 
-onMounted(fetchUsers);
+onMounted(async () => {
+  await fetchNftTypes();
+  await fetchData();
+});
 </script>
 
 <style scoped>
-/* 이전 컴포넌트들과 유사한 스타일 */
 .management-container {
   display: flex;
   flex-direction: column;
@@ -164,15 +256,20 @@ h3,
 h4 {
   margin-top: 0;
 }
-.nft-form .form-group {
-  margin-bottom: 20px;
+.nft-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-.nft-form label {
-  display: block;
-  margin-bottom: 8px;
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-group label {
   font-weight: 600;
 }
-.nft-form select {
+.form-group select {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -188,6 +285,47 @@ h4 {
   border-bottom: 1px solid #eee;
   padding: 12px 15px;
   text-align: left;
+  vertical-align: middle;
 }
-/* ... (버튼, 로딩 스피너 등 공용 스타일) ... */
+.holder-table th {
+  background-color: #f8f9fa;
+}
+.details-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.no-equity {
+  color: #999;
+}
+.nft-type-tag {
+  background-color: #007bff;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+.btn,
+.btn-primary,
+.btn-danger,
+.btn-sm {
+  padding: 8px 12px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.9em;
+}
 </style>
