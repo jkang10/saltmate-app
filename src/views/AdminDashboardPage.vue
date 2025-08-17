@@ -1,3 +1,5 @@
+// 파일 경로: src/views/AdminDashboardPage.vue
+
 <template>
   <div class="admin-dashboard-page">
     <header class="page-header">
@@ -127,16 +129,19 @@
         </ul>
       </aside>
       <section class="admin-content card glassmorphism">
+        <div class="widgets-grid">
+          <RealtimeUsersWidget />
+        </div>
         <router-view></router-view>
       </section>
     </main>
   </div>
 </template>
 
-<script>
-export default {
-  name: "AdminDashboardPage",
-};
+<script setup>
+// ▼▼▼ [추가됨] 위젯 import 및 script setup으로 변경 ▼▼▼
+import RealtimeUsersWidget from "@/components/admin/RealtimeUsersWidget.vue";
+// ▲▲▲ 추가 완료 ▲▲▲
 </script>
 
 <style scoped>
@@ -243,6 +248,16 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.5);
   min-height: 500px;
 }
+
+/* ▼▼▼ [추가됨] 위젯 레이아웃 스타일 ▼▼▼ */
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+/* ▲▲▲ 추가 완료 ▲▲▲ */
+
 @media (max-width: 992px) {
   .admin-layout {
     flex-direction: column;

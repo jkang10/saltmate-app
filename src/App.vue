@@ -44,9 +44,20 @@
 
 <script>
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { auth, db } from "@/firebaseConfig";
+// ▼▼▼ [수정] firebaseConfig에서 필요한 모듈 추가 import ▼▼▼
+import { auth, db, rtdb } from "@/firebaseConfig";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+// ▼▼▼ [추가] Realtime Database 관련 함수 import ▼▼▼
+import {
+  ref as dbRef,
+  onValue,
+  set,
+  onDisconnect,
+  serverTimestamp,
+  remove,
+} from "firebase/database";
+// ▲▲▲ 추가 완료 ▲▲▲
 import { useRouter } from "vue-router";
 
 export default {
@@ -57,11 +68,32 @@ export default {
     const router = useRouter();
 
     let authUnsubscribe = null;
+    let presenceRef = null; // [추가] 실시간 DB 참조 저장 변수
 
     const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+        // ▼▼▼ [수정] 기존 로직에 Presence 관리 로직 추가 ▼▼▼
+        if (presenceRef) {
+          remove(presenceRef); // 이전 참조가 있다면 제거
+          presenceRef = null;
+        }
+
         if (user) {
           isLoggedIn.value = true;
+
+          // 실시간 접속 상태 관리
+          presenceRef = dbRef(rtdb, `presence/${user.uid}`);
+          const connectedRef = dbRef(rtdb, ".info/connected");
+
+          onValue(connectedRef, (snap) => {
+            if (snap.val() === true) {
+              // 연결이 설정되면, 연결이 끊어질 때 자동으로 데이터를 삭제하도록 설정
+              onDisconnect(presenceRef).remove();
+              // 현재 사용자를 온라인으로 설정
+              set(presenceRef, { onlineAt: serverTimestamp() });
+            }
+          });
+
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
@@ -76,11 +108,17 @@ export default {
           isLoggedIn.value = false;
           userName.value = "";
         }
+        // ▲▲▲ 수정 완료 ▲▲▲
       });
     };
 
     const logout = async () => {
       try {
+        // ▼▼▼ [추가] 로그아웃 시 presence 정보 즉시 제거 ▼▼▼
+        if (auth.currentUser && presenceRef) {
+          await remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
+        }
+        // ▲▲▲ 추가 완료 ▲▲▲
         await signOut(auth);
         alert("로그아웃 되었습니다.");
         router.push("/login");
@@ -101,6 +139,11 @@ export default {
       if (authUnsubscribe) {
         authUnsubscribe();
       }
+      // ▼▼▼ [추가] 컴포넌트 파괴 시 presence 정보 제거 ▼▼▼
+      if (auth.currentUser && presenceRef) {
+        remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
+      }
+      // ▲▲▲ 추가 완료 ▲▲▲
     });
 
     watch(
