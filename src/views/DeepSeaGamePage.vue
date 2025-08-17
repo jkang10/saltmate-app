@@ -457,232 +457,292 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.deep-sea-container {
-  font-family: "Noto Sans KR", sans-serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30px;
-  background: linear-gradient(to bottom, #e0f7fa, #b2ebf2);
-  min-height: 100vh;
+:root {
+  --text-dark: #212529;
+  --text-light: #495057;
+  --primary: #007bff;
+  --accent: #17a2b8;
+  --card-bg: #ffffff;
+  --bg-light: #f8f9fa;
+  --border-color: #dee2e6;
 }
 
-.header {
-  color: #00695c;
-  margin-bottom: 20px;
+.page-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 70px auto 20px;
+  color: var(--text-dark);
+}
+
+.page-header {
   text-align: center;
-}
-
-.subtitle {
-  color: #00897b;
   margin-bottom: 30px;
 }
 
-.game-area {
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-  margin-bottom: 40px;
-  width: 90%;
-  max-width: 1200px;
+.page-header h1 {
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 10px;
+}
+.page-header h1 i {
+  color: var(--primary);
 }
 
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.water-drop-area {
-  background-color: #80deea;
-  border-radius: 15px;
-  padding: 20px;
-  margin-bottom: 20px;
-  text-align: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-}
-
-.collect-button {
-  background-color: #00bcd4;
-  color: white;
-  border: none;
-  padding: 15px 30px;
+.page-header .description {
   font-size: 1.1em;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
+  color: var(--text-light);
 }
 
-.collect-button:hover {
-  background-color: #00acc1;
-}
-
-.sell-info {
-  margin-top: 10px;
-  color: #263238;
-  font-size: 0.9em;
-}
-
-.status-area {
+.game-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color);
+}
+
+.top-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 15px;
   margin-bottom: 20px;
 }
 
-.status-item {
-  background-color: #fff;
+.stat {
+  background: var(--bg-light);
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   text-align: center;
-  color: #37474f;
+  border: 1px solid var(--border-color);
 }
 
-.status-label {
-  font-size: 0.8em;
-  color: #78909c;
-  margin-bottom: 5px;
+.stat strong {
+  font-size: 1.4em;
+  color: var(--text-dark);
 }
 
-.status-value {
-  font-size: 1.2em;
-  font-weight: bold;
+.stat .label {
+  font-size: 0.9em;
+  color: var(--muted);
+  display: block;
+  margin-top: 5px;
 }
 
-.right-panel {
+.collect-area {
+  text-align: center;
+  padding: 20px;
+}
+
+#collectBtn {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, #2196f3, #0d47a1);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#collectBtn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
+}
+
+.collect-btn-content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: 400px;
-}
-
-.shop-item {
-  background-color: #fff;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  color: #37474f;
+  gap: 8px;
 }
 
-.shop-info {
-  flex-grow: 1;
-}
-
-.shop-name {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.shop-desc {
-  font-size: 0.9em;
-  color: #78909c;
-}
-
-.shop-price {
-  font-weight: bold;
-  color: #1976d2;
-  margin-left: 15px;
-}
-
-.buy-button {
-  background-color: #1976d2;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  font-size: 0.9em;
-}
-
-.buy-button:hover {
-  background-color: #1565c0;
-}
-
-.event-log-area {
-  background-color: #f0f4c3;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  max-height: 300px;
-  overflow-y: auto;
-  color: #2e7d32;
-  font-size: 0.9em;
-  line-height: 1.4;
-}
-
-.event-log-title {
-  font-weight: bold;
-  margin-bottom: 10px;
-  color: #2e7d32;
-}
-
-.sell-water-button {
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  padding: 15px 30px;
+.collect-label {
   font-size: 1.1em;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin-top: 20px;
+  font-weight: bold;
 }
 
-.sell-water-button:hover {
-  background-color: #43a047;
-}
-
-.tutorial-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+.sell-area {
+  margin-top: 15px;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10;
+  gap: 15px;
 }
 
-.tutorial-modal {
-  background-color: white;
+.btn {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.btn.small {
+  padding: 8px 16px;
+  font-size: 0.9em;
+  background-color: #28a745;
+  color: white;
+}
+.btn.small:hover {
+  background-color: #218838;
+}
+
+.btn:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+  color: #6c757d;
+}
+
+.resources-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.res-pill {
+  background: var(--bg-light);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.res-pill .small {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.res-pill strong {
+  font-size: 1.2em;
+}
+
+.game-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.item-name {
+  font-weight: bold;
+  font-size: 1em;
+}
+
+.log {
+  height: 200px;
+  overflow-y: auto;
+  background: #212529;
+  color: #e9ecef;
+  padding: 15px;
+  border-radius: 8px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9em;
+}
+
+.ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ach {
+  padding: 10px;
+  border-radius: 8px;
+  background: #e9ecef;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+
+.ach.unlocked {
+  background: #d4edda;
+  color: #155724;
+  opacity: 1;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.overlay.show {
+  display: flex;
+}
+
+.modal {
+  background: white;
   padding: 30px;
   border-radius: 15px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  text-align: center;
-  color: #37474f;
+  max-width: 500px;
+  width: 90%;
 }
 
-.tutorial-title {
-  font-size: 1.8em;
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.5em;
   font-weight: bold;
   margin-bottom: 20px;
-  color: #00897b;
+  color: var(--text-dark);
 }
 
-.tutorial-message {
-  line-height: 1.6;
-  margin-bottom: 30px;
+.tutorial-list {
+  list-style-position: inside;
+  text-align: left;
+  line-height: 1.8;
+  color: var(--text-light);
 }
 
-.tutorial-button {
-  background-color: #00bcd4;
+.icon {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
+
+.btn.secondary {
+  background-color: #6c757d;
   color: white;
-  border: none;
-  padding: 12px 25px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.3s ease;
 }
 
-.tutorial-button:hover {
-  background-color: #00acc1;
+@media (max-width: 900px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
