@@ -69,43 +69,44 @@ export default {
     let authUnsubscribe = null;
     let presenceRef = null;
 
-    const checkAuthState = () => {
-      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (presenceRef) {
-          remove(presenceRef);
-          presenceRef = null;
-        }
+	const checkAuthState = () => {
+	  authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+	    if (presenceRef) {
+	      remove(presenceRef);
+	      presenceRef = null;
+	    }
 
-        if (user) {
-          isLoggedIn.value = true;
-          
-          presenceRef = dbRef(rtdb, `presence/${user.uid}`);
-          const connectedRef = dbRef(rtdb, ".info/connected");
-          
-          onValue(connectedRef, (snap) => {
-            if (snap.val() === true) {
-              onDisconnect(presenceRef).remove();
-              // ▼▼▼ [중요] 오류를 해결하기 위해 'serverTimestamp' 대신 'true'를 사용합니다. ▼▼▼
-              set(presenceRef, true);
-            }
-          });
-          
-          try {
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-              userName.value = userSnap.data().name || "사용자";
-            }
-          } catch (error) {
-            console.error("사용자 이름을 가져오는 중 오류 발생:", error);
-            userName.value = "사용자";
-          }
-        } else {
-          isLoggedIn.value = false;
-          userName.value = "";
-        }
-      });
-    };
+	    if (user) {
+	      isLoggedIn.value = true;
+	      
+	      presenceRef = dbRef(rtdb, `presence/${user.uid}`);
+	      const connectedRef = dbRef(rtdb, ".info/connected");
+	      
+	      onValue(connectedRef, (snap) => {
+		if (snap.val() === true) {
+		  onDisconnect(presenceRef).remove();
+		  set(presenceRef, true);
+		}
+	      });
+	      
+	      try {
+		// ▼▼▼ [수정됨] 세미콜론 추가 ▼▼▼
+		const userRef = doc(db, "users", user.uid);
+		// ▲▲▲ 수정 완료 ▲▲▲
+		const userSnap = await getDoc(userRef);
+		if (userSnap.exists()) {
+		  userName.value = userSnap.data().name || "사용자";
+		}
+	      } catch (error) {
+		console.error("사용자 이름을 가져오는 중 오류 발생:", error);
+		userName.value = "사용자";
+	      }
+	    } else {
+	      isLoggedIn.value = false;
+	      userName.value = "";
+	    }
+	  });
+	};
 
     const logout = async () => {
       try {
