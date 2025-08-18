@@ -1,11 +1,39 @@
 <template>
   <div class="payout-manager">
     <h2><i class="fas fa-calendar-check"></i> 주간 정산 관리</h2>
+
+    <div class="search-controls card">
+      <div class="date-picker-wrapper">
+        <label for="payout-date">정산 주차 선택:</label>
+        <input type="date" id="payout-date" v-model="selectedDate" />
+      </div>
+      <button
+        @click="fetchRequestsByDate"
+        class="btn-search"
+        :disabled="isLoading"
+      >
+        <i class="fas fa-search"></i>
+        {{ isLoading ? "조회 중..." : "조회하기" }}
+      </button>
+      <button
+        @click="fetchPendingRequests"
+        class="btn-pending"
+        :disabled="isLoading"
+      >
+        <i class="fas fa-hourglass-half"></i> 현재 승인 대기 목록
+      </button>
+    </div>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
     </div>
     <div v-else-if="requests.length === 0" class="empty-state">
-      <p>대기 중인 주간 정산 요청이 없습니다.</p>
+      <p>
+        {{
+          searchMode === "date"
+            ? `선택한 날짜(${selectedDate})에 해당하는 정산 내역이 없습니다.`
+            : "대기 중인 주간 정산 요청이 없습니다."
+        }}
+      </p>
     </div>
     <div v-else class="table-container">
       <table class="payout-table">
@@ -13,6 +41,7 @@
           <tr>
             <th>정산 주차</th>
             <th>회원명</th>
+            <th>상태</th>
             <th>총 수익(Gross)</th>
             <th>실지급 현금(Net)</th>
             <th>실지급 SaltMate(Net)</th>
@@ -24,6 +53,11 @@
             <td>{{ req.weekId }}</td>
             <td>{{ req.userName }}</td>
             <td>
+              <span :class="['status-badge', req.status]">
+                {{ getStatusText(req) }}
+              </span>
+            </td>
+            <td>
               {{
                 req.totalBonus.toLocaleString(undefined, {
                   maximumFractionDigits: 0,
@@ -31,7 +65,6 @@
               }}
               원
             </td>
-
             <td class="final-amount cash">
               {{
                 calculateFinalPayout(req).cash.toLocaleString(undefined, {
@@ -49,9 +82,23 @@
               SaltMate
             </td>
             <td class="actions">
-              <button @click="approvePayout(req.id)" class="btn-approve">
+              <button
+                v-if="req.status === 'pending'"
+                @click="approvePayout(req.id)"
+                class="btn-approve"
+              >
                 승인
               </button>
+              <button
+                v-if="req.status === 'approved' && !req.reprocessed"
+                @click="reprocessPayout(req.id)"
+                class="btn-reprocess"
+              >
+                재처리
+              </button>
+              <span v-if="req.reprocessed" class="reprocessed-text"
+                >재처리 완료</span
+              >
             </td>
           </tr>
         </tbody>
@@ -61,7 +108,8 @@
 </template>
 
 <script>
-import { db } from "@/firebaseConfig";
+import { db, functions } from "@/firebaseConfig"; // functions import 추가
+import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
 import {
   collection,
   query,
@@ -72,19 +120,32 @@ import {
   orderBy,
 } from "firebase/firestore";
 
+// 오늘 날짜를 YYYY-MM-DD 형식으로 가져오는 헬퍼 함수
+const getTodayString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = (today.getMonth() + 1).toString().padStart(2, "0");
+  const day = today.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default {
   name: "WeeklyPayoutManager",
   data() {
     return {
       requests: [],
       isLoading: true,
+      selectedDate: getTodayString(), // [추가] 오늘 날짜로 초기화
+      searchMode: "pending", // [추가] 현재 조회 모드
     };
   },
   async created() {
-    await this.fetchRequests();
+    await this.fetchPendingRequests(); // 처음에는 승인 대기 목록을 불러옴
   },
   methods: {
-    async fetchRequests() {
+    // [수정] 기존 fetchRequests를 '승인 대기' 전용으로 변경
+    async fetchPendingRequests() {
+      this.searchMode = "pending";
       this.isLoading = true;
       try {
         const q = query(
@@ -98,60 +159,207 @@ export default {
           ...d.data(),
         }));
       } catch (error) {
-        console.error("주간 정산 목록 조회 오류:", error);
+        console.error("승인 대기 목록 조회 오류:", error);
+        alert("데이터를 불러오는 데 실패했습니다.");
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    // [신규] 날짜로 조회하는 함수
+    async fetchRequestsByDate() {
+      if (!this.selectedDate) {
+        alert("조회할 날짜를 선택해주세요.");
+        return;
+      }
+      this.searchMode = "date";
+      this.isLoading = true;
+      try {
+        // weekId가 날짜 문자열과 일치하는 문서를 찾음
+        const q = query(
+          collection(db, "weekly_payout_requests"),
+          where("weekId", "==", this.selectedDate),
+          orderBy("createdAt", "desc"),
+        );
+        const querySnapshot = await getDocs(q);
+        this.requests = querySnapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+      } catch (error) {
+        console.error("날짜별 정산 목록 조회 오류:", error);
         alert("데이터를 불러오는 데 실패했습니다.");
       } finally {
         this.isLoading = false;
       }
     },
     async approvePayout(payoutId) {
-      if (
-        !confirm(
-          `이 정산 요청을 승인하시겠습니까? 승인 시 즉시 회원에게 수익이 지급됩니다.`,
-        )
-      )
-        return;
+      if (!confirm(`이 정산 요청을 승인하시겠습니까?`)) return;
 
       const reqRef = doc(db, "weekly_payout_requests", payoutId);
       try {
         await updateDoc(reqRef, { status: "approved" });
         alert(`정산이 승인되었습니다.`);
-        await this.fetchRequests(); // 목록 새로고침
+        await this.fetchPendingRequests();
       } catch (error) {
         console.error("정산 승인 오류:", error);
         alert("처리 중 오류가 발생했습니다.");
       }
     },
-    // ▼▼▼ [신규] 최종 지급액을 계산하는 메소드 추가 ▼▼▼
+    // [신규] 재처리 함수
+    async reprocessPayout(payoutId) {
+      if (
+        !confirm(
+          `이 정산 건을 수동으로 재처리하시겠습니까?\n잘못 처리된 경우에만 사용하세요.`,
+        )
+      )
+        return;
+
+      this.isLoading = true;
+      try {
+        const reprocessFunction = httpsCallable(
+          functions,
+          "manuallyReprocessPayouts",
+        );
+        const result = await reprocessFunction({ payoutIds: [payoutId] });
+
+        if (result.data.success && result.data.success.length > 0) {
+          alert(`'${payoutId}' 건이 성공적으로 재처리되었습니다.`);
+        } else {
+          const failureReason =
+            result.data.failed[0]?.reason || "알 수 없는 이유";
+          throw new Error(failureReason);
+        }
+
+        // 현재 날짜 조회 목록을 새로고침
+        await this.fetchRequestsByDate();
+      } catch (error) {
+        console.error("재처리 실패:", error);
+        alert(`재처리 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
+      }
+    },
     calculateFinalPayout(req) {
+      // 이 함수는 변경 없음
       const companyFeeRate = 0.05;
       let finalCash = 0;
       let finalSaltmate = 0;
-
-      // 1. 투자금 수익 계산
       if (req.roiBonus > 0) {
         const netRoi = req.roiBonus * (1 - companyFeeRate);
         finalCash += netRoi * 0.3;
         finalSaltmate += netRoi * 0.7;
       }
-
-      // 2. 1대 매칭 보너스 계산
       if (req.matchingBonus > 0) {
         const netMatching = req.matchingBonus * (1 - companyFeeRate);
-        finalSaltmate += netMatching; // 전액 SaltMate로 지급
+        finalSaltmate += netMatching;
       }
-
-      return {
-        cash: finalCash,
-        saltmate: finalSaltmate,
-      };
+      return { cash: finalCash, saltmate: finalSaltmate };
+    },
+    // [신규] 상태 텍스트 표시 함수
+    getStatusText(req) {
+      if (req.reprocessed) return "재처리 완료";
+      switch (req.status) {
+        case "pending":
+          return "승인 대기";
+        case "approved":
+          return "승인 완료";
+        case "failed":
+          return "실패";
+        default:
+          return req.status;
+      }
     },
   },
 };
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일하되, 강조 표시를 위한 스타일 추가 */
+.payout-manager {
+  padding: 20px;
+}
+.card {
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+.search-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+.date-picker-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search-controls label {
+  font-weight: bold;
+}
+.search-controls input[type="date"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.search-controls button {
+  padding: 8px 15px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+.search-controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-search {
+  background-color: #007bff;
+}
+.btn-search:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+.btn-pending {
+  background-color: #ffc107;
+  color: #333;
+}
+.btn-pending:hover:not(:disabled) {
+  background-color: #e0a800;
+}
+.btn-reprocess {
+  background-color: #17a2b8;
+}
+.btn-reprocess:hover:not(:disabled) {
+  background-color: #117a8b;
+}
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: white;
+}
+.status-badge.pending {
+  background-color: #ffc107;
+  color: #333;
+}
+.status-badge.approved {
+  background-color: #28a745;
+}
+.status-badge.failed {
+  background-color: #dc3545;
+}
+.reprocessed-text {
+  color: #17a2b8;
+  font-weight: bold;
+}
 .payout-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
