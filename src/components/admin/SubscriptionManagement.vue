@@ -13,6 +13,7 @@
           <tr>
             <th>신청일시</th>
             <th>신청자명</th>
+            <th>센터</th>
             <th>요청 유형</th>
             <th>신청 등급</th>
             <th>금액</th>
@@ -24,6 +25,7 @@
           <tr v-for="req in requests" :key="req.id">
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>{{ req.userName }}</td>
+            <td>{{ req.centerId || "정보 없음" }}</td>
             <td>
               <span :class="['request-type-badge', req.requestType]">{{
                 formatRequestType(req.requestType)
@@ -67,6 +69,7 @@ import {
   updateDoc,
   doc,
   orderBy,
+  documentId, // ▼▼▼ [추가] documentId import ▼▼▼
 } from "firebase/firestore";
 
 export default {
@@ -81,19 +84,49 @@ export default {
     await this.fetchRequests();
   },
   methods: {
+    // ▼▼▼ [수정] fetchRequests 함수 전체를 아래 코드로 교체 ▼▼▼
     async fetchRequests() {
       this.isLoading = true;
       try {
+        // 1. 기존과 동일하게 'pending' 상태의 구독 요청을 가져옵니다.
         const q = query(
           collection(db, "subscription_requests"),
           where("status", "==", "pending"),
           orderBy("createdAt", "desc"),
         );
-        const querySnapshot = await getDocs(q);
-        this.requests = querySnapshot.docs.map((d) => ({
+        const requestSnapshot = await getDocs(q);
+        let pendingRequests = requestSnapshot.docs.map((d) => ({
           id: d.id,
           ...d.data(),
         }));
+
+        if (pendingRequests.length > 0) {
+          // 2. 요청 목록에서 모든 신청자들의 userId를 추출합니다.
+          const userIds = [
+            ...new Set(pendingRequests.map((req) => req.userId)),
+          ];
+
+          // 3. 추출한 userId를 사용하여 'users' 컬렉션에서 해당 사용자들의 정보를 한 번에 가져옵니다.
+          const usersQuery = query(
+            collection(db, "users"),
+            where(documentId(), "in", userIds),
+          );
+          const usersSnapshot = await getDocs(usersQuery);
+
+          // 4. userId를 키로, centerId를 값으로 하는 맵(Map)을 만듭니다.
+          const centerInfoMap = new Map();
+          usersSnapshot.forEach((userDoc) => {
+            centerInfoMap.set(userDoc.id, userDoc.data().centerId);
+          });
+
+          // 5. 원래의 요청 목록에 센터 정보를 추가(병합)합니다.
+          pendingRequests = pendingRequests.map((req) => ({
+            ...req,
+            centerId: centerInfoMap.get(req.userId) || "N/A",
+          }));
+        }
+
+        this.requests = pendingRequests;
       } catch (error) {
         console.error("승인 요청 목록 조회 오류:", error);
         alert("데이터를 불러오는 데 실패했습니다.");
