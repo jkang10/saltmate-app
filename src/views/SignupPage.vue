@@ -58,13 +58,13 @@
           <small>하이픈(-)을 포함하여 입력해주세요.</small>
         </div>
         <div class="form-group">
-          <label for="region">지역 (센터):</label>
-          <select id="region" v-model="region" required>
+          <label for="center">지역 (센터):</label>
+          <select id="center" v-model="selectedCenterId" required>
             <option value="" disabled>지역(센터)를 선택하세요</option>
             <option
               v-for="center in centers"
               :key="center.id"
-              :value="center.name"
+              :value="center.id"
             >
               {{ center.name }}
             </option>
@@ -150,7 +150,9 @@ export default {
     const confirmPassword = ref("");
     const name = ref("");
     const phone = ref("");
-    const region = ref("");
+    // ▼▼▼ [수정됨] region을 selectedCenterId로 변경 ▼▼▼
+    const selectedCenterId = ref("");
+    // ▲▲▲ 수정 완료 ▲▲▲
     const investmentAmount = ref("");
     const error = ref(null);
     const isLoading = ref(false);
@@ -237,6 +239,12 @@ export default {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
+      // ▼▼▼ [수정됨] selectedCenterId 유효성 검사 추가 ▼▼▼
+      if (!selectedCenterId.value) {
+        error.value = "지역(센터)를 선택해주세요.";
+        return;
+      }
+      // ▲▲▲ 수정 완료 ▲▲▲
       if (!investmentAmount.value) {
         error.value = "구독 등급을 선택해주세요.";
         return;
@@ -252,14 +260,23 @@ export default {
         const selectedTierName =
           selectElement.options[selectElement.selectedIndex].text;
 
+        // ▼▼▼ [수정됨] userData 객체에 centerId와 region(센터이름) 추가 ▼▼▼
+        const selectedCenter = centers.value.find(
+          (c) => c.id === selectedCenterId.value,
+        );
+        const centerName = selectedCenter ? selectedCenter.name : "";
+
         const userData = {
           name: name.value,
           phone: phone.value,
-          region: region.value,
+          region: centerName,
+          centerId: selectedCenterId.value,
           investmentAmount: Number(investmentAmount.value),
           uplineReferrer: validatedReferrer.uid || null,
           tierName: selectedTierName,
         };
+        // ▲▲▲ 수정 완료 ▲▲▲
+
         await createNewUser(userData);
 
         alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
@@ -282,7 +299,9 @@ export default {
       confirmPassword,
       name,
       phone,
-      region,
+      // ▼▼▼ [수정됨] region 대신 selectedCenterId를 반환 ▼▼▼
+      selectedCenterId,
+      // ▲▲▲ 수정 완료 ▲▲▲
       investmentAmount,
       error,
       isLoading,
