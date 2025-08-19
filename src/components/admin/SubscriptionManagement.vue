@@ -25,7 +25,7 @@
           <tr v-for="req in requests" :key="req.id">
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>{{ req.userName }}</td>
-            <td>{{ req.centerId || "정보 없음" }}</td>
+            <td>{{ req.centerName || "정보 없음" }}</td>
             <td>
               <span :class="['request-type-badge', req.requestType]">{{
                 formatRequestType(req.requestType)
@@ -69,7 +69,7 @@ import {
   updateDoc,
   doc,
   orderBy,
-  documentId, // ▼▼▼ [추가] documentId import ▼▼▼
+  documentId,
 } from "firebase/firestore";
 
 export default {
@@ -88,7 +88,7 @@ export default {
     async fetchRequests() {
       this.isLoading = true;
       try {
-        // 1. 기존과 동일하게 'pending' 상태의 구독 요청을 가져옵니다.
+        // 1. 'pending' 상태의 구독 요청을 가져옵니다.
         const q = query(
           collection(db, "subscription_requests"),
           where("status", "==", "pending"),
@@ -101,29 +101,49 @@ export default {
         }));
 
         if (pendingRequests.length > 0) {
-          // 2. 요청 목록에서 모든 신청자들의 userId를 추출합니다.
+          // 2. 요청 목록에서 신청자들의 userId를 추출합니다.
           const userIds = [
             ...new Set(pendingRequests.map((req) => req.userId)),
           ];
 
-          // 3. 추출한 userId를 사용하여 'users' 컬렉션에서 해당 사용자들의 정보를 한 번에 가져옵니다.
+          // 3. 사용자 정보를 가져와서 userId를 키로, centerId를 값으로 하는 맵을 만듭니다.
           const usersQuery = query(
             collection(db, "users"),
             where(documentId(), "in", userIds),
           );
           const usersSnapshot = await getDocs(usersQuery);
-
-          // 4. userId를 키로, centerId를 값으로 하는 맵(Map)을 만듭니다.
-          const centerInfoMap = new Map();
+          const userCenterMap = new Map();
           usersSnapshot.forEach((userDoc) => {
-            centerInfoMap.set(userDoc.id, userDoc.data().centerId);
+            userCenterMap.set(userDoc.id, userDoc.data().centerId);
           });
 
-          // 5. 원래의 요청 목록에 센터 정보를 추가(병합)합니다.
-          pendingRequests = pendingRequests.map((req) => ({
-            ...req,
-            centerId: centerInfoMap.get(req.userId) || "N/A",
-          }));
+          // 4. 조회된 centerId 목록을 추출합니다. (중복 제거, null/undefined 제외)
+          const centerIds = [
+            ...new Set(Array.from(userCenterMap.values())),
+          ].filter((id) => !!id);
+
+          const centerNameMap = new Map();
+          if (centerIds.length > 0) {
+            // 5. centerId 목록을 사용하여 'centers' 컬렉션에서 센터 이름 정보를 한 번에 가져옵니다.
+            const centersQuery = query(
+              collection(db, "centers"),
+              where(documentId(), "in", centerIds),
+            );
+            const centersSnapshot = await getDocs(centersQuery);
+            centersSnapshot.forEach((centerDoc) => {
+              centerNameMap.set(centerDoc.id, centerDoc.data().name);
+            });
+          }
+
+          // 6. 원래의 요청 목록에 최종적으로 센터 '이름'을 추가합니다.
+          pendingRequests = pendingRequests.map((req) => {
+            const centerId = userCenterMap.get(req.userId);
+            const centerName = centerNameMap.get(centerId);
+            return {
+              ...req,
+              centerName: centerName || "N/A", // 센터 ID는 있지만 이름이 없는 경우 대비
+            };
+          });
         }
 
         this.requests = pendingRequests;
@@ -134,6 +154,7 @@ export default {
         this.isLoading = false;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
     async updateRequestStatus(requestId, status) {
       if (
         !confirm(
@@ -166,6 +187,7 @@ export default {
 </script>
 
 <style scoped>
+/* 스타일은 변경사항이 없으므로 기존 코드를 그대로 유지합니다. */
 .subscription-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
