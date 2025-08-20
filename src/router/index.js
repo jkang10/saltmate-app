@@ -174,6 +174,12 @@ const routes = [
         component: () => import("@/components/admin/CenterManagement.vue"),
       },
       {
+        path: "game-conversion-settings",
+        name: "GameConversionSettings",
+        component: () =>
+          import("@/components/admin/GameConversionSettings.vue"),
+      },
+      {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",
         component: () =>

@@ -39,6 +39,26 @@
           </div>
         </div>
 
+        <div class="card salt-sale-box">
+          <h3>해양심층수 판매소</h3>
+          <div class="salt-info">
+            <i class="fas fa-coins gold-icon"></i>
+            보유 자금:
+            <strong>{{ fmt(state.funds).toLocaleString() }}</strong>
+          </div>
+          <p class="exchange-rate">
+            현재 시세: {{ gameSettings.deepSeaRate.toLocaleString() }} 자금 = 1
+            SaltMate
+          </p>
+          <button
+            class="btn sell-all-btn"
+            @click="sellFundsForPoints"
+            :disabled="isSellingFunds || state.funds < gameSettings.deepSeaRate"
+          >
+            <span v-if="isSellingFunds" class="spinner-small"></span>
+            <span v-else>모두 판매하기</span>
+          </button>
+        </div>
         <div class="resources-grid">
           <div class="res-pill">
             <div class="small">심층수</div>
@@ -80,7 +100,7 @@
                 @click="buy(item.id)"
                 :disabled="state.funds < item.cost"
               >
-                {{ item.cost }}원
+                {{ item.cost.toLocaleString() }}원
               </button>
             </div>
           </div>
@@ -111,7 +131,6 @@
       </aside>
     </main>
 
-    <!-- Tutorial Modal -->
     <div class="overlay" :class="{ show: showTutorial }">
       <div class="modal">
         <div class="modal-header">
@@ -142,8 +161,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db } from "@/firebaseConfig";
+// ▼▼▼ [신규 추가] functions 및 onSnapshot import ▼▼▼
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 // --- 상태 관리 (State Management) ---
 const DEFAULT_STATE = {
@@ -159,6 +181,12 @@ const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
 const showTutorial = ref(false);
 const logBox = ref(null);
+// ▼▼▼ [신규 추가] 판매 버튼 로딩 및 게임 설정 상태 변수 ▼▼▼
+const isSellingFunds = ref(false);
+const gameSettings = reactive({
+  deepSeaRate: 100000, // 기본값
+});
+// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
@@ -266,7 +294,6 @@ const shopItems = computed(() => {
   }));
 });
 
-// ▼▼▼ [수정됨] 업적 정의에서 불필요한 매개변수 제거 및 일관성 유지 ▼▼▼
 const ACH_DEFS = [
   { id: "first_click", name: "첫 채집", cond: (s) => s.water >= 1 },
   { id: "minerals_5", name: "미네랄 콜렉터", cond: (s) => s.minerals >= 5 },
@@ -275,10 +302,9 @@ const ACH_DEFS = [
   {
     id: "cps_20",
     name: "생산라인 가동",
-    cond: () => derived.value.perSecond >= 20, // 매개변수 's' 제거
+    cond: () => derived.value.perSecond >= 20,
   },
 ];
-// ▲▲▲ 수정 완료 ▲▲▲
 
 const achievements = computed(() => {
   return ACH_DEFS.map((a) => ({
@@ -303,6 +329,41 @@ function addLog(msg) {
 }
 
 // --- 게임 로직 (Core Logic) ---
+// ▼▼▼ [신규 추가] 자금을 SaltMate로 판매하는 함수 ▼▼▼
+const sellFundsForPoints = async () => {
+  if (state.funds < gameSettings.deepSeaRate) {
+    alert(
+      `SaltMate로 교환하려면 최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
+    );
+    return;
+  }
+  if (
+    !confirm(
+      `${fmt(state.funds).toLocaleString()} 자금을 모두 판매하여 SaltMate로 교환하시겠습니까?`,
+    )
+  ) {
+    return;
+  }
+  isSellingFunds.value = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
+    const result = await sellFunds();
+
+    const { awardedPoints, soldFunds } = result.data;
+    alert(
+      `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
+    );
+    addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
+  } catch (error) {
+    console.error("자금 판매 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isSellingFunds.value = false;
+  }
+};
+// ▲▲▲ 신규 추가 완료 ▲▲▲
+
 function collectClick() {
   if (state.water >= derived.value.capacity) {
     addLog("저장 탱크가 가득 찼습니다!");
@@ -331,7 +392,7 @@ function sellWater() {
     state.water * pricePerL * derived.value.marketMultiplier,
   );
   state.funds += revenue;
-  addLog(`${fmt(state.water)}L 심층수 판매: +${revenue} 자금`);
+  addLog(`${fmt(state.water)}L 심층수 판매: +${revenue.toLocaleString()} 자금`);
   state.water = 0;
   checkAchievements();
   saveGame();
@@ -427,6 +488,16 @@ onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       loadGame(user);
+
+      // --- [신규 추가] 게임 설정 실시간 감지 ---
+      const configRef = doc(db, "configuration", "gameSettings");
+      onSnapshot(configRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+        }
+      });
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
@@ -644,10 +715,17 @@ onUnmounted(() => {
 .shop-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 15px;
   padding: 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
+}
+
+.shop-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .item-name {
@@ -739,6 +817,52 @@ onUnmounted(() => {
   background-color: #6c757d;
   color: white;
 }
+/* ▼▼▼ [신규 추가] 판매소 스타일 ▼▼▼ */
+.salt-sale-box {
+  margin-top: 20px;
+  padding: 20px;
+  text-align: center;
+}
+.salt-sale-box h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2em;
+}
+.salt-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.3em;
+  margin-bottom: 10px;
+}
+.gold-icon {
+  color: #ffc107;
+}
+.exchange-rate {
+  color: #6c757d;
+  margin-bottom: 20px;
+}
+.sell-all-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #6c757d;
+  color: white;
+  font-size: 1.1em;
+}
+.sell-all-btn:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
 
 @media (max-width: 900px) {
   .game-layout {
