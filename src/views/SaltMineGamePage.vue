@@ -76,8 +76,17 @@
               <strong>{{ gold.toLocaleString() }}</strong> 개</span
             >
           </div>
-          <p>현재 시세: <strong>1,000 소금 = 1 SaltMate</strong></p>
-          <button @click="sellSalt" :disabled="isSelling || salt < 1000">
+          <p>
+            현재 시세:
+            <strong
+              >{{ gameSettings.saltMineRate.toLocaleString() }} 소금 = 1
+              SaltMate</strong
+            >
+          </p>
+          <button
+            @click="sellSalt"
+            :disabled="isSelling || salt < gameSettings.saltMineRate"
+          >
             <span v-if="isSelling">판매 중...</span>
             <span v-else>모두 판매하기</span>
           </button>
@@ -104,12 +113,12 @@
 </template>
 
 <script>
-// ▼▼▼ [수정됨] 파이어베이스 모듈 import ▼▼▼
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth, db } from "@/firebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+// ▼▼▼ [신규 추가] onSnapshot import ▼▼▼
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+// ▲▲▲ 신규 추가 완료 ▲▲▲
 import { onAuthStateChanged } from "firebase/auth";
-// ▲▲▲ 수정 완료 ▲▲▲
 
 export default {
   name: "SaltMineGamePage",
@@ -123,13 +132,16 @@ export default {
       isSelling: false,
       gameInterval: null,
       logs: [],
-
-      // ▼▼▼ [추가됨] 사용자 정보 및 데이터 로딩 상태 ▼▼▼
       currentUser: null,
       gameStateRef: null,
       isLoading: true,
       authUnsubscribe: null,
-      // ▲▲▲ 추가 완료 ▲▲▲
+      // ▼▼▼ [신규 추가] 게임 설정값을 저장할 객체 ▼▼▼
+      gameSettings: {
+        saltMineRate: 1000, // 기본값
+        deepSeaRate: 100000, // 기본값
+      },
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
     };
   },
   computed: {
@@ -217,31 +229,46 @@ export default {
     },
   },
   mounted() {
-    // ▼▼▼ [수정됨] 인증 상태 확인 후 게임 로드 ▼▼▼
     this.authUnsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         this.currentUser = user;
         this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
         this.loadGame();
+        // ▼▼▼ [신규 추가] 게임 설정 실시간 감지 리스너 ▼▼▼
+        this.listenToGameSettings();
+        // ▲▲▲ 신규 추가 완료 ▲▲▲
       } else {
         this.currentUser = null;
         alert("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
-        // (선택) 로그인 페이지로 리디렉션
       }
     });
     this.gameInterval = setInterval(this.gameTick, 1000);
     this.logEvent("게임에 오신 것을 환영합니다!");
-    // ▲▲▲ 수정 완료 ▲▲▲
   },
   unmounted() {
     clearInterval(this.gameInterval);
-    this.saveGame(); // 페이지를 떠날 때 저장
+    this.saveGame();
     if (this.authUnsubscribe) {
-      this.authUnsubscribe(); // 리스너 정리
+      this.authUnsubscribe();
     }
   },
   methods: {
-    // ▼▼▼ [수정됨] Firestore에서 게임 데이터 불러오기 ▼▼▼
+    // ▼▼▼ [신규 추가] 게임 설정 실시간으로 불러오는 함수 ▼▼▼
+    listenToGameSettings() {
+      const configRef = doc(db, "configuration", "gameSettings");
+      onSnapshot(configRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          this.gameSettings.saltMineRate = data.saltMineRate || 1000;
+          this.gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+        } else {
+          // 문서가 없을 경우 기본값 유지
+          this.gameSettings.saltMineRate = 20000; // 요청하신 20000으로 기본값 변경
+          this.gameSettings.deepSeaRate = 100000;
+        }
+      });
+    },
+    // ▲▲▲ 신규 추가 완료 ▲▲▲
     async loadGame() {
       if (!this.gameStateRef) return;
       this.isLoading = true;
@@ -261,9 +288,6 @@ export default {
         this.isLoading = false;
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
-
-    // ▼▼▼ [수정됨] Firestore에 게임 데이터 저장하기 ▼▼▼
     async saveGame() {
       if (!this.gameStateRef) return;
       const state = {
@@ -280,8 +304,6 @@ export default {
         console.error("게임 데이터 저장 오류:", error);
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
-
     gameTick() {
       this.salt += this.perSecond;
     },
@@ -290,7 +312,7 @@ export default {
       if (Math.random() < 0.01) {
         this.gold++;
         this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
-        this.saveGame(); // 중요한 이벤트 발생 시 저장
+        this.saveGame();
       }
     },
     buyUpgrade(itemId) {
@@ -304,29 +326,31 @@ export default {
       if (item.type === "click") this.perClick += item.add;
 
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
-      this.saveGame(); // 중요한 이벤트 발생 시 저장
+      this.saveGame();
     },
-    // ▼▼▼ [수정됨] '소금 판매' 함수 로직 변경 ▼▼▼
     async sellSalt() {
       if (!this.currentUser) {
         alert("로그인이 필요합니다.");
         return;
       }
-      if (this.isSelling || this.salt < 1000) {
-        alert("1,000개 이상의 소금만 판매할 수 있습니다.");
+      // ▼▼▼ [수정됨] 최소 판매 조건을 동적 시세로 변경 ▼▼▼
+      if (this.isSelling || this.salt < this.gameSettings.saltMineRate) {
+        alert(
+          `${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`,
+        );
         return;
       }
+      // ▲▲▲ 수정 완료 ▲▲▲
       this.isSelling = true;
 
       try {
-        const functions = getFunctions();
+        const functions = getFunctions(undefined, "asia-northeast3");
         const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        // 이제 saltAmount를 보내지 않습니다. 서버가 직접 확인합니다.
         const result = await sellSaltForPoints();
 
         const { awardedPoints, soldSalt } = result.data;
-        this.salt -= soldSalt; // 서버가 알려준 만큼만 차감
-        this.saveGame();
+        // this.salt = 0; // 서버에서 처리하므로 클라이언트에서 직접 0으로 만들지 않습니다.
+        // this.saveGame(); // 함수 호출 성공 시 자동으로 데이터가 갱신되므로 수동 저장 불필요
         this.logEvent(
           `소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`,
         );
@@ -340,8 +364,6 @@ export default {
         this.isSelling = false;
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
-
     logEvent(message) {
       const time = new Date().toLocaleTimeString();
       this.logs.unshift(`[${time}] ${message}`);
