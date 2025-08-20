@@ -126,14 +126,15 @@
               ><i class="fas fa-chart-pie"></i> 지분관리</router-link
             >
           </li>
-          <li>
-            <router-link
-              to="/admin-dashboard/game-conversion-settings"
-              class="nav-link"
-            >
-              <i class="fas fa-gamepad"></i> 게임 설정
-            </router-link>
-          </li>
+	<li>
+	  <router-link
+	    to="/admin-dashboard/game-conversion-settings"
+	    class="nav-item"
+	    active-class="active-link"
+	  >
+	    <i class="fas fa-gamepad"></i> 게임 설정
+	  </router-link>
+	</li
         </ul>
       </aside>
       <section class="admin-content card glassmorphism">
