@@ -126,15 +126,15 @@
               ><i class="fas fa-chart-pie"></i> 지분관리</router-link
             >
           </li>
-	<li>
-	  <router-link
-	    to="/admin-dashboard/game-conversion-settings"
-	    class="nav-item"
-	    active-class="active-link"
-	  >
-	    <i class="fas fa-gamepad"></i> 게임 설정
-	  </router-link>
-	</li
+          <li>
+            <router-link
+              to="/admin-dashboard/game-conversion-settings"
+              class="nav-item"
+              active-class="active-link"
+            >
+              <i class="fas fa-gamepad"></i> 게임 설정
+            </router-link>
+          </li>
         </ul>
       </aside>
       <section class="admin-content card glassmorphism">
@@ -148,9 +148,7 @@
 </template>
 
 <script setup>
-// ▼▼▼ [추가됨] 위젯 import 및 script setup으로 변경 ▼▼▼
 import RealtimeUsersWidget from "@/components/admin/RealtimeUsersWidget.vue";
-// ▲▲▲ 추가 완료 ▲▲▲
 </script>
 
 <style scoped>
@@ -258,14 +256,12 @@ import RealtimeUsersWidget from "@/components/admin/RealtimeUsersWidget.vue";
   min-height: 500px;
 }
 
-/* ▼▼▼ [추가됨] 위젯 레이아웃 스타일 ▼▼▼ */
 .widgets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 20px;
   margin-bottom: 30px;
 }
-/* ▲▲▲ 추가 완료 ▲▲▲ */
 
 @media (max-width: 992px) {
   .admin-layout {
