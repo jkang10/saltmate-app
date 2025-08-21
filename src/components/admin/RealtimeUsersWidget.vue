@@ -1,5 +1,3 @@
-// 파일 경로: src/components/admin/RealtimeUsersWidget.vue
-
 <template>
   <div class="widget-card">
     <h4><i class="fas fa-users"></i> 실시간 접속자 수</h4>
@@ -18,22 +16,35 @@ import { ref as dbRef, onValue, off } from "firebase/database";
 
 const userCount = ref(0);
 const presenceRef = dbRef(rtdb, "presence");
-let presenceListener = null;
+
+// ▼▼▼ [수정됨] onValue 리스너를 저장할 변수 선언 방식 변경 ▼▼▼
+let listener;
+// ▲▲▲ 수정 완료 ▲▲▲
 
 onMounted(() => {
-  presenceListener = onValue(presenceRef, (snapshot) => {
+  // onValue는 리스너 함수 자체를 반환하지 않으므로, 직접 리스너 함수를 정의합니다.
+  const presenceListener = (snapshot) => {
     if (snapshot.exists()) {
       userCount.value = snapshot.numChildren();
     } else {
       userCount.value = 0;
     }
-  });
+  };
+
+  // 정의된 리스너를 onValue에 등록합니다.
+  onValue(presenceRef, presenceListener);
+
+  // 나중에 해제할 수 있도록 리스너를 저장합니다.
+  listener = presenceListener;
 });
 
 onUnmounted(() => {
-  if (presenceListener) {
-    off(presenceRef, "value", presenceListener);
+  // ▼▼▼ [수정됨] off 함수 사용법을 올바르게 변경 ▼▼▼
+  // onValue로 등록한 리스너를 해제할 때는 off(레퍼런스, 이벤트 타입, 리스너 함수) 형식을 사용합니다.
+  if (listener) {
+    off(presenceRef, "value", listener);
   }
+  // ▲▲▲ 수정 완료 ▲▲▲
 });
 </script>
 

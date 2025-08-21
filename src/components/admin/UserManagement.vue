@@ -23,7 +23,10 @@
           <tr>
             <th>이름</th>
             <th>이메일</th>
+            <th>센터</th>
+            <th>추천인</th>
             <th>가입일</th>
+            <th>다음 결제일</th>
             <th>현금성 수익</th>
             <th>솔트메이트</th>
             <th>관리자</th>
@@ -34,7 +37,10 @@
           <tr v-for="user in paginatedUsers" :key="user.id">
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
+            <td>{{ user.centerName || "N/A" }}</td>
+            <td>{{ user.referrerName || "없음" }}</td>
             <td>{{ formatDate(user.createdAt) }}</td>
+            <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
             <td>{{ (user.cashBalance || 0).toLocaleString() }} 원</td>
             <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
             <td>
@@ -160,19 +166,43 @@ const paginatedUsers = computed(() => {
 });
 
 const formatDate = (timestamp) => {
-  if (!timestamp || !timestamp.toDate) return "날짜 정보 없음";
+  if (!timestamp || !timestamp.toDate) return "정보 없음"; // '날짜 정보 없음'에서 변경
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
 
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
-    const querySnapshot = await getDocs(q);
-    users.value = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const usersQuery = query(
+      collection(db, "users"),
+      orderBy("createdAt", "desc"),
+    );
+    const centersQuery = query(collection(db, "centers"));
+
+    const [userSnapshot, centerSnapshot] = await Promise.all([
+      getDocs(usersQuery),
+      getDocs(centersQuery),
+    ]);
+
+    const centerMap = new Map();
+    centerSnapshot.forEach((doc) => {
+      centerMap.set(doc.id, doc.data().name);
+    });
+
+    const userMap = new Map();
+    userSnapshot.forEach((doc) => {
+      userMap.set(doc.id, doc.data().name);
+    });
+
+    users.value = userSnapshot.docs.map((doc) => {
+      const userData = doc.data();
+      return {
+        id: doc.id,
+        ...userData,
+        centerName: centerMap.get(userData.centerId) || "N/A",
+        referrerName: userMap.get(userData.uplineReferrer) || "없음",
+      };
+    });
   } catch (err) {
     console.error("사용자 정보를 불러오는 중 오류 발생:", err);
     error.value = "사용자 정보를 불러오는 데 실패했습니다.";
@@ -184,16 +214,14 @@ const fetchUsers = async () => {
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
   const confirmation = confirm(
-    `'${user.name}' 사용자를 '${
-      newStatus ? "관리자" : "일반 사용자"
-    }' (으)로 지정하시겠습니까?`,
+    `'${user.name}' 사용자를 '${newStatus ? "관리자" : "일반 사용자"}' (으)로 지정하시겠습니까?`,
   );
   if (!confirmation) return;
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
     await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
-    // Firestore 문서 업데이트는 Cloud Function에서 처리하므로, 여기서는 UI만 갱신
+
     const userInList = users.value.find((u) => u.id === user.id);
     if (userInList) userInList.isAdmin = newStatus;
     alert(
@@ -267,21 +295,20 @@ onMounted(fetchUsers);
   width: 100%;
   border-collapse: collapse;
   margin-top: 20px;
-  font-size: 0.95em; /* 테이블 전체 폰트 크기 미세 조정 */
+  font-size: 0.9em;
 }
 .user-table th,
 .user-table td {
   border-bottom: 1px solid #eee;
-  /* ▼▼▼ [수정] 테이블 행 간격을 줄이기 위해 padding 값 변경 ▼▼▼ */
-  padding: 8px 12px;
-  text-align: center; /* [수정] 모든 텍스트 중앙 정렬 */
+  padding: 8px 10px;
+  text-align: center;
   vertical-align: middle;
+  white-space: nowrap;
 }
 .user-table th {
   background-color: #f8f9fa;
   font-weight: 600;
   color: #555;
-  white-space: nowrap;
 }
 .admin-badge,
 .user-badge {
@@ -302,16 +329,16 @@ onMounted(fetchUsers);
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  justify-content: center; /* [수정] 버튼 중앙 정렬 */
+  justify-content: center;
 }
 .btn {
   border: none;
   border-radius: 5px;
-  padding: 5px 10px; /* [수정] 버튼 크기 축소 */
+  padding: 5px 10px;
   cursor: pointer;
   transition: opacity 0.2s;
-  font-weight: 500; /* [수정] 버튼 폰트 두께 조정 */
-  min-width: 60px; /* [추가] 버튼 최소 너비 설정 */
+  font-weight: 500;
+  min-width: 60px;
 }
 .btn:hover {
   opacity: 0.8;
