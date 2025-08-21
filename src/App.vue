@@ -68,10 +68,12 @@ export default {
 
     const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (presenceRef) {
-          remove(presenceRef);
-          presenceRef = null;
-        }
+        // ▼▼▼ [수정됨] 이 if 블록 전체를 삭제하여 로그인 시 접속 기록이 지워지는 것을 방지합니다. ▼▼▼
+        // if (presenceRef) {
+        //   remove(presenceRef);
+        //   presenceRef = null;
+        // }
+        // ▲▲▲ 수정 완료 ▲▲▲
 
         if (user) {
           isLoggedIn.value = true;
@@ -99,13 +101,17 @@ export default {
         } else {
           isLoggedIn.value = false;
           userName.value = "";
+          // 로그아웃 시에는 접속 기록을 확실히 제거합니다.
+          if (presenceRef) {
+            remove(presenceRef);
+            presenceRef = null;
+          }
         }
       });
     };
 
     const logout = async () => {
       try {
-        // 로그아웃 시 즉시 접속 기록 삭제
         if (auth.currentUser && presenceRef) {
           await remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
         }
@@ -129,7 +135,6 @@ export default {
       if (authUnsubscribe) {
         authUnsubscribe();
       }
-      // 컴포넌트가 사라질 때도 접속 기록 삭제
       if (auth.currentUser && presenceRef) {
         remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
       }
