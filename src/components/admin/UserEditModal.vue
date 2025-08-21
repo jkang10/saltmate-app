@@ -81,12 +81,12 @@ const saveChanges = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const updateUserByAdmin = httpsCallable(functions, "updateUserByAdmin");
 
-    // ▼▼▼ [수정] referrerId를 uplineReferrer로 변경 ▼▼▼
+    // ▼▼▼ [수정] uplineReferrer를 referrerId로 변경 ▼▼▼
     await updateUserByAdmin({
       userId: editableUser.value.id,
       name: editableUser.value.name,
       centerId: editableUser.value.centerId || "",
-      uplineReferrer: editableUser.value.uplineReferrer || null,
+      referrerId: editableUser.value.uplineReferrer || null,
       email: editableUser.value.email,
     });
     // ▲▲▲ 수정 완료 ▲▲▲
