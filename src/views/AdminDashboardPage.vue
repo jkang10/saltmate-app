@@ -175,7 +175,6 @@
 </template>
 
 <script setup>
-// ▼▼▼ [수정됨] 실시간 카운팅을 위한 모듈 추가 ▼▼▼
 import { reactive, onMounted, onUnmounted } from "vue";
 import { db } from "@/firebaseConfig";
 import {
@@ -186,9 +185,7 @@ import {
   getCountFromServer,
 } from "firebase/firestore";
 import RealtimeUsersWidget from "@/components/admin/RealtimeUsersWidget.vue";
-// ▲▲▲ 수정 완료 ▲▲▲
 
-// ▼▼▼ [신규 추가] 알림 카운트를 저장할 반응형 객체 ▼▼▼
 const notificationCounts = reactive({
   subscriptions: 0,
   weeklyPayouts: 0,
@@ -196,50 +193,38 @@ const notificationCounts = reactive({
   monthlyPayments: 0,
 });
 
-// 실시간 리스너를 정리하기 위한 배열
 let unsubscribeListeners = [];
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
-// ▼▼▼ [신규 추가] 실시간 알림 리스너 설정 함수 ▼▼▼
 const setupNotificationListeners = () => {
-  // 각 컬렉션의 'pending' 상태 문서 개수를 실시간으로 감지하는 리스너를 생성하는 헬퍼 함수
   const createCountListener = (collectionName, countProperty) => {
     try {
       const q = query(
         collection(db, collectionName),
         where("status", "==", "pending"),
       );
-
-      // onSnapshot을 사용하여 실시간 변경 감지
       const unsubscribe = onSnapshot(q, async () => {
-        // 변경이 감지될 때마다 getCountFromServer로 최신 개수만 가져옴 (비용 효율적)
         const snapshot = await getCountFromServer(q);
         notificationCounts[countProperty] = snapshot.data().count;
       });
-      unsubscribeListeners.push(unsubscribe); // 나중에 정리하기 위해 저장
+      unsubscribeListeners.push(unsubscribe);
     } catch (error) {
       console.error(`Error setting up listener for ${collectionName}:`, error);
     }
   };
 
-  // 관리할 각 항목에 대해 리스너 설정
   createCountListener("subscription_requests", "subscriptions");
   createCountListener("weekly_payout_requests", "weeklyPayouts");
   createCountListener("withdrawalRequests", "withdrawals");
   createCountListener("monthly_payments", "monthlyPayments");
 };
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
-// ▼▼▼ [신규 추가] 컴포넌트 라이프사이클 훅 ▼▼▼
 onMounted(() => {
   setupNotificationListeners();
 });
 
 onUnmounted(() => {
-  // 컴포넌트가 사라질 때 모든 실시간 리스너를 정리하여 메모리 누수 방지
   unsubscribeListeners.forEach((unsubscribe) => unsubscribe());
 });
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 </script>
 
 <style scoped>

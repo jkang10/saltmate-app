@@ -35,6 +35,15 @@
     </div>
     <div v-else class="table-container">
       <table>
+        <thead>
+          <tr>
+            <th>주문일시</th>
+            <th>주문자</th>
+            <th>총 주문금액</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
         <tbody>
           <tr v-for="order in filteredOrders" :key="order.id">
             <td>{{ formatDate(order.createdAt) }}</td>
@@ -67,75 +76,68 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from "vue";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
-// ▼▼▼ [신규 추가] 모달 컴포넌트 import ▼▼▼
 import OrderDetailsModal from "./OrderDetailsModal.vue";
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
-export default {
-  name: "OrderDeliveryManagement",
-  // ▼▼▼ [신규 추가] components 등록 ▼▼▼
-  components: {
-    OrderDetailsModal,
-  },
-  // ▲▲▲ 신규 추가 완료 ▲▲▲
-  data() {
-    return {
-      allOrders: [],
-      isLoading: true,
-      activeFilter: "all",
-      // ▼▼▼ [신규 추가] 선택된 주문 상태 변수 ▼▼▼
-      selectedOrder: null,
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
-    };
-  },
-  computed: {
-    filteredOrders() {
-      if (this.activeFilter === "all") {
-        return this.allOrders;
-      }
-      return this.allOrders.filter(
-        (order) => order.status === this.activeFilter,
-      );
-    },
-  },
-  async created() {
-    await this.fetchOrders();
-  },
-  methods: {
-    async fetchOrders() {
-      // (기존 코드와 동일)
-    },
-    setFilter(status) {
-      // (기존 코드와 동일)
-    },
-    formatDate(timestamp) {
-      // (기존 코드와 동일)
-    },
-    formatStatus(status) {
-      const map = {
-        pending: "결제대기",
-        paid: "배송준비",
-        shipped: "배송완료",
-        cancelled: "주문취소",
-      };
-      return map[status] || status;
-    },
-    // ▼▼▼ [수정됨] openOrderDetails 메소드 로직 변경 ▼▼▼
-    openOrderDetails(order) {
-      this.selectedOrder = order;
-    },
-    // ▲▲▲ 수정 완료 ▲▲▲
-    // ▼▼▼ [신규 추가] 주문 업데이트 처리 핸들러 ▼▼▼
-    handleOrderUpdate() {
-      this.selectedOrder = null;
-      this.fetchOrders(); // 목록 새로고침
-    },
-    // ▲▲▲ 신규 추가 완료 ▲▲▲
-  },
+const allOrders = ref([]);
+const isLoading = ref(true);
+const activeFilter = ref("all");
+const selectedOrder = ref(null);
+
+const filteredOrders = computed(() => {
+  if (activeFilter.value === "all") {
+    return allOrders.value;
+  }
+  return allOrders.value.filter((order) => order.status === activeFilter.value);
+});
+
+const fetchOrders = async () => {
+  isLoading.value = true;
+  try {
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+    allOrders.value = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("주문 목록 조회 오류:", error);
+  } finally {
+    isLoading.value = false;
+  }
 };
+
+const setFilter = (status) => {
+  activeFilter.value = status;
+};
+
+const formatDate = (timestamp) => {
+  return timestamp?.toDate().toLocaleString("ko-KR") || "";
+};
+
+const formatStatus = (status) => {
+  const map = {
+    pending: "결제대기",
+    paid: "배송준비",
+    shipped: "배송완료",
+    cancelled: "주문취소",
+  };
+  return map[status] || status;
+};
+
+const openOrderDetails = (order) => {
+  selectedOrder.value = order;
+};
+
+const handleOrderUpdate = () => {
+  selectedOrder.value = null;
+  fetchOrders();
+};
+
+onMounted(fetchOrders);
 </script>
 
 <style scoped>
@@ -220,6 +222,17 @@ thead th {
   padding: 40px;
 }
 .spinner {
-  /* 로딩 스피너 스타일 */
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
