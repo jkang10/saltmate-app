@@ -187,7 +187,9 @@ const gameSettings = reactive({
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
 let tickTimer, eventTimer, autosaveTimer;
-let authUser = null; // [추가] 사용자 정보를 저장할 변수
+// ▼▼▼ [수정됨] 사용자 정보를 반응형 ref로 변경 ▼▼▼
+const authUser = ref(null);
+// ▲▲▲ 수정 완료 ▲▲▲
 
 // --- 에셋 (Assets) ---
 const ICONS = {
@@ -352,9 +354,7 @@ const sellFundsForPoints = async () => {
     );
     addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
 
-    // ▼▼▼ [수정됨] 판매 성공 후 최신 데이터를 다시 불러옵니다. ▼▼▼
-    await loadGame(authUser.value);
-    // ▲▲▲ 수정 완료 ▲▲▲
+    await loadGame(authUser.value); // 판매 성공 후 최신 데이터를 다시 불러옵니다.
   } catch (error) {
     console.error("자금 판매 오류:", error);
     alert(`오류: ${error.message}`);
@@ -455,6 +455,7 @@ async function loadGame(user) {
       } else {
         Object.assign(state, clone(DEFAULT_STATE));
         addLog("새로운 탐사를 시작합니다. (서버)");
+        await saveGame(); // 새 게임 시작 시 즉시 저장
       }
     } catch (e) {
       console.error("Firestore load error", e);
@@ -485,7 +486,7 @@ function closeTutorial() {
 // --- 생명주기 및 루프 (Lifecycle & Loops) ---
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
-    authUser.value = user; // [추가] 로그인된 사용자 정보 저장
+    authUser.value = user; // [수정됨] 로그인된 사용자 정보 저장
     if (user) {
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
@@ -814,7 +815,6 @@ onUnmounted(() => {
   background-color: #6c757d;
   color: white;
 }
-/* ▼▼▼ [신규 추가] 판매소 스타일 ▼▼▼ */
 .salt-sale-box {
   margin-top: 20px;
   padding: 20px;
@@ -859,7 +859,6 @@ onUnmounted(() => {
   animation: spin 1s linear infinite;
   display: inline-block;
 }
-/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
 
 @media (max-width: 900px) {
   .game-layout {
