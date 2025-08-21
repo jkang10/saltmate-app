@@ -143,6 +143,8 @@
       </section>
 
       <div class="dashboard-grid">
+        <LiveGameFeed />
+        <LeaderboardWidget />
         <router-link to="/my-tokens" class="feature-card tokens">
           <div class="card-icon"><i class="fas fa-coins"></i></div>
           <h3>보유 토큰 현황</h3>
@@ -260,8 +262,8 @@
 </template>
 
 <script>
-import { auth, db, functions } from "@/firebaseConfig"; // functions import 추가
-import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
+import { auth, db, functions } from "@/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -278,6 +280,10 @@ import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
 import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
+// ▼▼▼ [신규 추가] 새 컴포넌트 import ▼▼▼
+import LiveGameFeed from "@/components/LiveGameFeed.vue";
+import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
+// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 export default {
   name: "DashboardPage",
@@ -286,6 +292,10 @@ export default {
     UpgradeTierModal,
     WithdrawalRequestModal,
     CycleEarningsModal,
+    // ▼▼▼ [신규 추가] 새 컴포넌트 등록 ▼▼▼
+    LiveGameFeed,
+    LeaderboardWidget,
+    // ▲▲▲ 신규 추가 완료 ▲▲▲
   },
   data() {
     return {
@@ -299,7 +309,7 @@ export default {
       isCycleModalVisible: false,
       marketingPlan: null,
       unsubscribe: null,
-      isRequestingPayment: false, // [신규] 결제 요청 로딩 상태
+      isRequestingPayment: false,
     };
   },
   computed: {
@@ -323,26 +333,23 @@ export default {
       const hour = now.getHours();
       return day === 2 && hour >= 9 && hour < 17;
     },
-    // ▼▼▼ [신규 추가] 결제일 카운트다운 관련 computed 속성 ▼▼▼
     daysUntilPayment() {
       if (!this.userProfile?.nextPaymentDueDate) {
         return "N/A";
       }
       const dueDate = this.userProfile.nextPaymentDueDate.toDate();
       const today = new Date();
-      // 날짜만 비교하기 위해 시간/분/초를 0으로 설정
       dueDate.setHours(0, 0, 0, 0);
       today.setHours(0, 0, 0, 0);
 
       const diffTime = dueDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return Math.max(0, diffDays); // 음수는 0으로 표시
+      return Math.max(0, diffDays);
     },
     subscriptionStatusClass() {
       if (!this.userProfile?.subscriptionStatus) return "";
-      return `status-${this.userProfile.subscriptionStatus}`; // 'status-active' 또는 'status-overdue'
+      return `status-${this.userProfile.subscriptionStatus}`;
     },
-    // ▲▲▲ 신규 추가 완료 ▲▲▲
   },
   created() {
     onAuthStateChanged(auth, (user) => {
@@ -361,7 +368,6 @@ export default {
     }
   },
   methods: {
-    // ▼▼▼ [신규 추가] 월간 결제 요청 함수 ▼▼▼
     async requestPayment() {
       if (
         !confirm(
@@ -386,7 +392,6 @@ export default {
         this.isRequestingPayment = false;
       }
     },
-    // ▲▲▲ 신규 추가 완료 ▲▲▲
     listenToUserProfile(uid) {
       this.loadingUser = true;
       const userRef = doc(db, "users", uid);
@@ -458,7 +463,7 @@ export default {
 </script>
 
 <style scoped>
-/* ▼▼▼ [신규 추가] 구독 현황 카드 스타일 ▼▼▼ */
+/* (스타일은 기존 코드와 동일합니다. 변경사항 없습니다.) */
 .subscription-status-card {
   margin-top: 25px;
   padding: 20px;
@@ -524,10 +529,8 @@ export default {
     transform: rotate(360deg);
   }
 }
-/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
-
 .feature-card.game .card-icon {
-  color: #e74c3c; /* 게임 아이콘 색상 */
+  color: #e74c3c;
 }
 .clickable {
   cursor: pointer;
@@ -539,14 +542,13 @@ export default {
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
-  margin: 0px auto 20px; /* 상단 여백은 유지 (네비게이션 바 높이) 70px */
+  margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
-  gap: 0; /* 자식 요소간의 기본 간격 제거 */
+  gap: 30px;
 }
 .notice-section {
   padding: 20px 25px;
-  margin-bottom: 30px; /* 공지사항과 아래 컨텐츠 사이의 간격 */
 }
 .notice-header {
   display: flex;
@@ -826,6 +828,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 30px;
+  margin-top: 30px;
 }
 .feature-card {
   display: flex;
@@ -954,7 +957,7 @@ export default {
   text-align: center;
 }
 .feature-card.treasure .card-icon {
-  color: #e67e22; /* 보물상자 아이콘 색상 */
+  color: #e67e22;
 }
 .feature-card.salt-game .card-icon {
   color: #3498db;
