@@ -544,7 +544,7 @@ export default {
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
-  margin: 70px auto 20px;
+  margin: 10px auto 20px;
   display: flex;
   flex-direction: column;
   gap: 0; /* 자식 요소간의 기본 간격을 제거합니다. */

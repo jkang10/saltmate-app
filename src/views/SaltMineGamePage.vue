@@ -1,5 +1,3 @@
-// 파일 경로: src/views/SaltMineGamePage.vue
-
 <template>
   <div class="page-container">
     <header class="page-header">
@@ -115,9 +113,7 @@
 <script>
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth, db } from "@/firebaseConfig";
-// ▼▼▼ [신규 추가] onSnapshot import ▼▼▼
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 import { onAuthStateChanged } from "firebase/auth";
 
 export default {
@@ -136,12 +132,10 @@ export default {
       gameStateRef: null,
       isLoading: true,
       authUnsubscribe: null,
-      // ▼▼▼ [신규 추가] 게임 설정값을 저장할 객체 ▼▼▼
       gameSettings: {
-        saltMineRate: 1000, // 기본값
-        deepSeaRate: 100000, // 기본값
+        saltMineRate: 1000,
+        deepSeaRate: 100000,
       },
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
     };
   },
   computed: {
@@ -234,9 +228,7 @@ export default {
         this.currentUser = user;
         this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
         this.loadGame();
-        // ▼▼▼ [신규 추가] 게임 설정 실시간 감지 리스너 ▼▼▼
         this.listenToGameSettings();
-        // ▲▲▲ 신규 추가 완료 ▲▲▲
       } else {
         this.currentUser = null;
         alert("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
@@ -253,7 +245,6 @@ export default {
     }
   },
   methods: {
-    // ▼▼▼ [신규 추가] 게임 설정 실시간으로 불러오는 함수 ▼▼▼
     listenToGameSettings() {
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
@@ -262,13 +253,11 @@ export default {
           this.gameSettings.saltMineRate = data.saltMineRate || 1000;
           this.gameSettings.deepSeaRate = data.deepSeaRate || 100000;
         } else {
-          // 문서가 없을 경우 기본값 유지
-          this.gameSettings.saltMineRate = 20000; // 요청하신 20000으로 기본값 변경
+          this.gameSettings.saltMineRate = 20000;
           this.gameSettings.deepSeaRate = 100000;
         }
       });
     },
-    // ▲▲▲ 신규 추가 완료 ▲▲▲
     async loadGame() {
       if (!this.gameStateRef) return;
       this.isLoading = true;
@@ -328,29 +317,34 @@ export default {
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
       this.saveGame();
     },
+    // ▼▼▼ [수정됨] sellSalt 함수 전체를 아래 코드로 교체 ▼▼▼
     async sellSalt() {
       if (!this.currentUser) {
         alert("로그인이 필요합니다.");
         return;
       }
-      // ▼▼▼ [수정됨] 최소 판매 조건을 동적 시세로 변경 ▼▼▼
       if (this.isSelling || this.salt < this.gameSettings.saltMineRate) {
         alert(
           `${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`,
         );
         return;
       }
-      // ▲▲▲ 수정 완료 ▲▲▲
+
       this.isSelling = true;
 
       try {
         const functions = getFunctions(undefined, "asia-northeast3");
         const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        const result = await sellSaltForPoints();
+
+        // 서버로 아무 데이터도 보내지 않던 문제를 수정합니다.
+        // 현재 함수에서는 특별히 보낼 데이터가 없으므로 빈 객체나 null을 전달합니다.
+        const result = await sellSaltForPoints({});
 
         const { awardedPoints, soldSalt } = result.data;
-        // this.salt = 0; // 서버에서 처리하므로 클라이언트에서 직접 0으로 만들지 않습니다.
-        // this.saveGame(); // 함수 호출 성공 시 자동으로 데이터가 갱신되므로 수동 저장 불필요
+
+        // 판매 성공 후, 서버의 최신 데이터를 다시 불러와 화면을 갱신합니다.
+        await this.loadGame();
+
         this.logEvent(
           `소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`,
         );
@@ -364,6 +358,7 @@ export default {
         this.isSelling = false;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
     logEvent(message) {
       const time = new Date().toLocaleTimeString();
       this.logs.unshift(`[${time}] ${message}`);
@@ -380,7 +375,7 @@ export default {
 </script>
 
 <style scoped>
-/* 스타일은 변경사항이 없으므로 그대로 유지됩니다. */
+/* (스타일은 변경사항 없음) */
 .page-container {
   max-width: 1100px;
   margin: 70px auto 20px;
