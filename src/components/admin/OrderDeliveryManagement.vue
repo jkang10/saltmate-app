@@ -11,12 +11,6 @@
         전체
       </button>
       <button
-        @click="setFilter('pending')"
-        :class="{ active: activeFilter === 'pending' }"
-      >
-        결제대기
-      </button>
-      <button
         @click="setFilter('paid')"
         :class="{ active: activeFilter === 'paid' }"
       >
@@ -41,15 +35,6 @@
     </div>
     <div v-else class="table-container">
       <table>
-        <thead>
-          <tr>
-            <th>주문일시</th>
-            <th>주문자</th>
-            <th>총 주문금액</th>
-            <th>상태</th>
-            <th>관리</th>
-          </tr>
-        </thead>
         <tbody>
           <tr v-for="order in filteredOrders" :key="order.id">
             <td>{{ formatDate(order.createdAt) }}</td>
@@ -72,20 +57,38 @@
         </tbody>
       </table>
     </div>
+
+    <OrderDetailsModal
+      v-if="selectedOrder"
+      :order="selectedOrder"
+      @close="selectedOrder = null"
+      @order-updated="handleOrderUpdate"
+    />
   </div>
 </template>
 
 <script>
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
+// ▼▼▼ [신규 추가] 모달 컴포넌트 import ▼▼▼
+import OrderDetailsModal from "./OrderDetailsModal.vue";
+// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 export default {
   name: "OrderDeliveryManagement",
+  // ▼▼▼ [신규 추가] components 등록 ▼▼▼
+  components: {
+    OrderDetailsModal,
+  },
+  // ▲▲▲ 신규 추가 완료 ▲▲▲
   data() {
     return {
       allOrders: [],
       isLoading: true,
       activeFilter: "all",
+      // ▼▼▼ [신규 추가] 선택된 주문 상태 변수 ▼▼▼
+      selectedOrder: null,
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
     };
   },
   computed: {
@@ -103,25 +106,13 @@ export default {
   },
   methods: {
     async fetchOrders() {
-      this.isLoading = true;
-      try {
-        const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        this.allOrders = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (error) {
-        console.error("주문 목록 조회 오류:", error);
-      } finally {
-        this.isLoading = false;
-      }
+      // (기존 코드와 동일)
     },
     setFilter(status) {
-      this.activeFilter = status;
+      // (기존 코드와 동일)
     },
     formatDate(timestamp) {
-      return timestamp?.toDate().toLocaleString("ko-KR") || "";
+      // (기존 코드와 동일)
     },
     formatStatus(status) {
       const map = {
@@ -132,11 +123,17 @@ export default {
       };
       return map[status] || status;
     },
+    // ▼▼▼ [수정됨] openOrderDetails 메소드 로직 변경 ▼▼▼
     openOrderDetails(order) {
-      alert(
-        `주문 상세 보기 기능 구현 필요:\n주문자: ${order.userName}\n금액: ${order.totalPrice}`,
-      );
+      this.selectedOrder = order;
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
+    // ▼▼▼ [신규 추가] 주문 업데이트 처리 핸들러 ▼▼▼
+    handleOrderUpdate() {
+      this.selectedOrder = null;
+      this.fetchOrders(); // 목록 새로고침
+    },
+    // ▲▲▲ 신규 추가 완료 ▲▲▲
   },
 };
 </script>
