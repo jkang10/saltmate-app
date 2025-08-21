@@ -66,28 +66,35 @@ export default {
     let authUnsubscribe = null;
     let presenceRef = null;
 
+    const managePresence = (user) => {
+      if (user) {
+        // 사용자가 로그인하면, presence 경로에 자신의 UID를 키로 하여 true 값을 씁니다.
+        presenceRef = dbRef(rtdb, `presence/${user.uid}`);
+        const connectedRef = dbRef(rtdb, ".info/connected");
+
+        onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+            // 사용자의 인터넷 연결이 끊어지면(onDisconnect), 자동으로 자신의 기록을 삭제하도록 설정합니다.
+            onDisconnect(presenceRef).remove();
+            // 현재 접속 상태임을 기록합니다.
+            set(presenceRef, true);
+          }
+        });
+      } else {
+        // 사용자가 로그아웃하면, 자신의 기록을 즉시 삭제합니다.
+        if (presenceRef) {
+          remove(presenceRef);
+          presenceRef = null;
+        }
+      }
+    };
+
     const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        // ▼▼▼ [수정됨] 이 if 블록 전체를 삭제하여 로그인 시 접속 기록이 지워지는 것을 방지합니다. ▼▼▼
-        // if (presenceRef) {
-        //   remove(presenceRef);
-        //   presenceRef = null;
-        // }
-        // ▲▲▲ 수정 완료 ▲▲▲
+        managePresence(user); // 로그인/로그아웃 시 접속 상태 관리 함수 호출
 
         if (user) {
           isLoggedIn.value = true;
-
-          presenceRef = dbRef(rtdb, `presence/${user.uid}`);
-          const connectedRef = dbRef(rtdb, ".info/connected");
-
-          onValue(connectedRef, (snap) => {
-            if (snap.val() === true) {
-              onDisconnect(presenceRef).remove();
-              set(presenceRef, true);
-            }
-          });
-
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
@@ -101,19 +108,19 @@ export default {
         } else {
           isLoggedIn.value = false;
           userName.value = "";
-          // 로그아웃 시에는 접속 기록을 확실히 제거합니다.
-          if (presenceRef) {
-            remove(presenceRef);
-            presenceRef = null;
-          }
         }
       });
     };
 
     const logout = async () => {
       try {
-        if (auth.currentUser && presenceRef) {
-          await remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
+        // 로그아웃 시에도 접속 기록을 확실히 제거합니다.
+        if (auth.currentUser) {
+          const userPresenceRef = dbRef(
+            rtdb,
+            `presence/${auth.currentUser.uid}`,
+          );
+          await remove(userPresenceRef);
         }
         await signOut(auth);
         alert("로그아웃 되었습니다.");
@@ -135,8 +142,10 @@ export default {
       if (authUnsubscribe) {
         authUnsubscribe();
       }
-      if (auth.currentUser && presenceRef) {
-        remove(dbRef(rtdb, `presence/${auth.currentUser.uid}`));
+      // 페이지를 떠날 때도 접속 기록을 제거합니다.
+      if (auth.currentUser) {
+        const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
+        remove(userPresenceRef);
       }
     });
 

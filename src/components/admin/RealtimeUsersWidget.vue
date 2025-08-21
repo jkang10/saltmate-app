@@ -17,34 +17,26 @@ import { ref as dbRef, onValue, off } from "firebase/database";
 const userCount = ref(0);
 const presenceRef = dbRef(rtdb, "presence");
 
-// ▼▼▼ [수정됨] onValue 리스너를 저장할 변수 선언 방식 변경 ▼▼▼
-let listener;
-// ▲▲▲ 수정 완료 ▲▲▲
+// 실시간 데이터 수신 리스너를 저장할 변수
+let presenceListener = null;
 
 onMounted(() => {
-  // onValue는 리스너 함수 자체를 반환하지 않으므로, 직접 리스너 함수를 정의합니다.
-  const presenceListener = (snapshot) => {
+  // Realtime Database의 'presence' 경로에 대한 데이터 변경을 실시간으로 감지합니다.
+  presenceListener = onValue(presenceRef, (snapshot) => {
     if (snapshot.exists()) {
-      userCount.value = snapshot.numChildren();
+      // ▼▼▼ [핵심 수정] numChildren() 대신 snapshot.size를 사용하여 접속자 수를 올바르게 계산합니다. ▼▼▼
+      userCount.value = snapshot.size;
     } else {
       userCount.value = 0;
     }
-  };
-
-  // 정의된 리스너를 onValue에 등록합니다.
-  onValue(presenceRef, presenceListener);
-
-  // 나중에 해제할 수 있도록 리스너를 저장합니다.
-  listener = presenceListener;
+  });
 });
 
 onUnmounted(() => {
-  // ▼▼▼ [수정됨] off 함수 사용법을 올바르게 변경 ▼▼▼
-  // onValue로 등록한 리스너를 해제할 때는 off(레퍼런스, 이벤트 타입, 리스너 함수) 형식을 사용합니다.
-  if (listener) {
-    off(presenceRef, "value", listener);
+  // 컴포넌트가 사라질 때 실시간 리스너를 확실하게 제거하여 메모리 누수를 방지합니다.
+  if (presenceListener) {
+    off(presenceRef);
   }
-  // ▲▲▲ 수정 완료 ▲▲▲
 });
 </script>
 
