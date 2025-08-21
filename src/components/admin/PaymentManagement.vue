@@ -1,0 +1,165 @@
+<template>
+  <div class="payment-manager">
+    <h2><i class="fas fa-money-check-alt"></i> 월간 결제 승인</h2>
+    <div v-if="isLoading" class="loading-state">
+      <div class="spinner"></div>
+    </div>
+    <div v-else-if="requests.length === 0" class="empty-state">
+      <p>대기 중인 결제 요청이 없습니다.</p>
+    </div>
+    <div v-else class="table-container">
+      <table class="request-table">
+        <thead>
+          <tr>
+            <th>요청일시</th>
+            <th>요청자명</th>
+            <th>금액</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="req in requests" :key="req.id">
+            <td>{{ formatDate(req.requestedAt) }}</td>
+            <td>{{ req.userName }}</td>
+            <td>{{ req.amount.toLocaleString() }} 원</td>
+            <td>
+              <span class="status-badge pending">{{ req.status }}</span>
+            </td>
+            <td class="actions">
+              <button @click="approvePayment(req.id)" class="btn-approve">
+                승인
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</template>
+
+<script>
+import { db } from "@/firebaseConfig";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  orderBy,
+} from "firebase/firestore";
+
+export default {
+  name: "PaymentManagement",
+  data() {
+    return {
+      requests: [],
+      isLoading: true,
+    };
+  },
+  async created() {
+    await this.fetchRequests();
+  },
+  methods: {
+    async fetchRequests() {
+      this.isLoading = true;
+      try {
+        const q = query(
+          collection(db, "monthly_payments"),
+          where("status", "==", "pending"),
+          orderBy("requestedAt", "desc"),
+        );
+        const querySnapshot = await getDocs(q);
+        this.requests = querySnapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+      } catch (error) {
+        console.error("결제 요청 목록 조회 오류:", error);
+        alert("데이터를 불러오는 데 실패했습니다.");
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async approvePayment(requestId) {
+      if (!confirm("이 결제 요청을 승인하시겠습니까?")) return;
+      const reqRef = doc(db, "monthly_payments", requestId);
+      try {
+        await updateDoc(reqRef, { status: "approved" });
+        alert("결제가 승인되었습니다.");
+        await this.fetchRequests();
+      } catch (error) {
+        console.error("결제 승인 오류:", error);
+        alert("처리 중 오류가 발생했습니다.");
+      }
+    },
+    formatDate(timestamp) {
+      if (!timestamp?.toDate) return "N/A";
+      return timestamp.toDate().toLocaleString("ko-KR");
+    },
+  },
+};
+</script>
+
+<style scoped>
+/* (SubscriptionManagement.vue와 유사한 스타일) */
+.payment-manager h2 {
+  font-size: 1.8em;
+  margin-bottom: 20px;
+}
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+.spinner {
+  display: inline-block;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.table-container {
+  overflow-x: auto;
+}
+.request-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+}
+.request-table th,
+.request-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+}
+.request-table thead th {
+  background-color: #f8f9fa;
+}
+.status-badge.pending {
+  background-color: #ffc107;
+  color: #333;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+}
+.actions button {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+}
+.btn-approve {
+  background-color: #007bff;
+}
+</style>

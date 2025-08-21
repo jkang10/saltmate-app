@@ -179,6 +179,13 @@ const routes = [
         component: () =>
           import("@/components/admin/GameConversionSettings.vue"),
       },
+      // ▼▼▼ [신규 추가] 월간 결제 관리 페이지 라우트 ▼▼▼
+      {
+        path: "payments",
+        name: "PaymentManagement",
+        component: () => import("@/components/admin/PaymentManagement.vue"),
+      },
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
       {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",

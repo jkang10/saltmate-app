@@ -103,6 +103,15 @@
           </li>
           <li>
             <router-link
+              to="/admin-dashboard/payments"
+              class="nav-item"
+              active-class="active-link"
+            >
+              <i class="fas fa-money-check-alt"></i> 월간 결제 관리
+            </router-link>
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/tokens"
               class="nav-item"
               active-class="active-link"

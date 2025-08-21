@@ -93,6 +93,44 @@
             <div class="shimmer-effect"></div>
           </div>
         </div>
+
+        <div class="subscription-status-card" :class="subscriptionStatusClass">
+          <div class="status-header">
+            <i class="fas fa-calendar-alt"></i>
+            <h4>월간 구독 현황</h4>
+          </div>
+          <div v-if="!userProfile?.nextPaymentDueDate">
+            <p>구독 정보 로딩 중...</p>
+          </div>
+          <div v-else-if="userProfile?.subscriptionStatus === 'active'">
+            <p>
+              다음 결제일까지
+              <strong>{{ daysUntilPayment }}일</strong> 남았습니다.
+            </p>
+            <button
+              @click="requestPayment"
+              class="btn-pay"
+              :disabled="isRequestingPayment"
+            >
+              <span v-if="isRequestingPayment" class="spinner-small"></span>
+              <span v-else>미리 결제하기</span>
+            </button>
+          </div>
+          <div v-else-if="userProfile?.subscriptionStatus === 'overdue'">
+            <p><strong>결제일이 지났습니다.</strong></p>
+            <p class="warning-text">
+              일부 기능이 제한됩니다. 지금 바로 결제해주세요.
+            </p>
+            <button
+              @click="requestPayment"
+              class="btn-pay urgent"
+              :disabled="isRequestingPayment"
+            >
+              <span v-if="isRequestingPayment" class="spinner-small"></span>
+              <span v-else>지금 결제하기</span>
+            </button>
+          </div>
+        </div>
         <div class="upgrade-action">
           <button
             @click="openUpgradeModal"
@@ -222,7 +260,8 @@
 </template>
 
 <script>
-import { auth, db } from "@/firebaseConfig";
+import { auth, db, functions } from "@/firebaseConfig"; // functions import 추가
+import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -260,6 +299,7 @@ export default {
       isCycleModalVisible: false,
       marketingPlan: null,
       unsubscribe: null,
+      isRequestingPayment: false, // [신규] 결제 요청 로딩 상태
     };
   },
   computed: {
@@ -283,6 +323,26 @@ export default {
       const hour = now.getHours();
       return day === 2 && hour >= 9 && hour < 17;
     },
+    // ▼▼▼ [신규 추가] 결제일 카운트다운 관련 computed 속성 ▼▼▼
+    daysUntilPayment() {
+      if (!this.userProfile?.nextPaymentDueDate) {
+        return "N/A";
+      }
+      const dueDate = this.userProfile.nextPaymentDueDate.toDate();
+      const today = new Date();
+      // 날짜만 비교하기 위해 시간/분/초를 0으로 설정
+      dueDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+
+      const diffTime = dueDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return Math.max(0, diffDays); // 음수는 0으로 표시
+    },
+    subscriptionStatusClass() {
+      if (!this.userProfile?.subscriptionStatus) return "";
+      return `status-${this.userProfile.subscriptionStatus}`; // 'status-active' 또는 'status-overdue'
+    },
+    // ▲▲▲ 신규 추가 완료 ▲▲▲
   },
   created() {
     onAuthStateChanged(auth, (user) => {
@@ -301,6 +361,32 @@ export default {
     }
   },
   methods: {
+    // ▼▼▼ [신규 추가] 월간 결제 요청 함수 ▼▼▼
+    async requestPayment() {
+      if (
+        !confirm(
+          "월간 구독료(만원의 행복) 결제를 요청하시겠습니까? 관리자 확인 후 승인 처리됩니다.",
+        )
+      )
+        return;
+      this.isRequestingPayment = true;
+      try {
+        const requestMonthlyPayment = httpsCallable(
+          functions,
+          "requestMonthlyPayment",
+        );
+        await requestMonthlyPayment();
+        alert(
+          "결제 요청이 완료되었습니다. 관리자가 승인하면 구독 상태가 갱신됩니다.",
+        );
+      } catch (error) {
+        console.error("월간 결제 요청 오류:", error);
+        alert(`오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isRequestingPayment = false;
+      }
+    },
+    // ▲▲▲ 신규 추가 완료 ▲▲▲
     listenToUserProfile(uid) {
       this.loadingUser = true;
       const userRef = doc(db, "users", uid);
@@ -372,6 +458,74 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [신규 추가] 구독 현황 카드 스타일 ▼▼▼ */
+.subscription-status-card {
+  margin-top: 25px;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid hsla(0, 0%, 100%, 0.3);
+  background: hsla(0, 0%, 100%, 0.1);
+  transition: all 0.3s ease;
+}
+.subscription-status-card.status-overdue {
+  background: hsla(0, 80%, 60%, 0.2);
+  border-color: hsla(0, 80%, 70%, 0.5);
+}
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.status-header h4 {
+  margin: 0;
+  font-size: 1.1em;
+}
+.subscription-status-card p {
+  margin: 0 0 15px 0;
+  font-size: 1.05em;
+}
+.warning-text {
+  font-size: 0.9em !important;
+  opacity: 0.9;
+}
+.btn-pay {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: #17a2b8;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn-pay.urgent {
+  background-color: #dc3545;
+}
+.btn-pay:disabled {
+  background-color: #5a6268;
+  cursor: not-allowed;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
+
 .feature-card.game .card-icon {
   color: #e74c3c; /* 게임 아이콘 색상 */
 }
