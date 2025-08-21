@@ -161,11 +161,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db } from "@/firebaseConfig";
-// ▼▼▼ [신규 추가] functions 및 onSnapshot import ▼▼▼
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 // --- 상태 관리 (State Management) ---
 const DEFAULT_STATE = {
@@ -181,16 +179,15 @@ const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
 const showTutorial = ref(false);
 const logBox = ref(null);
-// ▼▼▼ [신규 추가] 판매 버튼 로딩 및 게임 설정 상태 변수 ▼▼▼
 const isSellingFunds = ref(false);
 const gameSettings = reactive({
-  deepSeaRate: 100000, // 기본값
+  deepSeaRate: 100000,
 });
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
 let tickTimer, eventTimer, autosaveTimer;
+let authUser = null; // [추가] 사용자 정보를 저장할 변수
 
 // --- 에셋 (Assets) ---
 const ICONS = {
@@ -329,7 +326,6 @@ function addLog(msg) {
 }
 
 // --- 게임 로직 (Core Logic) ---
-// ▼▼▼ [신규 추가] 자금을 SaltMate로 판매하는 함수 ▼▼▼
 const sellFundsForPoints = async () => {
   if (state.funds < gameSettings.deepSeaRate) {
     alert(
@@ -355,6 +351,10 @@ const sellFundsForPoints = async () => {
       `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
     );
     addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
+
+    // ▼▼▼ [수정됨] 판매 성공 후 최신 데이터를 다시 불러옵니다. ▼▼▼
+    await loadGame(authUser.value);
+    // ▲▲▲ 수정 완료 ▲▲▲
   } catch (error) {
     console.error("자금 판매 오류:", error);
     alert(`오류: ${error.message}`);
@@ -362,7 +362,6 @@ const sellFundsForPoints = async () => {
     isSellingFunds.value = false;
   }
 };
-// ▲▲▲ 신규 추가 완료 ▲▲▲
 
 function collectClick() {
   if (state.water >= derived.value.capacity) {
@@ -486,10 +485,9 @@ function closeTutorial() {
 // --- 생명주기 및 루프 (Lifecycle & Loops) ---
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
+    authUser.value = user; // [추가] 로그인된 사용자 정보 저장
     if (user) {
       loadGame(user);
-
-      // --- [신규 추가] 게임 설정 실시간 감지 ---
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -497,7 +495,6 @@ onMounted(() => {
           gameSettings.deepSeaRate = data.deepSeaRate || 100000;
         }
       });
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
@@ -523,7 +520,7 @@ onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
   clearInterval(autosaveTimer);
-  saveGame(); // 컴포넌트 파괴 시 최종 저장
+  saveGame();
 });
 </script>
 
