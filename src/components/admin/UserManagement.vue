@@ -267,12 +267,14 @@ onMounted(fetchUsers);
   width: 100%;
   border-collapse: collapse;
   margin-top: 20px;
+  font-size: 0.95em; /* 테이블 전체 폰트 크기 미세 조정 */
 }
 .user-table th,
 .user-table td {
   border-bottom: 1px solid #eee;
-  padding: 12px 15px;
-  text-align: left;
+  /* ▼▼▼ [수정] 테이블 행 간격을 줄이기 위해 padding 값 변경 ▼▼▼ */
+  padding: 8px 12px;
+  text-align: center; /* [수정] 모든 텍스트 중앙 정렬 */
   vertical-align: middle;
 }
 .user-table th {
@@ -300,13 +302,16 @@ onMounted(fetchUsers);
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+  justify-content: center; /* [수정] 버튼 중앙 정렬 */
 }
 .btn {
   border: none;
   border-radius: 5px;
-  padding: 6px 12px;
+  padding: 5px 10px; /* [수정] 버튼 크기 축소 */
   cursor: pointer;
   transition: opacity 0.2s;
+  font-weight: 500; /* [수정] 버튼 폰트 두께 조정 */
+  min-width: 60px; /* [추가] 버튼 최소 너비 설정 */
 }
 .btn:hover {
   opacity: 0.8;
