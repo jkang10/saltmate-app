@@ -539,17 +539,22 @@ export default {
 .clickable:hover {
   color: #aed6f1;
 }
+
+/* ▼▼▼ [수정] dashboard-container의 gap을 제거하고, notice-section에 margin-bottom을 추가 ▼▼▼ */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
   margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 0; /* 자식 요소간의 기본 간격을 제거합니다. */
 }
 .notice-section {
   padding: 20px 25px;
+  margin-bottom: 30px; /* 공지사항과 아래 컨텐츠 사이의 간격을 설정합니다. */
 }
+/* ▲▲▲ 수정 완료 ▲▲▲ */
+
 .notice-header {
   display: flex;
   justify-content: space-between;
@@ -558,6 +563,7 @@ export default {
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
 }
+
 .notice-header h3 {
   margin: 0;
   font-size: 1.4em;
