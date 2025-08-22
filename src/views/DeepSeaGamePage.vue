@@ -39,6 +39,7 @@
           </div>
         </div>
 
+        <!-- ▼▼▼ [신규 추가] 골든타임 UI ▼▼▼ -->
         <div class="card golden-time-box">
           <h3><i class="fas fa-star gold-icon"></i> 골든타임 활성화</h3>
           <p>
@@ -56,6 +57,8 @@
             <span v-else>골든타임 시작</span>
           </button>
         </div>
+        <!-- ▲▲▲ 신규 추가 완료 ▲▲▲ -->
+
         <div class="card salt-sale-box">
           <h3>해양심층수 판매소</h3>
           <div class="salt-info">
@@ -547,6 +550,256 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+:root {
+  --text-dark: #212529;
+  --text-light: #495057;
+  --primary: #007bff;
+  --accent: #17a2b8;
+  --card-bg: #ffffff;
+  --bg-light: #f8f9fa;
+  --border-color: #dee2e6;
+}
+.page-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 70px auto 20px;
+  color: var(--text-dark);
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 {
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 10px;
+}
+.page-header h1 i {
+  color: var(--primary);
+}
+.page-header .description {
+  font-size: 1.1em;
+  color: var(--text-light);
+}
+.game-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color);
+}
+.top-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+.stat {
+  background: var(--bg-light);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+.stat strong {
+  font-size: 1.4em;
+  color: var(--text-dark);
+}
+.stat .label {
+  font-size: 0.9em;
+  color: var(--muted);
+  display: block;
+  margin-top: 5px;
+}
+.collect-area {
+  text-align: center;
+  padding: 20px;
+}
+#collectBtn {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, #2196f3, #0d47a1);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#collectBtn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
+}
+.collect-btn-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.collect-label {
+  font-size: 1.1em;
+  font-weight: bold;
+}
+.sell-area {
+  margin-top: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+.btn {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+.btn.small {
+  padding: 8px 16px;
+  font-size: 0.9em;
+  background-color: #28a745;
+  color: white;
+}
+.btn.small:hover {
+  background-color: #218838;
+}
+.btn:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+  color: #6c757d;
+}
+.resources-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-top: 20px;
+}
+.res-pill {
+  background: var(--bg-light);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+.res-pill .small {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.res-pill strong {
+  font-size: 1.2em;
+}
+.game-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.shop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.shop-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.item-name {
+  font-weight: bold;
+  font-size: 1em;
+}
+.log {
+  height: 200px;
+  overflow-y: auto;
+  background: #212529;
+  color: #e9ecef;
+  padding: 15px;
+  border-radius: 8px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9em;
+}
+.ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.ach {
+  padding: 10px;
+  border-radius: 8px;
+  background: #e9ecef;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+.ach.unlocked {
+  background: #d4edda;
+  color: #155724;
+  opacity: 1;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.overlay.show {
+  display: flex;
+}
+.modal {
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  max-width: 500px;
+  width: 90%;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: var(--text-dark);
+}
+.tutorial-list {
+  list-style-position: inside;
+  text-align: left;
+  line-height: 1.8;
+  color: var(--text-light);
+}
+.icon {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
+.btn.secondary {
+  background-color: #6c757d;
+  color: white;
+}
 .golden-time-box {
   margin-top: 20px;
   text-align: center;
@@ -606,7 +859,6 @@ onUnmounted(() => {
   animation: spin 1s linear infinite;
   display: inline-block;
 }
-/* ... (나머지 기존 스타일) ... */
 @media (max-width: 900px) {
   .game-layout {
     grid-template-columns: 1fr;
