@@ -36,7 +36,7 @@
             <p class="product-description">{{ product.description }}</p>
             <div class="product-details">
               <span class="product-price"
-                >{{ (product.price || 0).toLocaleString() }} P</span
+                >{{ (product.price || 0).toLocaleString() }} SaltMate</span
               >
               <span class="product-stock"
                 >남은 수량: {{ product.stock || 0 }}개</span

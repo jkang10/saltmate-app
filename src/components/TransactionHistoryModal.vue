@@ -1,31 +1,34 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content card">
+    <div class="modal-content">
       <header class="modal-header">
-        <h3><i :class="headerIcon"></i> {{ headerTitle }} 내역</h3>
+        <h3>
+          {{ title }}
+          <span v-if="currentBalance !== null" class="current-balance">
+            (현재 잔액: {{ currentBalance.toLocaleString() }}
+            {{ balanceType === "CASH" ? "원" : "SaltMate" }})
+          </span>
+        </h3>
         <button @click="$emit('close')" class="close-button">&times;</button>
       </header>
       <div class="modal-body">
-        <div v-if="isLoading" class="loading-state">
-          <div class="spinner"></div>
-          <p>내역을 불러오는 중입니다...</p>
-        </div>
-        <div v-else-if="error" class="error-state">
-          <p>{{ error }}</p>
-        </div>
+        <div v-if="isLoading" class="loading-state">... 로딩 중 ...</div>
         <div v-else-if="transactions.length === 0" class="empty-state">
-          <p>거래 내역이 없습니다.</p>
+          거래 내역이 없습니다.
         </div>
         <ul v-else class="transaction-list">
-          <li v-for="tx in transactions" :key="tx.id" class="transaction-item">
+          <li
+            v-for="tx in transactions"
+            :key="tx.id"
+            :class="tx.amount > 0 ? 'income' : 'expense'"
+          >
             <div class="tx-info">
               <span class="tx-description">{{ tx.description }}</span>
-              <span class="tx-date">{{ formatDate(tx.timestamp) }}</span>
+              <small class="tx-date">{{ formatDate(tx.timestamp) }}</small>
             </div>
-            <div
-              :class="['tx-amount', tx.amount > 0 ? 'positive' : 'negative']"
-            >
-              {{ formatAmount(tx.amount) }}
+            <div class="tx-amount">
+              {{ tx.amount.toLocaleString()
+              }}{{ balanceType === "CASH" ? " 원" : "" }}
             </div>
           </li>
         </ul>
@@ -34,86 +37,65 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted, defineProps, computed } from "vue";
 import { db, auth } from "@/firebaseConfig";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 
-export default {
-  name: "TransactionHistoryModal",
-  props: {
-    balanceType: {
-      type: String,
-      required: true, // 'CASH' 또는 'SALTMATE'
-    },
-  },
-  data() {
-    return {
-      transactions: [],
-      isLoading: true,
-      error: null,
-    };
-  },
-  computed: {
-    headerTitle() {
-      return this.balanceType === "CASH" ? "현금성 수익" : "솔트메이트";
-    },
-    headerIcon() {
-      return this.balanceType === "CASH" ? "fas fa-wallet" : "fas fa-gifts";
-    },
-  },
-  async created() {
-    await this.fetchTransactions();
-  },
-  methods: {
-    async fetchTransactions() {
-      this.isLoading = true;
-      this.error = null;
-      if (!auth.currentUser) {
-        this.error = "사용자 인증 정보가 없습니다. 다시 로그인해주세요.";
-        this.isLoading = false;
-        return;
-      }
+// ▼▼▼ [수정] currentBalance prop 추가 ▼▼▼
+const props = defineProps({
+  balanceType: { type: String, required: true },
+  currentBalance: { type: Number, default: null },
+});
+// ▲▲▲ 수정 완료 ▲▲▲
 
-      try {
-        const q = query(
-          collection(db, "transactions"),
-          where("userId", "==", auth.currentUser.uid),
-          where("balanceType", "==", this.balanceType),
-          orderBy("timestamp", "desc"),
-        );
-        const querySnapshot = await getDocs(q);
-        this.transactions = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (e) {
-        console.error("거래 내역 조회 중 오류 발생:", e);
-        this.error = "내역을 불러오는 데 실패했습니다.";
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    formatDate(timestamp) {
-      if (!timestamp || !timestamp.toDate) return "";
-      return timestamp.toDate().toLocaleString("ko-KR");
-    },
-    formatAmount(amount) {
-      const sign = amount > 0 ? "+" : "";
-      // ▼▼▼ [수정됨] P -> SaltMate ▼▼▼
-      const unit = this.balanceType === "CASH" ? "원" : "SaltMate";
-      return `${sign}${amount.toLocaleString()} ${unit}`;
-    },
-  },
+const transactions = ref([]);
+const isLoading = ref(true);
+
+const title = computed(() => {
+  return props.balanceType === "CASH" ? "현금성 수익 내역" : "솔트메이트 내역";
+});
+
+const fetchTransactions = async () => {
+  if (!auth.currentUser) return;
+  isLoading.value = true;
+  try {
+    const q = query(
+      collection(db, "transactions"),
+      where("userId", "==", auth.currentUser.uid),
+      where("balanceType", "==", props.balanceType),
+      orderBy("timestamp", "desc"),
+    );
+    const querySnapshot = await getDocs(q);
+    transactions.value = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("거래 내역 조회 오류:", error);
+  } finally {
+    isLoading.value = false;
+  }
 };
+
+const formatDate = (timestamp) => {
+  if (!timestamp?.toDate) return "";
+  return timestamp.toDate().toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+onMounted(fetchTransactions);
 </script>
 
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
@@ -121,16 +103,11 @@ export default {
   z-index: 1000;
 }
 .modal-content {
+  background: #fff;
+  border-radius: 8px;
   width: 90%;
-  /* ▼▼▼ [수정] 최대 너비를 500px에서 700px로 변경 ▼▼▼ */
-  max-width: 700px;
-  /* ▲▲▲ 수정 완료 ▲▲▲ */
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  background-color: #fff;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 .modal-header {
   display: flex;
@@ -141,66 +118,43 @@ export default {
 }
 .modal-header h3 {
   margin: 0;
-  font-size: 1.4em;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  font-size: 1.2em;
 }
 .close-button {
   background: none;
   border: none;
-  font-size: 2em;
+  font-size: 1.5rem;
   cursor: pointer;
-  color: #888;
 }
 .modal-body {
   padding: 20px;
+  max-height: 60vh;
   overflow-y: auto;
 }
 .loading-state,
-.empty-state,
-.error-state {
+.empty-state {
   text-align: center;
-  padding: 40px 0;
-  color: #666;
-}
-.spinner {
-  display: inline-block;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #007bff;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  padding: 30px;
+  color: #888;
 }
 .transaction-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-.transaction-item {
+.transaction-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 5px;
+  padding: 12px 0;
   border-bottom: 1px solid #f0f0f0;
 }
-.transaction-item:last-child {
+.transaction-list li:last-child {
   border-bottom: none;
 }
 .tx-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 .tx-description {
   font-weight: 500;
@@ -213,10 +167,18 @@ export default {
   font-weight: bold;
   font-size: 1.1em;
 }
-.tx-amount.positive {
+.income .tx-amount {
   color: #007bff;
 }
-.tx-amount.negative {
+.expense .tx-amount {
   color: #dc3545;
 }
+/* ▼▼▼ [신규 추가] 현재 잔액 스타일 ▼▼▼ */
+.current-balance {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: #555;
+  margin-left: 10px;
+}
+/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
 </style>

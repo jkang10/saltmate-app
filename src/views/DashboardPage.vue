@@ -239,10 +239,14 @@
         </router-link>
       </div>
     </main>
-
     <TransactionHistoryModal
       v-if="historyModal.visible"
       :balanceType="historyModal.type"
+      :currentBalance="
+        historyModal.type === 'CASH'
+          ? userProfile.cashBalance
+          : userProfile.saltmatePoints
+      "
       @close="historyModal.visible = false"
     />
     <UpgradeTierModal
