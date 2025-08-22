@@ -336,7 +336,10 @@ const sellFundsForPoints = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
-    const result = await sellFunds();
+
+    // ▼▼▼ [수정] 서버로 빈 객체 {}를 전달합니다. ▼▼▼
+    const result = await sellFunds({});
+    // ▲▲▲ 수정 완료 ▲▲▲
 
     const { awardedPoints, soldFunds } = result.data;
     alert(
@@ -483,18 +486,15 @@ onMounted(() => {
         }
       });
 
-      // ▼▼▼ [신규 추가] 게임 데이터 실시간 감지 리스너 ▼▼▼
       const userGameStateRef = doc(
         db,
         `users/${user.uid}/game_state/deep_sea_exploration`,
       );
       onSnapshot(userGameStateRef, (docSnap) => {
         if (docSnap.exists()) {
-          // 서버 데이터가 변경될 때마다 로컬 state를 업데이트합니다.
           Object.assign(state, docSnap.data());
         }
       });
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
