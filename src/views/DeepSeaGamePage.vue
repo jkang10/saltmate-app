@@ -165,7 +165,6 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
-// --- 상태 관리 (State Management) ---
 const DEFAULT_STATE = {
   water: 0,
   minerals: 0,
@@ -180,18 +179,12 @@ const logs = ref([]);
 const showTutorial = ref(false);
 const logBox = ref(null);
 const isSellingFunds = ref(false);
-const gameSettings = reactive({
-  deepSeaRate: 100000,
-});
-
+const gameSettings = reactive({ deepSeaRate: 100000 });
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
 let tickTimer, eventTimer, autosaveTimer;
-// ▼▼▼ [수정됨] 사용자 정보를 반응형 ref로 변경 ▼▼▼
 const authUser = ref(null);
-// ▲▲▲ 수정 완료 ▲▲▲
 
-// --- 에셋 (Assets) ---
 const ICONS = {
   deep: svg(
     "<path d='M12 2C8 7 4 9 4 13c0 5 8 9 8 9s8-4 8-9c0-4-6-8-11z' fill='%234fd1c5'/>",
@@ -216,7 +209,6 @@ function svg(inner) {
   return `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'>${inner}</svg>`;
 }
 
-// --- 게임 정의 (Definitions) ---
 const SHOP_DEFS = [
   {
     id: "rov",
@@ -312,7 +304,6 @@ const achievements = computed(() => {
   }));
 });
 
-// --- 헬퍼 함수 (Helpers) ---
 function clone(o) {
   return JSON.parse(JSON.stringify(o));
 }
@@ -327,7 +318,6 @@ function addLog(msg) {
   });
 }
 
-// --- 게임 로직 (Core Logic) ---
 const sellFundsForPoints = async () => {
   if (state.funds < gameSettings.deepSeaRate) {
     alert(
@@ -339,9 +329,9 @@ const sellFundsForPoints = async () => {
     !confirm(
       `${fmt(state.funds).toLocaleString()} 자금을 모두 판매하여 SaltMate로 교환하시겠습니까?`,
     )
-  ) {
+  )
     return;
-  }
+
   isSellingFunds.value = true;
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
@@ -353,8 +343,6 @@ const sellFundsForPoints = async () => {
       `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
     );
     addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
-
-    await loadGame(authUser.value); // 판매 성공 후 최신 데이터를 다시 불러옵니다.
   } catch (error) {
     console.error("자금 판매 오류:", error);
     alert(`오류: ${error.message}`);
@@ -443,7 +431,6 @@ function runEvent() {
   }
 }
 
-// --- 저장 및 불러오기 (Persistence) ---
 async function loadGame(user) {
   if (user && db) {
     DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
@@ -455,7 +442,7 @@ async function loadGame(user) {
       } else {
         Object.assign(state, clone(DEFAULT_STATE));
         addLog("새로운 탐사를 시작합니다. (서버)");
-        await saveGame(); // 새 게임 시작 시 즉시 저장
+        await saveGame();
       }
     } catch (e) {
       console.error("Firestore load error", e);
@@ -483,10 +470,9 @@ function closeTutorial() {
   saveGame();
 }
 
-// --- 생명주기 및 루프 (Lifecycle & Loops) ---
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
-    authUser.value = user; // [수정됨] 로그인된 사용자 정보 저장
+    authUser.value = user;
     if (user) {
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
@@ -496,6 +482,19 @@ onMounted(() => {
           gameSettings.deepSeaRate = data.deepSeaRate || 100000;
         }
       });
+
+      // ▼▼▼ [신규 추가] 게임 데이터 실시간 감지 리스너 ▼▼▼
+      const userGameStateRef = doc(
+        db,
+        `users/${user.uid}/game_state/deep_sea_exploration`,
+      );
+      onSnapshot(userGameStateRef, (docSnap) => {
+        if (docSnap.exists()) {
+          // 서버 데이터가 변경될 때마다 로컬 state를 업데이트합니다.
+          Object.assign(state, docSnap.data());
+        }
+      });
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
