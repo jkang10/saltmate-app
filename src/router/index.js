@@ -250,6 +250,13 @@ const routes = [
         name: "AdminEquityManagement",
         component: () => import("@/components/admin/EquityManagement.vue"),
       },
+      // ▼▼▼ [신규 추가] 데이터베이스 백업 페이지 라우트 ▼▼▼
+      {
+        path: "database-backup",
+        name: "DatabaseBackup",
+        component: () => import("@/components/admin/DatabaseBackup.vue"),
+      },
+      // ▲▲▲ 신규 추가 완료 ▲▲▲
     ],
   },
   {

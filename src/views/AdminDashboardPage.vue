@@ -162,6 +162,15 @@
               <i class="fas fa-gamepad"></i> 게임 설정
             </router-link>
           </li>
+          <li>
+            <router-link
+              to="/admin-dashboard/database-backup"
+              class="nav-item"
+              active-class="active-link"
+            >
+              <i class="fas fa-database"></i> DB 백업
+            </router-link>
+          </li>
         </ul>
       </aside>
       <section class="admin-content card glassmorphism">
