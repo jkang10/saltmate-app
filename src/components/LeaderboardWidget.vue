@@ -37,14 +37,17 @@ const winners = ref([]);
 let unsubscribe = null;
 
 onMounted(() => {
-  const today = new Date().toISOString().slice(0, 10);
-  // ▼▼▼ [수정] limit(5)를 limit(7)로 변경하여 7위까지 불러옵니다. ▼▼▼
+  // [핵심 수정] 한국 시간(KST)을 기준으로 '오늘' 날짜를 계산합니다.
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstDate = new Date(now.getTime() + kstOffset);
+  const today = kstDate.toISOString().slice(0, 10);
+
   const q = query(
     collection(db, `leaderboards/daily_winners/${today}`),
     orderBy("totalWinnings", "desc"),
     limit(7),
   );
-  // ▲▲▲ 수정 완료 ▲▲▲
 
   unsubscribe = onSnapshot(q, (querySnapshot) => {
     const items = [];
