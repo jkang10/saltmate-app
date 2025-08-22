@@ -13,6 +13,8 @@
           <tr>
             <th>요청일시</th>
             <th>요청자명</th>
+            <th>센터</th>
+            <th>추천인</th>
             <th>금액</th>
             <th>상태</th>
             <th>관리</th>
@@ -22,6 +24,8 @@
           <tr v-for="req in requests" :key="req.id">
             <td>{{ formatDate(req.requestedAt) }}</td>
             <td>{{ req.userName }}</td>
+            <td>{{ req.centerName || "N/A" }}</td>
+            <td>{{ req.referrerName || "없음" }}</td>
             <td>{{ req.amount.toLocaleString() }} 원</td>
             <td>
               <span class="status-badge pending">{{ req.status }}</span>
@@ -62,19 +66,60 @@ export default {
     await this.fetchRequests();
   },
   methods: {
+    // ▼▼▼ [수정됨] fetchRequests 함수 전체를 아래 코드로 교체 ▼▼▼
     async fetchRequests() {
       this.isLoading = true;
       try {
-        const q = query(
+        // 1. 'pending' 상태의 결제 요청, 모든 사용자, 모든 센터 정보를 동시에 가져옵니다.
+        const paymentsQuery = query(
           collection(db, "monthly_payments"),
           where("status", "==", "pending"),
           orderBy("requestedAt", "desc"),
         );
-        const querySnapshot = await getDocs(q);
-        this.requests = querySnapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
+        const usersQuery = query(collection(db, "users"));
+        const centersQuery = query(collection(db, "centers"));
+
+        const [paymentSnapshot, userSnapshot, centerSnapshot] =
+          await Promise.all([
+            getDocs(paymentsQuery),
+            getDocs(usersQuery),
+            getDocs(centersQuery),
+          ]);
+
+        // 2. 빠른 조회를 위해 사용자 맵과 센터 맵을 만듭니다.
+        const userMap = new Map();
+        userSnapshot.forEach((doc) => {
+          userMap.set(doc.id, doc.data());
+        });
+
+        const centerMap = new Map();
+        centerSnapshot.forEach((doc) => {
+          centerMap.set(doc.id, doc.data().name);
+        });
+
+        // 3. 결제 요청 목록에 센터 이름과 추천인 이름을 추가합니다.
+        this.requests = paymentSnapshot.docs.map((doc) => {
+          const requestData = doc.data();
+          const userInfo = userMap.get(requestData.userId);
+
+          let centerName = "N/A";
+          let referrerName = "없음";
+
+          if (userInfo) {
+            centerName = centerMap.get(userInfo.centerId) || "N/A";
+            if (userInfo.uplineReferrer) {
+              const referrerInfo = userMap.get(userInfo.uplineReferrer);
+              referrerName = referrerInfo ? referrerInfo.name : "정보 없음";
+            }
+          }
+
+          return {
+            id: doc.id,
+            ...requestData,
+            centerName,
+            referrerName,
+          };
+        });
       } catch (error) {
         console.error("결제 요청 목록 조회 오류:", error);
         alert("데이터를 불러오는 데 실패했습니다.");
@@ -82,6 +127,7 @@ export default {
         this.isLoading = false;
       }
     },
+    // ▲▲▲ 수정 완료 ▲▲▲
     async approvePayment(requestId) {
       if (!confirm("이 결제 요청을 승인하시겠습니까?")) return;
       const reqRef = doc(db, "monthly_payments", requestId);
@@ -103,7 +149,6 @@ export default {
 </script>
 
 <style scoped>
-/* (SubscriptionManagement.vue와 유사한 스타일) */
 .payment-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
@@ -140,6 +185,7 @@ export default {
 .request-table td {
   padding: 12px 15px;
   border-bottom: 1px solid #eee;
+  white-space: nowrap;
 }
 .request-table thead th {
   background-color: #f8f9fa;
