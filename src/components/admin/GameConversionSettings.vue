@@ -1,7 +1,6 @@
 <template>
   <div class="settings-manager">
     <h2><i class="fas fa-gamepad"></i> 게임 설정</h2>
-
     <div class="card">
       <h3>재화 전환 비율 설정</h3>
       <div class="form-group">
@@ -11,13 +10,11 @@
         <div class="input-group">
           <input
             type="number"
-            id="salt-rate"
+            step="100"
             v-model.number="settings.saltMineRate"
-            placeholder="예: 1000"
           />
           <span> Salt = 1 SaltMate</span>
         </div>
-        <small>1 SaltMate를 얻기 위해 필요한 소금의 개수를 입력하세요.</small>
       </div>
       <div class="form-group">
         <label for="sea-rate"
@@ -26,13 +23,11 @@
         <div class="input-group">
           <input
             type="number"
-            id="sea-rate"
+            step="1000"
             v-model.number="settings.deepSeaRate"
-            placeholder="예: 100000"
           />
           <span> 자금 = 1 SaltMate</span>
         </div>
-        <small>1 SaltMate를 얻기 위해 필요한 자금의 액수를 입력하세요.</small>
       </div>
 
       <h3 class="section-title">일일 이용 횟수 설정</h3>
@@ -41,15 +36,9 @@
           ><i class="fas fa-hand-scissors"></i> 가위바위보</label
         >
         <div class="input-group">
-          <input
-            type="number"
-            id="rps-limit"
-            v-model.number="settings.rpsLimit"
-            placeholder="예: 10"
-          />
+          <input type="number" step="1" v-model.number="settings.rpsLimit" />
           <span> 회 / 일</span>
         </div>
-        <small>하루에 참여할 수 있는 최대 횟수를 입력하세요.</small>
       </div>
       <div class="form-group">
         <label for="high-low-limit"
@@ -58,13 +47,41 @@
         <div class="input-group">
           <input
             type="number"
-            id="high-low-limit"
+            step="1"
             v-model.number="settings.highLowLimit"
-            placeholder="예: 10"
           />
           <span> 회 / 일</span>
         </div>
-        <small>하루에 참여할 수 있는 최대 횟수를 입력하세요.</small>
+      </div>
+
+      <h3 class="section-title">게임 승리 배수 설정</h3>
+      <div class="form-group">
+        <label for="rps-multiplier"
+          ><i class="fas fa-hand-scissors"></i> 가위바위보 (승리 시)</label
+        >
+        <div class="input-group">
+          <span>베팅금액의 </span>
+          <input
+            type="number"
+            step="0.1"
+            v-model.number="settings.rpsMultiplier"
+          />
+          <span> 배</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="high-low-multiplier"
+          ><i class="fas fa-arrows-alt-v"></i> 하이로우 (성공 시)</label
+        >
+        <div class="input-group">
+          <span>베팅금액의 </span>
+          <input
+            type="number"
+            step="0.1"
+            v-model.number="settings.highLowMultiplier"
+          />
+          <span> 배</span>
+        </div>
       </div>
 
       <div class="actions">
@@ -92,6 +109,8 @@ export default {
       deepSeaRate: 100000,
       rpsLimit: 10,
       highLowLimit: 10,
+      rpsMultiplier: 1.2,
+      highLowMultiplier: 1.2,
     });
 
     const fetchSettings = async () => {
@@ -100,44 +119,24 @@ export default {
         const configRef = doc(db, "configuration", "gameSettings");
         const docSnap = await getDoc(configRef);
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          settings.saltMineRate = data.saltMineRate;
-          settings.deepSeaRate = data.deepSeaRate;
-          settings.rpsLimit = data.rpsLimit;
-          settings.highLowLimit = data.highLowLimit;
+          Object.assign(settings, docSnap.data());
         }
       } catch (error) {
         console.error("설정 불러오기 실패:", error);
-        alert("기존 설정을 불러오는 데 실패했습니다.");
       } finally {
         isLoading.value = false;
       }
     };
 
     const saveSettings = async () => {
-      if (
-        !settings.saltMineRate ||
-        !settings.deepSeaRate ||
-        !settings.rpsLimit ||
-        !settings.highLowLimit
-      ) {
-        alert("모든 값을 올바르게 입력해주세요.");
-        return;
-      }
       if (!confirm("게임 설정을 저장하시겠습니까?")) return;
-
       isLoading.value = true;
       try {
         const updateSettings = httpsCallable(
           functions,
           "updateGameConversionSettings",
         );
-        await updateSettings({
-          saltMineRate: settings.saltMineRate,
-          deepSeaRate: settings.deepSeaRate,
-          rpsLimit: settings.rpsLimit,
-          highLowLimit: settings.highLowLimit,
-        });
+        await updateSettings(settings);
         alert("설정이 성공적으로 저장되었습니다.");
       } catch (error) {
         console.error("설정 저장 실패:", error);
@@ -153,7 +152,6 @@ export default {
   },
 };
 </script>
-
 <style scoped>
 /* (기존 스타일과 거의 동일) */
 .section-title {
