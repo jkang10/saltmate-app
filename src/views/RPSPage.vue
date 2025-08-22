@@ -1,0 +1,207 @@
+<template>
+  <div class="page-container">
+    <header class="page-header">
+      <h1>
+        <i class="fas fa-hand-rock"></i><i class="fas fa-hand-paper"></i
+        ><i class="fas fa-hand-scissors"></i> 가위바위보
+      </h1>
+      <p class="description">
+        SaltMate를 걸고 컴퓨터와 가위바위보 대결을 펼치세요!
+      </p>
+    </header>
+
+    <div class="game-card card">
+      <div v-if="result" class="result-display" :class="result.result">
+        <div class="choices">
+          <div class="choice">
+            <strong>나:</strong>
+            <i :class="`fas fa-hand-${result.userChoice}`"></i>
+          </div>
+          <div class="choice">
+            <strong>컴퓨터:</strong>
+            <i :class="`fas fa-hand-${result.computerChoice}`"></i>
+          </div>
+        </div>
+        <p class="result-message">{{ resultText }}</p>
+      </div>
+
+      <div v-else class="initial-display">
+        <p>
+          승리 시 <strong>2배</strong>, 무승부 시
+          <strong>베팅 금액을 반환</strong>합니다.
+        </p>
+      </div>
+
+      <div class="betting-controls">
+        <input
+          type="number"
+          v-model.number="betAmount"
+          placeholder="베팅할 SaltMate"
+          min="1"
+        />
+        <div class="buttons">
+          <button @click="play('rock')" :disabled="isLoading">
+            <i class="fas fa-hand-rock"></i>
+          </button>
+          <button @click="play('scissors')" :disabled="isLoading">
+            <i class="fas fa-hand-scissors"></i>
+          </button>
+          <button @click="play('paper')" :disabled="isLoading">
+            <i class="fas fa-hand-paper"></i>
+          </button>
+        </div>
+      </div>
+      <div v-if="isLoading" class="loading-overlay">
+        <div class="spinner-large"></div>
+        <p>결과를 기다리는 중...</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from "vue";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+const betAmount = ref(100);
+const isLoading = ref(false);
+const result = ref(null);
+
+const resultText = computed(() => {
+  if (!result.value) return "";
+  switch (result.value.result) {
+    case "win":
+      return `승리! ${result.value.winnings.toLocaleString()} SaltMate 획득!`;
+    case "lose":
+      return "패배...";
+    case "draw":
+      return "무승부! 베팅 금액을 돌려받습니다.";
+    default:
+      return "";
+  }
+});
+
+const play = async (choice) => {
+  if (betAmount.value <= 0) {
+    alert("베팅 금액을 1 이상 입력해주세요.");
+    return;
+  }
+
+  isLoading.value = true;
+  result.value = null;
+
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const playRPS = httpsCallable(functions, "playRPS");
+    const response = await playRPS({ betAmount: betAmount.value, choice });
+    result.value = response.data;
+  } catch (error) {
+    console.error("가위바위보 게임 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isLoading.value = false;
+  }
+};
+</script>
+
+<style scoped>
+/* (1단계 파일과 공통 스타일 사용) */
+.page-container {
+  max-width: 600px;
+  margin: 90px auto 20px;
+  padding: 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.game-card {
+  padding: 30px;
+  text-align: center;
+  position: relative;
+}
+.result-display {
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.result-display.win {
+  background-color: #d4edda;
+  color: #155724;
+}
+.result-display.lose {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+.result-display.draw {
+  background-color: #fff3cd;
+  color: #856404;
+}
+.choices {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-around;
+}
+.result-message {
+  font-weight: bold;
+  font-size: 1.2em;
+  margin: 0;
+}
+.initial-display p {
+  color: #666;
+}
+.betting-controls input {
+  width: 100%;
+  padding: 12px;
+  font-size: 1.2em;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+.buttons button {
+  padding: 20px;
+  font-size: 3em;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #f8f9fa;
+}
+.buttons button:hover:not(:disabled) {
+  background-color: #e2e6ea;
+  border-color: #007bff;
+}
+.buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.spinner-large {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

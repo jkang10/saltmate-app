@@ -219,6 +219,20 @@
           <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
           <span class="card-enter">참여하기 &rarr;</span>
         </router-link>
+        <router-link to="/high-low-game" class="feature-card game">
+          <div class="card-icon">
+            <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
+          </div>
+          <h3>하이로우</h3>
+          <p>다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!</p>
+          <span class="card-enter">도전하기 &rarr;</span>
+        </router-link>
+        <router-link to="/rps-game" class="feature-card game">
+          <div class="card-icon"><i class="fas fa-hand-scissors"></i></div>
+          <h3>가위바위보</h3>
+          <p>컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!</p>
+          <span class="card-enter">게임 시작 &rarr;</span>
+        </router-link>
         <router-link to="/salt-game" class="feature-card salt-game">
           <div class="card-icon"><i class="fas fa-gem"></i></div>
           <h3>소금 결정 키우기</h3>

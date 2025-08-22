@@ -39,6 +39,23 @@
           </div>
         </div>
 
+        <div class="card golden-time-box">
+          <h3><i class="fas fa-star gold-icon"></i> 골든타임 활성화</h3>
+          <p>
+            100 SaltMate를 사용하여 10분간 희귀 자원 발견 확률을 5배로 높이세요!
+          </p>
+          <button
+            class="btn golden-time-btn"
+            @click="activateGoldenTime"
+            :disabled="isActivatingGoldenTime || isGoldenTimeActive"
+          >
+            <span v-if="isActivatingGoldenTime" class="spinner-small"></span>
+            <span v-else-if="isGoldenTimeActive"
+              >활성화됨 ({{ goldenTimeRemaining }})</span
+            >
+            <span v-else>골든타임 시작</span>
+          </button>
+        </div>
         <div class="card salt-sale-box">
           <h3>해양심층수 판매소</h3>
           <div class="salt-info">
@@ -59,6 +76,7 @@
             <span v-else>모두 판매하기</span>
           </button>
         </div>
+
         <div class="resources-grid">
           <div class="res-pill">
             <div class="small">심층수</div>
@@ -173,6 +191,7 @@ const DEFAULT_STATE = {
   shop: {},
   achievements: {},
   seenTutorial: false,
+  goldenTimeUntil: null,
 };
 const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
@@ -182,8 +201,14 @@ const isSellingFunds = ref(false);
 const gameSettings = reactive({ deepSeaRate: 100000 });
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
-let tickTimer, eventTimer, autosaveTimer;
+let tickTimer, eventTimer, autosaveTimer, goldenTimeInterval;
 const authUser = ref(null);
+const isActivatingGoldenTime = ref(false);
+const goldenTimeRemaining = ref("00:00");
+
+const isGoldenTimeActive = computed(() => {
+  return state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date();
+});
 
 const ICONS = {
   deep: svg(
@@ -278,13 +303,12 @@ const derived = computed(() => {
   return { perSecond, capacity, marketMultiplier, chanceMultiplier };
 });
 
-const shopItems = computed(() => {
-  return SHOP_DEFS.map((def) => ({
+const shopItems = computed(() =>
+  SHOP_DEFS.map((def) => ({
     ...def,
     cost: Math.ceil(def.base * Math.pow(1.65, state.shop[def.id] || 0)),
-  }));
-});
-
+  })),
+);
 const ACH_DEFS = [
   { id: "first_click", name: "첫 채집", cond: (s) => s.water >= 1 },
   { id: "minerals_5", name: "미네랄 콜렉터", cond: (s) => s.minerals >= 5 },
@@ -296,13 +320,9 @@ const ACH_DEFS = [
     cond: () => derived.value.perSecond >= 20,
   },
 ];
-
-const achievements = computed(() => {
-  return ACH_DEFS.map((a) => ({
-    ...a,
-    unlocked: state.achievements[a.id] || false,
-  }));
-});
+const achievements = computed(() =>
+  ACH_DEFS.map((a) => ({ ...a, unlocked: state.achievements[a.id] || false })),
+);
 
 function clone(o) {
   return JSON.parse(JSON.stringify(o));
@@ -319,28 +339,17 @@ function addLog(msg) {
 }
 
 const sellFundsForPoints = async () => {
-  if (state.funds < gameSettings.deepSeaRate) {
-    alert(
-      `SaltMate로 교환하려면 최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
+  if (state.funds < gameSettings.deepSeaRate)
+    return alert(
+      `최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
     );
+  if (!confirm(`${fmt(state.funds).toLocaleString()} 자금을 판매하시겠습니까?`))
     return;
-  }
-  if (
-    !confirm(
-      `${fmt(state.funds).toLocaleString()} 자금을 모두 판매하여 SaltMate로 교환하시겠습니까?`,
-    )
-  )
-    return;
-
   isSellingFunds.value = true;
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
-
-    // ▼▼▼ [수정] 서버로 빈 객체 {}를 전달합니다. ▼▼▼
     const result = await sellFunds({});
-    // ▲▲▲ 수정 완료 ▲▲▲
-
     const { awardedPoints, soldFunds } = result.data;
     alert(
       `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
@@ -354,13 +363,29 @@ const sellFundsForPoints = async () => {
   }
 };
 
-function collectClick() {
-  if (state.water >= derived.value.capacity) {
-    addLog("저장 탱크가 가득 찼습니다!");
-    return;
+const activateGoldenTime = async () => {
+  if (!confirm("100 SaltMate를 사용하여 골든타임을 시작하시겠습니까?")) return;
+  isActivatingGoldenTime.value = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const startGoldenTime = httpsCallable(functions, "startGoldenTime");
+    const result = await startGoldenTime();
+    alert(result.data.message);
+    addLog("골든타임 시작!");
+  } catch (error) {
+    console.error("골든타임 활성화 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isActivatingGoldenTime.value = false;
   }
+};
+
+function collectClick() {
+  if (state.water >= derived.value.capacity)
+    return addLog("저장 탱크가 가득 찼습니다!");
   state.water = Math.min(derived.value.capacity, state.water + 1);
-  const chance = derived.value.chanceMultiplier;
+  let chance = derived.value.chanceMultiplier;
+  if (isGoldenTimeActive.value) chance *= 5; // 골든타임 시 확률 5배
   if (Math.random() < 0.05 * chance) {
     state.minerals++;
     addLog("희귀 미네랄 발견!");
@@ -373,14 +398,8 @@ function collectClick() {
 }
 
 function sellWater() {
-  if (state.water <= 0) {
-    alert("판매할 심층수가 없습니다");
-    return;
-  }
-  const pricePerL = 5;
-  const revenue = Math.floor(
-    state.water * pricePerL * derived.value.marketMultiplier,
-  );
+  if (state.water <= 0) return alert("판매할 심층수가 없습니다");
+  const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier);
   state.funds += revenue;
   addLog(`${fmt(state.water)}L 심층수 판매: +${revenue.toLocaleString()} 자금`);
   state.water = 0;
@@ -389,16 +408,11 @@ function sellWater() {
 }
 
 function buy(id) {
-  const def = SHOP_DEFS.find((s) => s.id === id);
-  const owned = state.shop[id] || 0;
-  const cost = Math.ceil(def.base * Math.pow(1.65, owned));
-  if (state.funds < cost) {
-    alert("자금이 부족합니다");
-    return;
-  }
-  state.funds -= cost;
-  state.shop[id] = owned + 1;
-  addLog(`${def.name} 구매`);
+  const item = shopItems.value.find((i) => i.id === id);
+  if (state.funds < item.cost) return alert("자금이 부족합니다");
+  state.funds -= item.cost;
+  state.shop[id] = (state.shop[id] || 0) + 1;
+  addLog(`${item.name} 구매`);
   checkAchievements();
   saveGame();
 }
@@ -435,24 +449,21 @@ function runEvent() {
 }
 
 async function loadGame(user) {
-  if (user && db) {
-    DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
-    try {
-      const docSnap = await getDoc(DB_SAVE_REF);
-      if (docSnap.exists()) {
-        Object.assign(state, clone(DEFAULT_STATE), docSnap.data());
-        addLog("서버에서 데이터를 불러왔습니다.");
-      } else {
-        Object.assign(state, clone(DEFAULT_STATE));
-        addLog("새로운 탐사를 시작합니다. (서버)");
-        await saveGame();
-      }
-    } catch (e) {
-      console.error("Firestore load error", e);
-      addLog("서버 로딩 실패. 읽기 권한을 확인하세요.");
+  if (!user || !db) return;
+  DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
+  try {
+    const docSnap = await getDoc(DB_SAVE_REF);
+    if (docSnap.exists()) {
+      Object.assign(state, clone(DEFAULT_STATE), docSnap.data());
+      addLog("서버에서 데이터를 불러왔습니다.");
+    } else {
+      Object.assign(state, clone(DEFAULT_STATE));
+      addLog("새로운 탐사를 시작합니다. (서버)");
+      await saveGame();
     }
-  } else {
-    addLog("로그인 정보 없음. 로컬 저장을 사용합니다.");
+  } catch (e) {
+    console.error("Firestore load error", e);
+    addLog("서버 로딩 실패.");
   }
   if (!state.seenTutorial) showTutorial.value = true;
 }
@@ -480,38 +491,48 @@ onMounted(() => {
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          gameSettings.deepSeaRate = data.deepSeaRate || 100000;
-        }
+        if (docSnap.exists())
+          gameSettings.deepSeaRate = docSnap.data().deepSeaRate || 100000;
       });
-
       const userGameStateRef = doc(
         db,
         `users/${user.uid}/game_state/deep_sea_exploration`,
       );
       onSnapshot(userGameStateRef, (docSnap) => {
-        if (docSnap.exists()) {
-          Object.assign(state, docSnap.data());
-        }
+        if (docSnap.exists()) Object.assign(state, docSnap.data());
       });
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
   });
 
+  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
+  goldenTimeInterval = setInterval(() => {
+    if (isGoldenTimeActive.value) {
+      const diff = Math.max(
+        0,
+        state.goldenTimeUntil.toDate().getTime() - new Date().getTime(),
+      );
+      const minutes = Math.floor((diff / 1000 / 60) % 60)
+        .toString()
+        .padStart(2, "0");
+      const seconds = Math.floor((diff / 1000) % 60)
+        .toString()
+        .padStart(2, "0");
+      goldenTimeRemaining.value = `${minutes}:${seconds}`;
+    }
+  }, 1000);
+
   lastTick = Date.now();
   tickTimer = setInterval(() => {
-    const now = Date.now();
-    const delta = (now - lastTick) / 1000;
-    lastTick = now;
+    const delta = (Date.now() - lastTick) / 1000;
+    lastTick = Date.now();
     state.water = Math.min(
       derived.value.capacity,
       state.water + derived.value.perSecond * delta,
     );
     checkAchievements();
   }, 1000);
-
   eventTimer = setInterval(runEvent, 25000);
   autosaveTimer = setInterval(saveGame, 10000);
 });
@@ -520,299 +541,26 @@ onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
   clearInterval(autosaveTimer);
+  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   saveGame();
 });
 </script>
 
 <style scoped>
-:root {
-  --text-dark: #212529;
-  --text-light: #495057;
-  --primary: #007bff;
-  --accent: #17a2b8;
-  --card-bg: #ffffff;
-  --bg-light: #f8f9fa;
-  --border-color: #dee2e6;
-}
-
-.page-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 70px auto 20px;
-  color: var(--text-dark);
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-.page-header h1 {
-  font-size: 2.2em;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin-bottom: 10px;
-}
-.page-header h1 i {
-  color: var(--primary);
-}
-
-.page-header .description {
-  font-size: 1.1em;
-  color: var(--text-light);
-}
-
-.game-layout {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 20px;
-  align-items: start;
-}
-
-.card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--border-color);
-}
-
-.top-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.stat {
-  background: var(--bg-light);
-  padding: 15px;
-  border-radius: 8px;
-  text-align: center;
-  border: 1px solid var(--border-color);
-}
-
-.stat strong {
-  font-size: 1.4em;
-  color: var(--text-dark);
-}
-
-.stat .label {
-  font-size: 0.9em;
-  color: var(--muted);
-  display: block;
-  margin-top: 5px;
-}
-
-.collect-area {
-  text-align: center;
-  padding: 20px;
-}
-
-#collectBtn {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(145deg, #2196f3, #0d47a1);
-  color: white;
-  cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
-  transition: all 0.2s ease-in-out;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#collectBtn:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
-}
-
-.collect-btn-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.collect-label {
-  font-size: 1.1em;
-  font-weight: bold;
-}
-
-.sell-area {
-  margin-top: 15px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
-}
-
-.btn {
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.2s ease;
-}
-
-.btn.small {
-  padding: 8px 16px;
-  font-size: 0.9em;
-  background-color: #28a745;
-  color: white;
-}
-.btn.small:hover {
-  background-color: #218838;
-}
-
-.btn:disabled {
-  background-color: #ced4da;
-  cursor: not-allowed;
-  color: #6c757d;
-}
-
-.resources-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
+.golden-time-box {
   margin-top: 20px;
+  text-align: center;
+  border: 2px solid #ffd700;
 }
-
-.res-pill {
-  background: var(--bg-light);
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+.golden-time-box h3 {
+  color: #e67e22;
 }
-
-.res-pill .small {
-  color: var(--muted);
-  font-size: 0.9em;
-}
-
-.res-pill strong {
-  font-size: 1.2em;
-}
-
-.game-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.shop {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.shop-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.shop-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.item-name {
-  font-weight: bold;
-  font-size: 1em;
-}
-
-.log {
-  height: 200px;
-  overflow-y: auto;
-  background: #212529;
-  color: #e9ecef;
-  padding: 15px;
-  border-radius: 8px;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.9em;
-}
-
-.ach-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.ach {
-  padding: 10px;
-  border-radius: 8px;
-  background: #e9ecef;
-  opacity: 0.6;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9em;
-}
-
-.ach.unlocked {
-  background: #d4edda;
-  color: #155724;
-  opacity: 1;
-}
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.overlay.show {
-  display: flex;
-}
-
-.modal {
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  max-width: 500px;
-  width: 90%;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.5em;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: var(--text-dark);
-}
-
-.tutorial-list {
-  list-style-position: inside;
-  text-align: left;
-  line-height: 1.8;
-  color: var(--text-light);
-}
-
-.icon {
-  width: 36px;
-  height: 36px;
-  image-rendering: pixelated;
-}
-
-.btn.secondary {
-  background-color: #6c757d;
+.golden-time-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #f39c12;
   color: white;
+  font-size: 1.1em;
 }
 .salt-sale-box {
   margin-top: 20px;
@@ -858,7 +606,7 @@ onUnmounted(() => {
   animation: spin 1s linear infinite;
   display: inline-block;
 }
-
+/* ... (나머지 기존 스타일) ... */
 @media (max-width: 900px) {
   .game-layout {
     grid-template-columns: 1fr;

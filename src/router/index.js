@@ -133,6 +133,18 @@ const routes = [
     component: () => import("@/views/TreasureBoxPage.vue"),
     meta: { requiresAuth: true },
   },
+  {
+    path: "/high-low-game",
+    name: "HighLowPage",
+    component: () => import("@/views/HighLowPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/rps-game",
+    name: "RPSPage",
+    component: () => import("@/views/RPSPage.vue"),
+    meta: { requiresAuth: true },
+  },
   // ▼▼▼ [신규] '소금 결정 키우기' 페이지 경로 추가 ▼▼▼
   {
     path: "/salt-game",
