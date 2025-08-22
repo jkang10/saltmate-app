@@ -113,7 +113,6 @@ const play = async (playerChoice) => {
 </script>
 
 <style scoped>
-/* (스타일은 아래 2단계 파일과 공통으로 사용됩니다) */
 .page-container {
   max-width: 600px;
   margin: 90px auto 20px;
@@ -123,47 +122,73 @@ const play = async (playerChoice) => {
   text-align: center;
   margin-bottom: 20px;
 }
+.page-header h1 {
+  font-size: 2em;
+}
 .game-card {
   padding: 30px;
   text-align: center;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
 }
 .result-display {
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 20px;
+  animation: fadeIn 0.5s;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .result-display.win {
   background-color: #d4edda;
   color: #155724;
+  border: 1px solid #c3e6cb;
 }
 .result-display.lose {
   background-color: #f8d7da;
   color: #721c24;
+  border: 1px solid #f5c6cb;
 }
 .numbers {
-  font-size: 1.5em;
+  font-size: 2em;
   margin-bottom: 10px;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 20px;
+  font-weight: bold;
 }
 .result-message {
   font-weight: bold;
-  font-size: 1.2em;
+  font-size: 1.3em;
   margin: 0;
 }
 .initial-display p {
   color: #666;
+  font-size: 1.1em;
 }
 .betting-controls input {
   width: 100%;
   padding: 12px;
   font-size: 1.2em;
   text-align: center;
-  border: 1px solid #ccc;
+  border: 2px solid #ccc;
   border-radius: 8px;
   margin-bottom: 20px;
+  transition: border-color 0.2s;
+}
+.betting-controls input:focus {
+  border-color: #007bff;
+  outline: none;
 }
 .buttons {
   display: grid;
@@ -172,30 +197,37 @@ const play = async (playerChoice) => {
 }
 .buttons button {
   padding: 15px;
-  font-size: 1.2em;
+  font-size: 1.5em;
   font-weight: bold;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 .btn-high {
-  background-color: #dc3545;
+  background: linear-gradient(135deg, #ff7e5f, #feb47b);
   color: white;
 }
 .btn-low {
-  background-color: #007bff;
+  background: linear-gradient(135deg, #007bff, #00c6ff);
   color: white;
 }
+.buttons button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
 .buttons button:disabled {
-  background-color: #ccc;
+  background: #e9ecef;
+  color: #adb5bd;
+  box-shadow: none;
 }
 .spinner-small {
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   border-top-color: #fff;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   animation: spin 1s linear infinite;
   display: inline-block;
 }

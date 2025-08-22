@@ -105,7 +105,6 @@ const play = async (choice) => {
 </script>
 
 <style scoped>
-/* (1단계 파일과 공통 스타일 사용) */
 .page-container {
   max-width: 600px;
   margin: 90px auto 20px;
@@ -115,15 +114,32 @@ const play = async (choice) => {
   text-align: center;
   margin-bottom: 20px;
 }
+.page-header h1 {
+  font-size: 2em;
+}
 .game-card {
   padding: 30px;
   text-align: center;
   position: relative;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
 }
 .result-display {
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 20px;
+  animation: fadeIn 0.5s;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .result-display.win {
   background-color: #d4edda;
@@ -138,27 +154,34 @@ const play = async (choice) => {
   color: #856404;
 }
 .choices {
-  font-size: 2.5em;
+  font-size: 3em;
   margin-bottom: 10px;
   display: flex;
   justify-content: space-around;
+  align-items: center;
 }
 .result-message {
   font-weight: bold;
-  font-size: 1.2em;
+  font-size: 1.3em;
   margin: 0;
 }
 .initial-display p {
   color: #666;
+  font-size: 1.1em;
 }
 .betting-controls input {
   width: 100%;
   padding: 12px;
   font-size: 1.2em;
   text-align: center;
-  border: 1px solid #ccc;
+  border: 2px solid #ccc;
   border-radius: 8px;
   margin-bottom: 20px;
+  transition: border-color 0.2s;
+}
+.betting-controls input:focus {
+  border-color: #007bff;
+  outline: none;
 }
 .buttons {
   display: grid;
@@ -167,16 +190,20 @@ const play = async (choice) => {
 }
 .buttons button {
   padding: 20px;
-  font-size: 3em;
-  border: 2px solid #ccc;
-  border-radius: 8px;
+  font-size: 3.5em;
+  border: none;
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
   cursor: pointer;
   transition: all 0.2s;
   background-color: #f8f9fa;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  line-height: 1;
 }
 .buttons button:hover:not(:disabled) {
-  background-color: #e2e6ea;
-  border-color: #007bff;
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
 }
 .buttons button:disabled {
   opacity: 0.5;
@@ -185,19 +212,26 @@ const play = async (choice) => {
 .loading-overlay {
   position: absolute;
   inset: 0;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  border-radius: 12px;
 }
 .spinner-large {
-  border: 4px solid rgba(0, 0, 0, 0.1);
+  border: 5px solid rgba(0, 0, 0, 0.1);
   border-top-color: #007bff;
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   animation: spin 1s linear infinite;
+}
+.loading-overlay p {
+  margin-top: 20px;
+  font-size: 1.2em;
+  color: #333;
+  font-weight: bold;
 }
 @keyframes spin {
   to {
