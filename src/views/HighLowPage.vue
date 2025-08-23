@@ -36,7 +36,10 @@
 
       <div v-else class="initial-display">
         <p>1부터 100 사이의 숫자가 무작위로 선택됩니다.</p>
-        <p>성공 시 베팅 금액의 <strong>1.8배</strong>를 획득합니다.</p>
+        <p>
+          성공 시 베팅 금액의
+          <strong>{{ gameSettings.highLowMultiplier }}배</strong>를 획득합니다.
+        </p>
       </div>
 
       <div class="betting-controls">
@@ -76,13 +79,27 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { db } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const betAmount = ref(100);
 const isLoading = ref(false);
 const result = ref(null);
 const choice = ref("");
+const gameSettings = reactive({
+  highLowMultiplier: 1.2,
+});
+
+onMounted(() => {
+  const configRef = doc(db, "configuration", "gameSettings");
+  onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      gameSettings.highLowMultiplier = docSnap.data().highLowMultiplier || 1.2;
+    }
+  });
+});
 
 const play = async (playerChoice) => {
   if (betAmount.value <= 0) {
@@ -92,7 +109,7 @@ const play = async (playerChoice) => {
 
   isLoading.value = true;
   choice.value = playerChoice;
-  result.value = null; // 이전 결과 초기화
+  result.value = null;
 
   try {
     const functions = getFunctions(undefined, "asia-northeast3");

@@ -27,7 +27,7 @@
 
       <div v-else class="initial-display">
         <p>
-          승리 시 <strong>2배</strong>, 무승부 시
+          승리 시 <strong>{{ gameSettings.rpsMultiplier }}배</strong>, 무승부 시
           <strong>베팅 금액을 반환</strong>합니다.
         </p>
       </div>
@@ -60,12 +60,26 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { db } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const betAmount = ref(100);
 const isLoading = ref(false);
 const result = ref(null);
+const gameSettings = reactive({
+  rpsMultiplier: 1.2,
+});
+
+onMounted(() => {
+  const configRef = doc(db, "configuration", "gameSettings");
+  onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      gameSettings.rpsMultiplier = docSnap.data().rpsMultiplier || 1.2;
+    }
+  });
+});
 
 const resultText = computed(() => {
   if (!result.value) return "";
