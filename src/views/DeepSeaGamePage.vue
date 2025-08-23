@@ -23,15 +23,19 @@
         </div>
 
         <div class="collect-area card">
-          <button id="collectBtn" @click="collectClick" title="클릭 채집">
+          <button
+            id="collectBtn"
+            @click="collectClick"
+            :title="`'${activeZone.name}'에서 채집`"
+          >
             <div class="collect-btn-content">
-              <img :src="ICONS.deep" class="icon" alt="심층수 아이콘" />
-              <div class="collect-label">심층수 채집</div>
+              <i :class="activeZone.icon" class="zone-icon"></i>
+              <div class="collect-label">{{ activeZone.name }} 채집</div>
             </div>
           </button>
           <div class="sell-area">
-            <button id="sellBtn" class="btn small" @click="sellWater">
-              판매
+            <button id="sellBtn" class="btn small" @click="sellResources">
+              자원 판매
             </button>
             <span class="small"
               >시세: x{{ derived.marketMultiplier.toFixed(2) }}</span
@@ -39,7 +43,6 @@
           </div>
         </div>
 
-        <!-- ▼▼▼ [신규 추가] 골든타임 UI ▼▼▼ -->
         <div class="card golden-time-box">
           <h3><i class="fas fa-star gold-icon"></i> 골든타임 활성화</h3>
           <p>
@@ -57,7 +60,6 @@
             <span v-else>골든타임 시작</span>
           </button>
         </div>
-        <!-- ▲▲▲ 신규 추가 완료 ▲▲▲ -->
 
         <div class="card salt-sale-box">
           <h3>해양심층수 판매소</h3>
@@ -88,12 +90,16 @@
             >
           </div>
           <div class="res-pill">
+            <div class="small">플랑크톤</div>
+            <strong>{{ fmt(state.plankton) }}</strong>
+          </div>
+          <div class="res-pill">
             <div class="small">희귀 미네랄</div>
             <strong id="mineralCount">{{ fmt(state.minerals) }}</strong>
           </div>
           <div class="res-pill">
-            <div class="small">연구 데이터</div>
-            <strong id="researchCount">{{ fmt(state.research) }}</strong>
+            <div class="small">고대 유물</div>
+            <strong>{{ fmt(state.relics) }}</strong>
           </div>
           <div class="res-pill">
             <div class="small">초당 생산량</div>
@@ -103,7 +109,22 @@
       </section>
 
       <aside class="game-sidebar">
-        <div class="card">
+        <div class="sidebar-tabs">
+          <button
+            @click="activeTab = 'upgrades'"
+            :class="{ active: activeTab === 'upgrades' }"
+          >
+            업그레이드
+          </button>
+          <button
+            @click="activeTab = 'zones'"
+            :class="{ active: activeTab === 'zones' }"
+          >
+            탐사 지역
+          </button>
+        </div>
+
+        <div v-if="activeTab === 'upgrades'" class="card">
           <strong class="small">업그레이드 상점</strong>
           <div class="shop">
             <div v-for="item in shopItems" :key="item.id" class="shop-item">
@@ -123,6 +144,50 @@
               >
                 {{ item.cost.toLocaleString() }}원
               </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="activeTab === 'zones'" class="card">
+          <strong class="small">탐사 지역</strong>
+          <div class="zone-list">
+            <div
+              v-for="zone in zones"
+              :key="zone.id"
+              class="zone-item"
+              :class="{
+                unlocked: zone.unlocked,
+                active: state.activeZoneId === zone.id,
+              }"
+            >
+              <h4><i :class="zone.icon"></i> {{ zone.name }}</h4>
+              <div v-if="zone.unlocked">
+                <button
+                  v-if="state.activeZoneId !== zone.id"
+                  @click="setActiveZone(zone.id)"
+                  class="btn small"
+                >
+                  탐사 시작
+                </button>
+                <span v-else class="active-text">탐사 중</span>
+              </div>
+              <div v-else class="lock-info">
+                <small
+                  v-for="(req, key) in zone.requirements"
+                  :key="key"
+                  class="requirement"
+                >
+                  {{ formatResourceName(key) }}: {{ req.toLocaleString() }} 필요
+                </small>
+                <button
+                  @click="unlockZone(zone.id)"
+                  :disabled="!zone.canUnlock || isUnlocking"
+                  class="btn small btn-unlock"
+                >
+                  <span v-if="isUnlocking">해금 중...</span>
+                  <span v-else>해금</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -184,17 +249,28 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db } from "@/firebaseConfig";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+  updateDoc,
+  increment,
+} from "firebase/firestore";
 
 const DEFAULT_STATE = {
   water: 0,
   minerals: 0,
   research: 0,
   funds: 0,
+  plankton: 0,
+  relics: 0,
   shop: {},
   achievements: {},
   seenTutorial: false,
   goldenTimeUntil: null,
+  unlockedZones: { default: true },
+  activeZoneId: "default",
 };
 const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
@@ -208,9 +284,54 @@ let tickTimer, eventTimer, autosaveTimer, goldenTimeInterval;
 const authUser = ref(null);
 const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
+const activeTab = ref("upgrades");
+const isUnlocking = ref(false);
 
 const isGoldenTimeActive = computed(() => {
   return state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date();
+});
+
+const ZONE_DEFS = {
+  default: { name: "기본 심해", icon: "fas fa-water", requirements: {} },
+  coral_reef: {
+    name: "산호초 지대",
+    icon: "fab fa-pagelines",
+    requirements: { research: 5000 },
+  },
+  hydrothermal_vent: {
+    name: "열수 분출구",
+    icon: "fas fa-fire-alt",
+    requirements: { research: 50000, minerals: 1000 },
+  },
+  abyssal_trench: {
+    name: "심해 해구",
+    icon: "fas fa-anchor",
+    requirements: { research: 200000, allUpgradesLevel: 20 },
+  },
+};
+
+const zones = computed(() => {
+  return Object.keys(ZONE_DEFS).map((id) => {
+    const unlocked = state.unlockedZones?.[id] || false;
+    let canUnlock = !unlocked;
+    for (const res in ZONE_DEFS[id].requirements) {
+      if (res === "allUpgradesLevel") {
+        const allMet =
+          Object.values(state.shop || {}).length >= 5 &&
+          Object.values(state.shop || {}).every((level) => level >= 20);
+        if (!allMet) canUnlock = false;
+      } else {
+        if ((state[res] || 0) < ZONE_DEFS[id].requirements[res]) {
+          canUnlock = false;
+        }
+      }
+    }
+    return { id, ...ZONE_DEFS[id], unlocked, canUnlock };
+  });
+});
+
+const activeZone = computed(() => {
+  return ZONE_DEFS[state.activeZoneId || "default"];
 });
 
 const ICONS = {
@@ -384,31 +505,143 @@ const activateGoldenTime = async () => {
 };
 
 function collectClick() {
-  if (state.water >= derived.value.capacity)
-    return addLog("저장 탱크가 가득 찼습니다!");
-  state.water = Math.min(derived.value.capacity, state.water + 1);
+  if (
+    state.water >= derived.value.capacity &&
+    state.activeZoneId !== "hydrothermal_vent"
+  ) {
+    return addLog("저장 공간이 가득 찼습니다!");
+  }
+
   let chance = derived.value.chanceMultiplier;
-  if (isGoldenTimeActive.value) chance *= 5; // 골든타임 시 확률 5배
-  if (Math.random() < 0.05 * chance) {
-    state.minerals++;
-    addLog("희귀 미네랄 발견!");
-  }
-  if (Math.random() < 0.08 * chance) {
-    state.research++;
-    addLog("연구 데이터 획득");
-  }
+  if (isGoldenTimeActive.value) chance *= 5;
+
+  const zoneEffects = {
+    default: () => {
+      state.water = Math.min(derived.value.capacity, state.water + 1);
+      if (Math.random() < 0.05 * chance) {
+        state.minerals++;
+        addLog("희귀 미네랄 발견!");
+      }
+      if (Math.random() < 0.08 * chance) {
+        state.research++;
+        addLog("연구 데이터 획득");
+      }
+    },
+    coral_reef: () => {
+      state.water = Math.min(derived.value.capacity, state.water + 1);
+      if (Math.random() < 0.3) {
+        state.plankton = (state.plankton || 0) + 1;
+        addLog("플랑크톤 채집!");
+      }
+      if (Math.random() < 0.03 * chance) {
+        state.minerals++;
+        addLog("희귀 미네랄 발견!");
+      }
+    },
+    hydrothermal_vent: () => {
+      if (Math.random() < 0.2 * chance) {
+        state.minerals++;
+        addLog("희귀 광물 대량 발견!");
+      }
+      if (Math.random() < 0.01 * chance) {
+        state.relics = (state.relics || 0) + 1;
+        addLog("고대 유물 발견!");
+      }
+    },
+    abyssal_trench: () => {
+      state.water = Math.min(derived.value.capacity, state.water + 2);
+      state.minerals += Math.random() < 0.1 * chance ? 2 : 0;
+      state.research += Math.random() < 0.15 * chance ? 2 : 0;
+      if (Math.random() < 0.005 * chance) {
+        const bonus = 100000;
+        state.funds += bonus;
+        addLog(`미지의 생물체 발견! +${bonus.toLocaleString()} 자금!`);
+      }
+    },
+  };
+
+  zoneEffects[state.activeZoneId || "default"]();
   checkAchievements();
 }
 
-function sellWater() {
-  if (state.water <= 0) return alert("판매할 심층수가 없습니다");
-  const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier);
-  state.funds += revenue;
-  addLog(`${fmt(state.water)}L 심층수 판매: +${revenue.toLocaleString()} 자금`);
-  state.water = 0;
+const sellResources = async () => {
+  const pricePerL = 5;
+  const planktonPrice = 15;
+
+  let revenue = Math.floor(
+    state.water * pricePerL * derived.value.marketMultiplier,
+  );
+  revenue += Math.floor(
+    (state.plankton || 0) * planktonPrice * derived.value.marketMultiplier,
+  );
+
+  const relicsToExchange = state.relics || 0;
+
+  if (revenue <= 0 && relicsToExchange <= 0)
+    return alert("판매할 자원이 없습니다.");
+
+  if (revenue > 0) {
+    state.funds += revenue;
+    addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
+    state.water = 0;
+    state.plankton = 0;
+  }
+
+  if (relicsToExchange > 0) {
+    try {
+      const functions = getFunctions(undefined, "asia-northeast3");
+      const exchange = httpsCallable(functions, "exchangeRelics");
+      const result = await exchange();
+      addLog(
+        `고대 유물 교환: +${result.data.awardedPoints.toLocaleString()} SaltMate`,
+      );
+      state.relics = 0; // 성공 시에만 0으로 초기화
+    } catch (error) {
+      console.error("고대 유물 교환 오류:", error);
+      alert(`고대 유물 교환 실패: ${error.message}`);
+    }
+  }
+
   checkAchievements();
   saveGame();
-}
+};
+
+const setActiveZone = async (zoneId) => {
+  state.activeZoneId = zoneId;
+  addLog(`탐사 지역 변경: ${ZONE_DEFS[zoneId].name}`);
+  await saveGame();
+};
+
+const unlockZone = async (zoneId) => {
+  if (
+    !confirm(
+      `'${ZONE_DEFS[zoneId].name}' 지역을 해금하시겠습니까? 필요한 자원이 소모됩니다.`,
+    )
+  )
+    return;
+  isUnlocking.value = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const unlock = httpsCallable(functions, "unlockExplorationZone");
+    const result = await unlock({ zoneId });
+    alert(result.data.message);
+    addLog(result.data.message);
+  } catch (error) {
+    console.error("지역 해금 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isUnlocking.value = false;
+  }
+};
+
+const formatResourceName = (res) => {
+  const map = {
+    research: "연구 데이터",
+    minerals: "희귀 미네랄",
+    allUpgradesLevel: "모든 장비 레벨",
+  };
+  return map[res] || res;
+};
 
 function buy(id) {
   const item = shopItems.value.find((i) => i.id === id);
@@ -680,7 +913,7 @@ onUnmounted(() => {
 }
 .resources-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
   margin-top: 20px;
 }
@@ -858,6 +1091,61 @@ onUnmounted(() => {
   height: 16px;
   animation: spin 1s linear infinite;
   display: inline-block;
+}
+.zone-icon {
+  font-size: 1.5em;
+}
+.sidebar-tabs {
+  display: flex;
+  margin-bottom: 10px;
+}
+.sidebar-tabs button {
+  flex: 1;
+  padding: 10px;
+  background: #e9ecef;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+.sidebar-tabs button.active {
+  background: #007bff;
+  color: white;
+}
+.zone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.zone-item {
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+.zone-item.unlocked {
+  border-color: #28a745;
+}
+.zone-item.active {
+  background-color: #d4edda;
+}
+.zone-item h4 {
+  margin: 0 0 10px 0;
+}
+.lock-info {
+  font-size: 0.9em;
+}
+.requirement {
+  display: block;
+  color: #666;
+}
+.btn-unlock {
+  margin-top: 10px;
+  background-color: #ffc107;
+  color: #333;
+}
+.active-text {
+  font-weight: bold;
+  color: #28a745;
 }
 @media (max-width: 900px) {
   .game-layout {
