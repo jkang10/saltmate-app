@@ -294,12 +294,12 @@ const ZONE_DEFS = {
   hydrothermal_vent: {
     name: "열수 분출구",
     icon: "fas fa-fire-alt",
-    requirements: { research: 50000, minerals: 1000 },
+    requirements: { research: 50000, minerals: 30000 },
   },
   abyssal_trench: {
     name: "심해 해구",
     icon: "fas fa-anchor",
-    requirements: { research: 200000, allUpgradesLevel: 20 },
+    requirements: { research: 200000, allUpgradesLevel: 25 },
   },
 };
 
@@ -311,7 +311,7 @@ const zones = computed(() => {
       if (res === "allUpgradesLevel") {
         const allMet =
           Object.values(state.shop || {}).length >= 5 &&
-          Object.values(state.shop || {}).every((level) => level >= 20);
+          Object.values(state.shop || {}).every((level) => level >= 25);
         if (!allMet) canUnlock = false;
       } else {
         if ((state[res] || 0) < ZONE_DEFS[id].requirements[res]) {
