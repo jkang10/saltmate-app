@@ -23,42 +23,20 @@
         </div>
 
         <div class="collect-area card">
-          <button
-            id="collectBtn"
-            @click="collectClick"
-            :title="`'${activeZone.name}'에서 채집`"
-          >
+          <button id="collectBtn" @click="collectClick" title="클릭 채집">
             <div class="collect-btn-content">
-              <i :class="activeZone.icon" class="zone-icon"></i>
-              <div class="collect-label">{{ activeZone.name }} 채집</div>
+              <img :src="ICONS.deep" class="icon" alt="심층수 아이콘" />
+              <div class="collect-label">심층수 채집</div>
             </div>
           </button>
           <div class="sell-area">
-            <button id="sellBtn" class="btn small" @click="sellResources">
-              자원 판매
+            <button id="sellBtn" class="btn small" @click="sellWater">
+              판매
             </button>
             <span class="small"
               >시세: x{{ derived.marketMultiplier.toFixed(2) }}</span
             >
           </div>
-        </div>
-
-        <div class="card golden-time-box">
-          <h3><i class="fas fa-star gold-icon"></i> 골든타임 활성화</h3>
-          <p>
-            100 SaltMate를 사용하여 10분간 희귀 자원 발견 확률을 5배로 높이세요!
-          </p>
-          <button
-            class="btn golden-time-btn"
-            @click="activateGoldenTime"
-            :disabled="isActivatingGoldenTime || isGoldenTimeActive"
-          >
-            <span v-if="isActivatingGoldenTime" class="spinner-small"></span>
-            <span v-else-if="isGoldenTimeActive"
-              >활성화됨 ({{ goldenTimeRemaining }})</span
-            >
-            <span v-else>골든타임 시작</span>
-          </button>
         </div>
 
         <div class="card salt-sale-box">
@@ -81,7 +59,6 @@
             <span v-else>모두 판매하기</span>
           </button>
         </div>
-
         <div class="resources-grid">
           <div class="res-pill">
             <div class="small">심층수</div>
@@ -90,16 +67,12 @@
             >
           </div>
           <div class="res-pill">
-            <div class="small">플랑크톤</div>
-            <strong>{{ fmt(state.plankton) }}</strong>
-          </div>
-          <div class="res-pill">
             <div class="small">희귀 미네랄</div>
             <strong id="mineralCount">{{ fmt(state.minerals) }}</strong>
           </div>
           <div class="res-pill">
-            <div class="small">고대 유물</div>
-            <strong>{{ fmt(state.relics) }}</strong>
+            <div class="small">연구 데이터</div>
+            <strong id="researchCount">{{ fmt(state.research) }}</strong>
           </div>
           <div class="res-pill">
             <div class="small">초당 생산량</div>
@@ -109,22 +82,7 @@
       </section>
 
       <aside class="game-sidebar">
-        <div class="sidebar-tabs">
-          <button
-            @click="activeTab = 'upgrades'"
-            :class="{ active: activeTab === 'upgrades' }"
-          >
-            업그레이드
-          </button>
-          <button
-            @click="activeTab = 'zones'"
-            :class="{ active: activeTab === 'zones' }"
-          >
-            탐사 지역
-          </button>
-        </div>
-
-        <div v-if="activeTab === 'upgrades'" class="card">
+        <div class="card">
           <strong class="small">업그레이드 상점</strong>
           <div class="shop">
             <div v-for="item in shopItems" :key="item.id" class="shop-item">
@@ -144,50 +102,6 @@
               >
                 {{ item.cost.toLocaleString() }}원
               </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="activeTab === 'zones'" class="card">
-          <strong class="small">탐사 지역</strong>
-          <div class="zone-list">
-            <div
-              v-for="zone in zones"
-              :key="zone.id"
-              class="zone-item"
-              :class="{
-                unlocked: zone.unlocked,
-                active: state.activeZoneId === zone.id,
-              }"
-            >
-              <h4><i :class="zone.icon"></i> {{ zone.name }}</h4>
-              <div v-if="zone.unlocked">
-                <button
-                  v-if="state.activeZoneId !== zone.id"
-                  @click="setActiveZone(zone.id)"
-                  class="btn small"
-                >
-                  탐사 시작
-                </button>
-                <span v-else class="active-text">탐사 중</span>
-              </div>
-              <div v-else class="lock-info">
-                <small
-                  v-for="(req, key) in zone.requirements"
-                  :key="key"
-                  class="requirement"
-                >
-                  {{ formatResourceName(key) }}: {{ req.toLocaleString() }} 필요
-                </small>
-                <button
-                  @click="unlockZone(zone.id)"
-                  :disabled="!zone.canUnlock || isUnlocking"
-                  class="btn small btn-unlock"
-                >
-                  <span v-if="isUnlocking">해금 중...</span>
-                  <span v-else>해금</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -251,19 +165,15 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
+// --- 상태 관리 (State Management) ---
 const DEFAULT_STATE = {
   water: 0,
   minerals: 0,
   research: 0,
   funds: 0,
-  plankton: 0,
-  relics: 0,
   shop: {},
   achievements: {},
   seenTutorial: false,
-  goldenTimeUntil: null,
-  unlockedZones: { default: true },
-  activeZoneId: "default",
 };
 const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
@@ -273,60 +183,10 @@ const isSellingFunds = ref(false);
 const gameSettings = reactive({ deepSeaRate: 100000 });
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
-let tickTimer, eventTimer, autosaveTimer, goldenTimeInterval;
+let tickTimer, eventTimer, autosaveTimer;
 const authUser = ref(null);
-const isActivatingGoldenTime = ref(false);
-const goldenTimeRemaining = ref("00:00");
-const activeTab = ref("upgrades");
-const isUnlocking = ref(false);
 
-const isGoldenTimeActive = computed(() => {
-  return state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date();
-});
-
-const ZONE_DEFS = {
-  default: { name: "기본 심해", icon: "fas fa-water", requirements: {} },
-  coral_reef: {
-    name: "산호초 지대",
-    icon: "fab fa-pagelines",
-    requirements: { research: 5000 },
-  },
-  hydrothermal_vent: {
-    name: "열수 분출구",
-    icon: "fas fa-fire-alt",
-    requirements: { research: 50000, minerals: 30000 },
-  },
-  abyssal_trench: {
-    name: "심해 해구",
-    icon: "fas fa-anchor",
-    requirements: { research: 200000, allUpgradesLevel: 25 },
-  },
-};
-
-const zones = computed(() => {
-  return Object.keys(ZONE_DEFS).map((id) => {
-    const unlocked = state.unlockedZones?.[id] || false;
-    let canUnlock = !unlocked;
-    for (const res in ZONE_DEFS[id].requirements) {
-      if (res === "allUpgradesLevel") {
-        const allMet =
-          Object.values(state.shop || {}).length >= 5 &&
-          Object.values(state.shop || {}).every((level) => level >= 25);
-        if (!allMet) canUnlock = false;
-      } else {
-        if ((state[res] || 0) < ZONE_DEFS[id].requirements[res]) {
-          canUnlock = false;
-        }
-      }
-    }
-    return { id, ...ZONE_DEFS[id], unlocked, canUnlock };
-  });
-});
-
-const activeZone = computed(() => {
-  return ZONE_DEFS[state.activeZoneId || "default"];
-});
-
+// --- 에셋 (Assets) ---
 const ICONS = {
   deep: svg(
     "<path d='M12 2C8 7 4 9 4 13c0 5 8 9 8 9s8-4 8-9c0-4-6-8-11z' fill='%234fd1c5'/>",
@@ -351,6 +211,7 @@ function svg(inner) {
   return `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'>${inner}</svg>`;
 }
 
+// --- 게임 정의 (Definitions) ---
 const SHOP_DEFS = [
   {
     id: "rov",
@@ -420,12 +281,13 @@ const derived = computed(() => {
   return { perSecond, capacity, marketMultiplier, chanceMultiplier };
 });
 
-const shopItems = computed(() =>
-  SHOP_DEFS.map((def) => ({
+const shopItems = computed(() => {
+  return SHOP_DEFS.map((def) => ({
     ...def,
     cost: Math.ceil(def.base * Math.pow(1.65, state.shop[def.id] || 0)),
-  })),
-);
+  }));
+});
+
 const ACH_DEFS = [
   { id: "first_click", name: "첫 채집", cond: (s) => s.water >= 1 },
   { id: "minerals_5", name: "미네랄 콜렉터", cond: (s) => s.minerals >= 5 },
@@ -437,10 +299,15 @@ const ACH_DEFS = [
     cond: () => derived.value.perSecond >= 20,
   },
 ];
-const achievements = computed(() =>
-  ACH_DEFS.map((a) => ({ ...a, unlocked: state.achievements[a.id] || false })),
-);
 
+const achievements = computed(() => {
+  return ACH_DEFS.map((a) => ({
+    ...a,
+    unlocked: state.achievements[a.id] || false,
+  }));
+});
+
+// --- 헬퍼 함수 (Helpers) ---
 function clone(o) {
   return JSON.parse(JSON.stringify(o));
 }
@@ -455,23 +322,36 @@ function addLog(msg) {
   });
 }
 
+// --- 게임 로직 (Core Logic) ---
 const sellFundsForPoints = async () => {
-  if (state.funds < gameSettings.deepSeaRate)
-    return alert(
-      `최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
+  if (state.funds < gameSettings.deepSeaRate) {
+    alert(
+      `SaltMate로 교환하려면 최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
     );
-  if (!confirm(`${fmt(state.funds).toLocaleString()} 자금을 판매하시겠습니까?`))
     return;
+  }
+  if (
+    !confirm(
+      `${fmt(state.funds).toLocaleString()} 자금을 모두 판매하여 SaltMate로 교환하시겠습니까?`,
+    )
+  )
+    return;
+
   isSellingFunds.value = true;
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
     const result = await sellFunds({});
+
     const { awardedPoints, soldFunds } = result.data;
     alert(
       `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
     );
     addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
+
+    // ▼▼▼ [핵심 수정] 판매 성공 후 최신 데이터를 다시 불러옵니다. ▼▼▼
+    await loadGame(authUser.value);
+    // ▲▲▲ 수정 완료 ▲▲▲
   } catch (error) {
     console.error("자금 판매 오류:", error);
     alert(`오류: ${error.message}`);
@@ -480,161 +360,39 @@ const sellFundsForPoints = async () => {
   }
 };
 
-const activateGoldenTime = async () => {
-  if (!confirm("100 SaltMate를 사용하여 골든타임을 시작하시겠습니까?")) return;
-  isActivatingGoldenTime.value = true;
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const startGoldenTime = httpsCallable(functions, "startGoldenTime");
-    const result = await startGoldenTime();
-    alert(result.data.message);
-    addLog("골든타임 시작!");
-  } catch (error) {
-    console.error("골든타임 활성화 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isActivatingGoldenTime.value = false;
-  }
-};
-
 function collectClick() {
-  if (
-    state.water >= derived.value.capacity &&
-    state.activeZoneId !== "hydrothermal_vent"
-  ) {
-    return addLog("저장 공간이 가득 찼습니다!");
+  if (state.water >= derived.value.capacity) {
+    addLog("저장 탱크가 가득 찼습니다!");
+    return;
   }
-
-  let chance = derived.value.chanceMultiplier;
-  if (isGoldenTimeActive.value) chance *= 5;
-
-  const zoneEffects = {
-    default: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 1);
-      if (Math.random() < 0.05 * chance) {
-        state.minerals++;
-        addLog("희귀 미네랄 발견!");
-      }
-      if (Math.random() < 0.08 * chance) {
-        state.research++;
-        addLog("연구 데이터 획득");
-      }
-    },
-    coral_reef: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 1);
-      if (Math.random() < 0.3) {
-        state.plankton = (state.plankton || 0) + 1;
-        addLog("플랑크톤 채집!");
-      }
-      if (Math.random() < 0.03 * chance) {
-        state.minerals++;
-        addLog("희귀 미네랄 발견!");
-      }
-    },
-    hydrothermal_vent: () => {
-      if (Math.random() < 0.2 * chance) {
-        state.minerals++;
-        addLog("희귀 광물 대량 발견!");
-      }
-      if (Math.random() < 0.01 * chance) {
-        state.relics = (state.relics || 0) + 1;
-        addLog("고대 유물 발견!");
-      }
-    },
-    abyssal_trench: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 2);
-      state.minerals += Math.random() < 0.1 * chance ? 2 : 0;
-      state.research += Math.random() < 0.15 * chance ? 2 : 0;
-      if (Math.random() < 0.005 * chance) {
-        const bonus = 100000;
-        state.funds += bonus;
-        addLog(`미지의 생물체 발견! +${bonus.toLocaleString()} 자금!`);
-      }
-    },
-  };
-
-  zoneEffects[state.activeZoneId || "default"]();
+  state.water = Math.min(derived.value.capacity, state.water + 1);
+  const chance = derived.value.chanceMultiplier;
+  if (Math.random() < 0.05 * chance) {
+    state.minerals++;
+    addLog("희귀 미네랄 발견!");
+  }
+  if (Math.random() < 0.08 * chance) {
+    state.research++;
+    addLog("연구 데이터 획득");
+  }
   checkAchievements();
 }
 
-const sellResources = async () => {
+function sellWater() {
+  if (state.water <= 0) {
+    alert("판매할 심층수가 없습니다");
+    return;
+  }
   const pricePerL = 5;
-  const planktonPrice = 15;
-
-  let revenue = Math.floor(
+  const revenue = Math.floor(
     state.water * pricePerL * derived.value.marketMultiplier,
   );
-  revenue += Math.floor(
-    (state.plankton || 0) * planktonPrice * derived.value.marketMultiplier,
-  );
-
-  const relicsToExchange = state.relics || 0;
-
-  if (revenue <= 0 && relicsToExchange <= 0)
-    return alert("판매할 자원이 없습니다.");
-
-  if (revenue > 0) {
-    state.funds += revenue;
-    addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
-    state.water = 0;
-    state.plankton = 0;
-  }
-
-  if (relicsToExchange > 0) {
-    try {
-      const functions = getFunctions(undefined, "asia-northeast3");
-      const exchange = httpsCallable(functions, "exchangeRelics");
-      const result = await exchange();
-      addLog(
-        `고대 유물 교환: +${result.data.awardedPoints.toLocaleString()} SaltMate`,
-      );
-      state.relics = 0; // 성공 시에만 0으로 초기화
-    } catch (error) {
-      console.error("고대 유물 교환 오류:", error);
-      alert(`고대 유물 교환 실패: ${error.message}`);
-    }
-  }
-
+  state.funds += revenue;
+  addLog(`${fmt(state.water)}L 심층수 판매: +${revenue.toLocaleString()} 자금`);
+  state.water = 0;
   checkAchievements();
   saveGame();
-};
-
-const setActiveZone = async (zoneId) => {
-  state.activeZoneId = zoneId;
-  addLog(`탐사 지역 변경: ${ZONE_DEFS[zoneId].name}`);
-  await saveGame();
-};
-
-const unlockZone = async (zoneId) => {
-  if (
-    !confirm(
-      `'${ZONE_DEFS[zoneId].name}' 지역을 해금하시겠습니까? 필요한 자원이 소모됩니다.`,
-    )
-  )
-    return;
-  isUnlocking.value = true;
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const unlock = httpsCallable(functions, "unlockExplorationZone");
-    const result = await unlock({ zoneId });
-    alert(result.data.message);
-    addLog(result.data.message);
-  } catch (error) {
-    console.error("지역 해금 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isUnlocking.value = false;
-  }
-};
-
-const formatResourceName = (res) => {
-  const map = {
-    research: "연구 데이터",
-    minerals: "희귀 미네랄",
-    allUpgradesLevel: "모든 장비 레벨",
-  };
-  return map[res] || res;
-};
+}
 
 function buy(id) {
   const item = shopItems.value.find((i) => i.id === id);
@@ -677,22 +435,26 @@ function runEvent() {
   }
 }
 
+// --- 저장 및 불러오기 (Persistence) ---
 async function loadGame(user) {
-  if (!user || !db) return;
-  DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
-  try {
-    const docSnap = await getDoc(DB_SAVE_REF);
-    if (docSnap.exists()) {
-      Object.assign(state, clone(DEFAULT_STATE), docSnap.data());
-      addLog("서버에서 데이터를 불러왔습니다.");
-    } else {
-      Object.assign(state, clone(DEFAULT_STATE));
-      addLog("새로운 탐사를 시작합니다. (서버)");
-      await saveGame();
+  if (user && db) {
+    DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
+    try {
+      const docSnap = await getDoc(DB_SAVE_REF);
+      if (docSnap.exists()) {
+        Object.assign(state, clone(DEFAULT_STATE), docSnap.data());
+        addLog("서버에서 데이터를 불러왔습니다.");
+      } else {
+        Object.assign(state, clone(DEFAULT_STATE));
+        addLog("새로운 탐사를 시작합니다. (서버)");
+        await saveGame();
+      }
+    } catch (e) {
+      console.error("Firestore load error", e);
+      addLog("서버 로딩 실패. 읽기 권한을 확인하세요.");
     }
-  } catch (e) {
-    console.error("Firestore load error", e);
-    addLog("서버 로딩 실패.");
+  } else {
+    addLog("로그인 정보 없음. 로컬 저장을 사용합니다.");
   }
   if (!state.seenTutorial) showTutorial.value = true;
 }
@@ -713,6 +475,7 @@ function closeTutorial() {
   saveGame();
 }
 
+// --- 생명주기 및 루프 (Lifecycle & Loops) ---
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     authUser.value = user;
@@ -720,48 +483,28 @@ onMounted(() => {
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
-        if (docSnap.exists())
-          gameSettings.deepSeaRate = docSnap.data().deepSeaRate || 100000;
-      });
-      const userGameStateRef = doc(
-        db,
-        `users/${user.uid}/game_state/deep_sea_exploration`,
-      );
-      onSnapshot(userGameStateRef, (docSnap) => {
-        if (docSnap.exists()) Object.assign(state, docSnap.data());
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+        }
       });
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
   });
 
-  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
-  goldenTimeInterval = setInterval(() => {
-    if (isGoldenTimeActive.value) {
-      const diff = Math.max(
-        0,
-        state.goldenTimeUntil.toDate().getTime() - new Date().getTime(),
-      );
-      const minutes = Math.floor((diff / 1000 / 60) % 60)
-        .toString()
-        .padStart(2, "0");
-      const seconds = Math.floor((diff / 1000) % 60)
-        .toString()
-        .padStart(2, "0");
-      goldenTimeRemaining.value = `${minutes}:${seconds}`;
-    }
-  }, 1000);
-
   lastTick = Date.now();
   tickTimer = setInterval(() => {
-    const delta = (Date.now() - lastTick) / 1000;
-    lastTick = Date.now();
+    const now = Date.now();
+    const delta = (now - lastTick) / 1000;
+    lastTick = now;
     state.water = Math.min(
       derived.value.capacity,
       state.water + derived.value.perSecond * delta,
     );
     checkAchievements();
   }, 1000);
+
   eventTimer = setInterval(runEvent, 25000);
   autosaveTimer = setInterval(saveGame, 10000);
 });
@@ -770,7 +513,6 @@ onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
   clearInterval(autosaveTimer);
-  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   saveGame();
 });
 </script>
