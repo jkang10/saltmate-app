@@ -249,14 +249,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db } from "@/firebaseConfig";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  onSnapshot,
-  updateDoc,
-  increment,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
 const DEFAULT_STATE = {
   water: 0,
