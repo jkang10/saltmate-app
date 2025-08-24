@@ -47,6 +47,19 @@
             required
           />
         </div>
+        <div class="form-group">
+          <label for="typeImgFile">이미지 파일</label>
+          <input
+            id="typeImgFile"
+            type="file"
+            @change="handleImageUpload"
+            accept="image/*"
+          />
+          <div v-if="form.imageUrl" class="image-preview">
+            <p>현재 이미지:</p>
+            <img :src="form.imageUrl" alt="이미지 미리보기" />
+          </div>
+        </div>
         <div class="form-actions">
           <button
             type="submit"
@@ -149,6 +162,46 @@ const fetchNftTypes = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// [신규 추가] 이미지 업로드 처리 함수
+const handleImageUpload = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  isProcessing.value = true; // 업로드 시작 시 로딩 상태 활성화
+
+  // FileReader를 사용해 파일을 base64 문자열로 변환
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = async () => {
+    try {
+      // "data:image/jpeg;base64," 같은 앞부분을 제거
+      const base64Data = reader.result.split(",")[1];
+
+      const functions = getFunctions(undefined, "asia-northeast3");
+      const uploadImage = httpsCallable(functions, "uploadNftTypeImage");
+
+      const result = await uploadImage({
+        fileData: base64Data,
+        fileName: file.name,
+      });
+
+      // 서버에서 반환받은 이미지 URL을 폼에 저장
+      form.imageUrl = result.data.imageUrl;
+      alert("이미지가 성공적으로 업로드되었습니다.");
+    } catch (error) {
+      console.error("이미지 업로드 오류:", error);
+      alert(`이미지 업로드 실패: ${error.message}`);
+    } finally {
+      isProcessing.value = false; // 업로드 완료 시 로딩 상태 비활성화
+    }
+  };
+  reader.onerror = (error) => {
+    console.error("파일 읽기 오류:", error);
+    alert("파일을 읽는 중 오류가 발생했습니다.");
+    isProcessing.value = false;
+  };
 };
 
 const saveNftType = async () => {
@@ -310,5 +363,19 @@ h4 {
 .nft-tier-badge.PLATINUM {
   background-color: #e5e4e2;
   color: #333;
+}
+.image-preview {
+  margin-top: 15px;
+}
+.image-preview p {
+  margin: 0 0 5px 0;
+  font-size: 0.9em;
+  color: #666;
+}
+.image-preview img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
 }
 </style>
