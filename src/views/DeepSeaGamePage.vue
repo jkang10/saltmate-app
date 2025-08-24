@@ -279,6 +279,7 @@ const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
 const activeTab = ref("upgrades");
 const isUnlocking = ref(false);
+let isCollecting = false; // 중복 클릭 방지를 위한 플래그
 
 const isGoldenTimeActive = computed(() => {
   return state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date();
@@ -330,28 +331,12 @@ const activeZone = computed(() => {
 });
 
 const ICONS = {
-  deep: svg(
-    "<path d='M12 2C8 7 4 9 4 13c0 5 8 9 8 9s8-4 8-9c0-4-6-8-11z' fill='%234fd1c5'/>",
-  ),
-  rov: svg(
-    "<rect x='4' y='8' width='16' height='8' rx='2' fill='%239fb3c8'/><rect x='2' y='10' width='2' height='4' fill='%239fb3c8'/><rect x='20' y='10' width='2' height='4' fill='%239fb3c8'/><circle cx='12' cy='12' r='2' fill='%23041522'/>",
-  ),
-  harvester: svg(
-    "<path d='M3 10h18v4H3z' fill='%2300b4d8'/><path d='M5 14h2v4H5zM11 14h2v4h-2zM17 14h2v4h-2z' fill='%23008fbd'/>",
-  ),
-  tank: svg(
-    "<rect x='5' y='6' width='14' height='12' rx='2' fill='%23008fbd'/><rect x='7' y='8' width='10' height='8' fill='rgba(255,255,255,0.2)'/>",
-  ),
-  lab: svg(
-    "<path d='M7 21h10v-2H7zM9 19V5l-2-2v16zM15 19V5l2-2v16z' fill='%2368d391'/>",
-  ),
-  market: svg(
-    "<path d='M4 18h16v-2H4zM12 2l-4 6h8zM10 10h4v6h-4z' fill='%23ffd166'/>",
-  ),
+  rov: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='4' y='8' width='16' height='8' rx='2' fill='%239fb3c8'/><rect x='2' y='10' width='2' height='4' fill='%239fb3c8'/><rect x='20' y='10' width='2' height='4' fill='%239fb3c8'/><circle cx='12' cy='12' r='2' fill='%23041522'/></svg>`,
+  harvester: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M3 10h18v4H3z' fill='%2300b4d8'/><path d='M5 14h2v4H5zM11 14h2v4h-2zM17 14h2v4h-2z' fill='%23008fbd'/></svg>`,
+  tank: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='5' y='6' width='14' height='12' rx='2' fill='%23008fbd'/><rect x='7' y='8' width='10' height='8' fill='rgba(255,255,255,0.2)'/></svg>`,
+  lab: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M7 21h10v-2H7zM9 19V5l-2-2v16zM15 19V5l2-2v16z' fill='%2368d391'/></svg>`,
+  market: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M4 18h16v-2H4zM12 2l-4 6h8zM10 10h4v6h-4z' fill='%23ffd166'/></svg>`,
 };
-function svg(inner) {
-  return `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'>${inner}</svg>`;
-}
 
 const SHOP_DEFS = [
   {
@@ -413,13 +398,7 @@ const derived = computed(() => {
       (acc, d) => acc + (state.shop[d.id] || 0) * d.value,
       0,
     );
-  const chanceMultiplier =
-    1 +
-    SHOP_DEFS.filter((d) => d.type === "chance").reduce(
-      (acc, d) => acc + (state.shop[d.id] || 0) * d.value,
-      0,
-    );
-  return { perSecond, capacity, marketMultiplier, chanceMultiplier };
+  return { perSecond, capacity, marketMultiplier };
 });
 
 const shopItems = computed(() =>
@@ -428,6 +407,7 @@ const shopItems = computed(() =>
     cost: Math.ceil(def.base * Math.pow(1.65, state.shop[def.id] || 0)),
   })),
 );
+
 const ACH_DEFS = [
   { id: "first_click", name: "첫 채집", cond: (s) => s.water >= 1 },
   { id: "minerals_5", name: "미네랄 콜렉터", cond: (s) => s.minerals >= 5 },
@@ -439,6 +419,7 @@ const ACH_DEFS = [
     cond: () => derived.value.perSecond >= 20,
   },
 ];
+
 const achievements = computed(() =>
   ACH_DEFS.map((a) => ({ ...a, unlocked: state.achievements[a.id] || false })),
 );
@@ -449,6 +430,7 @@ function clone(o) {
 function fmt(n) {
   return Math.floor(Number(n) || 0);
 }
+
 function addLog(msg) {
   logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
   if (logs.value.length > 50) logs.value.pop();
@@ -499,82 +481,37 @@ const activateGoldenTime = async () => {
   }
 };
 
-function collectClick() {
+async function collectClick() {
+  if (isCollecting) return;
   if (
     state.water >= derived.value.capacity &&
     state.activeZoneId !== "hydrothermal_vent"
   ) {
     return addLog("저장 공간이 가득 찼습니다!");
   }
-
-  let chance = derived.value.chanceMultiplier;
-  if (isGoldenTimeActive.value) chance *= 5;
-
-  const zoneEffects = {
-    default: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 1);
-      if (Math.random() < 0.05 * chance) {
-        state.minerals++;
-        addLog("희귀 미네랄 발견!");
-      }
-      if (Math.random() < 0.08 * chance) {
-        state.research++;
-        addLog("연구 데이터 획득");
-      }
-    },
-    coral_reef: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 1);
-      if (Math.random() < 0.01) {
-        state.plankton = (state.plankton || 0) + 1;
-        addLog("플랑크톤 채집!");
-      }
-      if (Math.random() < 0.03 * chance) {
-        state.minerals++;
-        addLog("희귀 미네랄 발견!");
-      }
-    },
-    hydrothermal_vent: () => {
-      if (Math.random() < 0.05 * chance) {
-        // 희귀 광물 기본 확률 5%로 하향
-        state.minerals++;
-        addLog("희귀 광물 대량 발견!");
-      }
-      if (Math.random() < 0.001 * chance) {
-        // 고대 유물 기본 확률 0.1%로 하향
-        state.relics = (state.relics || 0) + 1;
-        addLog("고대 유물 발견!");
-      }
-    },
-    abyssal_trench: () => {
-      state.water = Math.min(derived.value.capacity, state.water + 2);
-      state.minerals += Math.random() < 0.1 * chance ? 2 : 0;
-      state.research += Math.random() < 0.15 * chance ? 2 : 0;
-      if (Math.random() < 0.005 * chance) {
-        const bonus = 100000;
-        state.funds += bonus;
-        addLog(`미지의 생물체 발견! +${bonus.toLocaleString()} 자금!`);
-      }
-    },
-  };
-
-  zoneEffects[state.activeZoneId || "default"]();
-  checkAchievements();
-  saveGame(); // [추가] 이 줄을 추가하여 즉시 저장합니다.
+  isCollecting = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const collect = httpsCallable(functions, "collectDeepSeaResources");
+    await collect();
+  } catch (error) {
+    addLog(`<span style="color:red;">오류: ${error.message}</span>`);
+    console.error("채집 오류:", error);
+  } finally {
+    setTimeout(() => {
+      isCollecting = false;
+    }, 200);
+  }
 }
 
 const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0) {
-    alert("판매할 자원이 없습니다.");
-    return;
+    return alert("판매할 자원이 없습니다.");
   }
-
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const sell = httpsCallable(functions, "sellDeepSeaResources");
-    const result = await sell();
-
-    // 성공 로그는 실시간 리스너가 서버 데이터를 받아오면서 자동으로 찍히므로 여기서 추가 로그 불필요
-    console.log("자원 판매 성공:", result.data);
+    await sell();
   } catch (error) {
     console.error("자원 판매 오류:", error);
     alert(`자원 판매 실패: ${error.message}`);
@@ -640,17 +577,12 @@ function checkAchievements() {
 function runEvent() {
   const r = Math.random();
   if (r < 0.4) {
-    const change = Math.random() < 0.5 ? -0.2 : 0.2;
-    const newMultiplier = Math.max(
-      0.8,
-      Math.round((derived.value.marketMultiplier + change) * 100) / 100,
-    );
-    addLog(`해류 변화로 시세 변동! (예상: x${newMultiplier.toFixed(2)})`);
+    addLog(`해류 변화로 시세 변동!`);
   } else if (r < 0.75) {
     const bM =
-      1 + Math.floor(Math.random() * 3 * derived.value.chanceMultiplier);
+      1 + Math.floor(Math.random() * 3 * (derived.value.chanceMultiplier || 1));
     const bR =
-      1 + Math.floor(Math.random() * 2 * derived.value.chanceMultiplier);
+      1 + Math.floor(Math.random() * 2 * (derived.value.chanceMultiplier || 1));
     state.minerals += bM;
     state.research += bR;
     addLog(`희귀 생물 관측! 미네랄 +${bM}, 데이터 +${bR}`);
@@ -696,23 +628,39 @@ function closeTutorial() {
 }
 
 onMounted(() => {
+  let gameStateUnsubscribe = null;
   onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
-      loadGame(user);
+      if (gameStateUnsubscribe) gameStateUnsubscribe();
+      DB_SAVE_REF = doc(
+        db,
+        `users/${user.uid}/game_state/deep_sea_exploration`,
+      );
+
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
         if (docSnap.exists())
           gameSettings.deepSeaRate = docSnap.data().deepSeaRate || 100000;
       });
-      const userGameStateRef = doc(
-        db,
-        `users/${user.uid}/game_state/deep_sea_exploration`,
-      );
-      onSnapshot(userGameStateRef, (docSnap) => {
-        if (docSnap.exists()) Object.assign(state, docSnap.data());
+
+      gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
+        if (docSnap.exists()) {
+          Object.assign(state, docSnap.data());
+          if (
+            !logs.value.some((l) =>
+              l.includes("서버에서 데이터를 불러왔습니다"),
+            )
+          ) {
+            addLog("서버에서 데이터를 불러왔습니다.");
+          }
+        } else {
+          loadGame(user); // 데이터가 없으면 loadGame을 통해 초기화
+        }
       });
     } else {
+      if (gameStateUnsubscribe) gameStateUnsubscribe();
+      Object.assign(state, clone(DEFAULT_STATE));
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
     }
   });
@@ -1002,7 +950,6 @@ onUnmounted(() => {
 .icon {
   width: 36px;
   height: 36px;
-  image-rendering: pixelated;
 }
 .btn.secondary {
   background-color: #6c757d;
