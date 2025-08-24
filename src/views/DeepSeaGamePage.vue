@@ -733,7 +733,10 @@ onMounted(() => {
         `users/${user.uid}/game_state/deep_sea_exploration`,
       );
       onSnapshot(userGameStateRef, (docSnap) => {
-        if (docSnap.exists()) Object.assign(state, docSnap.data());
+        if (docSnap.exists()) {
+          // ▼▼▼ [핵심 수정] 이 줄을 아래와 같이 변경하세요. ▼▼▼
+          Object.assign(state, clone(DEFAULT_STATE), docSnap.data());
+        }
       });
     } else {
       addLog("로그인하여 진행 상황을 서버에 저장하세요.");
