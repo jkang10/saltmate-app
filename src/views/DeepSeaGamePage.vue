@@ -476,7 +476,7 @@ const sellFundsForPoints = async () => {
     addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
 
     // ▼▼▼ [핵심 수정] 이 줄을 여기에 추가하세요. ▼▼▼
-    await loadGame(authUser.value);
+    state.funds = 0;
     // ▲▲▲ 수정 완료 ▲▲▲
   } catch (error) {
     console.error("자금 판매 오류:", error);
