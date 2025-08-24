@@ -524,7 +524,7 @@ function collectClick() {
     },
     coral_reef: () => {
       state.water = Math.min(derived.value.capacity, state.water + 1);
-      if (Math.random() < 0.3) {
+      if (Math.random() < 0.01) {
         state.plankton = (state.plankton || 0) + 1;
         addLog("플랑크톤 채집!");
       }
