@@ -147,6 +147,14 @@
           </li>
           <li>
             <router-link
+              to="/admin-dashboard/nft-types"
+              class="nav-item"
+              active-class="active-link"
+              ><i class="fas fa-cubes"></i> NFT 종류 관리</router-link
+            >
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/equity"
               class="nav-item"
               active-class="active-link"

@@ -145,14 +145,12 @@ const routes = [
     component: () => import("@/views/RPSPage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▼▼▼ [신규] '소금 결정 키우기' 페이지 경로 추가 ▼▼▼
   {
     path: "/salt-game",
     name: "SaltCrystalGamePage",
     component: () => import("@/views/SaltCrystalGamePage.vue"),
     meta: { requiresAuth: true },
   },
-  // ▲▲▲ 추가 완료 ▲▲▲
   {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
@@ -163,7 +161,7 @@ const routes = [
     path: "/deep-sea-game",
     name: "DeepSeaGamePage",
     component: () => import("@/views/DeepSeaGamePage.vue"),
-    meta: { requiresAuth: true }, // 로그인이 필요한 페이지로 설정
+    meta: { requiresAuth: true },
   },
   {
     path: "/admin-dashboard",
@@ -172,7 +170,7 @@ const routes = [
     meta: { requiresAuth: true, isAdmin: true },
     children: [
       {
-        path: "", // 기본 자식 경로
+        path: "",
         redirect: { name: "AdminUserManagement" },
       },
       {
@@ -191,13 +189,11 @@ const routes = [
         component: () =>
           import("@/components/admin/GameConversionSettings.vue"),
       },
-      // ▼▼▼ [신규 추가] 월간 결제 관리 페이지 라우트 ▼▼▼
       {
         path: "payments",
         name: "PaymentManagement",
         component: () => import("@/components/admin/PaymentManagement.vue"),
       },
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
       {
         path: "subscriptions",
         name: "AdminSubscriptionManagement",
@@ -257,18 +253,23 @@ const routes = [
         name: "AdminNFTManagement",
         component: () => import("@/components/admin/NFTManagement.vue"),
       },
+      // ▼▼▼ [신규 추가] NFT 종류 관리 페이지 라우트 ▼▼▼
+      {
+        path: "nft-types",
+        name: "AdminNftTypeManagement",
+        component: () => import("@/components/admin/NftTypeManagement.vue"),
+      },
+      // ▲▲▲ 추가 완료 ▲▲▲
       {
         path: "equity",
         name: "AdminEquityManagement",
         component: () => import("@/components/admin/EquityManagement.vue"),
       },
-      // ▼▼▼ [신규 추가] 데이터베이스 백업 페이지 라우트 ▼▼▼
       {
         path: "database-backup",
         name: "DatabaseBackup",
         component: () => import("@/components/admin/DatabaseBackup.vue"),
       },
-      // ▲▲▲ 신규 추가 완료 ▲▲▲
     ],
   },
   {
@@ -303,8 +304,11 @@ router.beforeEach(async (to, from, next) => {
   const currentUser = await getCurrentUser();
 
   if (requiresAuth && !currentUser) {
-    alert("로그인이 필요한 페이지입니다. 로그인 해주세요.");
-    next("/login");
+    // [수정] alert 대신 쿼리 파라미터로 메시지를 전달합니다.
+    next({
+      path: "/login",
+      query: { redirectReason: "로그인이 필요한 서비스입니다." },
+    });
   } else if (currentUser) {
     const idTokenResult = await currentUser.getIdTokenResult(true);
     const isAdmin = idTokenResult.claims.admin === true;
@@ -316,8 +320,13 @@ router.beforeEach(async (to, from, next) => {
         next("/dashboard");
       }
     } else if (requiresAdmin && !isAdmin) {
-      alert("관리자 권한이 없습니다.");
-      next("/dashboard");
+      // [수정] alert 대신 쿼리 파라미터로 메시지를 전달합니다.
+      next({
+        path: "/dashboard",
+        query: {
+          errorReason: "관리자만 접근 가능한 페이지입니다.",
+        },
+      });
     } else {
       next();
     }
