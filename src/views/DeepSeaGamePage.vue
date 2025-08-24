@@ -163,7 +163,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db } from "@/firebaseConfig";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
 // --- 상태 관리 (State Management) ---
 const DEFAULT_STATE = {
@@ -183,7 +183,7 @@ const isSellingFunds = ref(false);
 const gameSettings = reactive({ deepSeaRate: 100000 });
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
-let tickTimer, eventTimer, autosaveTimer;
+let tickTimer, eventTimer, goldenTimeInterval;
 const authUser = ref(null);
 let gameStateUnsubscribe = null; // [추가] 실시간 리스너 해제를 위한 변수
 
