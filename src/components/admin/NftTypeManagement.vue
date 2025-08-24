@@ -132,6 +132,7 @@
 <script setup>
 import { ref, onMounted, reactive } from "vue";
 import { db } from "@/firebaseConfig";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   collection,
   getDocs,
