@@ -175,33 +175,25 @@ const issueNft = async () => {
 
   isProcessing.value = true;
   try {
-    // 이제 users/{userId}/nfts 서브컬렉션에 문서를 추가합니다.
-    await addDoc(collection(db, `users/${form.userId}/nfts`), {
-      type: form.nftType,
-      issuedAt: Timestamp.now(),
-    });
+    // [수정] 최상위 'nfts' 컬렉션에 문서를 추가합니다.
+    const nftTypeData =
+      nftTypes.value.find((t) => t.name === form.nftType) || {};
 
-    // 지분 문서도 함께 생성 또는 업데이트 (해당 타입의 지분 0%로 초기화)
-    const equityRef = doc(db, "equity", form.userId);
-    const batch = writeBatch(db);
-    batch.set(
-      equityRef,
-      {
-        userId: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        types: {
-          [form.nftType]: 0,
-        },
-      },
-      { merge: true },
-    ); // merge: true로 다른 지분 정보를 덮어쓰지 않도록 함
-    await batch.commit();
+    await addDoc(collection(db, "nfts"), {
+      ownerId: form.userId, // [핵심] 소유자의 UID를 저장합니다.
+      ownerName: user.name,
+      type: form.nftType,
+      tier: nftTypeData.tier || "N/A", // NFT 종류에서 등급 정보 가져오기
+      name: nftTypeData.name || form.nftType,
+      description: nftTypeData.description || "설명이 없습니다.",
+      imageUrl: nftTypeData.imageUrl || "https://via.placeholder.com/400x500",
+      mintDate: Timestamp.now(),
+    });
 
     alert("NFT가 성공적으로 발행되었습니다.");
     form.userId = "";
     form.nftType = "";
-    await fetchData();
+    await fetchData(); // 목록을 새로고침합니다.
   } catch (error) {
     console.error("NFT 발행 중 오류 발생:", error);
     alert("NFT 발행 중 오류가 발생했습니다.");
