@@ -563,44 +563,22 @@ function collectClick() {
 }
 
 const sellResources = async () => {
-  const pricePerL = 5;
-  const planktonPrice = 15;
-
-  let revenue = Math.floor(
-    state.water * pricePerL * derived.value.marketMultiplier,
-  );
-  revenue += Math.floor(
-    (state.plankton || 0) * planktonPrice * derived.value.marketMultiplier,
-  );
-
-  const relicsToExchange = state.relics || 0;
-
-  if (revenue <= 0 && relicsToExchange <= 0)
-    return alert("판매할 자원이 없습니다.");
-
-  if (revenue > 0) {
-    state.funds += revenue;
-    addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
-    state.water = 0;
-    state.plankton = 0;
+  if (state.water <= 0 && state.plankton <= 0) {
+    alert("판매할 자원이 없습니다.");
+    return;
   }
 
-  if (relicsToExchange > 0) {
-    try {
-      const functions = getFunctions(undefined, "asia-northeast3");
-      const exchange = httpsCallable(functions, "exchangeRelics");
-      const result = await exchange();
-      addLog(
-        `고대 유물 교환: +${result.data.awardedPoints.toLocaleString()} SaltMate`,
-      );
-    } catch (error) {
-      console.error("고대 유물 교환 오류:", error);
-      alert(`고대 유물 교환 실패: ${error.message}`);
-    }
-  }
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const sell = httpsCallable(functions, "sellDeepSeaResources");
+    const result = await sell();
 
-  checkAchievements();
-  saveGame();
+    // 성공 로그는 실시간 리스너가 서버 데이터를 받아오면서 자동으로 찍히므로 여기서 추가 로그 불필요
+    console.log("자원 판매 성공:", result.data);
+  } catch (error) {
+    console.error("자원 판매 오류:", error);
+    alert(`자원 판매 실패: ${error.message}`);
+  }
 };
 
 const setActiveZone = async (zoneId) => {
