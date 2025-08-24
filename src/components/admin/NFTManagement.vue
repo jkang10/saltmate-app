@@ -109,38 +109,47 @@ const form = reactive({
 const fetchData = async () => {
   loading.value = true;
   try {
-    // 1. 모든 사용자 정보 가져오기
+    // 1. 모든 사용자 정보를 Map으로 미리 만들어둡니다. (빠른 조회를 위해)
     const usersSnapshot = await getDocs(collection(db, "users"));
+    const userMap = new Map(
+      usersSnapshot.docs.map((doc) => [doc.id, doc.data()]),
+    );
+    // 드롭다운 목록용 allUsers는 그대로 채웁니다.
     allUsers.value = usersSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    // 2. 모든 지분 정보 가져오기
+    // 2. 모든 지분 정보를 Map으로 미리 만들어둡니다.
     const equitySnapshot = await getDocs(collection(db, "equity"));
     const equityMap = new Map(
       equitySnapshot.docs.map((doc) => [doc.id, doc.data()]),
     );
 
-    // 3. 모든 사용자를 순회하며 각 사용자의 NFT 정보 가져오기
-    const holdings = [];
-    for (const user of allUsers.value) {
-      const userNftsSnapshot = await getDocs(
-        collection(db, `users/${user.id}/nfts`),
-      );
-      if (!userNftsSnapshot.empty) {
-        userNftsSnapshot.docs.forEach((nftDoc) => {
-          holdings.push({
-            nftId: nftDoc.id,
-            nftType: nftDoc.data().type,
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            equity: equityMap.get(user.id) || { totalPercentage: 0, types: {} },
-          });
-        });
-      }
-    }
+    // 3. [핵심 수정] 최상위 'nfts' 컬렉션에서 모든 NFT를 가져옵니다.
+    const nftsSnapshot = await getDocs(collection(db, "nfts"));
+
+    const holdings = nftsSnapshot.docs.map((nftDoc) => {
+      const nftData = nftDoc.data();
+      const ownerInfo = userMap.get(nftData.ownerId) || {
+        name: "알 수 없음",
+        email: "알 수 없음",
+      };
+      const equityInfo = equityMap.get(nftData.ownerId) || {
+        totalPercentage: 0,
+        types: {},
+      };
+
+      return {
+        nftId: nftDoc.id,
+        nftType: nftData.type,
+        userId: nftData.ownerId,
+        userName: ownerInfo.name,
+        userEmail: ownerInfo.email,
+        equity: equityInfo,
+      };
+    });
+
     nftHoldings.value = holdings;
   } catch (error) {
     console.error("데이터를 불러오는 중 오류 발생:", error);
@@ -211,12 +220,12 @@ const revokeNft = async (holding) => {
 
   isProcessing.value = true;
   try {
-    // 지정된 NFT 문서만 삭제
-    const nftDocRef = doc(db, `users/${holding.userId}/nfts`, holding.nftId);
+    // [수정] 최상위 'nfts' 컬렉션에서 지정된 NFT 문서를 삭제합니다.
+    const nftDocRef = doc(db, "nfts", holding.nftId);
     await deleteDoc(nftDocRef);
 
     alert("NFT가 성공적으로 회수되었습니다.");
-    await fetchData();
+    await fetchData(); // 목록을 새로고침합니다.
   } catch (error) {
     console.error("NFT 회수 중 오류 발생:", error);
     alert("NFT 회수 중 오류가 발생했습니다.");
