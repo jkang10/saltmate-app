@@ -534,11 +534,13 @@ function collectClick() {
       }
     },
     hydrothermal_vent: () => {
-      if (Math.random() < 0.2 * chance) {
+      if (Math.random() < 0.05 * chance) {
+        // 희귀 광물 기본 확률 5%로 하향
         state.minerals++;
         addLog("희귀 광물 대량 발견!");
       }
-      if (Math.random() < 0.01 * chance) {
+      if (Math.random() < 0.001 * chance) {
+        // 고대 유물 기본 확률 0.1%로 하향
         state.relics = (state.relics || 0) + 1;
         addLog("고대 유물 발견!");
       }
@@ -557,6 +559,7 @@ function collectClick() {
 
   zoneEffects[state.activeZoneId || "default"]();
   checkAchievements();
+  saveGame(); // [추가] 이 줄을 추가하여 즉시 저장합니다.
 }
 
 const sellResources = async () => {
