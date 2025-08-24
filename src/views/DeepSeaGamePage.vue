@@ -183,7 +183,7 @@ const isSellingFunds = ref(false);
 const gameSettings = reactive({ deepSeaRate: 100000 });
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
-let tickTimer, eventTimer, goldenTimeInterval;
+let tickTimer, eventTimer;
 const authUser = ref(null);
 let gameStateUnsubscribe = null; // [추가] 실시간 리스너 해제를 위한 변수
 
