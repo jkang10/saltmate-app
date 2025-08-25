@@ -108,8 +108,8 @@
 </template>
 
 <script>
-import { db, functions } from "@/firebaseConfig"; // functions import 추가
-import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
+import { db, functions } from "@/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   query,
@@ -135,15 +135,15 @@ export default {
     return {
       requests: [],
       isLoading: true,
-      selectedDate: getTodayString(), // [추가] 오늘 날짜로 초기화
-      searchMode: "pending", // [추가] 현재 조회 모드
+      selectedDate: getTodayString(),
+      searchMode: "pending",
     };
   },
   async created() {
     await this.fetchPendingRequests(); // 처음에는 승인 대기 목록을 불러옴
   },
   methods: {
-    // [수정] 기존 fetchRequests를 '승인 대기' 전용으로 변경
+    // '승인 대기' 목록을 불러오는 함수
     async fetchPendingRequests() {
       this.searchMode = "pending";
       this.isLoading = true;
@@ -165,7 +165,8 @@ export default {
         this.isLoading = false;
       }
     },
-    // [신규] 날짜로 조회하는 함수
+
+    // 선택한 날짜 기준으로 정산 내역을 불러오는 함수
     async fetchRequestsByDate() {
       if (!this.selectedDate) {
         alert("조회할 날짜를 선택해주세요.");
@@ -174,7 +175,6 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
-        // weekId가 날짜 문자열과 일치하는 문서를 찾음
         const q = query(
           collection(db, "weekly_payout_requests"),
           where("weekId", "==", this.selectedDate),
@@ -192,6 +192,42 @@ export default {
         this.isLoading = false;
       }
     },
+
+    // [신규 추가] 수동으로 정산을 생성하는 함수
+    async generateManualPayouts() {
+      if (!this.selectedDate) {
+        alert("정산을 생성할 기준 주차(종료일)를 선택해주세요.");
+        return;
+      }
+      if (
+        !confirm(
+          `'${this.selectedDate}'을 종료일로 하는 주간 정산을 생성하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+        )
+      )
+        return;
+
+      this.isLoading = true;
+      try {
+        const generateFunction = httpsCallable(
+          functions,
+          "manuallyGenerateWeeklyPayouts",
+        );
+        const result = await generateFunction({
+          dateString: this.selectedDate,
+        });
+        alert(result.data.message);
+
+        // 정산 생성 후 해당 날짜의 목록을 다시 불러옴
+        await this.fetchRequestsByDate();
+      } catch (error) {
+        console.error("수동 정산 생성 실패:", error);
+        alert(`수동 정산 생성 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    // 정산 요청을 승인하는 함수
     async approvePayout(payoutId) {
       if (!confirm(`이 정산 요청을 승인하시겠습니까?`)) return;
 
@@ -205,7 +241,8 @@ export default {
         alert("처리 중 오류가 발생했습니다.");
       }
     },
-    // [신규] 재처리 함수
+
+    // 승인된 정산을 재처리하는 함수
     async reprocessPayout(payoutId) {
       if (
         !confirm(
@@ -230,7 +267,6 @@ export default {
           throw new Error(failureReason);
         }
 
-        // 현재 날짜 조회 목록을 새로고침
         await this.fetchRequestsByDate();
       } catch (error) {
         console.error("재처리 실패:", error);
@@ -239,8 +275,9 @@ export default {
         this.isLoading = false;
       }
     },
+
+    // 최종 지급액을 계산하는 함수 (표시용)
     calculateFinalPayout(req) {
-      // 이 함수는 변경 없음
       const companyFeeRate = 0.05;
       let finalCash = 0;
       let finalSaltmate = 0;
@@ -255,7 +292,8 @@ export default {
       }
       return { cash: finalCash, saltmate: finalSaltmate };
     },
-    // [신규] 상태 텍스트 표시 함수
+
+    // 상태 텍스트를 변환하는 함수
     getStatusText(req) {
       if (req.reprocessed) return "재처리 완료";
       switch (req.status) {
@@ -332,6 +370,13 @@ export default {
 }
 .btn-pending:hover:not(:disabled) {
   background-color: #e0a800;
+}
+/* ... 기존 .btn-pending 스타일 아래에 추가 ... */
+.btn-manual-generate {
+  background-color: #6f42c1;
+}
+.btn-manual-generate:hover:not(:disabled) {
+  background-color: #5a32a3;
 }
 .btn-reprocess {
   background-color: #17a2b8;
