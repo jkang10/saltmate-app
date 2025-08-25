@@ -85,14 +85,9 @@
               </div>
             </td>
             <td>
-              <span
-                v-if="req.status !== 'reprocessed'"
-                :class="['status-badge', req.status]"
-                >{{ getStatusText(req) }}</span
-              >
-              <span v-if="req.reprocessed" class="reprocessed-text"
-                >재처리 완료</span
-              >
+              <span :class="['status-badge', req.status]">{{
+                getStatusText(req)
+              }}</span>
             </td>
             <td class="actions">
               <button
@@ -101,14 +96,6 @@
                 class="btn-approve"
               >
                 승인
-              </button>
-              <button
-                v-if="req.status === 'approved' && !req.reprocessed"
-                @click="reprocessPayout(req.id)"
-                class="btn-reprocess"
-                title="문제가 발생한 정산 건을 이 주차 기준으로 다시 생성합니다."
-              >
-                재처리
               </button>
             </td>
           </tr>
@@ -121,7 +108,15 @@
 <script>
 import { db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  orderBy,
+} from "firebase/firestore";
 
 const getTodayString = () => {
   const today = new Date();
@@ -166,6 +161,7 @@ export default {
         this.isLoading = false;
       }
     },
+    // [최종 수정] 데이터를 생성 시간(createdAt)이 아닌, 주차 ID(weekId)로 정확하게 조회합니다.
     async fetchRequestsByDate() {
       if (!this.selectedDate) {
         alert("조회할 날짜를 선택해주세요.");
@@ -174,18 +170,9 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
-        // [핵심 수정] 시차 문제를 해결하기 위해 선택한 날짜의 범위를 기준으로 조회합니다.
-        const startDate = new Date(this.selectedDate);
-        startDate.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(this.selectedDate);
-        endDate.setHours(23, 59, 59, 999);
-
         const q = query(
           collection(db, "weekly_payout_requests"),
-          where("createdAt", ">=", startDate),
-          where("createdAt", "<=", endDate),
-          orderBy("createdAt", "desc"),
+          where("weekId", "==", this.selectedDate),
         );
         const querySnapshot = await getDocs(q);
         this.requests = querySnapshot.docs.map((d) => ({
@@ -221,6 +208,7 @@ export default {
           dateString: this.selectedDate,
         });
         alert(result.data.message);
+        // 생성이 완료되면, 방금 생성한 날짜의 데이터를 바로 조회합니다.
         await this.fetchRequestsByDate();
       } catch (error) {
         console.error("수동 정산 생성 실패:", error);
@@ -229,38 +217,28 @@ export default {
         this.isLoading = false;
       }
     },
-    // [수정] approvePayout 함수
     async approvePayout(payoutId) {
       if (!confirm(`이 정산 요청을 승인하시겠습니까?`)) return;
       this.isLoading = true;
       try {
-        const approveFunction = httpsCallable(functions, "approveWeeklyPayout");
-        await approveFunction({ payoutId: payoutId });
+        const reqRef = doc(db, "weekly_payout_requests", payoutId);
+        await updateDoc(reqRef, {
+          status: "approved",
+          approvedAt: new Date(),
+        });
         alert(`정산(ID: ${payoutId})이 승인되었습니다.`);
-        await this.fetchPendingRequests();
+        // 승인 후 현재 보고 있는 목록을 새로고침
+        if (this.searchMode === "pending") {
+          await this.fetchPendingRequests();
+        } else {
+          await this.fetchRequestsByDate();
+        }
       } catch (error) {
         console.error("정산 승인 오류:", error);
         alert(`처리 중 오류가 발생했습니다: ${error.message}`);
       } finally {
         this.isLoading = false;
       }
-    },
-    async reprocessPayout() {
-      // [핵심 수정] 이 함수의 내용을 '수동 정산 생성'과 동일하게 변경합니다.
-      // 이제 '재처리'는 특정 건이 아닌, 선택된 주차 전체를 다시 생성하는 역할을 합니다.
-      if (!this.selectedDate) {
-        alert(
-          "재처리는 선택된 주차를 기준으로 정산을 다시 생성합니다.\n먼저 날짜를 선택해주세요.",
-        );
-        return;
-      }
-      if (
-        !confirm(
-          `'${this.selectedDate}' 주차 정산을 다시 생성하시겠습니까?\n기존에 생성된 데이터가 있다면 중복될 수 있습니다.`,
-        )
-      )
-        return;
-      await this.generateManualPayouts(); // 수동 생성 함수를 그대로 호출
     },
     calculateFinalPayout(req) {
       const companyFeeRate = 0.05;
@@ -294,6 +272,7 @@ export default {
 </script>
 
 <style scoped>
+/* (기존 스타일은 변경되지 않았으므로 생략) */
 .payout-manager {
   padding: 20px;
 }
@@ -309,6 +288,7 @@ export default {
   gap: 15px;
   margin-bottom: 20px;
   background-color: #f8f9fa;
+  flex-wrap: wrap;
 }
 .date-picker-wrapper {
   display: flex;
@@ -357,33 +337,6 @@ export default {
 }
 .btn-manual-generate:hover:not(:disabled) {
   background-color: #5a32a3;
-}
-.btn-reprocess {
-  background-color: #17a2b8;
-}
-.btn-reprocess:hover:not(:disabled) {
-  background-color: #117a8b;
-}
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8em;
-  font-weight: bold;
-  color: white;
-}
-.status-badge.pending {
-  background-color: #ffc107;
-  color: #333;
-}
-.status-badge.approved {
-  background-color: #28a745;
-}
-.status-badge.failed {
-  background-color: #dc3545;
-}
-.reprocessed-text {
-  color: #17a2b8;
-  font-weight: bold;
 }
 .payout-manager h2 {
   font-size: 1.8em;
@@ -451,5 +404,22 @@ export default {
 }
 .final-amount.saltmate {
   color: #6f42c1;
+}
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: white;
+}
+.status-badge.pending {
+  background-color: #ffc107;
+  color: #333;
+}
+.status-badge.approved {
+  background-color: #28a745;
+}
+.status-badge.failed {
+  background-color: #dc3545;
 }
 </style>
