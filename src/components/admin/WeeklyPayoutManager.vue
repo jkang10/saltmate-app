@@ -121,15 +121,7 @@
 <script>
 import { db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-  orderBy,
-} from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 
 const getTodayString = () => {
   const today = new Date();
