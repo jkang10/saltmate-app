@@ -1,7 +1,5 @@
 <template>
   <div class="payout-manager">
-    <h2><i class="fas fa-calendar-check"></i> 주간 정산 관리</h2>
-
     <div class="search-controls card">
       <div class="date-picker-wrapper">
         <label for="payout-date">정산 주차 선택:</label>
@@ -22,87 +20,14 @@
       >
         <i class="fas fa-hourglass-half"></i> 현재 승인 대기 목록
       </button>
-    </div>
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-    </div>
-    <div v-else-if="requests.length === 0" class="empty-state">
-      <p>
-        {{
-          searchMode === "date"
-            ? `선택한 날짜(${selectedDate})에 해당하는 정산 내역이 없습니다.`
-            : "대기 중인 주간 정산 요청이 없습니다."
-        }}
-      </p>
-    </div>
-    <div v-else class="table-container">
-      <table class="payout-table">
-        <thead>
-          <tr>
-            <th>정산 주차</th>
-            <th>회원명</th>
-            <th>상태</th>
-            <th>총 수익(Gross)</th>
-            <th>실지급 현금(Net)</th>
-            <th>실지급 SaltMate(Net)</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="req in requests" :key="req.id">
-            <td>{{ req.weekId }}</td>
-            <td>{{ req.userName }}</td>
-            <td>
-              <span :class="['status-badge', req.status]">
-                {{ getStatusText(req) }}
-              </span>
-            </td>
-            <td>
-              {{
-                req.totalBonus.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })
-              }}
-              원
-            </td>
-            <td class="final-amount cash">
-              {{
-                calculateFinalPayout(req).cash.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })
-              }}
-              원
-            </td>
-            <td class="final-amount saltmate">
-              {{
-                calculateFinalPayout(req).saltmate.toLocaleString(undefined, {
-                  maximumFractionDigits: 2,
-                })
-              }}
-              SaltMate
-            </td>
-            <td class="actions">
-              <button
-                v-if="req.status === 'pending'"
-                @click="approvePayout(req.id)"
-                class="btn-approve"
-              >
-                승인
-              </button>
-              <button
-                v-if="req.status === 'approved' && !req.reprocessed"
-                @click="reprocessPayout(req.id)"
-                class="btn-reprocess"
-              >
-                재처리
-              </button>
-              <span v-if="req.reprocessed" class="reprocessed-text"
-                >재처리 완료</span
-              >
-            </td>
-          </tr>
-        </tbody>
-      </table>
+
+      <button
+        @click="generateManualPayouts"
+        class="btn-manual-generate"
+        :disabled="isLoading"
+      >
+        <i class="fas fa-calculator"></i> 선택 주차 정산 생성
+      </button>
     </div>
   </div>
 </template>
