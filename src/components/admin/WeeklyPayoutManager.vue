@@ -229,16 +229,20 @@ export default {
         this.isLoading = false;
       }
     },
+    // [수정] approvePayout 함수
     async approvePayout(payoutId) {
       if (!confirm(`이 정산 요청을 승인하시겠습니까?`)) return;
-      const reqRef = doc(db, "weekly_payout_requests", payoutId);
+      this.isLoading = true;
       try {
-        await updateDoc(reqRef, { status: "approved" });
-        alert(`정산이 승인되었습니다.`);
+        const approveFunction = httpsCallable(functions, "approveWeeklyPayout");
+        await approveFunction({ payoutId: payoutId });
+        alert(`정산(ID: ${payoutId})이 승인되었습니다.`);
         await this.fetchPendingRequests();
       } catch (error) {
         console.error("정산 승인 오류:", error);
-        alert("처리 중 오류가 발생했습니다.");
+        alert(`처리 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
       }
     },
     async reprocessPayout() {
