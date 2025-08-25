@@ -241,7 +241,7 @@ export default {
         alert("처리 중 오류가 발생했습니다.");
       }
     },
-    async reprocessPayout(payoutId) {
+    async reprocessPayout() {
       // [핵심 수정] 이 함수의 내용을 '수동 정산 생성'과 동일하게 변경합니다.
       // 이제 '재처리'는 특정 건이 아닌, 선택된 주차 전체를 다시 생성하는 역할을 합니다.
       if (!this.selectedDate) {
