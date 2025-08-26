@@ -170,18 +170,11 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
-        // [핵심 수정] 시차 문제를 해결하기 위해 선택한 날짜의 범위를 기준으로 조회합니다.
-        const startDate = new Date(this.selectedDate);
-        startDate.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(this.selectedDate);
-        endDate.setHours(23, 59, 59, 999);
-
+        // [핵심] weekId로 필터링하고 createdAt으로 정렬하는 쿼리
         const q = query(
           collection(db, "weekly_payout_requests"),
-          where("createdAt", ">=", startDate),
-          where("createdAt", "<=", endDate),
-          orderBy("createdAt", "desc"),
+          where("weekId", "==", this.selectedDate),
+          orderBy("createdAt", "desc"), // <--- 이 정렬 기능 때문에 색인이 필요합니다.
         );
         const querySnapshot = await getDocs(q);
         this.requests = querySnapshot.docs.map((d) => ({
