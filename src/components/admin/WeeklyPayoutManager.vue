@@ -170,9 +170,18 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
+        // [핵심 수정] 시차 문제를 해결하기 위해 선택한 날짜의 범위를 기준으로 조회합니다.
+        const startDate = new Date(this.selectedDate);
+        startDate.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(this.selectedDate);
+        endDate.setHours(23, 59, 59, 999);
+
         const q = query(
           collection(db, "weekly_payout_requests"),
-          where("weekId", "==", this.selectedDate),
+          where("createdAt", ">=", startDate),
+          where("createdAt", "<=", endDate),
+          orderBy("createdAt", "desc"),
         );
         const querySnapshot = await getDocs(q);
         this.requests = querySnapshot.docs.map((d) => ({
