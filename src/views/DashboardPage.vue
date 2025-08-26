@@ -145,6 +145,7 @@
       <div class="dashboard-grid">
         <LiveGameFeed />
         <LeaderboardWidget />
+        <WeeklyLeaderboardWidget />
         <router-link to="/my-tokens" class="feature-card tokens">
           <div class="card-icon"><i class="fas fa-coins"></i></div>
           <h3>보유 토큰 현황</h3>
@@ -298,10 +299,9 @@ import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
 import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
-// ▼▼▼ [신규 추가] 새 컴포넌트 import ▼▼▼
 import LiveGameFeed from "@/components/LiveGameFeed.vue";
 import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
-// ▲▲▲ 신규 추가 완료 ▲▲▲
+import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -310,10 +310,9 @@ export default {
     UpgradeTierModal,
     WithdrawalRequestModal,
     CycleEarningsModal,
-    // ▼▼▼ [신규 추가] 새 컴포넌트 등록 ▼▼▼
     LiveGameFeed,
     LeaderboardWidget,
-    // ▲▲▲ 신규 추가 완료 ▲▲▲
+    WeeklyLeaderboardWidget, // [수정] 컴포넌트 등록
   },
   data() {
     return {
@@ -557,22 +556,18 @@ export default {
 .clickable:hover {
   color: #aed6f1;
 }
-
-/* ▼▼▼ [수정] dashboard-container의 gap을 제거하고, notice-section에 margin-bottom을 추가 ▼▼▼ */
 .dashboard-container {
   padding: 20px;
   max-width: 1200px;
   margin: 10px auto 20px;
   display: flex;
   flex-direction: column;
-  gap: 0; /* 자식 요소간의 기본 간격을 제거합니다. */
+  gap: 0;
 }
 .notice-section {
   padding: 20px 25px;
-  margin-bottom: 30px; /* 공지사항과 아래 컨텐츠 사이의 간격을 설정합니다. */
+  margin-bottom: 30px;
 }
-/* ▲▲▲ 수정 완료 ▲▲▲ */
-
 .notice-header {
   display: flex;
   justify-content: space-between;
@@ -581,7 +576,6 @@ export default {
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
 }
-
 .notice-header h3 {
   margin: 0;
   font-size: 1.4em;
