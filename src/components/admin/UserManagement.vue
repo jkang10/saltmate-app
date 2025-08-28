@@ -34,6 +34,7 @@
             <th>추천인</th>
             <th>가입일</th>
             <th>다음 결제일</th>
+            <th>최종 정산일</th>
             <th>구독 상태</th>
             <th>솔트메이트</th>
             <th>관리자</th>
@@ -54,6 +55,7 @@
             <td>{{ user.referrerName || "없음" }}</td>
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
+            <td>{{ user.lastPayoutDate || "내역 없음" }}</td>
             <td>
               <span :class="['status-badge', user.subscriptionStatus]">{{
                 formatSubscriptionStatus(user.subscriptionStatus)
@@ -133,7 +135,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from "vue";
 import { db } from "@/firebaseConfig";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
 import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
@@ -197,15 +199,34 @@ const formatSubscriptionStatus = (status) => {
 const fetchUsers = async () => {
   loading.value = true;
   try {
+    // [수정] 기존 쿼리 + 최종 정산일 쿼리 동시 실행
     const usersQuery = query(
       collection(db, "users"),
       orderBy("createdAt", "desc"),
     );
     const centersQuery = query(collection(db, "centers"));
-    const [userSnapshot, centerSnapshot] = await Promise.all([
+    // 'approved' 와 'approved_manual' 상태의 모든 정산 기록 조회
+    const payoutsQuery = query(
+      collection(db, "weekly_payout_requests"),
+      where("status", "in", ["approved", "approved_manual"]),
+    );
+
+    const [userSnapshot, centerSnapshot, payoutSnapshot] = await Promise.all([
       getDocs(usersQuery),
       getDocs(centersQuery),
+      getDocs(payoutsQuery),
     ]);
+
+    // [수정] 사용자별 최종 정산일 맵 생성
+    const lastPayoutMap = new Map();
+    payoutSnapshot.forEach((doc) => {
+      const payout = doc.data();
+      const existingDate = lastPayoutMap.get(payout.userId);
+      // 기존에 저장된 날짜가 없거나, 현재 날짜가 더 최신인 경우에만 맵에 저장
+      if (!existingDate || payout.weekId > existingDate) {
+        lastPayoutMap.set(payout.userId, payout.weekId);
+      }
+    });
 
     const centerMap = new Map(
       centerSnapshot.docs.map((doc) => [doc.id, doc.data().name]),
@@ -221,6 +242,8 @@ const fetchUsers = async () => {
         ...userData,
         centerName: centerMap.get(userData.centerId) || "N/A",
         referrerName: userMap.get(userData.uplineReferrer) || "없음",
+        // [수정] 맵에서 최종 정산일 정보를 찾아 사용자 객체에 추가
+        lastPayoutDate: lastPayoutMap.get(doc.id) || null,
       };
     });
   } catch (err) {
