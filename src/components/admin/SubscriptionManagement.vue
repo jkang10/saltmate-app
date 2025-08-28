@@ -32,7 +32,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="req in filteredRequests" :key="req.id">
+          <tr
+            v-for="req in filteredRequests"
+            :key="req.id"
+            :class="{ 'pending-row': req.status === 'pending' }"
+          >
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>{{ req.userName }}</td>
             <td>{{ req.centerName || "정보 없음" }}</td>
@@ -81,6 +85,7 @@ import {
   orderBy,
   documentId,
 } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 export default {
   name: "SubscriptionManager",
@@ -174,7 +179,17 @@ export default {
 
       const reqRef = doc(db, "subscription_requests", requestId);
       try {
-        await updateDoc(reqRef, { status });
+        // [수정] 승인자 정보(이메일)를 함께 기록
+        const auth = getAuth();
+        const adminEmail = auth.currentUser
+          ? auth.currentUser.email
+          : "unknown_admin";
+
+        await updateDoc(reqRef, {
+          status,
+          approvedBy: status === "approved" ? adminEmail : null,
+        });
+
         alert(`요청이 성공적으로 처리되었습니다.`);
         await this.fetchRequests();
       } catch (error) {
@@ -196,6 +211,11 @@ export default {
 </script>
 
 <style scoped>
+/* [신규 추가] 승인 대기 중인 행의 배경색 스타일 */
+.request-table tbody .pending-row {
+  background-color: #fffbe6; /* 연한 노란색 */
+}
+
 .subscription-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;

@@ -10,6 +10,13 @@
         placeholder="이름 또는 이메일로 검색..."
         class="search-input"
       />
+      <select v-model="itemsPerPage" class="items-per-page-select">
+        <option value="10">10개씩 보기</option>
+        <option value="20">20개씩 보기</option>
+        <option value="30">30개씩 보기</option>
+        <option value="40">40개씩 보기</option>
+        <option value="50">50개씩 보기</option>
+      </select>
     </div>
 
     <div v-if="loading" class="loading-spinner"></div>
@@ -118,7 +125,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -131,11 +138,16 @@ const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(10); // 기본값 10으로 유지
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
+
+// [수정] 페이지당 아이템 수가 변경되면 첫 페이지로 리셋
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+});
 
 const filteredUsers = computed(() => {
   if (!searchTerm.value) {
@@ -287,6 +299,9 @@ onMounted(fetchUsers);
 }
 .filter-controls {
   margin-bottom: 20px;
+  display: flex; /* [수정] Flexbox 레이아웃 적용 */
+  gap: 15px; /* [수정] 검색창과 셀렉트 박스 사이 간격 추가 */
+  align-items: center; /* [수정] 수직 정렬 */
 }
 .search-input {
   padding: 10px 15px;
@@ -295,6 +310,14 @@ onMounted(fetchUsers);
   width: 100%;
   max-width: 400px;
   font-size: 1em;
+}
+/* [신규 추가] 셀렉트 박스 스타일 */
+.items-per-page-select {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1em;
+  background-color: white;
 }
 .table-container {
   overflow-x: auto;
