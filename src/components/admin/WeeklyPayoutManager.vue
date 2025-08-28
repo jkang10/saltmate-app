@@ -118,6 +118,14 @@
                 승인
               </button>
               <button
+                v-if="req.status === 'pending'"
+                @click="forceApprovePayout(req.id, req.userName)"
+                class="btn-force-approve"
+                title="지급 절차 없이 상태만 '승인 완료'로 변경합니다. 중복 생성된 데이터를 정리할 때 사용하세요."
+              >
+                강제 승인
+              </button>
+              <button
                 @click="deleteSinglePayout(req.id, req.userName)"
                 class="btn-delete"
               >
@@ -251,7 +259,8 @@ export default {
       }
     },
     async approvePayout(payoutId) {
-      if (!confirm(`이 정산 요청을 승인하시겠습니까?`)) return;
+      if (!confirm(`이 정산 요청을 승인하시겠습니까? (실제 지급이 처리됩니다)`))
+        return;
       this.isLoading = true;
       try {
         const reqRef = doc(db, "weekly_payout_requests", payoutId);
@@ -267,6 +276,35 @@ export default {
         }
       } catch (error) {
         console.error("정산 승인 오류:", error);
+        alert(`처리 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    // [신규 추가] 강제 승인 처리 메소드
+    async forceApprovePayout(payoutId, userName) {
+      if (
+        !confirm(
+          `[주의] '${userName}'님의 이 정산 건을 '강제 승인'하시겠습니까?\n\n이 작업은 실제 지급 절차를 생략하고 상태만 '승인 완료'로 변경합니다. 이미 지급된 중복 데이터를 정리할 때만 사용하세요.`,
+        )
+      )
+        return;
+
+      this.isLoading = true;
+      try {
+        const forceApproveFunction = httpsCallable(
+          functions,
+          "manuallyForceApprovePayouts",
+        );
+        const result = await forceApproveFunction({ payoutIds: [payoutId] });
+        alert(result.data.message);
+        if (this.searchMode === "pending") {
+          await this.fetchPendingRequests();
+        } else {
+          await this.fetchRequestsByDate();
+        }
+      } catch (error) {
+        console.error("강제 승인 처리 실패:", error);
         alert(`처리 중 오류가 발생했습니다: ${error.message}`);
       } finally {
         this.isLoading = false;
@@ -327,12 +365,15 @@ export default {
       }
       return { cash: finalCash, saltmate: finalSaltmate };
     },
+    // [수정] getStatusText 메소드에 'approved_manual' 케이스 추가
     getStatusText(req) {
       switch (req.status) {
         case "pending":
           return "승인 대기";
         case "approved":
           return "승인 완료";
+        case "approved_manual":
+          return "수동 완료";
         case "failed":
           return "실패";
         default:
@@ -475,6 +516,10 @@ export default {
 .btn-approve {
   background-color: #28a745;
 }
+/* [신규 추가] 강제 승인 버튼 스타일 */
+.btn-force-approve {
+  background-color: #fd7e14; /* 주황색 */
+}
 .final-amount {
   font-weight: bold;
 }
@@ -497,6 +542,10 @@ export default {
 }
 .status-badge.approved {
   background-color: #28a745;
+}
+/* [신규 추가] 수동 완료 뱃지 스타일 */
+.status-badge.approved_manual {
+  background-color: #6c757d; /* 회색 */
 }
 .status-badge.failed {
   background-color: #dc3545;
