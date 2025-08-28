@@ -1,11 +1,21 @@
 <template>
   <div class="subscription-manager">
     <h2><i class="fas fa-check-double"></i> 구독 승인 관리</h2>
+
+    <div class="search-bar card">
+      <i class="fas fa-search"></i>
+      <input
+        type="text"
+        v-model="searchQuery"
+        placeholder="회원 이름으로 검색..."
+      />
+    </div>
+
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
     </div>
-    <div v-else-if="requests.length === 0" class="empty-state">
-      <p>대기 중인 승인 요청이 없습니다.</p>
+    <div v-else-if="filteredRequests.length === 0" class="empty-state">
+      <p>대기 중인 승인 요청이 없거나 검색 결과가 없습니다.</p>
     </div>
     <div v-else class="table-container">
       <table class="request-table">
@@ -22,7 +32,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="req in requests" :key="req.id">
+          <tr v-for="req in filteredRequests" :key="req.id">
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>{{ req.userName }}</td>
             <td>{{ req.centerName || "정보 없음" }}</td>
@@ -78,17 +88,26 @@ export default {
     return {
       requests: [],
       isLoading: true,
+      searchQuery: "",
     };
+  },
+  computed: {
+    filteredRequests() {
+      if (!this.searchQuery) {
+        return this.requests;
+      }
+      return this.requests.filter((req) =>
+        req.userName.toLowerCase().includes(this.searchQuery.toLowerCase()),
+      );
+    },
   },
   async created() {
     await this.fetchRequests();
   },
   methods: {
-    // ▼▼▼ [수정] fetchRequests 함수 전체를 아래 코드로 교체 ▼▼▼
     async fetchRequests() {
       this.isLoading = true;
       try {
-        // 1. 'pending' 상태의 구독 요청을 가져옵니다.
         const q = query(
           collection(db, "subscription_requests"),
           where("status", "==", "pending"),
@@ -101,51 +120,42 @@ export default {
         }));
 
         if (pendingRequests.length > 0) {
-          // 2. 요청 목록에서 신청자들의 userId를 추출합니다.
           const userIds = [
             ...new Set(pendingRequests.map((req) => req.userId)),
           ];
-
-          // 3. 사용자 정보를 가져와서 userId를 키로, centerId를 값으로 하는 맵을 만듭니다.
           const usersQuery = query(
             collection(db, "users"),
             where(documentId(), "in", userIds),
           );
           const usersSnapshot = await getDocs(usersQuery);
-          const userCenterMap = new Map();
-          usersSnapshot.forEach((userDoc) => {
-            userCenterMap.set(userDoc.id, userDoc.data().centerId);
-          });
+          const userCenterMap = new Map(
+            usersSnapshot.docs.map((userDoc) => [
+              userDoc.id,
+              userDoc.data().centerId,
+            ]),
+          );
 
-          // 4. 조회된 centerId 목록을 추출합니다. (중복 제거, null/undefined 제외)
           const centerIds = [
             ...new Set(Array.from(userCenterMap.values())),
           ].filter((id) => !!id);
-
           const centerNameMap = new Map();
           if (centerIds.length > 0) {
-            // 5. centerId 목록을 사용하여 'centers' 컬렉션에서 센터 이름 정보를 한 번에 가져옵니다.
             const centersQuery = query(
               collection(db, "centers"),
               where(documentId(), "in", centerIds),
             );
             const centersSnapshot = await getDocs(centersQuery);
-            centersSnapshot.forEach((centerDoc) => {
-              centerNameMap.set(centerDoc.id, centerDoc.data().name);
-            });
+            centersSnapshot.forEach((centerDoc) =>
+              centerNameMap.set(centerDoc.id, centerDoc.data().name),
+            );
           }
 
-          // 6. 원래의 요청 목록에 최종적으로 센터 '이름'을 추가합니다.
           pendingRequests = pendingRequests.map((req) => {
             const centerId = userCenterMap.get(req.userId);
             const centerName = centerNameMap.get(centerId);
-            return {
-              ...req,
-              centerName: centerName || "N/A", // 센터 ID는 있지만 이름이 없는 경우 대비
-            };
+            return { ...req, centerName: centerName || "N/A" };
           });
         }
-
         this.requests = pendingRequests;
       } catch (error) {
         console.error("승인 요청 목록 조회 오류:", error);
@@ -154,7 +164,6 @@ export default {
         this.isLoading = false;
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
     async updateRequestStatus(requestId, status) {
       if (
         !confirm(
@@ -167,7 +176,7 @@ export default {
       try {
         await updateDoc(reqRef, { status });
         alert(`요청이 성공적으로 처리되었습니다.`);
-        await this.fetchRequests(); // 목록 새로고침
+        await this.fetchRequests();
       } catch (error) {
         console.error("요청 상태 업데이트 오류:", error);
         alert("처리 중 오류가 발생했습니다.");
@@ -187,10 +196,25 @@ export default {
 </script>
 
 <style scoped>
-/* 스타일은 변경사항이 없으므로 기존 코드를 그대로 유지합니다. */
 .subscription-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
+}
+.search-bar {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+.search-bar input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 1em;
+  background: transparent;
 }
 .loading-state,
 .empty-state {

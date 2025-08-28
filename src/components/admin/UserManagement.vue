@@ -27,7 +27,7 @@
             <th>추천인</th>
             <th>가입일</th>
             <th>다음 결제일</th>
-            <th>현금성 수익</th>
+            <th>구독 상태</th>
             <th>솔트메이트</th>
             <th>관리자</th>
             <th>관리</th>
@@ -41,7 +41,11 @@
             <td>{{ user.referrerName || "없음" }}</td>
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
-            <td>{{ (user.cashBalance || 0).toLocaleString() }} 원</td>
+            <td>
+              <span :class="['status-badge', user.subscriptionStatus]">{{
+                formatSubscriptionStatus(user.subscriptionStatus)
+              }}</span>
+            </td>
             <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
             <td>
               <span :class="user.isAdmin ? 'admin-badge' : 'user-badge'">
@@ -70,10 +74,7 @@
               >
                 권한 변경
               </button>
-              <button
-                @click="deleteUser(user.id)"
-                class="btn btn-sm btn-danger"
-              >
+              <button @click="deleteUser(user)" class="btn btn-sm btn-danger">
                 삭제
               </button>
             </td>
@@ -119,14 +120,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { db } from "@/firebaseConfig";
-import {
-  collection,
-  getDocs,
-  doc,
-  deleteDoc,
-  query,
-  orderBy,
-} from "firebase/firestore";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
 import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
@@ -166,8 +160,21 @@ const paginatedUsers = computed(() => {
 });
 
 const formatDate = (timestamp) => {
-  if (!timestamp || !timestamp.toDate) return "정보 없음"; // '날짜 정보 없음'에서 변경
+  if (!timestamp || !timestamp.toDate) return "정보 없음";
   return timestamp.toDate().toLocaleDateString("ko-KR");
+};
+
+const formatSubscriptionStatus = (status) => {
+  switch (status) {
+    case "active":
+      return "승인 완료";
+    case "pending":
+      return "승인 대기";
+    case "overdue":
+      return "연체";
+    default:
+      return "미승인";
+  }
 };
 
 const fetchUsers = async () => {
@@ -178,21 +185,17 @@ const fetchUsers = async () => {
       orderBy("createdAt", "desc"),
     );
     const centersQuery = query(collection(db, "centers"));
-
     const [userSnapshot, centerSnapshot] = await Promise.all([
       getDocs(usersQuery),
       getDocs(centersQuery),
     ]);
 
-    const centerMap = new Map();
-    centerSnapshot.forEach((doc) => {
-      centerMap.set(doc.id, doc.data().name);
-    });
-
-    const userMap = new Map();
-    userSnapshot.forEach((doc) => {
-      userMap.set(doc.id, doc.data().name);
-    });
+    const centerMap = new Map(
+      centerSnapshot.docs.map((doc) => [doc.id, doc.data().name]),
+    );
+    const userMap = new Map(
+      userSnapshot.docs.map((doc) => [doc.id, doc.data().name]),
+    );
 
     users.value = userSnapshot.docs.map((doc) => {
       const userData = doc.data();
@@ -213,35 +216,42 @@ const fetchUsers = async () => {
 
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
-  const confirmation = confirm(
-    `'${user.name}' 사용자를 '${newStatus ? "관리자" : "일반 사용자"}' (으)로 지정하시겠습니까?`,
-  );
-  if (!confirmation) return;
+  if (
+    !confirm(
+      `'${user.name}' 사용자를 '${newStatus ? "관리자" : "일반 사용자"}' (으)로 지정하시겠습니까?`,
+    )
+  )
+    return;
   try {
     const functions = getFunctions();
     const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
-    await setUserAdminClaim({ email: user.email, makeAdmin: newStatus });
-
-    const userInList = users.value.find((u) => u.id === user.id);
-    if (userInList) userInList.isAdmin = newStatus;
+    await setUserAdminClaim({ email: user.email });
     alert(
       "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
     );
+    await fetchUsers();
   } catch (error) {
     console.error("권한 변경 중 오류 발생:", error);
     alert(`권한 변경에 실패했습니다: ${error.message}`);
   }
 };
 
-const deleteUser = async (userId) => {
-  if (!confirm("정말로 이 사용자를 삭제하시겠습니까? (복구 불가)")) return;
+const deleteUser = async (user) => {
+  if (
+    !confirm(
+      `정말로 '${user.name}' 사용자를 삭제하시겠습니까? 이 작업은 복구할 수 없습니다.`,
+    )
+  )
+    return;
   try {
-    await deleteDoc(doc(db, "users", userId));
-    users.value = users.value.filter((user) => user.id !== userId);
+    const functions = getFunctions();
+    const deleteUserFunc = httpsCallable(functions, "deleteUser");
+    await deleteUserFunc({ uid: user.id });
     alert("사용자가 성공적으로 삭제되었습니다.");
+    await fetchUsers();
   } catch (error) {
     console.error("사용자 삭제 중 오류 발생:", error);
-    alert("사용자 삭제에 실패했습니다.");
+    alert(`사용자 삭제에 실패했습니다: ${error.message}`);
   }
 };
 
@@ -249,12 +259,10 @@ const openTokenModal = (user) => {
   selectedUser.value = user;
   isTokenModalVisible.value = true;
 };
-
 const openBalanceModal = (user) => {
   selectedUser.value = user;
   isBalanceModalVisible.value = true;
 };
-
 const openEditModal = (user) => {
   selectedUser.value = user;
   isEditModalVisible.value = true;
@@ -311,7 +319,8 @@ onMounted(fetchUsers);
   color: #555;
 }
 .admin-badge,
-.user-badge {
+.user-badge,
+.status-badge {
   padding: 4px 10px;
   border-radius: 15px;
   font-size: 0.8em;
@@ -324,6 +333,16 @@ onMounted(fetchUsers);
 }
 .user-badge {
   background-color: #007bff;
+}
+.status-badge.active {
+  background-color: #28a745;
+}
+.status-badge.pending {
+  background-color: #ffc107;
+  color: #212529;
+}
+.status-badge.overdue {
+  background-color: #dc3545;
 }
 .actions {
   display: flex;
