@@ -33,6 +33,17 @@
       >
         <i class="fas fa-calculator"></i> 선택 주차 정산 생성
       </button>
+
+      <button
+        v-if="selectedPayouts.length > 0"
+        @click="deleteSelectedPayouts"
+        class="btn-delete-selected"
+        :disabled="isLoading"
+      >
+        <i class="fas fa-trash-alt"></i> 선택 항목 삭제 ({{
+          selectedPayouts.length
+        }}건)
+      </button>
     </div>
 
     <div class="table-container card">
@@ -41,16 +52,18 @@
         <p>데이터를 불러오는 중입니다...</p>
       </div>
       <div v-else-if="requests.length === 0" class="empty-state">
-        <p>
-          <span v-if="searchMode === 'pending'"
-            >현재 승인 대기 중인 정산 내역이 없습니다.</span
-          >
-          <span v-else>해당 날짜에 대한 정산 내역이 없습니다.</span>
-        </p>
+        <p>표시할 정산 내역이 없습니다.</p>
       </div>
       <table v-else class="payout-table">
         <thead>
           <tr>
+            <th>
+              <input
+                type="checkbox"
+                @change="selectAllPayouts"
+                :checked="isAllSelected"
+              />
+            </th>
             <th>주차 (ID)</th>
             <th>이름</th>
             <th>투자금 수익</th>
@@ -63,6 +76,13 @@
         </thead>
         <tbody>
           <tr v-for="req in requests" :key="req.id">
+            <td>
+              <input
+                type="checkbox"
+                v-model="selectedPayouts"
+                :value="req.id"
+              />
+            </td>
             <td>{{ req.weekId }}</td>
             <td>{{ req.userName }}</td>
             <td>{{ Math.floor(req.roiBonus).toLocaleString() }}</td>
@@ -96,6 +116,12 @@
                 class="btn-approve"
               >
                 승인
+              </button>
+              <button
+                @click="deleteSinglePayout(req.id, req.userName)"
+                class="btn-delete"
+              >
+                삭제
               </button>
             </td>
           </tr>
@@ -134,7 +160,16 @@ export default {
       isLoading: true,
       selectedDate: getTodayString(),
       searchMode: "pending",
+      selectedPayouts: [],
     };
+  },
+  computed: {
+    isAllSelected() {
+      return (
+        this.requests.length > 0 &&
+        this.selectedPayouts.length === this.requests.length
+      );
+    },
   },
   async created() {
     await this.fetchPendingRequests();
@@ -161,7 +196,6 @@ export default {
         this.isLoading = false;
       }
     },
-    // [최종 수정] 데이터를 생성 시간(createdAt)이 아닌, 주차 ID(weekId)로 정확하게 조회합니다.
     async fetchRequestsByDate() {
       if (!this.selectedDate) {
         alert("조회할 날짜를 선택해주세요.");
@@ -170,11 +204,9 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
-        // [핵심] weekId로 필터링하고 createdAt으로 정렬하는 쿼리
         const q = query(
           collection(db, "weekly_payout_requests"),
           where("weekId", "==", this.selectedDate),
-          orderBy("createdAt", "desc"), // <--- 이 정렬 기능 때문에 색인이 필요합니다.
         );
         const querySnapshot = await getDocs(q);
         this.requests = querySnapshot.docs.map((d) => ({
@@ -210,7 +242,6 @@ export default {
           dateString: this.selectedDate,
         });
         alert(result.data.message);
-        // 생성이 완료되면, 방금 생성한 날짜의 데이터를 바로 조회합니다.
         await this.fetchRequestsByDate();
       } catch (error) {
         console.error("수동 정산 생성 실패:", error);
@@ -229,7 +260,6 @@ export default {
           approvedAt: new Date(),
         });
         alert(`정산(ID: ${payoutId})이 승인되었습니다.`);
-        // 승인 후 현재 보고 있는 목록을 새로고침
         if (this.searchMode === "pending") {
           await this.fetchPendingRequests();
         } else {
@@ -240,6 +270,46 @@ export default {
         alert(`처리 중 오류가 발생했습니다: ${error.message}`);
       } finally {
         this.isLoading = false;
+      }
+    },
+    async deleteSinglePayout(payoutId, userName) {
+      if (!confirm(`'${userName}'님의 이 정산 내역을 정말로 삭제하시겠습니까?`))
+        return;
+      await this.deletePayouts([payoutId]);
+    },
+    async deleteSelectedPayouts() {
+      if (
+        !confirm(
+          `${this.selectedPayouts.length}개의 정산 내역을 정말로 삭제하시겠습니까?`,
+        )
+      )
+        return;
+      await this.deletePayouts(this.selectedPayouts);
+    },
+    async deletePayouts(payoutIds) {
+      this.isLoading = true;
+      try {
+        const deleteFunction = httpsCallable(functions, "deleteWeeklyPayouts");
+        const result = await deleteFunction({ payoutIds: payoutIds });
+        alert(result.data.message);
+        this.selectedPayouts = [];
+        if (this.searchMode === "pending") {
+          await this.fetchPendingRequests();
+        } else {
+          await this.fetchRequestsByDate();
+        }
+      } catch (error) {
+        console.error("정산 내역 삭제 실패:", error);
+        alert(`삭제 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    selectAllPayouts(event) {
+      if (event.target.checked) {
+        this.selectedPayouts = this.requests.map((req) => req.id);
+      } else {
+        this.selectedPayouts = [];
       }
     },
     calculateFinalPayout(req) {
@@ -274,7 +344,6 @@ export default {
 </script>
 
 <style scoped>
-/* (기존 스타일은 변경되지 않았으므로 생략) */
 .payout-manager {
   padding: 20px;
 }
@@ -340,6 +409,14 @@ export default {
 .btn-manual-generate:hover:not(:disabled) {
   background-color: #5a32a3;
 }
+.btn-delete-selected,
+.btn-delete {
+  background-color: #dc3545;
+}
+.btn-delete-selected:hover:not(:disabled),
+.btn-delete:hover:not(:disabled) {
+  background-color: #c82333;
+}
 .payout-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
@@ -378,7 +455,7 @@ export default {
 }
 .payout-table th,
 .payout-table td {
-  padding: 12px 15px;
+  padding: 10px;
   border-bottom: 1px solid #eee;
 }
 .payout-table thead th {
