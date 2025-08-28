@@ -41,7 +41,13 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in paginatedUsers" :key="user.id">
+          <tr
+            v-for="user in paginatedUsers"
+            :key="user.id"
+            :class="{
+              'not-approved-row': user.subscriptionStatus !== 'active',
+            }"
+          >
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.centerName || "N/A" }}</td>
@@ -138,16 +144,15 @@ const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
 const currentPage = ref(1);
-const itemsPerPage = ref(10); // 기본값 10으로 유지
+const itemsPerPage = ref(10);
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+});
+
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
-
-// [수정] 페이지당 아이템 수가 변경되면 첫 페이지로 리셋
-watch(itemsPerPage, () => {
-  currentPage.value = 1;
-});
 
 const filteredUsers = computed(() => {
   if (!searchTerm.value) {
@@ -284,6 +289,10 @@ onMounted(fetchUsers);
 </script>
 
 <style scoped>
+/* [신규 추가] 구독 미승인 회원의 행 배경색 스타일 */
+.user-table tbody .not-approved-row {
+  background-color: #fff5f5; /* 연한 붉은색 계열 */
+}
 .user-management {
   background-color: #fff;
   padding: 30px;
@@ -299,9 +308,9 @@ onMounted(fetchUsers);
 }
 .filter-controls {
   margin-bottom: 20px;
-  display: flex; /* [수정] Flexbox 레이아웃 적용 */
-  gap: 15px; /* [수정] 검색창과 셀렉트 박스 사이 간격 추가 */
-  align-items: center; /* [수정] 수직 정렬 */
+  display: flex;
+  gap: 15px;
+  align-items: center;
 }
 .search-input {
   padding: 10px 15px;
@@ -311,7 +320,6 @@ onMounted(fetchUsers);
   max-width: 400px;
   font-size: 1em;
 }
-/* [신규 추가] 셀렉트 박스 스타일 */
 .items-per-page-select {
   padding: 10px;
   border-radius: 8px;
