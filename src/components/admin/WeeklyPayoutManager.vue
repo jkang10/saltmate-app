@@ -11,6 +11,18 @@
         <label for="payout-date">정산 주차 선택(일요일):</label>
         <input type="date" id="payout-date" v-model="selectedDate" />
       </div>
+
+      <div class="status-filter-wrapper">
+        <label for="status-filter">상태:</label>
+        <select id="status-filter" v-model="statusFilter">
+          <option value="pending">승인 대기</option>
+          <option value="all">전체</option>
+          <option value="approved">승인 완료</option>
+          <option value="approved_manual">수동 완료</option>
+          <option value="failed">실패</option>
+        </select>
+      </div>
+
       <button
         @click="fetchRequestsByDate"
         class="btn-search"
@@ -169,6 +181,7 @@ export default {
       selectedDate: getTodayString(),
       searchMode: "pending",
       selectedPayouts: [],
+      statusFilter: "pending", // [신규 추가] 상태 필터 데이터
     };
   },
   computed: {
@@ -185,6 +198,7 @@ export default {
   methods: {
     async fetchPendingRequests() {
       this.searchMode = "pending";
+      this.statusFilter = "pending"; // [수정] '승인 대기' 버튼 클릭 시 필터도 'pending'으로 설정
       this.isLoading = true;
       try {
         const q = query(
@@ -204,6 +218,7 @@ export default {
         this.isLoading = false;
       }
     },
+    // [수정] fetchRequestsByDate 메소드가 상태 필터를 사용하도록 변경
     async fetchRequestsByDate() {
       if (!this.selectedDate) {
         alert("조회할 날짜를 선택해주세요.");
@@ -212,10 +227,15 @@ export default {
       this.searchMode = "date";
       this.isLoading = true;
       try {
-        const q = query(
-          collection(db, "weekly_payout_requests"),
-          where("weekId", "==", this.selectedDate),
-        );
+        let baseQuery = collection(db, "weekly_payout_requests");
+        let constraints = [where("weekId", "==", this.selectedDate)];
+
+        // 상태 필터가 '전체'가 아닌 경우에만 status 조건 추가
+        if (this.statusFilter !== "all") {
+          constraints.push(where("status", "==", this.statusFilter));
+        }
+
+        const q = query(baseQuery, ...constraints);
         const querySnapshot = await getDocs(q);
         this.requests = querySnapshot.docs.map((d) => ({
           id: d.id,
@@ -223,7 +243,9 @@ export default {
         }));
       } catch (error) {
         console.error("날짜별 정산 목록 조회 오류:", error);
-        alert("데이터를 불러오는 데 실패했습니다.");
+        alert(
+          "데이터를 불러오는 데 실패했습니다. Firestore 콘솔에서 색인(Index)이 생성되었는지 확인해주세요.",
+        );
       } finally {
         this.isLoading = false;
       }
@@ -250,6 +272,7 @@ export default {
           dateString: this.selectedDate,
         });
         alert(result.data.message);
+        this.statusFilter = "pending"; // 정산 생성 후에는 '승인 대기' 목록을 보도록 설정
         await this.fetchRequestsByDate();
       } catch (error) {
         console.error("수동 정산 생성 실패:", error);
@@ -281,7 +304,6 @@ export default {
         this.isLoading = false;
       }
     },
-    // [신규 추가] 강제 승인 처리 메소드
     async forceApprovePayout(payoutId, userName) {
       if (
         !confirm(
@@ -365,7 +387,6 @@ export default {
       }
       return { cash: finalCash, saltmate: finalSaltmate };
     },
-    // [수정] getStatusText 메소드에 'approved_manual' 케이스 추가
     getStatusText(req) {
       switch (req.status) {
         case "pending":
@@ -385,6 +406,18 @@ export default {
 </script>
 
 <style scoped>
+/* [신규 추가] 상태 필터 스타일 */
+.status-filter-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#status-filter {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+/* 기존 스타일 유지 */
 .payout-manager {
   padding: 20px;
 }
@@ -516,9 +549,8 @@ export default {
 .btn-approve {
   background-color: #28a745;
 }
-/* [신규 추가] 강제 승인 버튼 스타일 */
 .btn-force-approve {
-  background-color: #fd7e14; /* 주황색 */
+  background-color: #fd7e14;
 }
 .final-amount {
   font-weight: bold;
@@ -543,9 +575,8 @@ export default {
 .status-badge.approved {
   background-color: #28a745;
 }
-/* [신규 추가] 수동 완료 뱃지 스타일 */
 .status-badge.approved_manual {
-  background-color: #6c757d; /* 회색 */
+  background-color: #6c757d;
 }
 .status-badge.failed {
   background-color: #dc3545;
