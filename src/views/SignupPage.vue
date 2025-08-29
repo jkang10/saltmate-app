@@ -89,24 +89,21 @@
               id="referrer"
               v-model="referrerInput"
               placeholder="추천인 이메일 또는 이름 입력"
-              :disabled="!!validatedReferrer.uid || isReferrerLoadedFromLink"
+              :disabled="!!validatedReferrer.uid"
             />
             <button
               type="button"
               @click="verifyReferrer"
               class="verify-button"
               :disabled="
-                isVerifying ||
-                !referrerInput ||
-                !!validatedReferrer.uid ||
-                isReferrerLoadedFromLink
+                isVerifying || !referrerInput || !!validatedReferrer.uid
               "
             >
               <span v-if="isVerifying" class="spinner-small"></span>
               <span v-else>검증</span>
             </button>
           </div>
-          <small v-if="!validatedReferrer.uid && !isReferrerLoadedFromLink"
+          <small v-if="!validatedReferrer.uid"
             >추천인의 이메일 또는 이름을 입력 후 '검증'을 눌러주세요.</small
           >
           <p
@@ -115,7 +112,7 @@
           >
             {{ referrerStatus.message }}
             <span
-              v-if="validatedReferrer.uid && !isReferrerLoadedFromLink"
+              v-if="validatedReferrer.uid"
               @click="resetReferrer"
               class="reset-referrer"
             >
@@ -138,25 +135,16 @@
 
 <script>
 import { ref, onMounted, reactive } from "vue";
-import { useRouter, useRoute } from "vue-router";
+import { useRouter } from "vue-router";
 import { auth, db, functions } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  limit,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 export default {
   name: "SignUpPage",
   setup() {
     const router = useRouter();
-    const route = useRoute();
     const email = ref("");
     const password = ref("");
     const confirmPassword = ref("");
@@ -171,7 +159,6 @@ export default {
     const isVerifying = ref(false);
     const validatedReferrer = reactive({ uid: null, name: null });
     const referrerStatus = reactive({ message: "", type: "" });
-    const isReferrerLoadedFromLink = ref(false);
 
     const fetchCenters = async () => {
       try {
@@ -185,34 +172,7 @@ export default {
       }
     };
 
-    onMounted(async () => {
-      await fetchCenters();
-      const refIdFromUrl = route.query.ref;
-      if (refIdFromUrl) {
-        isVerifying.value = true;
-        try {
-          const referrerRef = doc(db, "users", refIdFromUrl);
-          const docSnap = await getDoc(referrerRef);
-          if (docSnap.exists()) {
-            validatedReferrer.uid = refIdFromUrl;
-            validatedReferrer.name = docSnap.data().name;
-            referrerInput.value = docSnap.data().name;
-            referrerStatus.message = `✔️ 추천인 '${validatedReferrer.name}'님 확인 완료!`;
-            referrerStatus.type = "success";
-            isReferrerLoadedFromLink.value = true;
-          } else {
-            referrerStatus.message = "URL의 추천인 코드가 유효하지 않습니다.";
-            referrerStatus.type = "error";
-          }
-        } catch (error) {
-          console.error("URL 추천인 조회 실패:", error);
-          referrerStatus.message = "추천인 정보 조회 중 오류가 발생했습니다.";
-          referrerStatus.type = "error";
-        } finally {
-          isVerifying.value = false;
-        }
-      }
-    });
+    onMounted(fetchCenters);
 
     const verifyReferrer = async () => {
       if (!referrerInput.value) return;
@@ -345,7 +305,6 @@ export default {
       referrerStatus,
       verifyReferrer,
       resetReferrer,
-      isReferrerLoadedFromLink,
     };
   },
 };
