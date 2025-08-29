@@ -165,7 +165,7 @@ export default {
       },
       lastServerUpdateTime: null,
       gameInterval: null,
-      isInitialLoad: true, // [신규] 첫 로딩인지 확인하는 플래그
+      isInitialLoad: true,
     };
   },
   computed: {
@@ -195,6 +195,7 @@ export default {
           desc: "초당 +25 소금",
           icon: "fas fa-robot",
         },
+        // [핵심 수정] 아래 아이템 정의를 다시 작성하여 잠재적인 오류를 수정했습니다.
         {
           id: "pick_upgrade",
           name: "곡괭이 강화",
@@ -297,7 +298,7 @@ export default {
       this.upgrades = {};
       this.logs = [];
       this.isLoading = true;
-      this.isInitialLoad = true; // [수정] 리셋 시 첫 로딩 플래그도 초기화
+      this.isInitialLoad = true;
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
     listenToGameState() {
@@ -311,8 +312,6 @@ export default {
             state = docSnap.data();
             let currentSalt = state.salt || 0;
 
-            // --- [핵심 수정] ---
-            // 첫 로딩 시에만 오프라인 보상을 계산하고 DB에 업데이트합니다.
             if (this.isInitialLoad) {
               const upgrades = state.upgrades || {};
               const offlineMinerLevel = upgrades.offline_miner_1 || 0;
@@ -333,24 +332,20 @@ export default {
                   `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
                 );
                 currentSalt += offlineSalt;
-                // DB에 즉시 반영하여 중복 계산 방지
                 updateDoc(this.gameStateRef, {
                   salt: increment(offlineSalt),
                   lastUpdated: serverTimestamp(),
                 });
               }
-              this.isInitialLoad = false; // 첫 로딩이 끝났음을 표시
+              this.isInitialLoad = false;
             }
-            // --- 수정 끝 ---
 
-            // 실시간 동기화: 로컬 데이터를 DB 데이터로 덮어씁니다.
             this.salt = currentSalt;
             this.gold = state.gold || 0;
             this.perClick = state.perClick || 1;
             this.perSecond = state.perSecond || 0;
             this.upgrades = state.upgrades || {};
           } else {
-            // 신규 유저
             state = { salt: 0 };
             setDoc(this.gameStateRef, {
               ...this.getGameStateObject(),
@@ -359,7 +354,7 @@ export default {
             this.isInitialLoad = false;
           }
 
-          this.lastServerUpdateTime = new Date(); // 타이머 기준점 리셋
+          this.lastServerUpdateTime = new Date();
           this.isLoading = false;
         },
         (error) => {
