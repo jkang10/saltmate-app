@@ -185,7 +185,6 @@ export default {
       }
     };
 
-    // [신규 추가] 페이지 로드 시 URL의 추천인 ID 확인
     onMounted(async () => {
       await fetchCenters();
       const refIdFromUrl = route.query.ref;
@@ -289,7 +288,11 @@ export default {
       }
       isLoading.value = true;
       try {
-        await createUserWithEmailAndPassword(auth, email.value, password.value);
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email.value,
+          password.value,
+        );
 
         const createNewUser = httpsCallable(functions, "createNewUser");
 
@@ -315,6 +318,7 @@ export default {
         await createNewUser(userData);
 
         alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
+        await auth.signOut();
         router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
