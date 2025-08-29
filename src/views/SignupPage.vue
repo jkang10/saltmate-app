@@ -141,7 +141,7 @@ import { ref, onMounted, reactive } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { auth, db, functions } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   getDocs,
