@@ -195,7 +195,7 @@ export default {
           desc: "초당 +25 소금",
           icon: "fas fa-robot",
         },
-        // [핵심 수정] 아래 아이템 정의를 다시 작성하여 잠재적인 오류를 수정했습니다.
+        // '곡괭이 강화' 아이템의 아이콘을 'fas fa-hammer'로 변경했습니다.
         {
           id: "pick_upgrade",
           name: "곡괭이 강화",
@@ -203,7 +203,7 @@ export default {
           type: "click",
           add: 1,
           desc: "클릭당 +1 소금",
-          icon: "fas fa-pickaxe",
+          icon: "fas fa-hammer",
         },
         {
           id: "offline_miner_1",
@@ -230,7 +230,7 @@ export default {
       if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
       if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
       if ((this.upgrades["miner"] || 0) > 0) return "fas fa-cogs";
-      return "fas fa-pickaxe";
+      return "fas fa-hammer"; // 메인 곡괭이 아이콘도 망치로 변경
     },
     achievements() {
       const ACH_DEFS = [
