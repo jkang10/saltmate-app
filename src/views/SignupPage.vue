@@ -136,9 +136,9 @@
 <script>
 import { ref, onMounted, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { auth, db, functions } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 export default {
@@ -150,7 +150,9 @@ export default {
     const confirmPassword = ref("");
     const name = ref("");
     const phone = ref("");
+    // ▼▼▼ [수정됨] region을 selectedCenterId로 변경 ▼▼▼
     const selectedCenterId = ref("");
+    // ▲▲▲ 수정 완료 ▲▲▲
     const investmentAmount = ref("");
     const error = ref(null);
     const isLoading = ref(false);
@@ -171,7 +173,6 @@ export default {
         console.error("센터 목록 로딩 오류:", err);
       }
     };
-
     onMounted(fetchCenters);
 
     const verifyReferrer = async () => {
@@ -238,10 +239,12 @@ export default {
         error.value = "비밀번호가 일치하지 않습니다.";
         return;
       }
+      // ▼▼▼ [수정됨] selectedCenterId 유효성 검사 추가 ▼▼▼
       if (!selectedCenterId.value) {
         error.value = "지역(센터)를 선택해주세요.";
         return;
       }
+      // ▲▲▲ 수정 완료 ▲▲▲
       if (!investmentAmount.value) {
         error.value = "구독 등급을 선택해주세요.";
         return;
@@ -249,12 +252,15 @@ export default {
       isLoading.value = true;
       try {
         await createUserWithEmailAndPassword(auth, email.value, password.value);
+
+        const functions = getFunctions();
         const createNewUser = httpsCallable(functions, "createNewUser");
 
         const selectElement = document.getElementById("investment-amount");
         const selectedTierName =
           selectElement.options[selectElement.selectedIndex].text;
 
+        // ▼▼▼ [수정됨] userData 객체에 centerId와 region(센터이름) 추가 ▼▼▼
         const selectedCenter = centers.value.find(
           (c) => c.id === selectedCenterId.value,
         );
@@ -269,11 +275,11 @@ export default {
           uplineReferrer: validatedReferrer.uid || null,
           tierName: selectedTierName,
         };
+        // ▲▲▲ 수정 완료 ▲▲▲
 
         await createNewUser(userData);
 
         alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
-        await auth.signOut();
         router.push("/login");
       } catch (err) {
         console.error("회원가입 오류:", err);
@@ -293,7 +299,9 @@ export default {
       confirmPassword,
       name,
       phone,
+      // ▼▼▼ [수정됨] region 대신 selectedCenterId를 반환 ▼▼▼
       selectedCenterId,
+      // ▲▲▲ 수정 완료 ▲▲▲
       investmentAmount,
       error,
       isLoading,

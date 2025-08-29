@@ -2,7 +2,7 @@
   <div class="page-container">
     <header class="page-header">
       <h1><i class="fas fa-user-circle"></i> 나의 프로필</h1>
-      <p class="description">계정 정보를 확인하고 설정을 변경할 수 있습니다.</p>
+      <p class="description">계정 정보를 확인하고 추천인 링크를 공유하세요.</p>
     </header>
 
     <main class="content-wrapper card glassmorphism">
@@ -62,6 +62,20 @@
                 <label>총 추천인 수</label>
                 <span>{{ referralCount }} 명</span>
               </div>
+            </div>
+          </div>
+
+          <div class="detail-card">
+            <h3><i class="fas fa-link"></i> 나의 추천인 링크</h3>
+            <p class="referral-desc">
+              이 링크를 공유하여 가입하는 모든 회원은 회원님의 하위 파트너로
+              등록됩니다.
+            </p>
+            <div class="link-box">
+              <input type="text" :value="referralLink" readonly />
+              <button @click="copyLink" class="copy-button">
+                <i class="fas fa-copy"></i> 복사
+              </button>
             </div>
           </div>
 
@@ -128,6 +142,14 @@ export default {
       isNotificationSettingsModalVisible: false,
     };
   },
+  computed: {
+    referralLink() {
+      if (auth.currentUser) {
+        return `${window.location.origin}/signup?ref=${auth.currentUser.uid}`;
+      }
+      return "로그인 후 확인 가능합니다.";
+    },
+  },
   async created() {
     await this.fetchProfileData();
   },
@@ -165,6 +187,19 @@ export default {
         this.isLoading = false;
       }
     },
+    async copyLink() {
+      if (!navigator.clipboard) {
+        alert("클립보드 복사 기능이 지원되지 않는 브라우저입니다.");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(this.referralLink);
+        alert("추천인 링크가 클립보드에 복사되었습니다!");
+      } catch (err) {
+        console.error("링크 복사 실패:", err);
+        alert("링크 복사에 실패했습니다.");
+      }
+    },
     formatDate(timestamp) {
       if (!timestamp?.toDate) return "N/A";
       return timestamp.toDate().toLocaleDateString("ko-KR");
@@ -180,6 +215,40 @@ export default {
 </script>
 
 <style scoped>
+/* [신규 추가] 추천인 링크 관련 스타일 */
+.referral-desc {
+  font-size: 0.95em;
+  color: #555;
+  margin-bottom: 15px;
+}
+.link-box {
+  display: flex;
+}
+.link-box input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.95em;
+  border: 1px solid #ccc;
+  border-radius: 8px 0 0 8px;
+  background-color: #f8f9fa;
+  color: #333;
+  outline: none;
+}
+.copy-button {
+  padding: 0 20px;
+  border: 1px solid #007bff;
+  background-color: #007bff;
+  color: white;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+.copy-button:hover {
+  background-color: #0056b3;
+}
+/* (이하 기존 스타일 유지) */
 .page-container {
   padding: 20px;
   max-width: 1000px;
