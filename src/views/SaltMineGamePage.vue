@@ -111,8 +111,8 @@
 </template>
 
 <script>
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { auth, db } from "@/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "@/firebaseConfig";
 import {
   doc,
   getDoc,
@@ -139,23 +139,51 @@ export default {
       gameStateRef: null,
       isLoading: true,
       authUnsubscribe: null,
-      gameStateUnsubscribe: null, // 실시간 리스너 구독 해제용
+      gameStateUnsubscribe: null,
       gameSettings: {
         saltMineRate: 1000,
         deepSeaRate: 100000,
       },
-      lastServerUpdateTime: null, // 서버에서 마지막으로 업데이트된 시간
-      // [수정] gameTick 인터벌 ID를 저장할 변수 추가
+      lastServerUpdateTime: null,
       gameInterval: null,
     };
   },
   computed: {
     shopItems() {
       const SHOP_DEFS = [
-        { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
-        { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
-        { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
-        { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-pickaxe" },
+        {
+          id: "miner",
+          name: "자동 채굴기",
+          baseCost: 50,
+          gps: 1,
+          desc: "초당 +1 소금",
+          icon: "fas fa-cogs",
+        },
+        {
+          id: "drill",
+          name: "전동 드릴",
+          baseCost: 300,
+          gps: 5,
+          desc: "초당 +5 소금",
+          icon: "fas fa-tools",
+        },
+        {
+          id: "robot",
+          name: "채굴 로봇",
+          baseCost: 2000,
+          gps: 25,
+          desc: "초당 +25 소금",
+          icon: "fas fa-robot",
+        },
+        {
+          id: "pick_upgrade",
+          name: "곡괭이 강화",
+          baseCost: 120,
+          type: "click",
+          add: 1,
+          desc: "클릭당 +1 소금",
+          icon: "fas fa-pickaxe",
+        },
       ];
       return SHOP_DEFS.map((item) => ({
         ...item,
@@ -172,10 +200,34 @@ export default {
     },
     achievements() {
       const ACH_DEFS = [
-        { id: "salt_1000", name: "초보 광부", desc: "소금 1,000개 모으기", icon: "⛏️", unlocked: this.salt >= 1000 },
-        { id: "salt_10000", name: "숙련된 광부", desc: "소금 10,000개 모으기", icon: "⚒️", unlocked: this.salt >= 10000 },
-        { id: "gold_1", name: "첫 발견", desc: "황금 소금 1개 발견하기", icon: "✨", unlocked: this.gold >= 1 },
-        { id: "automation_expert", name: "자동화 전문가", desc: "채굴 로봇 구매하기", icon: "🤖", unlocked: (this.upgrades["robot"] || 0) > 0 },
+        {
+          id: "salt_1000",
+          name: "초보 광부",
+          desc: "소금 1,000개 모으기",
+          icon: "⛏️",
+          unlocked: this.salt >= 1000,
+        },
+        {
+          id: "salt_10000",
+          name: "숙련된 광부",
+          desc: "소금 10,000개 모으기",
+          icon: "⚒️",
+          unlocked: this.salt >= 10000,
+        },
+        {
+          id: "gold_1",
+          name: "첫 발견",
+          desc: "황금 소금 1개 발견하기",
+          icon: "✨",
+          unlocked: this.gold >= 1,
+        },
+        {
+          id: "automation_expert",
+          name: "자동화 전문가",
+          desc: "채굴 로봇 구매하기",
+          icon: "🤖",
+          unlocked: (this.upgrades["robot"] || 0) > 0,
+        },
       ];
       return ACH_DEFS;
     },
@@ -196,13 +248,11 @@ export default {
         this.logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
       }
     });
-    // gameTick은 mounted에서 한 번만 설정
     this.gameInterval = setInterval(this.gameTick, 1000);
   },
   unmounted() {
     if (this.authUnsubscribe) this.authUnsubscribe();
     if (this.gameStateUnsubscribe) this.gameStateUnsubscribe();
-    // 컴포넌트 파괴 시 인터벌 정리
     clearInterval(this.gameInterval);
   },
   methods: {
@@ -287,7 +337,8 @@ export default {
         this.lastServerUpdateTime = now;
         return;
       }
-      const visualDiff = (now.getTime() - this.lastServerUpdateTime.getTime()) / 1000;
+      const visualDiff =
+        (now.getTime() - this.lastServerUpdateTime.getTime()) / 1000;
       this.salt += this.perSecond * visualDiff;
       this.lastServerUpdateTime = now;
     },
@@ -314,22 +365,22 @@ export default {
       try {
         const currentDoc = await getDoc(this.gameStateRef);
         if (!currentDoc.exists() || (currentDoc.data().salt || 0) < item.cost) {
-            this.logEvent("소금이 부족합니다!");
-            return;
+          this.logEvent("소금이 부족합니다!");
+          return;
         }
         const newLevel = (currentDoc.data().upgrades?.[itemId] || 0) + 1;
         const updatePayload = {
-            salt: increment(-item.cost),
-            [`upgrades.${itemId}`]: newLevel,
-            lastUpdated: serverTimestamp(),
+          salt: increment(-item.cost),
+          [`upgrades.${itemId}`]: newLevel,
+          lastUpdated: serverTimestamp(),
         };
         if (item.gps) updatePayload.perSecond = increment(item.gps);
         if (item.type === "click") updatePayload.perClick = increment(item.add);
         await updateDoc(this.gameStateRef, updatePayload);
         this.logEvent(`'${item.name}' 업그레이드 구매!`);
       } catch (error) {
-          console.error("업그레이드 실패:", error);
-          this.logEvent("업그레이드 중 오류가 발생했습니다.");
+        console.error("업그레이드 실패:", error);
+        this.logEvent("업그레이드 중 오류가 발생했습니다.");
       }
     },
     async sellSalt() {
@@ -339,9 +390,11 @@ export default {
       }
       if (this.isSelling) return;
 
-      // [수정] 판매 가능 여부를 DB 데이터 기준으로 확인하기 위해 getDoc 사용
       const currentDoc = await getDoc(this.gameStateRef);
-      if (!currentDoc.exists() || (currentDoc.data().salt || 0) < this.gameSettings.saltMineRate) {
+      if (
+        !currentDoc.exists() ||
+        (currentDoc.data().salt || 0) < this.gameSettings.saltMineRate
+      ) {
         alert(
           `${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`,
         );
