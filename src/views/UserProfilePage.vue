@@ -2,7 +2,7 @@
   <div class="page-container">
     <header class="page-header">
       <h1><i class="fas fa-user-circle"></i> 나의 프로필</h1>
-      <p class="description">계정 정보를 확인하고 추천인 링크를 공유하세요.</p>
+      <p class="description">계정 정보를 확인하고 설정을 변경할 수 있습니다.</p>
     </header>
 
     <main class="content-wrapper card glassmorphism">
@@ -43,39 +43,35 @@
 
         <section class="profile-details-section">
           <div class="detail-card">
-            <h3><i class="fas fa-chart-bar"></i> 투자 요약</h3>
+            <h3><i class="fas fa-chart-bar"></i> 활동 요약</h3>
             <div class="summary-grid">
               <div class="summary-item">
-                <label>현재 등급</label>
-                <span>{{ userProfile.tier }}</span>
-              </div>
-              <div class="summary-item">
-                <label>총 구독 원금</label>
+                <label>총 추천인 수</label>
                 <span
                   >{{
-                    (userProfile.investmentAmount || 0).toLocaleString()
+                    (userProfile.referralCount || 0).toLocaleString()
+                  }}
+                  명</span
+                >
+              </div>
+              <div class="summary-item">
+                <label>총 정산 수익</label>
+                <span
+                  >{{
+                    (userProfile.totalPayouts || 0).toLocaleString()
                   }}
                   원</span
                 >
               </div>
               <div class="summary-item">
-                <label>총 추천인 수</label>
-                <span>{{ referralCount }} 명</span>
+                <label>총 게임 수익</label>
+                <span
+                  >{{
+                    (userProfile.totalGameWinnings || 0).toLocaleString()
+                  }}
+                  S</span
+                >
               </div>
-            </div>
-          </div>
-
-          <div class="detail-card">
-            <h3><i class="fas fa-link"></i> 나의 추천인 링크</h3>
-            <p class="referral-desc">
-              이 링크를 공유하여 가입하는 모든 회원은 회원님의 하위 파트너로
-              등록됩니다.
-            </p>
-            <div class="link-box">
-              <input type="text" :value="referralLink" readonly />
-              <button @click="copyLink" class="copy-button">
-                <i class="fas fa-copy"></i> 복사
-              </button>
             </div>
           </div>
 
@@ -115,14 +111,7 @@
 
 <script>
 import { auth, db } from "@/firebaseConfig";
-import {
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import ChangePasswordModal from "@/components/ChangePasswordModal.vue";
 import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue";
 
@@ -135,20 +124,11 @@ export default {
   data() {
     return {
       userProfile: null,
-      referralCount: 0,
       isLoading: true,
       error: null,
       isPasswordModalVisible: false,
       isNotificationSettingsModalVisible: false,
     };
-  },
-  computed: {
-    referralLink() {
-      if (auth.currentUser) {
-        return `${window.location.origin}/signup?ref=${auth.currentUser.uid}`;
-      }
-      return "로그인 후 확인 가능합니다.";
-    },
   },
   async created() {
     await this.fetchProfileData();
@@ -165,39 +145,21 @@ export default {
 
       try {
         const userId = auth.currentUser.uid;
-
         const userRef = doc(db, "users", userId);
         const userSnap = await getDoc(userRef);
+
         if (userSnap.exists()) {
           this.userProfile = userSnap.data();
         } else {
           throw new Error("사용자 프로필을 찾을 수 없습니다.");
         }
 
-        const referralsQuery = query(
-          collection(db, "users"),
-          where("uplineReferrer", "==", userId),
-        );
-        const referralsSnapshot = await getDocs(referralsQuery);
-        this.referralCount = referralsSnapshot.size;
+        // [삭제] 추천인 수를 계산하기 위한 별도 쿼리를 삭제하여 읽기 작업 감소
       } catch (e) {
         console.error("프로필 데이터 조회 오류:", e);
         this.error = "프로필 정보를 불러오는 데 실패했습니다.";
       } finally {
         this.isLoading = false;
-      }
-    },
-    async copyLink() {
-      if (!navigator.clipboard) {
-        alert("클립보드 복사 기능이 지원되지 않는 브라우저입니다.");
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(this.referralLink);
-        alert("추천인 링크가 클립보드에 복사되었습니다!");
-      } catch (err) {
-        console.error("링크 복사 실패:", err);
-        alert("링크 복사에 실패했습니다.");
       }
     },
     formatDate(timestamp) {
