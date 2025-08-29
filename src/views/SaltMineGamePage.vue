@@ -165,6 +165,7 @@ export default {
       },
       lastServerUpdateTime: null,
       gameInterval: null,
+      isInitialLoad: true, // [신규] 첫 로딩인지 확인하는 플래그
     };
   },
   computed: {
@@ -296,6 +297,7 @@ export default {
       this.upgrades = {};
       this.logs = [];
       this.isLoading = true;
+      this.isInitialLoad = true; // [수정] 리셋 시 첫 로딩 플래그도 초기화
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
     listenToGameState() {
@@ -307,42 +309,57 @@ export default {
           let state;
           if (docSnap.exists()) {
             state = docSnap.data();
-            const upgrades = state.upgrades || {};
-            const offlineMinerLevel = upgrades.offline_miner_1 || 0;
-            let maxOfflineSeconds = 0;
-            if (offlineMinerLevel > 0) {
-              maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
-            }
-            const lastUpdate = state.lastUpdated?.toDate() || new Date();
-            const now = new Date();
-            const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-            const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
-            const offlineSalt = Math.floor(
-              effectiveSeconds * (state.perSecond || 0),
-            );
-            if (offlineSalt > 0) {
-              this.logEvent(
-                `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
+            let currentSalt = state.salt || 0;
+
+            // --- [핵심 수정] ---
+            // 첫 로딩 시에만 오프라인 보상을 계산하고 DB에 업데이트합니다.
+            if (this.isInitialLoad) {
+              const upgrades = state.upgrades || {};
+              const offlineMinerLevel = upgrades.offline_miner_1 || 0;
+              let maxOfflineSeconds = 0;
+              if (offlineMinerLevel > 0) {
+                maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
+              }
+              const lastUpdate = state.lastUpdated?.toDate() || new Date();
+              const now = new Date();
+              const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
+              const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
+              const offlineSalt = Math.floor(
+                effectiveSeconds * (state.perSecond || 0),
               );
-              updateDoc(this.gameStateRef, {
-                salt: increment(offlineSalt),
-                lastUpdated: serverTimestamp(),
-              });
+
+              if (offlineSalt > 0) {
+                this.logEvent(
+                  `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
+                );
+                currentSalt += offlineSalt;
+                // DB에 즉시 반영하여 중복 계산 방지
+                updateDoc(this.gameStateRef, {
+                  salt: increment(offlineSalt),
+                  lastUpdated: serverTimestamp(),
+                });
+              }
+              this.isInitialLoad = false; // 첫 로딩이 끝났음을 표시
             }
-            this.salt = (state.salt || 0) + offlineSalt;
+            // --- 수정 끝 ---
+
+            // 실시간 동기화: 로컬 데이터를 DB 데이터로 덮어씁니다.
+            this.salt = currentSalt;
+            this.gold = state.gold || 0;
+            this.perClick = state.perClick || 1;
+            this.perSecond = state.perSecond || 0;
+            this.upgrades = state.upgrades || {};
           } else {
+            // 신규 유저
             state = { salt: 0 };
             setDoc(this.gameStateRef, {
               ...this.getGameStateObject(),
               lastUpdated: serverTimestamp(),
             });
+            this.isInitialLoad = false;
           }
-          this.gold = state.gold || 0;
-          this.perClick = state.perClick || 1;
-          this.perSecond = state.perSecond || 0;
-          this.upgrades = state.upgrades || {};
-          // [핵심 수정] DB에서 데이터를 성공적으로 불러온 후, 타이머의 기준점을 현재 시간으로 리셋합니다.
-          this.lastServerUpdateTime = new Date();
+
+          this.lastServerUpdateTime = new Date(); // 타이머 기준점 리셋
           this.isLoading = false;
         },
         (error) => {
