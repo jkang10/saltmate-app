@@ -19,7 +19,12 @@
         <p>{{ error }}</p>
       </div>
       <div v-else class="chart-container">
-        <v-chart class="chart" :option="chartOption" autoresize />
+        <v-chart
+          class="chart"
+          :option="chartOption"
+          autoresize
+          :init-options="{ renderer: 'canvas' }"
+        />
       </div>
     </main>
   </div>
@@ -36,28 +41,31 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
+import "echarts";
+import VChart from "vue-echarts";
 
 export default {
   name: "NetworkTreePage",
+  components: {
+    VChart,
+  },
   setup() {
     const isLoading = ref(true);
     const error = ref(null);
     const chartOption = reactive({});
-    const isAdminView = ref(false); // 관리자 뷰인지 여부
+    const isAdminView = ref(false);
 
-    // --- 관리자용: 전체 네트워크 생성 ---
     const fetchAllNetworks = async () => {
+      // (관리자용 코드는 변경 없음)
       const usersSnapshot = await getDocs(collection(db, "users"));
       const nodes = [];
       const links = [];
       const userMap = new Map();
 
-      // 1. 모든 사용자를 노드로 추가하고, Map에 저장
       usersSnapshot.forEach((userDoc) => {
         const userData = { id: userDoc.id, ...userDoc.data() };
         userMap.set(userData.id, userData);
-
-        const isRoot = !userData.uplineReferrer; // 최상위 노드 여부
+        const isRoot = !userData.uplineReferrer;
         nodes.push({
           id: userData.id,
           name: userData.name,
@@ -71,7 +79,6 @@ export default {
         });
       });
 
-      // 2. 사용자들을 순회하며 링크 생성
       userMap.forEach((user) => {
         if (user.uplineReferrer && userMap.has(user.uplineReferrer)) {
           links.push({
@@ -80,11 +87,9 @@ export default {
           });
         }
       });
-
       setChartOption(nodes, links, ["최상위", "일반"]);
     };
 
-    // --- 일반 사용자용: 내 하위 네트워크 생성 ---
     const fetchMyDownline = async (userId) => {
       const nodes = [];
       const links = [];
@@ -92,10 +97,8 @@ export default {
       const currentUserSnap = await getDoc(doc(db, "users", userId));
       if (!currentUserSnap.exists())
         throw new Error("사용자 정보를 찾을 수 없습니다.");
-
       const me = { id: currentUserSnap.id, ...currentUserSnap.data() };
 
-      // 1. 루트 노드 (본인) 추가
       nodes.push({
         id: me.id,
         name: `${me.name} (나)`,
@@ -111,9 +114,9 @@ export default {
         itemStyle: { borderColor: "#ffc107", borderWidth: 3 },
       });
 
-      // 2. 하위 라인 데이터 재귀적으로 불러오기
-      const fetchRecursive = async (parentId, level, maxLevel) => {
-        if (level > maxLevel) return;
+      // --- [핵심 수정] ---
+      // 1. maxLevel 파라미터와 레벨 제한 로직을 제거하여 모든 하위 라인을 탐색
+      const fetchRecursive = async (parentId, level) => {
         const q = query(
           collection(db, "users"),
           where("uplineReferrer", "==", parentId),
@@ -131,15 +134,22 @@ export default {
             label: { show: true, formatter: "{b}" },
           });
           links.push({ source: parentId, target: userData.id });
-          await fetchRecursive(userData.id, level + 1, maxLevel);
+          await fetchRecursive(userData.id, level + 1); // 다음 레벨을 재귀 호출
         }
       };
 
-      await fetchRecursive(me.id, 1, 3); // 최대 3레벨
-      setChartOption(nodes, links, ["나", "1대", "2대", "3대"]);
+      // 2. 최대 레벨 제한 없이 함수 호출
+      await fetchRecursive(me.id, 1);
+
+      // 3. 깊은 레벨도 표시할 수 있도록 카테고리를 동적으로 생성 (최대 15대까지)
+      const categories = ["나"];
+      for (let i = 1; i < 15; i++) {
+        categories.push(`${i}대`);
+      }
+      setChartOption(nodes, links, categories);
+      // --- 수정 끝 ---
     };
 
-    // --- 메인 로직 ---
     const buildNetworkTree = async () => {
       isLoading.value = true;
       if (!auth.currentUser) {
@@ -147,19 +157,18 @@ export default {
         isLoading.value = false;
         return;
       }
-
       try {
         const currentUserProfile = await getDoc(
           doc(db, "users", auth.currentUser.uid),
         );
         const isAdmin =
           currentUserProfile.exists() && currentUserProfile.data().isAdmin;
-        isAdminView.value = isAdmin; // 관리자 뷰 여부 설정
+        isAdminView.value = isAdmin;
 
         if (isAdmin) {
-          await fetchAllNetworks(); // 관리자는 전체 네트워크 조회
+          await fetchAllNetworks();
         } else {
-          await fetchMyDownline(auth.currentUser.uid); // 일반 사용자는 내 하위 네트워크 조회
+          await fetchMyDownline(auth.currentUser.uid);
         }
       } catch (e) {
         console.error("네트워크 트리 생성 오류:", e);
@@ -178,7 +187,16 @@ export default {
             }
           },
         },
-        legend: [{ data: categories, textStyle: { color: "#333" } }],
+        legend: [
+          {
+            data: categories,
+            textStyle: { color: "#333" },
+            // [수정] 범례 위치 및 모양 설정
+            orient: "vertical",
+            left: "left",
+            top: "top",
+          },
+        ],
         series: [
           {
             type: "graph",
