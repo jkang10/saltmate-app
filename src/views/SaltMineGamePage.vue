@@ -433,6 +433,7 @@ export default {
       // 중요한 액션이므로 즉시 저장
       this.saveGame();
     },
+
     async sellSalt() {
       if (!this.currentUser) {
         alert("로그인이 필요합니다.");
@@ -458,6 +459,9 @@ export default {
         const result = await sellSaltForPoints({});
         const { awardedPoints, soldSalt } = result.data;
 
+        // [핵심 수정] 판매 성공 후, DB로부터 최신 게임 데이터를 다시 불러옵니다.
+        await this.loadGame();
+
         this.logEvent(
           `소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`,
         );
@@ -471,6 +475,7 @@ export default {
         this.isSelling = false;
       }
     },
+
     async exchangeGold() {
       if (!this.currentUser || this.gold < 1) return;
       if (
