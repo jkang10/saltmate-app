@@ -135,8 +135,6 @@ import {
   getDoc,
   setDoc,
   onSnapshot,
-  updateDoc,
-  increment,
   serverTimestamp,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
