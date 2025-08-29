@@ -67,13 +67,6 @@
 
         <div class="sell-card card">
           <h3>소금 판매소</h3>
-          <div class="gold-salt-display">
-            <i class="fas fa-medal"></i>
-            <span
-              >보유 황금 소금:
-              <strong>{{ gold.toLocaleString() }}</strong> 개</span
-            >
-          </div>
           <p>
             현재 시세:
             <strong
@@ -84,9 +77,33 @@
           <button
             @click="sellSalt"
             :disabled="isSelling || salt < gameSettings.saltMineRate"
+            class="sell-button"
           >
             <span v-if="isSelling">판매 중...</span>
             <span v-else>모두 판매하기</span>
+          </button>
+        </div>
+
+        <div class="sell-card card gold-feature">
+          <h3>황금 소금 교환소</h3>
+          <div class="gold-salt-display">
+            <i class="fas fa-medal"></i>
+            <span
+              >보유 황금 소금:
+              <strong>{{ gold.toLocaleString() }}</strong> 개</span
+            >
+          </div>
+          <p class="feature-desc">
+            황금 소금 1개를 {{ gameSettings.goldenSaltExchangeRate }} SaltMate로
+            교환합니다.
+          </p>
+          <button
+            @click="exchangeGold"
+            :disabled="isExchanging || gold < 1"
+            class="boost-button"
+          >
+            <span v-if="isExchanging">교환 중...</span>
+            <span v-else>SaltMate로 교환</span>
           </button>
         </div>
 
@@ -134,6 +151,7 @@ export default {
       perSecond: 0,
       upgrades: {},
       isSelling: false,
+      isExchanging: false,
       logs: [],
       currentUser: null,
       gameStateRef: null,
@@ -143,6 +161,7 @@ export default {
       gameSettings: {
         saltMineRate: 1000,
         deepSeaRate: 100000,
+        goldenSaltExchangeRate: 1,
       },
       lastServerUpdateTime: null,
       gameInterval: null,
@@ -184,11 +203,25 @@ export default {
           desc: "클릭당 +1 소금",
           icon: "fas fa-pickaxe",
         },
+        // [핵심 수정] baseCost를 1,000,000으로 변경
+        {
+          id: "offline_miner_1",
+          name: "기본 자동 채굴기",
+          baseCost: 1000000,
+          type: "offline",
+          duration: 2,
+          desc: "최대 2시간 오프라인 채굴",
+          icon: "fas fa-power-off",
+        },
       ];
       return SHOP_DEFS.map((item) => ({
         ...item,
         cost: Math.ceil(
-          item.baseCost * Math.pow(1.6, this.upgrades[item.id] || 0),
+          item.baseCost *
+            Math.pow(
+              item.id.startsWith("offline") ? 2.5 : 1.6,
+              this.upgrades[item.id] || 0,
+            ),
         ),
       }));
     },
@@ -275,13 +308,23 @@ export default {
           let state;
           if (docSnap.exists()) {
             state = docSnap.data();
+            const upgrades = state.upgrades || {};
+            const offlineMinerLevel = upgrades.offline_miner_1 || 0;
+            let maxOfflineSeconds = 0;
+            if (offlineMinerLevel > 0) {
+              maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
+            }
             const lastUpdate = state.lastUpdated?.toDate() || new Date();
             const now = new Date();
             const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
+            const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
             const offlineSalt = Math.floor(
-              secondsDiff * (state.perSecond || 0),
+              effectiveSeconds * (state.perSecond || 0),
             );
             if (offlineSalt > 0) {
+              this.logEvent(
+                `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
+              );
               updateDoc(this.gameStateRef, {
                 salt: increment(offlineSalt),
                 lastUpdated: serverTimestamp(),
@@ -324,9 +367,8 @@ export default {
           const data = docSnap.data();
           this.gameSettings.saltMineRate = data.saltMineRate || 1000;
           this.gameSettings.deepSeaRate = data.deepSeaRate || 100000;
-        } else {
-          this.gameSettings.saltMineRate = 20000;
-          this.gameSettings.deepSeaRate = 100000;
+          this.gameSettings.goldenSaltExchangeRate =
+            data.goldenSaltExchangeRate || 1;
         }
       });
     },
@@ -421,6 +463,37 @@ export default {
         this.isSelling = false;
       }
     },
+    async exchangeGold() {
+      if (!this.currentUser || this.gold < 1) return;
+      if (
+        !confirm(
+          `황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`,
+        )
+      )
+        return;
+
+      this.isExchanging = true;
+      try {
+        const exchangeGoldenSalt = httpsCallable(
+          functions,
+          "exchangeGoldenSalt",
+        );
+        const result = await exchangeGoldenSalt();
+        const { awardedPoints } = result.data;
+
+        this.logEvent(
+          `황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`,
+        );
+        alert(
+          `황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`,
+        );
+      } catch (error) {
+        console.error("황금 소금 교환 오류:", error);
+        alert(`오류: ${error.message}`);
+      } finally {
+        this.isExchanging = false;
+      }
+    },
     logEvent(message) {
       const time = new Date().toLocaleTimeString();
       this.logs.unshift(`[${time}] ${message}`);
@@ -437,7 +510,6 @@ export default {
 </script>
 
 <style scoped>
-/* (스타일은 변경사항 없음) */
 .page-container {
   max-width: 1100px;
   margin: 70px auto 20px;
@@ -636,18 +708,22 @@ export default {
   font-size: 1.1em;
   color: #334155;
 }
-.sell-card button {
+.sell-button,
+.boost-button {
   width: 100%;
   padding: 12px;
   font-size: 1em;
   font-weight: bold;
-  background-color: #22c55e;
-  color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
 }
-.sell-card button:disabled {
+.sell-button {
+  background-color: #22c55e;
+  color: white;
+}
+.sell-button:disabled,
+.boost-button:disabled {
   background-color: #94a3b8;
   cursor: not-allowed;
 }
@@ -678,5 +754,18 @@ export default {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
+}
+.gold-feature {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.feature-desc {
+  font-size: 0.9em;
+  color: #78350f;
+  margin-bottom: 15px;
+}
+.boost-button {
+  background-color: #f59e0b;
+  color: white;
 }
 </style>
