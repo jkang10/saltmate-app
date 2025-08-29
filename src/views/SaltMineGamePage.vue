@@ -145,31 +145,65 @@ export default {
         deepSeaRate: 100000,
       },
       lastServerUpdateTime: null, // 서버에서 마지막으로 업데이트된 시간
+      // [수정] gameTick 인터벌 ID를 저장할 변수 추가
+      gameInterval: null,
     };
   },
   computed: {
-    // (computed 부분은 기존 코드와 동일하여 생략)
+    shopItems() {
+      const SHOP_DEFS = [
+        { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
+        { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
+        { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
+        { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-pickaxe" },
+      ];
+      return SHOP_DEFS.map((item) => ({
+        ...item,
+        cost: Math.ceil(
+          item.baseCost * Math.pow(1.6, this.upgrades[item.id] || 0),
+        ),
+      }));
+    },
+    currentPickaxeIcon() {
+      if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
+      if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
+      if ((this.upgrades["miner"] || 0) > 0) return "fas fa-cogs";
+      return "fas fa-pickaxe";
+    },
+    achievements() {
+      const ACH_DEFS = [
+        { id: "salt_1000", name: "초보 광부", desc: "소금 1,000개 모으기", icon: "⛏️", unlocked: this.salt >= 1000 },
+        { id: "salt_10000", name: "숙련된 광부", desc: "소금 10,000개 모으기", icon: "⚒️", unlocked: this.salt >= 10000 },
+        { id: "gold_1", name: "첫 발견", desc: "황금 소금 1개 발견하기", icon: "✨", unlocked: this.gold >= 1 },
+        { id: "automation_expert", name: "자동화 전문가", desc: "채굴 로봇 구매하기", icon: "🤖", unlocked: (this.upgrades["robot"] || 0) > 0 },
+      ];
+      return ACH_DEFS;
+    },
   },
   mounted() {
     this.authUnsubscribe = onAuthStateChanged(auth, (user) => {
       this.resetGameState();
       if (this.gameStateUnsubscribe) {
-        this.gameStateUnsubscribe(); // 이전 유저의 리스너 구독 해제
+        this.gameStateUnsubscribe();
       }
       if (user) {
         this.currentUser = user;
         this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
-        this.listenToGameState(); // 실시간 리스너 시작
+        this.listenToGameState();
         this.listenToGameSettings();
       } else {
         this.currentUser = null;
         this.logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
       }
     });
+    // gameTick은 mounted에서 한 번만 설정
+    this.gameInterval = setInterval(this.gameTick, 1000);
   },
   unmounted() {
     if (this.authUnsubscribe) this.authUnsubscribe();
-    if (this.gameStateUnsubscribe) this.gameStateUnsubscribe(); // 컴포넌트 파괴 시 리스너 구독 해제
+    if (this.gameStateUnsubscribe) this.gameStateUnsubscribe();
+    // 컴포넌트 파괴 시 인터벌 정리
+    clearInterval(this.gameInterval);
   },
   methods: {
     resetGameState() {
@@ -182,7 +216,6 @@ export default {
       this.isLoading = true;
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
-    // [핵심 수정] 실시간으로 게임 상태를 감지하고 동기화하는 함수
     listenToGameState() {
       if (!this.gameStateRef) return;
       this.isLoading = true;
@@ -192,16 +225,13 @@ export default {
           let state;
           if (docSnap.exists()) {
             state = docSnap.data();
-            // 오프라인 동안 쌓인 소금 계산 (서버 시간 기준)
             const lastUpdate = state.lastUpdated?.toDate() || new Date();
             const now = new Date();
             const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
             const offlineSalt = Math.floor(
               secondsDiff * (state.perSecond || 0),
             );
-
             if (offlineSalt > 0) {
-              // 오프라인 소금을 DB에 즉시 반영하여 동기화 기준점을 새로 만듦
               updateDoc(this.gameStateRef, {
                 salt: increment(offlineSalt),
                 lastUpdated: serverTimestamp(),
@@ -209,14 +239,12 @@ export default {
             }
             this.salt = (state.salt || 0) + offlineSalt;
           } else {
-            // 신규 유저
             state = { salt: 0 };
             setDoc(this.gameStateRef, {
               ...this.getGameStateObject(),
               lastUpdated: serverTimestamp(),
             });
           }
-          // 로컬 데이터 업데이트
           this.gold = state.gold || 0;
           this.perClick = state.perClick || 1;
           this.perSecond = state.perSecond || 0;
@@ -230,7 +258,6 @@ export default {
         },
       );
     },
-    // [신규 추가] 현재 로컬 상태를 객체로 반환하는 헬퍼 함수
     getGameStateObject() {
       return {
         salt: this.salt,
@@ -241,77 +268,117 @@ export default {
       };
     },
     listenToGameSettings() {
-      // (기존 코드와 동일)
+      const configRef = doc(db, "configuration", "gameSettings");
+      onSnapshot(configRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          this.gameSettings.saltMineRate = data.saltMineRate || 1000;
+          this.gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+        } else {
+          this.gameSettings.saltMineRate = 20000;
+          this.gameSettings.deepSeaRate = 100000;
+        }
+      });
     },
-    // [삭제] loadGame, saveGame 함수는 listenToGameState와 개별 업데이트 함수들로 대체됨
-
-    // [핵심 수정] 1초마다 화면에만 보여주는 소금을 업데이트 (저장 X)
     gameTick() {
-      if (this.isLoading || !this.currentUser) return;
+      if (this.isLoading || !this.currentUser || this.perSecond === 0) return;
       const now = new Date();
-      // 마지막으로 서버와 동기화된 시간으로부터 얼마나 흘렀는지 계산하여 화면에 보여줌
-      const visualDiff =
-        (now.getTime() -
-          (this.lastServerUpdateTime?.getTime() || now.getTime())) /
-        1000;
+      if (!this.lastServerUpdateTime) {
+        this.lastServerUpdateTime = now;
+        return;
+      }
+      const visualDiff = (now.getTime() - this.lastServerUpdateTime.getTime()) / 1000;
       this.salt += this.perSecond * visualDiff;
       this.lastServerUpdateTime = now;
     },
-    // [핵심 수정] 클릭 시 DB에 직접 증가 명령 (원자적 업데이트)
     async mineSalt() {
       if (!this.gameStateRef) return;
-
       const updatePayload = {
         salt: increment(this.perClick),
         lastUpdated: serverTimestamp(),
       };
-
-      // 황금 소금 발견 로직
       if (Math.random() < 0.01) {
         updatePayload.gold = increment(1);
         this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
       }
-
       try {
         await updateDoc(this.gameStateRef, updatePayload);
       } catch (error) {
         console.error("채굴 데이터 업데이트 오류:", error);
       }
     },
-    // [핵심 수정] 업그레이드 시 DB에 직접 증가/감소 명령 (트랜잭션으로 안전성 확보)
     async buyUpgrade(itemId) {
       if (!this.gameStateRef) return;
       const item = this.shopItems.find((i) => i.id === itemId);
-
-      // 화면상으로 먼저 체크해서 불필요한 DB 요청 방지
       if (this.salt < item.cost) return;
-
       try {
         const currentDoc = await getDoc(this.gameStateRef);
         if (!currentDoc.exists() || (currentDoc.data().salt || 0) < item.cost) {
-          this.logEvent("소금이 부족합니다!");
-          return;
+            this.logEvent("소금이 부족합니다!");
+            return;
         }
-
         const newLevel = (currentDoc.data().upgrades?.[itemId] || 0) + 1;
-
         const updatePayload = {
-          salt: increment(-item.cost),
-          [`upgrades.${itemId}`]: newLevel,
-          lastUpdated: serverTimestamp(),
+            salt: increment(-item.cost),
+            [`upgrades.${itemId}`]: newLevel,
+            lastUpdated: serverTimestamp(),
         };
-
         if (item.gps) updatePayload.perSecond = increment(item.gps);
         if (item.type === "click") updatePayload.perClick = increment(item.add);
-
         await updateDoc(this.gameStateRef, updatePayload);
         this.logEvent(`'${item.name}' 업그레이드 구매!`);
       } catch (error) {
-        console.error("업그레이드 실패:", error);
-        this.logEvent("업그레이드 중 오류가 발생했습니다.");
+          console.error("업그레이드 실패:", error);
+          this.logEvent("업그레이드 중 오류가 발생했습니다.");
       }
     },
-    // (sellSalt, logEvent 등 나머지 메소드는 기존 코드와 동일)
+    async sellSalt() {
+      if (!this.currentUser) {
+        alert("로그인이 필요합니다.");
+        return;
+      }
+      if (this.isSelling) return;
+
+      // [수정] 판매 가능 여부를 DB 데이터 기준으로 확인하기 위해 getDoc 사용
+      const currentDoc = await getDoc(this.gameStateRef);
+      if (!currentDoc.exists() || (currentDoc.data().salt || 0) < this.gameSettings.saltMineRate) {
+        alert(
+          `${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`,
+        );
+        return;
+      }
+
+      this.isSelling = true;
+
+      try {
+        const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
+        const result = await sellSaltForPoints({});
+        const { awardedPoints, soldSalt } = result.data;
+
+        this.logEvent(
+          `소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`,
+        );
+        alert(
+          `소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`,
+        );
+      } catch (error) {
+        console.error("소금 판매 오류:", error);
+        alert(`오류: ${error.message}`);
+      } finally {
+        this.isSelling = false;
+      }
+    },
+    logEvent(message) {
+      const time = new Date().toLocaleTimeString();
+      this.logs.unshift(`[${time}] ${message}`);
+      if (this.logs.length > 50) {
+        this.logs.pop();
+      }
+      this.$nextTick(() => {
+        const logBox = this.$el.querySelector("#logBox");
+        if (logBox) logBox.scrollTop = 0;
+      });
+    },
   },
 };
 </script>
