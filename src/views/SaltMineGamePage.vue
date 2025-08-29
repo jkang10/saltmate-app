@@ -203,7 +203,6 @@ export default {
           desc: "클릭당 +1 소금",
           icon: "fas fa-pickaxe",
         },
-        // [핵심 수정] baseCost를 1,000,000으로 변경
         {
           id: "offline_miner_1",
           name: "기본 자동 채굴기",
@@ -342,6 +341,7 @@ export default {
           this.perClick = state.perClick || 1;
           this.perSecond = state.perSecond || 0;
           this.upgrades = state.upgrades || {};
+          // [핵심 수정] DB에서 데이터를 성공적으로 불러온 후, 타이머의 기준점을 현재 시간으로 리셋합니다.
           this.lastServerUpdateTime = new Date();
           this.isLoading = false;
         },
