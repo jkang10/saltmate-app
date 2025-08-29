@@ -157,15 +157,13 @@ export default {
       gameStateRef: null,
       isLoading: true,
       authUnsubscribe: null,
-      gameStateUnsubscribe: null,
       gameSettings: {
         saltMineRate: 1000,
         deepSeaRate: 100000,
         goldenSaltExchangeRate: 1,
       },
-      lastServerUpdateTime: null,
       gameInterval: null,
-      isInitialLoad: true,
+      saveInterval: null, // [신규] 15초마다 자동 저장을 관리할 변수
     };
   },
   computed: {
@@ -266,29 +264,36 @@ export default {
       return ACH_DEFS;
     },
   },
+
   mounted() {
     this.authUnsubscribe = onAuthStateChanged(auth, (user) => {
+      // [수정] resetGameState는 그대로 두고, listenToGameState 대신 loadGame 호출
       this.resetGameState();
-      if (this.gameStateUnsubscribe) {
-        this.gameStateUnsubscribe();
-      }
       if (user) {
         this.currentUser = user;
         this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
-        this.listenToGameState();
+        this.loadGame(); // 1회성 데이터 로드
         this.listenToGameSettings();
       } else {
         this.currentUser = null;
         this.logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
       }
     });
+
     this.gameInterval = setInterval(this.gameTick, 1000);
+    // [신규] 15초(15000ms)마다 saveGame 함수를 호출하는 인터벌 시작
+    this.saveInterval = setInterval(this.saveGame, 15000);
   },
   unmounted() {
-    if (this.authUnsubscribe) this.authUnsubscribe();
-    if (this.gameStateUnsubscribe) this.gameStateUnsubscribe();
+    // [수정] 컴포넌트가 사라질 때 모든 인터벌을 정리하고, 마지막으로 게임을 저장
     clearInterval(this.gameInterval);
+    clearInterval(this.saveInterval);
+    this.saveGame(); // 페이지를 떠나기 전 최종 저장
+    if (this.authUnsubscribe) {
+      this.authUnsubscribe();
+    }
   },
+
   methods: {
     resetGameState() {
       this.salt = 0;
@@ -301,68 +306,74 @@ export default {
       this.isInitialLoad = true;
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
-    listenToGameState() {
+
+    async loadGame() {
       if (!this.gameStateRef) return;
       this.isLoading = true;
-      this.gameStateUnsubscribe = onSnapshot(
-        this.gameStateRef,
-        (docSnap) => {
-          let state;
-          if (docSnap.exists()) {
-            state = docSnap.data();
-            let currentSalt = state.salt || 0;
+      try {
+        const docSnap = await getDoc(this.gameStateRef);
+        if (docSnap.exists()) {
+          const state = docSnap.data();
+          const upgrades = state.upgrades || {};
+          const offlineMinerLevel = upgrades.offline_miner_1 || 0;
+          let maxOfflineSeconds = 0;
+          if (offlineMinerLevel > 0) {
+            maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
+          }
+          const lastUpdate = state.lastUpdated?.toDate() || new Date();
+          const now = new Date();
+          const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
+          const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
+          const offlineSalt = Math.floor(
+            effectiveSeconds * (state.perSecond || 0),
+          );
 
-            if (this.isInitialLoad) {
-              const upgrades = state.upgrades || {};
-              const offlineMinerLevel = upgrades.offline_miner_1 || 0;
-              let maxOfflineSeconds = 0;
-              if (offlineMinerLevel > 0) {
-                maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
-              }
-              const lastUpdate = state.lastUpdated?.toDate() || new Date();
-              const now = new Date();
-              const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-              const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
-              const offlineSalt = Math.floor(
-                effectiveSeconds * (state.perSecond || 0),
-              );
-
-              if (offlineSalt > 0) {
-                this.logEvent(
-                  `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
-                );
-                currentSalt += offlineSalt;
-                updateDoc(this.gameStateRef, {
-                  salt: increment(offlineSalt),
-                  lastUpdated: serverTimestamp(),
-                });
-              }
-              this.isInitialLoad = false;
-            }
-
-            this.salt = currentSalt;
-            this.gold = state.gold || 0;
-            this.perClick = state.perClick || 1;
-            this.perSecond = state.perSecond || 0;
-            this.upgrades = state.upgrades || {};
-          } else {
-            state = { salt: 0 };
-            setDoc(this.gameStateRef, {
-              ...this.getGameStateObject(),
-              lastUpdated: serverTimestamp(),
-            });
-            this.isInitialLoad = false;
+          if (offlineSalt > 0) {
+            this.logEvent(
+              `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
+            );
           }
 
-          this.lastServerUpdateTime = new Date();
-          this.isLoading = false;
-        },
-        (error) => {
-          console.error("실시간 게임 데이터 수신 오류:", error);
-          this.isLoading = false;
-        },
-      );
+          this.salt = (state.salt || 0) + offlineSalt;
+          this.gold = state.gold || 0;
+          this.perClick = state.perClick || 1;
+          this.perSecond = state.perSecond || 0;
+          this.upgrades = state.upgrades || {};
+        } else {
+          // 신규 유저의 경우 기본값으로 시작
+          this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
+        }
+      } catch (error) {
+        console.error("게임 데이터 로딩 오류:", error);
+      } finally {
+        this.isLoading = false;
+      }
     },
+
+    async saveGame() {
+      // 로그인하지 않았거나, 로딩 중이거나, 로컬과 DB 상태가 같다면 저장하지 않음
+      if (!this.currentUser || !this.gameStateRef || this.isLoading) {
+        return;
+      }
+
+      const state = {
+        salt: this.salt,
+        gold: this.gold,
+        perClick: this.perClick,
+        perSecond: this.perSecond,
+        upgrades: this.upgrades,
+        lastUpdated: serverTimestamp(), // 서버 시간으로 현재 시간 기록
+      };
+
+      try {
+        // setDoc을 사용하여 현재 게임 상태를 통째로 덮어쓰기
+        await setDoc(this.gameStateRef, state, { merge: true });
+        console.log("게임 진행 상황이 저장되었습니다.");
+      } catch (error) {
+        console.error("게임 데이터 저장 오류:", error);
+      }
+    },
+
     getGameStateObject() {
       return {
         salt: this.salt,
@@ -384,6 +395,7 @@ export default {
         }
       });
     },
+
     gameTick() {
       if (this.isLoading || !this.currentUser || this.perSecond === 0) return;
       const now = new Date();
@@ -396,46 +408,32 @@ export default {
       this.salt += this.perSecond * visualDiff;
       this.lastServerUpdateTime = now;
     },
+    // mineSalt 와 buyUpgrade 함수를 아래 내용으로 교체해주세요.
+
     async mineSalt() {
-      if (!this.gameStateRef) return;
-      const updatePayload = {
-        salt: increment(this.perClick),
-        lastUpdated: serverTimestamp(),
-      };
+      // [수정] DB 업데이트 로직 제거. 로컬 데이터만 변경
+      this.salt += this.perClick;
       if (Math.random() < 0.01) {
-        updatePayload.gold = increment(1);
+        this.gold += 1;
         this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
-      }
-      try {
-        await updateDoc(this.gameStateRef, updatePayload);
-      } catch (error) {
-        console.error("채굴 데이터 업데이트 오류:", error);
+        // 황금소금은 희귀하므로 발견 즉시 저장
+        this.saveGame();
       }
     },
     async buyUpgrade(itemId) {
-      if (!this.gameStateRef) return;
+      // [수정] DB 업데이트 로직 제거. 로컬 데이터만 변경
       const item = this.shopItems.find((i) => i.id === itemId);
       if (this.salt < item.cost) return;
-      try {
-        const currentDoc = await getDoc(this.gameStateRef);
-        if (!currentDoc.exists() || (currentDoc.data().salt || 0) < item.cost) {
-          this.logEvent("소금이 부족합니다!");
-          return;
-        }
-        const newLevel = (currentDoc.data().upgrades?.[itemId] || 0) + 1;
-        const updatePayload = {
-          salt: increment(-item.cost),
-          [`upgrades.${itemId}`]: newLevel,
-          lastUpdated: serverTimestamp(),
-        };
-        if (item.gps) updatePayload.perSecond = increment(item.gps);
-        if (item.type === "click") updatePayload.perClick = increment(item.add);
-        await updateDoc(this.gameStateRef, updatePayload);
-        this.logEvent(`'${item.name}' 업그레이드 구매!`);
-      } catch (error) {
-        console.error("업그레이드 실패:", error);
-        this.logEvent("업그레이드 중 오류가 발생했습니다.");
-      }
+
+      this.salt -= item.cost;
+      this.upgrades[itemId] = (this.upgrades[itemId] || 0) + 1;
+
+      if (item.gps) this.perSecond += item.gps;
+      if (item.type === "click") this.perClick += item.add;
+
+      this.logEvent(`'${item.name}' 업그레이드 구매!`);
+      // 중요한 액션이므로 즉시 저장
+      this.saveGame();
     },
     async sellSalt() {
       if (!this.currentUser) {
