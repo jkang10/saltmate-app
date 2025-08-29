@@ -288,12 +288,7 @@ export default {
       }
       isLoading.value = true;
       try {
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email.value,
-          password.value,
-        );
-
+        await createUserWithEmailAndPassword(auth, email.value, password.value);
         const createNewUser = httpsCallable(functions, "createNewUser");
 
         const selectElement = document.getElementById("investment-amount");
