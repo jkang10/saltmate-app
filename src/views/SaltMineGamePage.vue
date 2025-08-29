@@ -223,19 +223,26 @@ export default {
     },
   },
   mounted() {
+    // --- [핵심 수정] ---
+    // 로그인 상태가 바뀔 때마다 실행되는 리스너
     this.authUnsubscribe = onAuthStateChanged(auth, (user) => {
+      // 1. 유저가 바뀌면, 게임 상태를 무조건 초기화하여 이전 유저의 데이터가 남지 않도록 합니다.
+      this.resetGameState();
+
       if (user) {
+        // 2. 새로운 유저가 로그인했다면, 해당 유저의 데이터를 불러옵니다.
         this.currentUser = user;
         this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
         this.loadGame();
         this.listenToGameSettings();
       } else {
+        // 3. 로그아웃했다면, 초기화된 상태를 유지하고 메시지를 표시합니다.
         this.currentUser = null;
-        alert("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
+        this.logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
       }
     });
+    // --- 수정 끝 ---
     this.gameInterval = setInterval(this.gameTick, 1000);
-    this.logEvent("게임에 오신 것을 환영합니다!");
   },
   unmounted() {
     clearInterval(this.gameInterval);
@@ -245,6 +252,16 @@ export default {
     }
   },
   methods: {
+    // [신규 추가] 게임 데이터를 기본값으로 되돌리는 함수
+    resetGameState() {
+      this.salt = 0;
+      this.gold = 0;
+      this.perClick = 1;
+      this.perSecond = 0;
+      this.upgrades = {};
+      this.logs = [];
+      this.logEvent("게임에 오신 것을 환영합니다!");
+    },
     listenToGameSettings() {
       const configRef = doc(db, "configuration", "gameSettings");
       onSnapshot(configRef, (docSnap) => {
@@ -271,6 +288,7 @@ export default {
           this.perSecond = state.perSecond || 0;
           this.upgrades = state.upgrades || {};
         }
+        // 저장된 데이터가 없는 신규 유저의 경우, resetGameState()에 의해 이미 0으로 초기화된 상태가 유지됨
       } catch (error) {
         console.error("게임 데이터 불러오기 오류:", error);
       } finally {
@@ -317,7 +335,6 @@ export default {
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
       this.saveGame();
     },
-    // ▼▼▼ [수정됨] sellSalt 함수 전체를 아래 코드로 교체 ▼▼▼
     async sellSalt() {
       if (!this.currentUser) {
         alert("로그인이 필요합니다.");
@@ -336,13 +353,10 @@ export default {
         const functions = getFunctions(undefined, "asia-northeast3");
         const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
 
-        // 서버로 아무 데이터도 보내지 않던 문제를 수정합니다.
-        // 현재 함수에서는 특별히 보낼 데이터가 없으므로 빈 객체나 null을 전달합니다.
         const result = await sellSaltForPoints({});
 
         const { awardedPoints, soldSalt } = result.data;
 
-        // 판매 성공 후, 서버의 최신 데이터를 다시 불러와 화면을 갱신합니다.
         await this.loadGame();
 
         this.logEvent(
@@ -358,7 +372,6 @@ export default {
         this.isSelling = false;
       }
     },
-    // ▲▲▲ 수정 완료 ▲▲▲
     logEvent(message) {
       const time = new Date().toLocaleTimeString();
       this.logs.unshift(`[${time}] ${message}`);
