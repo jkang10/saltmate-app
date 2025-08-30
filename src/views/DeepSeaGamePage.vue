@@ -471,19 +471,27 @@ const sellFundsForPoints = async () => {
   }
 };
 
-const activateGoldenTime = async () => {
-  isActivatingGoldenTime.value = true;
+async activateGoldenTime() {
+  if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?")) return;
+  
+  this.isActivatingGoldenTime = true;
   try {
+    const startGoldenTime = httpsCallable(functions, "startGoldenTime");
     const result = await callFunction("startGoldenTime");
+    
+    // [핵심 수정] 골든타임 시작 성공 후, 서버로부터 최신 게임 상태를 다시 불러옵니다.
+    // 이렇게 하면 서버에서 설정된 goldenTimeUntil 값이 화면에 즉시 반영됩니다.
+    await this.loadGame(this.authUser);
+
     alert(result.data.message);
     addLog(result.data.message);
   } catch (error) {
     console.error("골든타임 활성화 오류:", error);
     alert(`오류: ${error.message}`);
   } finally {
-    isActivatingGoldenTime.value = false;
+    this.isActivatingGoldenTime = false;
   }
-};
+},
 
 function collectClick() {
   if (
