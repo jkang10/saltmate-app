@@ -575,20 +575,32 @@ const setActiveZone = async (zoneId) => {
   await saveGame();
 };
 
+// unlockZone 함수를 아래 코드로 교체해주세요.
+
 const unlockZone = async (zoneId) => {
   const zone = zones.value.find((z) => z.id === zoneId);
   if (!zone || !zone.canUnlock) return;
   isUnlocking.value = true;
   try {
-    await saveGame();
+    await saveGame(); // 해금 시도 전 저장
     const result = await callFunction("unlockExplorationZone", { zoneId });
+
     state.unlockedZones[zoneId] = true;
+
+    // [핵심 수정] 심해 해구를 해금했을 때, 쿼리를 위한 별도 필드를 추가합니다.
+    if (zoneId === "abyssal_trench") {
+      state.isAbyssalUnlocked = true;
+    }
+
     if (zone.requirements.research)
       state.research -= zone.requirements.research;
     if (zone.requirements.minerals)
       state.minerals -= zone.requirements.minerals;
+
     alert(result.data.message);
     addLog(result.data.message);
+
+    await saveGame(); // 변경된 상태 최종 저장
   } catch (error) {
     console.error("지역 해금 오류:", error);
     alert(`오류: ${error.message}`);
