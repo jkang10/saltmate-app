@@ -17,13 +17,16 @@
         <option value="40">40개씩 보기</option>
         <option value="50">50개씩 보기</option>
       </select>
+
+      <button @click="runMigration" class="btn btn-danger">
+        [1회 실행] 데이터 마이그레이션
+      </button>
     </div>
 
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state">
       <p>{{ error }}</p>
     </div>
-
     <div v-if="!loading && paginatedUsers.length > 0" class="table-container">
       <table class="user-table">
         <thead>
@@ -97,11 +100,9 @@
         </tbody>
       </table>
     </div>
-
     <div v-if="!loading && filteredUsers.length === 0" class="no-data">
       <p>표시할 사용자가 없습니다.</p>
     </div>
-
     <div v-if="totalPages > 1" class="pagination">
       <button @click="currentPage--" :disabled="currentPage === 1">이전</button>
       <span>{{ currentPage }} / {{ totalPages }}</span>
@@ -109,7 +110,6 @@
         다음
       </button>
     </div>
-
     <TokenTransferModal
       v-if="isTokenModalVisible"
       :user="selectedUser"
@@ -147,30 +147,31 @@ const error = ref(null);
 const searchTerm = ref("");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-watch(itemsPerPage, () => {
-  currentPage.value = 1;
-});
-
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
 
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+});
+
 const filteredUsers = computed(() => {
   if (!searchTerm.value) {
     return users.value;
   }
-  const lowerCaseSearch = searchTerm.value.toLowerCase();
   return users.value.filter(
     (user) =>
-      (user.name && user.name.toLowerCase().includes(lowerCaseSearch)) ||
-      (user.email && user.email.toLowerCase().includes(lowerCaseSearch)),
+      (user.name &&
+        user.name.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
+      (user.email &&
+        user.email.toLowerCase().includes(searchTerm.value.toLowerCase())),
   );
 });
 
-const totalPages = computed(() => {
-  return Math.ceil(filteredUsers.value.length / itemsPerPage.value);
-});
+const totalPages = computed(() =>
+  Math.ceil(filteredUsers.value.length / itemsPerPage.value),
+);
 
 const paginatedUsers = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
@@ -199,30 +200,25 @@ const formatSubscriptionStatus = (status) => {
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    // [수정] 기존 쿼리 + 최종 정산일 쿼리 동시 실행
     const usersQuery = query(
       collection(db, "users"),
       orderBy("createdAt", "desc"),
     );
     const centersQuery = query(collection(db, "centers"));
-    // 'approved' 와 'approved_manual' 상태의 모든 정산 기록 조회
     const payoutsQuery = query(
       collection(db, "weekly_payout_requests"),
       where("status", "in", ["approved", "approved_manual"]),
     );
-
     const [userSnapshot, centerSnapshot, payoutSnapshot] = await Promise.all([
       getDocs(usersQuery),
       getDocs(centersQuery),
       getDocs(payoutsQuery),
     ]);
 
-    // [수정] 사용자별 최종 정산일 맵 생성
     const lastPayoutMap = new Map();
     payoutSnapshot.forEach((doc) => {
       const payout = doc.data();
       const existingDate = lastPayoutMap.get(payout.userId);
-      // 기존에 저장된 날짜가 없거나, 현재 날짜가 더 최신인 경우에만 맵에 저장
       if (!existingDate || payout.weekId > existingDate) {
         lastPayoutMap.set(payout.userId, payout.weekId);
       }
@@ -242,13 +238,42 @@ const fetchUsers = async () => {
         ...userData,
         centerName: centerMap.get(userData.centerId) || "N/A",
         referrerName: userMap.get(userData.uplineReferrer) || "없음",
-        // [수정] 맵에서 최종 정산일 정보를 찾아 사용자 객체에 추가
         lastPayoutDate: lastPayoutMap.get(doc.id) || null,
       };
     });
   } catch (err) {
-    console.error("사용자 정보를 불러오는 중 오류 발생:", err);
+    console.error("사용자 정보 로딩 오류:", err);
     error.value = "사용자 정보를 불러오는 데 실패했습니다.";
+  } finally {
+    loading.value = false;
+  }
+};
+
+// [신규 추가] 마이그레이션 함수를 호출하는 메소드
+const runMigration = async () => {
+  if (
+    !confirm(
+      "[주의] 기존 모든 사용자의 요약 데이터를 재계산합니다. 시간이 걸릴 수 있으며, 한 번만 실행해야 합니다. 계속하시겠습니까?",
+    )
+  )
+    return;
+
+  alert(
+    "마이그레이션을 시작합니다. 완료되면 알림이 표시됩니다. 이 페이지를 닫지 마세요.",
+  );
+  loading.value = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const migrateUserSummaryData = httpsCallable(
+      functions,
+      "migrateUserSummaryData",
+    );
+    const result = await migrateUserSummaryData();
+    alert(`마이그레이션 성공: ${result.data.message}`);
+    await fetchUsers(); // 마이그레이션 후 목록 새로고침
+  } catch (err) {
+    console.error("마이그레이션 실패:", err);
+    alert(`마이그레이션 실패: ${err.message}`);
   } finally {
     loading.value = false;
   }
