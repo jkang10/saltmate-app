@@ -14,15 +14,15 @@
       <div class="summary-card active">
         <div class="card-icon"><i class="fas fa-user-check"></i></div>
         <div class="card-content">
-          <span class="card-title">승인 완료</span>
+          <span class="card-title">승인 완료 회원</span>
           <span class="card-value">{{ activeUserCount }} 명</span>
         </div>
       </div>
       <div class="summary-card pending">
         <div class="card-icon"><i class="fas fa-user-clock"></i></div>
         <div class="card-content">
-          <span class="card-title">승인 대기</span>
-          <span class="card-value">{{ pendingUserCount }} 명</span>
+          <span class="card-title">처리할 승인 요청</span>
+          <span class="card-value">{{ pendingRequestCount }} 건</span>
         </div>
       </div>
     </div>
@@ -41,10 +41,6 @@
         <option value="40">40개씩 보기</option>
         <option value="50">50개씩 보기</option>
       </select>
-
-      <button @click="runMigration" class="btn btn-danger">
-        [1회 실행] 데이터 마이그레이션
-      </button>
     </div>
 
     <div v-if="loading" class="loading-spinner"></div>
@@ -175,18 +171,19 @@ const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
+const pendingRequestCount = ref(0);
 
 watch(itemsPerPage, () => {
   currentPage.value = 1;
 });
 
-// [신규 추가] 회원 수 계산을 위한 computed 속성들
 const totalUserCount = computed(() => users.value.length);
 const activeUserCount = computed(
-  () => users.value.filter((u) => u.subscriptionStatus === "active").length,
-);
-const pendingUserCount = computed(
-  () => users.value.filter((u) => u.subscriptionStatus === "pending").length,
+  () =>
+    users.value.filter(
+      (u) =>
+        u.subscriptionStatus === "active" || u.subscriptionStatus === "overdue",
+    ).length,
 );
 
 const filteredUsers = computed(() => {
@@ -242,11 +239,24 @@ const fetchUsers = async () => {
       collection(db, "weekly_payout_requests"),
       where("status", "in", ["approved", "approved_manual"]),
     );
-    const [userSnapshot, centerSnapshot, payoutSnapshot] = await Promise.all([
+    const pendingRequestsQuery = query(
+      collection(db, "subscription_requests"),
+      where("status", "==", "pending"),
+    );
+
+    const [
+      userSnapshot,
+      centerSnapshot,
+      payoutSnapshot,
+      pendingRequestsSnapshot,
+    ] = await Promise.all([
       getDocs(usersQuery),
       getDocs(centersQuery),
       getDocs(payoutsQuery),
+      getDocs(pendingRequestsQuery),
     ]);
+
+    pendingRequestCount.value = pendingRequestsSnapshot.size;
 
     const lastPayoutMap = new Map();
     payoutSnapshot.forEach((doc) => {
@@ -286,7 +296,9 @@ const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
   if (
     !confirm(
-      `'${user.name}' 사용자를 '${newStatus ? "관리자" : "일반 사용자"}' (으)로 지정하시겠습니까?`,
+      `'${user.name}' 사용자를 '${
+        newStatus ? "관리자" : "일반 사용자"
+      }' (으)로 지정하시겠습니까?`,
     )
   )
     return;
@@ -340,8 +352,6 @@ onMounted(fetchUsers);
 </script>
 
 <style scoped>
-<style scoped>
-/* [신규 추가] 회원 수 요약 카드 스타일 */
 .user-summary-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -383,7 +393,7 @@ onMounted(fetchUsers);
   font-weight: bold;
 }
 .user-table tbody .not-approved-row {
-  background-color: #fff5f5; /* 연한 붉은색 계열 */
+  background-color: #fff5f5;
 }
 .user-management {
   background-color: #fff;
@@ -403,6 +413,7 @@ onMounted(fetchUsers);
   display: flex;
   gap: 15px;
   align-items: center;
+  flex-wrap: wrap;
 }
 .search-input {
   padding: 10px 15px;
