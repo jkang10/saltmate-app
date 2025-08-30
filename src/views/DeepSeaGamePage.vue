@@ -479,8 +479,6 @@ async activateGoldenTime() {
     const startGoldenTime = httpsCallable(functions, "startGoldenTime");
     const result = await callFunction("startGoldenTime");
     
-    // [핵심 수정] 골든타임 시작 성공 후, 서버로부터 최신 게임 상태를 다시 불러옵니다.
-    // 이렇게 하면 서버에서 설정된 goldenTimeUntil 값이 화면에 즉시 반영됩니다.
     await this.loadGame(this.authUser);
 
     alert(result.data.message);
@@ -491,7 +489,7 @@ async activateGoldenTime() {
   } finally {
     this.isActivatingGoldenTime = false;
   }
-};
+},
 
 function collectClick() {
   if (
