@@ -153,8 +153,6 @@ export default {
         } else {
           throw new Error("사용자 프로필을 찾을 수 없습니다.");
         }
-
-        // [삭제] 추천인 수를 계산하기 위한 별도 쿼리를 삭제하여 읽기 작업 감소
       } catch (e) {
         console.error("프로필 데이터 조회 오류:", e);
         this.error = "프로필 정보를 불러오는 데 실패했습니다.";
