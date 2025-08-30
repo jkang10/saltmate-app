@@ -491,7 +491,7 @@ async activateGoldenTime() {
   } finally {
     this.isActivatingGoldenTime = false;
   }
-},
+};
 
 function collectClick() {
   if (
