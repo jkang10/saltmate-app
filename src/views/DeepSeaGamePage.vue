@@ -471,15 +471,15 @@ const sellFundsForPoints = async () => {
   }
 };
 
-async activateGoldenTime() {
-  if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?")) return;
-  
-  this.isActivatingGoldenTime = true;
+const activateGoldenTime = async () => {
+  if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?"))
+    return;
+
+  isActivatingGoldenTime.value = true;
   try {
-    const startGoldenTime = httpsCallable(functions, "startGoldenTime");
     const result = await callFunction("startGoldenTime");
-    
-    await this.loadGame(this.authUser);
+
+    await loadGame(authUser.value);
 
     alert(result.data.message);
     addLog(result.data.message);
@@ -487,11 +487,11 @@ async activateGoldenTime() {
     console.error("골든타임 활성화 오류:", error);
     alert(`오류: ${error.message}`);
   } finally {
-    this.isActivatingGoldenTime = false;
+    isActivatingGoldenTime.value = false;
   }
-},
+};
 
-function collectClick() {
+const collectClick = () => {
   if (
     state.water >= derived.value.capacity &&
     state.activeZoneId !== "hydrothermal_vent"
@@ -525,7 +525,7 @@ function collectClick() {
       if (Math.random() < 0.005 * chance) state.funds += 100000;
       break;
   }
-}
+};
 
 const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0)
