@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+
 // 이 파일은 public 폴더 최상단에 위치해야 합니다.
 importScripts(
   "https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js",
@@ -34,3 +36,5 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+/* eslint-enable no-undef */
