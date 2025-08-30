@@ -3,6 +3,30 @@
     <h3><i class="fas fa-users-cog"></i> 회원 관리</h3>
     <p>회원 목록을 조회하고 사용자 잔액, 토큰 및 권한을 관리합니다.</p>
 
+    <div class="user-summary-container">
+      <div class="summary-card total">
+        <div class="card-icon"><i class="fas fa-users"></i></div>
+        <div class="card-content">
+          <span class="card-title">총 회원수</span>
+          <span class="card-value">{{ totalUserCount }} 명</span>
+        </div>
+      </div>
+      <div class="summary-card active">
+        <div class="card-icon"><i class="fas fa-user-check"></i></div>
+        <div class="card-content">
+          <span class="card-title">승인 완료</span>
+          <span class="card-value">{{ activeUserCount }} 명</span>
+        </div>
+      </div>
+      <div class="summary-card pending">
+        <div class="card-icon"><i class="fas fa-user-clock"></i></div>
+        <div class="card-content">
+          <span class="card-title">승인 대기</span>
+          <span class="card-value">{{ pendingUserCount }} 명</span>
+        </div>
+      </div>
+    </div>
+
     <div class="filter-controls">
       <input
         type="text"
@@ -156,6 +180,15 @@ watch(itemsPerPage, () => {
   currentPage.value = 1;
 });
 
+// [신규 추가] 회원 수 계산을 위한 computed 속성들
+const totalUserCount = computed(() => users.value.length);
+const activeUserCount = computed(
+  () => users.value.filter((u) => u.subscriptionStatus === "active").length,
+);
+const pendingUserCount = computed(
+  () => users.value.filter((u) => u.subscriptionStatus === "pending").length,
+);
+
 const filteredUsers = computed(() => {
   if (!searchTerm.value) {
     return users.value;
@@ -249,36 +282,6 @@ const fetchUsers = async () => {
   }
 };
 
-// [신규 추가] 마이그레이션 함수를 호출하는 메소드
-const runMigration = async () => {
-  if (
-    !confirm(
-      "[주의] 기존 모든 사용자의 요약 데이터를 재계산합니다. 시간이 걸릴 수 있으며, 한 번만 실행해야 합니다. 계속하시겠습니까?",
-    )
-  )
-    return;
-
-  alert(
-    "마이그레이션을 시작합니다. 완료되면 알림이 표시됩니다. 이 페이지를 닫지 마세요.",
-  );
-  loading.value = true;
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const migrateUserSummaryData = httpsCallable(
-      functions,
-      "migrateUserSummaryData",
-    );
-    const result = await migrateUserSummaryData();
-    alert(`마이그레이션 성공: ${result.data.message}`);
-    await fetchUsers(); // 마이그레이션 후 목록 새로고침
-  } catch (err) {
-    console.error("마이그레이션 실패:", err);
-    alert(`마이그레이션 실패: ${err.message}`);
-  } finally {
-    loading.value = false;
-  }
-};
-
 const toggleAdmin = async (user) => {
   const newStatus = !user.isAdmin;
   if (
@@ -337,7 +340,48 @@ onMounted(fetchUsers);
 </script>
 
 <style scoped>
-/* [신규 추가] 구독 미승인 회원의 행 배경색 스타일 */
+<style scoped>
+/* [신규 추가] 회원 수 요약 카드 스타일 */
+.user-summary-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+.summary-card {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+  color: white;
+}
+.summary-card.total {
+  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+}
+.summary-card.active {
+  background: linear-gradient(135deg, #1d976c, #93f9b9);
+}
+.summary-card.pending {
+  background: linear-gradient(135deg, #ff9a9e, #fecfef);
+}
+
+.summary-card .card-icon {
+  font-size: 2.5em;
+  margin-right: 20px;
+  opacity: 0.8;
+}
+.summary-card .card-content {
+  display: flex;
+  flex-direction: column;
+}
+.summary-card .card-title {
+  font-size: 1em;
+  opacity: 0.9;
+}
+.summary-card .card-value {
+  font-size: 2em;
+  font-weight: bold;
+}
 .user-table tbody .not-approved-row {
   background-color: #fff5f5; /* 연한 붉은색 계열 */
 }
