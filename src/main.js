@@ -9,11 +9,14 @@ import ECharts from "vue-echarts";
 import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { GraphChart } from "echarts/charts";
+
 import {
   TitleComponent,
   TooltipComponent,
   LegendComponent,
 } from "echarts/components";
+
+import './registerServiceWorker'
 
 use([
   CanvasRenderer,
