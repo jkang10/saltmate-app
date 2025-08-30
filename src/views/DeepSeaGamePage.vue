@@ -303,41 +303,16 @@ const ICONS = {
 };
 
 const SHOP_DEFS = [
-  {
-    id: "rov",
-    name: "소형 ROV",
-    baseCost: 50,
-    desc: "초당 +1L 심층수",
-    funds: 50,
-  },
-  {
-    id: "harvester",
-    name: "자동 수집기",
-    baseCost: 500,
-    desc: "초당 +5L 심층수",
-    funds: 500,
-  },
-  {
-    id: "tank",
-    name: "저장탱크 확장",
-    baseCost: 100,
-    desc: "최대 용량 +300L",
-    funds: 100,
-  },
+  { id: "rov", name: "소형 ROV", desc: "초당 +1L 심층수", funds: 50 },
+  { id: "harvester", name: "자동 수집기", desc: "초당 +5L 심층수", funds: 500 },
+  { id: "tank", name: "저장탱크 확장", desc: "최대 용량 +300L", funds: 100 },
   {
     id: "lab",
     name: "연구소 업그레이드",
-    baseCost: 2000,
     desc: "희귀 자원 발견 확률 증가",
     research: 100,
   },
-  {
-    id: "market",
-    name: "시장 분석",
-    baseCost: 5000,
-    desc: "자원 판매 시세 증가",
-    funds: 1000,
-  },
+  { id: "market", name: "시장 분석", desc: "자원 판매 시세 증가", funds: 1000 },
 ];
 
 const ZONE_DEFS = {
@@ -368,10 +343,13 @@ const derived = computed(() => {
 });
 
 const shopItems = computed(() => {
-  return SHOP_DEFS.map((item) => ({
-    ...item,
-    cost: Math.ceil(item.baseCost * Math.pow(1.15, state.shop[item.id] || 0)),
-  }));
+  return SHOP_DEFS.map((item) => {
+    const level = state.shop[item.id] || 0;
+    // [핵심 수정] funds 또는 research 비용 필드가 있는지 확인하고, 없으면 baseCost를 사용하도록 복원
+    const baseCost = item.funds || item.research || item.baseCost || 0;
+    const cost = Math.ceil(baseCost * Math.pow(1.15, level));
+    return { ...item, cost };
+  });
 });
 
 const zones = computed(() => {
