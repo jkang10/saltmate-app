@@ -1,130 +1,140 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content card">
-      <header class="modal-header">
-        <h3><i class="fas fa-bell"></i> 알림 설정</h3>
-        <button @click="$emit('close')" class="close-button">&times;</button>
-      </header>
-
-      <div class="modal-body">
-        <div v-if="isLoading" class="loading-state">
-          <div class="spinner"></div>
+    <div class="modal-content">
+      <h3>알림 설정</h3>
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+      </div>
+      <div v-else>
+        <p>
+          새로운 공지사항이나 중요한 업데이트가 있을 때 웹 푸시 알림을
+          받으시겠습니까?
+        </p>
+        <div class="status-text">
+          현재 알림 상태:
+          <strong :class="notificationStatus">{{
+            notificationStatusText
+          }}</strong>
         </div>
-        <div v-else class="settings-list">
-          <div class="setting-item">
-            <label for="onProfit">수익 정산 알림</label>
-            <p>주간 수익 정산이 완료되었을 때 알림을 받습니다.</p>
-            <label class="switch">
-              <input
-                type="checkbox"
-                id="onProfit"
-                v-model="settings.onProfitSettlement"
-              />
-              <span class="slider round"></span>
-            </label>
-          </div>
-          <div class="setting-item">
-            <label for="onDownline">신규 하위 회원 알림</label>
-            <p>나의 하위 라인에 새로운 회원이 가입했을 때 알림을 받습니다.</p>
-            <label class="switch">
-              <input
-                type="checkbox"
-                id="onDownline"
-                v-model="settings.onNewDownlineMember"
-              />
-              <span class="slider round"></span>
-            </label>
-          </div>
-          <div class="setting-item">
-            <label for="onNotice">공지사항 알림</label>
-            <p>새로운 공지사항이 등록되었을 때 알림을 받습니다.</p>
-            <label class="switch">
-              <input
-                type="checkbox"
-                id="onNotice"
-                v-model="settings.onNotice"
-              />
-              <span class="slider round"></span>
-            </label>
-          </div>
-        </div>
-
-        <footer class="modal-footer">
-          <button type="button" class="btn-secondary" @click="$emit('close')">
-            취소
+        <div class="button-group">
+          <button
+            @click="subscribeToNotifications"
+            class="btn btn-success"
+            :disabled="isSubscribed || isBlocked"
+          >
+            알림 수신 동의
           </button>
           <button
-            type="button"
-            class="btn-primary"
-            @click="saveSettings"
-            :disabled="isSaving"
+            @click="unsubscribeFromNotifications"
+            class="btn btn-danger"
+            :disabled="!isSubscribed"
           >
-            <span v-if="isSaving" class="spinner-small"></span>
-            <span v-else>설정 저장</span>
+            알림 수신 거부
           </button>
-        </footer>
+        </div>
+        <p v-if="isBlocked" class="error-message">
+          브라우저 설정에서 알림이 차단되었습니다. 사이트 설정에서 알림을
+          '허용'으로 변경해주세요.
+        </p>
       </div>
+      <button @click="$emit('close')" class="close-button">&times;</button>
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted, computed } from "vue";
+import { getMessaging, getToken, deleteToken } from "firebase/messaging";
 import { auth, db } from "@/firebaseConfig";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
-export default {
-  name: "NotificationSettingsModal",
-  emits: ["close"],
-  data() {
-    return {
-      settings: {
-        onProfitSettlement: true,
-        onNewDownlineMember: true,
-        onNotice: true,
-      },
-      isLoading: true,
-      isSaving: false,
-    };
-  },
-  async created() {
-    await this.loadSettings();
-  },
-  methods: {
-    async loadSettings() {
-      this.isLoading = true;
-      try {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().notificationSettings) {
-          this.settings = {
-            ...this.settings,
-            ...userSnap.data().notificationSettings,
-          };
-        }
-      } catch (error) {
-        console.error("알림 설정 로딩 오류:", error);
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    async saveSettings() {
-      this.isSaving = true;
-      try {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        await updateDoc(userRef, {
-          notificationSettings: this.settings,
-        });
-        alert("알림 설정이 저장되었습니다.");
-        this.$emit("close");
-      } catch (error) {
-        console.error("알림 설정 저장 오류:", error);
-        alert("저장에 실패했습니다.");
-      } finally {
-        this.isSaving = false;
-      }
-    },
-  },
+const isLoading = ref(true);
+const notificationPermission = ref(Notification.permission);
+const fcmToken = ref(null);
+
+const notificationStatus = computed(() => {
+  if (notificationPermission.value === "granted" && fcmToken.value) {
+    return "subscribed";
+  }
+  if (notificationPermission.value === "denied") {
+    return "blocked";
+  }
+  return "unsubscribed";
+});
+
+const isSubscribed = computed(() => notificationStatus.value === "subscribed");
+const isBlocked = computed(() => notificationStatus.value === "denied");
+
+const notificationStatusText = computed(() => {
+  switch (notificationStatus.value) {
+    case "subscribed":
+      return "수신 동의 상태";
+    case "blocked":
+      return "브라우저에서 차단됨";
+    default:
+      return "수신 거부 상태";
+  }
+});
+
+const getFcmToken = async () => {
+  try {
+    const messaging = getMessaging();
+    const currentToken = await getToken(messaging, {
+      vapidKey:
+        "BFupxAUiECe0rx_4KqxtBV_0cGrxOur1bqjNDur1U5Vw8ov5vFUyb9uqe0lZS4Wx0lGzdMWJOpRInshg67Zhykc", // Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징 > 웹 푸시 인증서에서 생성
+    });
+    return currentToken;
+  } catch (error) {
+    console.error("FCM 토큰을 가져오는 데 실패했습니다:", error);
+    if (error.code === "messaging/notifications-blocked") {
+      notificationPermission.value = "denied";
+    }
+    return null;
+  }
 };
+
+const subscribeToNotifications = async () => {
+  const permission = await Notification.requestPermission();
+  notificationPermission.value = permission;
+
+  if (permission === "granted") {
+    const token = await getFcmToken();
+    if (token && auth.currentUser) {
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        fcmTokens: arrayUnion(token),
+      });
+      fcmToken.value = token;
+      alert("알림 수신에 동의하셨습니다.");
+    }
+  } else {
+    alert("알림이 허용되지 않았습니다.");
+  }
+};
+
+const unsubscribeFromNotifications = async () => {
+  if (fcmToken.value && auth.currentUser) {
+    try {
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        fcmTokens: arrayRemove(fcmToken.value),
+      });
+      const messaging = getMessaging();
+      await deleteToken(messaging);
+      fcmToken.value = null;
+      alert("알림 수신을 거부했습니다.");
+    } catch (error) {
+      console.error("알림 수신 거부 처리 중 오류 발생:", error);
+    }
+  }
+};
+
+onMounted(async () => {
+  if (notificationPermission.value === "granted") {
+    fcmToken.value = await getFcmToken();
+  }
+  isLoading.value = false;
+});
 </script>
 
 <style scoped>
