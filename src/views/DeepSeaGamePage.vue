@@ -303,16 +303,46 @@ const ICONS = {
 };
 
 const SHOP_DEFS = [
-  { id: "rov", name: "소형 ROV", desc: "초당 +1L 심층수", funds: 50 },
-  { id: "harvester", name: "자동 수집기", desc: "초당 +5L 심층수", funds: 500 },
-  { id: "tank", name: "저장탱크 확장", desc: "최대 용량 +300L", funds: 100 },
+  {
+    id: "rov",
+    name: "소형 ROV",
+    base: 50,
+    type: "cps",
+    value: 1,
+    desc: "초당 +1L 심층수",
+  },
+  {
+    id: "harvester",
+    name: "자동 수집기",
+    base: 250,
+    type: "cps",
+    value: 5,
+    desc: "초당 +5L 심층수",
+  },
+  {
+    id: "tank",
+    name: "저장탱크 확장",
+    base: 120,
+    type: "cap",
+    value: 300,
+    desc: "최대 용량 +300L",
+  },
   {
     id: "lab",
     name: "연구소 업그레이드",
+    base: 800,
+    type: "chance",
+    value: 0.02,
     desc: "희귀 자원 발견 확률 증가",
-    research: 100,
   },
-  { id: "market", name: "시장 분석", desc: "자원 판매 시세 증가", funds: 1000 },
+  {
+    id: "market",
+    name: "시장 분석",
+    base: 1200,
+    type: "market",
+    value: 0.15,
+    desc: "판매 배율 +0.15",
+  },
 ];
 
 const ZONE_DEFS = {
@@ -345,10 +375,15 @@ const derived = computed(() => {
 const shopItems = computed(() => {
   return SHOP_DEFS.map((item) => {
     const level = state.shop[item.id] || 0;
-    // [핵심 수정] funds 또는 research 비용 필드가 있는지 확인하고, 없으면 baseCost를 사용하도록 복원
-    const baseCost = item.funds || item.research || item.baseCost || 0;
-    const cost = Math.ceil(baseCost * Math.pow(1.15, level));
-    return { ...item, cost };
+    // [핵심 수정] 비용 계산 기준을 이전 소스코드의 'base' 필드로 변경합니다.
+    const baseCost = item.base || 0;
+    const cost = Math.ceil(baseCost * Math.pow(1.65, level));
+
+    // [핵심 수정] 업그레이드 비용 지불 수단을 'funds'로 고정합니다.
+    // 이전에는 'lab'만 research로 지불했지만, 현재는 funds로 통일된 것으로 보입니다.
+    const canAfford = state.funds >= cost;
+
+    return { ...item, cost, canAfford };
   });
 });
 
