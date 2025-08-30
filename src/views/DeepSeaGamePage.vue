@@ -43,6 +43,27 @@
           </div>
         </div>
 
+        <div v-if="isAbyssalTrenchUnlocked" class="card auto-sell-feature">
+          <h3><i class="fas fa-robot"></i> 심해 해구 자동 판매</h3>
+          <p>
+            심해 해구 특전: 자원을 10분마다 자동으로 판매하여 자금을 획득합니다.
+          </p>
+          <div class="toggle-switch">
+            <label class="switch">
+              <input
+                type="checkbox"
+                v-model="state.autoSellEnabled"
+                @change="toggleAutoSell"
+              />
+              <span class="slider round"></span>
+            </label>
+            <span
+              >자동 판매
+              {{ state.autoSellEnabled ? "활성화됨" : "비활성화됨" }}</span
+            >
+          </div>
+        </div>
+
         <div class="card golden-time-box">
           <h3><i class="fas fa-star gold-icon"></i> 골든타임 활성화</h3>
           <p>
@@ -140,7 +161,7 @@
               <button
                 class="btn small"
                 @click="buy(item.id)"
-                :disabled="state.funds < item.cost"
+                :disabled="!item.canAfford"
               >
                 {{ item.cost.toLocaleString() }}원
               </button>
@@ -270,6 +291,7 @@ const DEFAULT_STATE = {
   goldenTimeUntil: null,
   unlockedZones: { default: true },
   activeZoneId: "default",
+  autoSellEnabled: false,
   lastUpdated: null,
 };
 
@@ -375,17 +397,16 @@ const derived = computed(() => {
 const shopItems = computed(() => {
   return SHOP_DEFS.map((item) => {
     const level = state.shop[item.id] || 0;
-    // [핵심 수정] 비용 계산 기준을 이전 소스코드의 'base' 필드로 변경합니다.
     const baseCost = item.base || 0;
     const cost = Math.ceil(baseCost * Math.pow(1.65, level));
-
-    // [핵심 수정] 업그레이드 비용 지불 수단을 'funds'로 고정합니다.
-    // 이전에는 'lab'만 research로 지불했지만, 현재는 funds로 통일된 것으로 보입니다.
     const canAfford = state.funds >= cost;
-
     return { ...item, cost, canAfford };
   });
 });
+
+const isAbyssalTrenchUnlocked = computed(
+  () => !!state.unlockedZones.abyssal_trench,
+);
 
 const zones = computed(() => {
   return Object.keys(ZONE_DEFS).map((id) => {
@@ -395,9 +416,7 @@ const zones = computed(() => {
     if (!unlocked && zone.requirements) {
       canUnlock = Object.entries(zone.requirements).every(([key, value]) => {
         if (key === "allUpgradesLevel") {
-          return Object.values(state.shop || {}).every(
-            (level) => level >= value,
-          );
+          return SHOP_DEFS.every((item) => (state.shop[item.id] || 0) >= value);
         }
         return (state[key] || 0) >= value;
       });
@@ -433,6 +452,7 @@ function clone(o) {
 function fmt(n) {
   return Math.floor(Number(n) || 0);
 }
+
 function addLog(msg) {
   logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
   if (logs.value.length > 100) logs.value.pop();
@@ -445,6 +465,13 @@ async function callFunction(name, data) {
   const func = httpsCallable(functions, name);
   return await func(data);
 }
+
+const toggleAutoSell = async () => {
+  await saveGame();
+  addLog(
+    `자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`,
+  );
+};
 
 const sellFundsForPoints = async () => {
   if (state.funds < gameSettings.deepSeaRate)
@@ -474,13 +501,10 @@ const sellFundsForPoints = async () => {
 const activateGoldenTime = async () => {
   if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?"))
     return;
-
   isActivatingGoldenTime.value = true;
   try {
     const result = await callFunction("startGoldenTime");
-
     await loadGame(authUser.value);
-
     alert(result.data.message);
     addLog(result.data.message);
   } catch (error) {
@@ -556,10 +580,9 @@ const unlockZone = async (zoneId) => {
   if (!zone || !zone.canUnlock) return;
   isUnlocking.value = true;
   try {
-    await saveGame(); // 해금 시도 전 저장
+    await saveGame();
     const result = await callFunction("unlockExplorationZone", { zoneId });
-    state.unlockedZones[zoneId] = true; // 로컬 상태 즉시 반영
-    // 해금에 사용된 자원 차감
+    state.unlockedZones[zoneId] = true;
     if (zone.requirements.research)
       state.research -= zone.requirements.research;
     if (zone.requirements.minerals)
@@ -585,7 +608,9 @@ function formatResourceName(res) {
 
 function buy(id) {
   const item = shopItems.value.find((i) => i.id === id);
-  if (state.funds < item.cost) return alert("자금이 부족합니다");
+  if (!item.canAfford) {
+    return alert("자금이 부족합니다.");
+  }
   state.funds -= item.cost;
   state.shop[id] = (state.shop[id] || 0) + 1;
   addLog(`${item.name} 구매`);
@@ -629,19 +654,16 @@ async function loadGame(user) {
         secondsDiff *
           ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5),
       );
-
       if (offlineProduction > 0) {
         addLog(
           `오프라인 동안 ${offlineProduction.toLocaleString()} L의 심층수를 채집했습니다.`,
         );
       }
-
       Object.assign(state, clone(DEFAULT_STATE), dbState);
       state.water = Math.min(
         derived.value.capacity,
         (state.water || 0) + offlineProduction,
       );
-
       addLog("서버에서 데이터를 불러왔습니다.");
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
@@ -1089,6 +1111,66 @@ onUnmounted(() => {
 .active-text {
   font-weight: bold;
   color: #28a745;
+}
+.auto-sell-feature {
+  border: 2px solid var(--primary);
+  background-color: #e7f3ff;
+}
+.auto-sell-feature h3 {
+  color: var(--primary);
+}
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.4s;
+}
+input:checked + .slider {
+  background-color: #2196f3;
+}
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196f3;
+}
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+.slider.round {
+  border-radius: 34px;
+}
+.slider.round:before {
+  border-radius: 50%;
 }
 @media (max-width: 900px) {
   .game-layout {
