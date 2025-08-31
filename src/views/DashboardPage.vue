@@ -746,7 +746,7 @@ export default {
 .balances {
   margin-top: 25px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   text-align: center;
 }
@@ -985,5 +985,10 @@ export default {
 }
 .feature-card.deep-sea-game .card-icon {
   color: #17a2b8;
+}
+@media (max-width: 768px) {
+  .balances {
+    grid-template-columns: 1fr; /* 화면이 좁아지면 1개의 열(세로 배치)로 변경 */
+  }
 }
 </style>
