@@ -36,7 +36,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { auth, db, functions } from '@/firebaseConfig';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter } from 'vue-router';
 
