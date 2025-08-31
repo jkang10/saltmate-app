@@ -140,6 +140,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/attendance",
+    name: "AttendancePage",
+    component: () => import("@/views/AttendancePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/rps-game",
     name: "RPSPage",
     component: () => import("@/views/RPSPage.vue"),

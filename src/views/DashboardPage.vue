@@ -146,6 +146,12 @@
         <LiveGameFeed />
         <LeaderboardWidget />
         <WeeklyLeaderboardWidget />
+	<router-link to="/attendance" class="feature-card events">
+	  <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
+	  <h3>매일매일 출석체크</h3>
+	  <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
+	  <span class="card-enter">참여하기 &rarr;</span>
+	</router-link>
         <router-link to="/my-tokens" class="feature-card tokens">
           <div class="card-icon"><i class="fas fa-coins"></i></div>
           <h3>보유 토큰 현황</h3>
