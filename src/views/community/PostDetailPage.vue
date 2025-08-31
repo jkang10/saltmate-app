@@ -66,15 +66,12 @@ const fetchPost = async () => {
     if (docSnap.exists()) {
       post.value = docSnap.data();
       
-      // 세션 스토리지를 사용하여 한 브라우저 세션에서 조회수가 한 번만 오르도록 함
       const viewedKey = `viewed_${postId}`;
       if (!sessionStorage.getItem(viewedKey)) {
-        // 백엔드에 조회수 증가를 요청
         const incrementView = httpsCallable(functions, "incrementPostView");
         await incrementView({ postId });
         sessionStorage.setItem(viewedKey, "true");
         
-        // 화면에 즉시 반영하기 위해 로컬 데이터도 1 증가
         if (post.value.views) {
           post.value.views++;
         } else {
