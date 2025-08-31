@@ -81,12 +81,12 @@ const saveChanges = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const updateUserByAdmin = httpsCallable(functions, "updateUserByAdmin");
 
+    // [핵심 수정] 백엔드가 이해할 수 있는 올바른 데이터 이름(uid, uplineReferrer)으로 변경
     await updateUserByAdmin({
-      uid: editableUser.value.id, // [수정] 백엔드에서 uid로 받으므로 uid로 변경
+      uid: editableUser.value.id,
       name: editableUser.value.name,
-      centerId: editableUser.value.centerId || "",
-      uplineReferrer: editableUser.value.uplineReferrer || null, // [수정] referrerId -> uplineReferrer
-      // email은 백엔드에서 더 이상 필요하지 않으므로 제거 가능
+      centerId: editableUser.value.centerId || null,
+      uplineReferrer: editableUser.value.uplineReferrer || null,
     });
     
     alert("회원 정보가 수정되었습니다.");
