@@ -6,6 +6,8 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { getDatabase } from "firebase/database";
+// [신규 추가] 애널리틱스 import
+import { getAnalytics } from "firebase/analytics";
 
 // .env 파일에서 Firebase 설정 정보를 안전하게 불러옵니다.
 const firebaseConfig = {
@@ -27,4 +29,7 @@ const storage = getStorage(app);
 const functions = getFunctions(app, "asia-northeast3");
 const rtdb = getDatabase(app);
 
-export { auth, db, storage, functions, rtdb };
+// [신규 추가] 애널리틱스 초기화 및 export
+const analytics = getAnalytics(app);
+
+export { auth, db, storage, functions, rtdb, analytics };
