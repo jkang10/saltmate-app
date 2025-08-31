@@ -13,20 +13,42 @@
       <div v-else-if="coupons.length === 0" class="empty-state">
         <p>현재 보유 중인 쿠폰이 없습니다.</p>
       </div>
-      <div v-else class="coupon-list">
-        <div v-for="coupon in coupons" :key="coupon.id" class="coupon-item" :class="coupon.status">
-          <div class="coupon-icon"><i class="fas fa-cut"></i></div>
-          <div class="coupon-details">
-            <h4>소금 광산 채굴 부스트 (+{{ coupon.boostPercentage }}%)</h4>
-            <p><strong>효과:</strong> {{ coupon.durationMinutes }}분 동안 채굴 효율 증가</p>
-            <small>유효기간: ~{{ formatDate(coupon.expiresAt) }}</small>
+      <div v-else class="coupon-grid">
+        <div v-for="coupon in coupons" :key="coupon.id" class="coupon-card" :class="coupon.status">
+          <div class="coupon-header">
+            <i class="fas fa-receipt coupon-main-icon"></i>
+            <span class="coupon-title">소금 광산 채굴 부스트</span>
           </div>
-          <button @click="useCoupon(coupon.id)" class="btn btn-use" :disabled="coupon.status !== 'unused' || isUsing">
-             <span v-if="isUsing" class="spinner-small"></span>
-             <span v-else-if="coupon.status === 'used'">사용 완료</span>
-             <span v-else-if="coupon.status === 'expired'">기간 만료</span>
-             <span v-else>사용하기</span>
-          </button>
+          <div class="coupon-body">
+            <div class="coupon-effect">
+              <i class="fas fa-chart-line"></i>
+              <span>채굴 효율 <strong class="boost-percentage">+{{ coupon.boostPercentage }}%</strong> 증가</span>
+            </div>
+            <div class="coupon-duration">
+              <i class="fas fa-hourglass-half"></i>
+              <span>지속 시간: {{ coupon.durationMinutes }}분</span>
+            </div>
+            <div class="coupon-description">
+              <i class="fas fa-info-circle"></i>
+              <span>{{ coupon.description || '특별한 채굴 부스트 혜택!' }}</span>
+            </div>
+          </div>
+          <div class="coupon-footer">
+            <div class="coupon-expiry">
+              <i class="fas fa-calendar-alt"></i>
+              <span>유효기간: ~{{ formatDate(coupon.expiresAt) }}</span>
+            </div>
+            <button
+              @click="useCoupon(coupon.id)"
+              class="btn btn-use"
+              :disabled="coupon.status !== 'unused' || isUsing"
+            >
+              <span v-if="isUsing && currentUsingCouponId === coupon.id" class="spinner-small"></span>
+              <span v-else-if="coupon.status === 'used'">사용 완료</span>
+              <span v-else-if="coupon.status === 'expired'">기간 만료</span>
+              <span v-else>사용하기</span>
+            </button>
+          </div>
         </div>
       </div>
     </main>
@@ -43,6 +65,7 @@ import { useRouter } from 'vue-router';
 const coupons = ref([]);
 const isLoading = ref(true);
 const isUsing = ref(false);
+const currentUsingCouponId = ref(null); // [신규] 어떤 쿠폰이 사용 중인지 추적
 const router = useRouter();
 
 const formatDate = (timestamp) => {
@@ -59,7 +82,14 @@ const fetchCoupons = async () => {
       orderBy("issuedAt", "desc")
     );
     const querySnapshot = await getDocs(q);
-    coupons.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    coupons.value = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      // 만료일이 지난 쿠폰의 상태를 'expired'로 업데이트 (프론트엔드에서만 표시)
+      if (data.status === 'unused' && data.expiresAt.toDate() < new Date()) {
+        return { id: doc.id, ...data, status: 'expired' };
+      }
+      return { id: doc.id, ...data };
+    });
   } catch (error) {
     console.error("쿠폰 로딩 실패:", error);
   } finally {
@@ -69,7 +99,9 @@ const fetchCoupons = async () => {
 
 const useCoupon = async (couponId) => {
   if (!confirm("쿠폰을 사용하시겠습니까? 사용 즉시 효과가 적용됩니다.")) return;
+  
   isUsing.value = true;
+  currentUsingCouponId.value = couponId; // 어떤 쿠폰이 사용 중인지 기록
   try {
     const activateMiningBoost = httpsCallable(functions, "activateMiningBoost");
     const result = await activateMiningBoost({ couponId });
@@ -81,6 +113,8 @@ const useCoupon = async (couponId) => {
     alert(`오류: ${error.message}`);
   } finally {
     isUsing.value = false;
+    currentUsingCouponId.value = null; // 사용 완료/실패 후 초기화
+    fetchCoupons(); // 쿠폰 상태 갱신을 위해 다시 불러오기
   }
 };
 
@@ -90,104 +124,222 @@ onMounted(fetchCoupons);
 <style scoped>
 .my-events-page {
   padding: 20px;
-  max-width: 1000px;
-  margin: 70px auto 20px auto;
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .page-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
+  color: #333;
 }
 
 .page-header h1 {
-  font-size: 2.8em;
-  color: #333;
+  font-size: 2.5em;
+  color: #2c3e50;
   margin-bottom: 10px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 15px;
+  justify-content: center;
 }
 
-.page-header h1 i {
-  color: #e67e22; /* 이벤트 아이콘 색상 */
+.page-header h1 .fas {
+  margin-right: 15px;
+  color: #ff9800; /* 선물 아이콘 색상 */
 }
 
-.page-header .description {
+.description {
+  color: #777;
   font-size: 1.1em;
-  color: #666;
 }
 
 .content-wrapper {
+  background: linear-gradient(145deg, #ffffff, #e6e6e6);
+  border-radius: 15px;
   padding: 30px;
-  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
 }
 
 .content-wrapper h2 {
   font-size: 2em;
-  color: #333;
-  margin-bottom: 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  color: #2c3e50;
+  margin-bottom: 25px;
+  border-bottom: 2px solid #eee;
   padding-bottom: 15px;
+  display: flex;
+  align-items: center;
 }
 
-.content-wrapper p {
-  font-size: 1.1em;
-  color: #555;
-  margin-bottom: 20px;
-  line-height: 1.6;
+.content-wrapper h2 .fas {
+  margin-right: 10px;
+  color: #007bff; /* 티켓 아이콘 색상 */
 }
 
-.card.glassmorphism {
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+.loading-state, .empty-state {
+  text-align: center;
+  padding: 50px 0;
+  color: #888;
+  font-size: 1.2em;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+.spinner-small {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-left-color: #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- 쿠폰 카드 스타일 --- */
+.coupon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 30px;
+  padding-top: 10px;
+}
+
+.coupon-card {
+  background: #ffffff;
   border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  border: 1px solid #e0e0e0;
 }
 
-.back-button {
-  background-color: #6c757d;
+.coupon-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+}
+
+.coupon-card.used, .coupon-card.expired {
+  opacity: 0.7;
+  filter: grayscale(80%);
+  border-color: #bdbdbd;
+}
+
+.coupon-header {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #ffffff;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+.coupon-main-icon {
+  font-size: 1.8em;
+  color: #ffeb3b; /* 메인 아이콘 색상 */
+}
+
+.coupon-body {
+  padding: 20px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coupon-body > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #555;
+  font-size: 1.05em;
+}
+
+.coupon-body > div .fas {
+  color: #007bff;
+  font-size: 1.2em;
+}
+
+.coupon-card.used .coupon-body > div .fas,
+.coupon-card.expired .coupon-body > div .fas {
+  color: #6c757d;
+}
+
+.boost-percentage {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.coupon-description {
+  font-style: italic;
+  color: #777;
+  border-top: 1px dashed #eee;
+  padding-top: 10px;
+  margin-top: 5px;
+}
+
+.coupon-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f9f9f9;
+}
+
+.coupon-expiry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #888;
+  font-size: 0.95em;
+}
+
+.coupon-expiry .fas {
+  color: #ff9800; /* 유효기간 아이콘 색상 */
+}
+
+.btn-use {
+  background-color: #28a745;
   color: white;
-  padding: 12px 25px;
   border: none;
+  padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 1em;
-  text-decoration: none;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
-  display: inline-flex;
+  font-weight: bold;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 20px;
+  justify-content: center;
+  min-width: 100px; /* 버튼 최소 너비 설정 */
 }
 
-.back-button:hover {
-  background-color: #5a6268;
+.btn-use:hover:not(:disabled) {
+  background-color: #218838;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 반응형 디자인 */
-@media (max-width: 768px) {
-  .page-header h1 {
-    font-size: 2.2em;
-  }
-  .content-wrapper {
-    padding: 20px;
-  }
-  .content-wrapper h2 {
-    font-size: 1.8em;
-  }
-  .back-button {
-    padding: 10px 20px;
-    font-size: 0.9em;
-  }
+.btn-use:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

@@ -16,6 +16,10 @@
           </select>
         </div>
         <div class="form-group">
+          <label for="description">이벤트 내용 (발급 사유)</label>
+          <textarea id="description" v-model="couponDetails.description" rows="3" placeholder="예: 서비스 오픈 기념 이벤트"></textarea>
+        </div>
+        <div class="form-group">
           <label for="coupon-type">쿠폰 종류</label>
           <input type="text" id="coupon-type" value="소금 광산 채굴 부스트" disabled />
         </div>
@@ -49,7 +53,7 @@
             <thead>
                 <tr>
                     <th>발급 대상</th>
-                    <th>쿠폰 종류</th>
+                    <th>이벤트 내용</th>
                     <th>효과</th>
                     <th>상태</th>
                     <th>발급일</th>
@@ -59,7 +63,7 @@
             <tbody>
                 <tr v-for="coupon in issuedCoupons" :key="coupon.id">
                     <td>{{ coupon.userName }}</td>
-                    <td>소금 광산 부스트</td>
+                    <td>{{ coupon.description }}</td>
                     <td>+{{ coupon.boostPercentage }}% ({{ coupon.durationMinutes }}분)</td>
                     <td>
                         <span class="status-badge" :class="`status-${coupon.status}`">
@@ -90,6 +94,7 @@ const isIssuing = ref(false);
 const couponDetails = reactive({
   boostPercentage: 20,
   durationMinutes: 60,
+  description: '', // [신규] 이벤트 내용 데이터
 });
 
 const issuedCoupons = ref([]);
@@ -125,7 +130,6 @@ const fetchIssuedCoupons = async () => {
         const q = query(collectionGroup(db, 'coupons'), orderBy('issuedAt', 'desc'));
         const couponSnapshot = await getDocs(q);
         
-        // 사용자 정보를 매핑하기 위해 모든 사용자 데이터를 가져옵니다.
         const usersSnapshot = await getDocs(collection(db, "users"));
         const userMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
@@ -146,6 +150,9 @@ const fetchIssuedCoupons = async () => {
 };
 
 const issueCoupons = async () => {
+  if (!couponDetails.description) {
+    return alert("이벤트 내용을 입력해주세요.");
+  }
   if (!confirm("선택한 조건으로 쿠폰을 발급하시겠습니까?")) return;
   
   isIssuing.value = true;
@@ -162,11 +169,12 @@ const issueCoupons = async () => {
       userIds,
       couponType: 'SALT_MINE_BOOST',
       boostPercentage: couponDetails.boostPercentage,
-      durationMinutes: couponDetails.durationMinutes
+      durationMinutes: couponDetails.durationMinutes,
+      description: couponDetails.description, // [신규] 이벤트 내용 전달
     });
     
     alert(result.data.message);
-    await fetchIssuedCoupons(); // 쿠폰 발급 후 목록 새로고침
+    await fetchIssuedCoupons();
   } catch (error) {
     console.error("쿠폰 발급 실패:", error);
     alert(`오류: ${error.message}`);
