@@ -369,27 +369,37 @@ export default {
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
       this.saveGame();
     },
-    async sellSalt() {
-      if (!this.currentUser) return alert("로그인이 필요합니다.");
-      if (this.isSelling) return;
-      if (this.salt < this.gameSettings.saltMineRate) {
-        return alert(`${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
-      }
-      this.isSelling = true;
-      try {
-        const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        const result = await sellSaltForPoints({ amountToSell: this.salt });
-        const { awardedPoints, soldSalt } = result.data;
-        await this.loadGame();
-        this.logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
-        alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
-      } catch (error) {
-        console.error("소금 판매 오류:", error);
-        alert(`오류: ${error.message}`);
-      } finally {
-        this.isSelling = false;
-      }
-    },
+	async sellSalt() {
+	  if (!this.currentUser) return alert("로그인이 필요합니다.");
+	  if (this.isSelling) return;
+	  
+	  const currentLocalSalt = this.salt; // 판매 시점의 로컬 소금량 기록
+	  if (currentLocalSalt < this.gameSettings.saltMineRate) {
+	    return alert(`${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
+	  }
+
+	  this.isSelling = true;
+
+	  try {
+	    // [핵심 수정] 판매할 소금량을 백엔드에 명시적으로 전달합니다.
+	    const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
+	    const result = await sellSaltForPoints({ amountToSell: currentLocalSalt }); 
+	    const { awardedPoints, soldSalt } = result.data;
+
+	    // [핵심 수정] DB에서 다시 불러오는 대신, 로컬 데이터를 직접 0으로 변경합니다.
+	    this.salt = 0;
+
+	    this.logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
+	    alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
+	  } catch (error) {
+	    console.error("소금 판매 오류:", error);
+	    alert(`오류: ${error.message}`);
+	    // 판매 실패 시, 소금량을 원래대로 복구
+	    this.salt = currentLocalSalt;
+	  } finally {
+	    this.isSelling = false;
+	  }
+	},
     async exchangeGold() {
       if (!this.currentUser || this.gold < 1) return;
       if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
