@@ -41,13 +41,47 @@
         </button>
       </form>
     </div>
+
+    <div class="coupon-list-container card">
+        <h4><i class="fas fa-history"></i> 발급된 쿠폰 내역</h4>
+        <div v-if="isLoadingCoupons" class="loading-spinner"></div>
+        <table v-else-if="issuedCoupons.length > 0" class="event-table">
+            <thead>
+                <tr>
+                    <th>발급 대상</th>
+                    <th>쿠폰 종류</th>
+                    <th>효과</th>
+                    <th>상태</th>
+                    <th>발급일</th>
+                    <th>만료일</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="coupon in issuedCoupons" :key="coupon.id">
+                    <td>{{ coupon.userName }}</td>
+                    <td>소금 광산 부스트</td>
+                    <td>+{{ coupon.boostPercentage }}% ({{ coupon.durationMinutes }}분)</td>
+                    <td>
+                        <span class="status-badge" :class="`status-${coupon.status}`">
+                            {{ formatCouponStatus(coupon.status) }}
+                        </span>
+                    </td>
+                    <td>{{ formatDate(coupon.issuedAt) }}</td>
+                    <td>{{ formatDate(coupon.expiresAt) }}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div v-else class="no-data">
+            <p>아직 발급된 쿠폰이 없습니다.</p>
+        </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from "vue";
 import { db, functions } from "@/firebaseConfig";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, collectionGroup } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
 const userList = ref([]);
@@ -58,6 +92,23 @@ const couponDetails = reactive({
   durationMinutes: 60,
 });
 
+const issuedCoupons = ref([]);
+const isLoadingCoupons = ref(true);
+
+const formatDate = (timestamp) => {
+  if (!timestamp?.toDate) return "N/A";
+  return timestamp.toDate().toLocaleDateString("ko-KR");
+};
+
+const formatCouponStatus = (status) => {
+    switch(status) {
+        case 'unused': return '미사용';
+        case 'used': return '사용 완료';
+        case 'expired': return '기간 만료';
+        default: return status;
+    }
+};
+
 const fetchUsers = async () => {
   try {
     const q = query(collection(db, "users"), orderBy("name"));
@@ -66,6 +117,32 @@ const fetchUsers = async () => {
   } catch (error) {
     console.error("사용자 목록 로딩 실패:", error);
   }
+};
+
+const fetchIssuedCoupons = async () => {
+    isLoadingCoupons.value = true;
+    try {
+        const q = query(collectionGroup(db, 'coupons'), orderBy('issuedAt', 'desc'));
+        const couponSnapshot = await getDocs(q);
+        
+        // 사용자 정보를 매핑하기 위해 모든 사용자 데이터를 가져옵니다.
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const userMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+        issuedCoupons.value = couponSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const userId = doc.ref.parent.parent.id;
+            return {
+                id: doc.id,
+                ...data,
+                userName: userMap.get(userId) || '알 수 없음',
+            }
+        });
+    } catch (error) {
+        console.error("발급된 쿠폰 목록 로딩 실패:", error);
+    } finally {
+        isLoadingCoupons.value = false;
+    }
 };
 
 const issueCoupons = async () => {
@@ -87,8 +164,9 @@ const issueCoupons = async () => {
       boostPercentage: couponDetails.boostPercentage,
       durationMinutes: couponDetails.durationMinutes
     });
-
+    
     alert(result.data.message);
+    await fetchIssuedCoupons(); // 쿠폰 발급 후 목록 새로고침
   } catch (error) {
     console.error("쿠폰 발급 실패:", error);
     alert(`오류: ${error.message}`);
@@ -97,7 +175,10 @@ const issueCoupons = async () => {
   }
 };
 
-onMounted(fetchUsers);
+onMounted(() => {
+    fetchUsers();
+    fetchIssuedCoupons();
+});
 </script>
 
 <style scoped>
@@ -222,4 +303,7 @@ h4 {
     transform: rotate(360deg);
   }
 }
+.status-badge.status-unused { background-color: #28a745; }
+.status-badge.status-used { background-color: #6c757d; }
+.status-badge.status-expired { background-color: #dc3545; }
 </style>
