@@ -33,81 +33,81 @@
 import { db, functions } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { useRoute } from "vue-router"; // [신규] useRoute import
+import { ref, onMounted, computed } from "vue"; // [신규] Vue 3 Composition API 함수 import
 
 export default {
   name: "PostDetailPage",
-  props: {
-    // 라우터로부터 'id'라는 이름의 prop을 받도록 설정합니다.
-    id: {
-      type: String,
-      required: true,
-    },
-  },
-  data() {
-    return {
-      post: null,
-      isLoading: true,
-      error: null,
-    };
-  },
-  computed: {
-    formattedContent() {
-      return this.post?.content?.replace(/\n/g, "<br />") || "";
-    },
-  },
-  async created() {
-    this.isLoading = true;
-    this.error = null;
+  // [삭제] props 옵션을 더 이상 사용하지 않으므로 삭제합니다.
+  // props: ["postId"],
+  setup() {
+    const route = useRoute(); // [신규] useRoute를 사용하여 라우트 정보에 접근
+    const post = ref(null);
+    const isLoading = ref(true);
+    const error = ref(null);
 
-    try {
-      if (!this.id) {
-        throw new Error("게시글 ID가 전달되지 않았습니다.");
-      }
-      
-      const postId = this.id;
-      const postRef = doc(db, "posts", postId);
+    const formattedContent = computed(() => {
+      return post.value?.content?.replace(/\n/g, "<br />") || "";
+    });
 
-      // 조회수 증가 로직
-      const viewedKey = `viewed_${postId}`;
-      if (!sessionStorage.getItem(viewedKey)) {
-        try {
-          const incrementView = httpsCallable(functions, "incrementPostView");
-          await incrementView({ postId });
-          sessionStorage.setItem(viewedKey, 'true');
-        } catch (viewError) {
-          // 조회수 증가 실패는 전체 페이지 로딩을 막지 않도록 콘솔에만 기록합니다.
-          console.error("조회수 업데이트 실패:", viewError);
-        }
-      }
-
-      // 게시글 데이터 가져오기
-      const docSnap = await getDoc(postRef);
-      if (docSnap.exists()) {
-        this.post = { id: docSnap.id, ...docSnap.data() };
-        // 조회수가 즉시 반영된 것처럼 보이게 로컬 데이터도 조정
-        if(sessionStorage.getItem(viewedKey) && !this.post.views) {
-            this.post.views = 1;
-        } else if (sessionStorage.getItem(viewedKey) && this.post.views > 0 && !this.initialViewCount) {
-             // 페이지 새로고침 시 중복 증가 방지를 위해 최초 1회만 실행
-             this.initialViewCount = this.post.views;
-             this.post.views++;
-        }
-
-      } else {
-        throw new Error("게시글을 찾을 수 없습니다.");
-      }
-    } catch (fetchError) {
-      console.error("게시글 조회 오류:", fetchError);
-      this.error = "게시글을 불러오는 중 오류가 발생했습니다.";
-    } finally {
-      this.isLoading = false;
-    }
-  },
-  methods: {
-    formatDate(timestamp) {
+    const formatDate = (timestamp) => {
       if (!timestamp?.toDate) return "날짜 정보 없음";
       return timestamp.toDate().toLocaleDateString("ko-KR");
-    },
+    };
+
+    const fetchPost = async () => {
+      isLoading.value = true;
+      error.value = null;
+      try {
+        // [수정] this.postId 대신 route.params.postId를 사용하여 URL에서 직접 ID를 가져옵니다.
+        const postId = route.params.postId;
+        if (!postId) {
+          throw new Error("게시글 ID를 찾을 수 없습니다.");
+        }
+        
+        const postRef = doc(db, "posts", postId);
+
+        const viewedKey = `viewed_${postId}`;
+        if (!sessionStorage.getItem(viewedKey)) {
+          try {
+            const incrementView = httpsCallable(functions, "incrementPostView");
+            await incrementView({ postId });
+            sessionStorage.setItem(viewedKey, "true");
+          } catch (viewError) {
+            console.error("조회수 업데이트 실패:", viewError);
+          }
+        }
+
+        const docSnap = await getDoc(postRef);
+        if (docSnap.exists()) {
+          post.value = { id: docSnap.id, ...docSnap.data() };
+          // 조회수가 즉시 반영된 것처럼 보이게 로컬 데이터도 조정
+          if (sessionStorage.getItem(viewedKey) && !post.value.views) {
+            post.value.views = 1;
+          } else if (sessionStorage.getItem(viewedKey) && post.value.views > 0 && !this.initialViewCount) {
+            this.initialViewCount = post.value.views;
+            post.value.views++;
+          }
+        } else {
+          throw new Error("게시글을 찾을 수 없습니다.");
+        }
+      } catch (fetchError) {
+        console.error("게시글 조회 오류:", fetchError);
+        error.value = "게시글을 불러오는 중 오류가 발생했습니다.";
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    onMounted(fetchPost);
+
+    return {
+      post,
+      isLoading,
+      error,
+      formattedContent,
+      formatDate,
+    };
   },
 };
 </script>
