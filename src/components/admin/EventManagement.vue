@@ -1,246 +1,103 @@
 <template>
   <div class="management-container">
-    <h3><i class="fas fa-calendar-alt"></i> 이벤트 관리</h3>
-    <p>새로운 이벤트를 생성하고 당첨자를 관리합니다.</p>
+    <h3><i class="fas fa-gift"></i> 쿠폰 발급 관리</h3>
+    <p>특정 사용자 또는 모든 사용자에게 게임 부스트 쿠폰을 발급합니다.</p>
 
-    <div class="event-form card">
-      <h4>새 이벤트 생성</h4>
-      <form @submit.prevent="createEvent">
+    <div class="coupon-form card">
+      <h4>신규 쿠폰 발급</h4>
+      <form @submit.prevent="issueCoupons">
         <div class="form-group">
-          <label for="title">이벤트 제목</label>
-          <input
-            type="text"
-            id="title"
-            v-model="newEvent.title"
-            placeholder="이벤트 제목"
-            required
-          />
+          <label for="user-select">대상 사용자</label>
+          <select id="user-select" v-model="targetUser" required>
+            <option value="all">모든 사용자</option>
+            <option v-for="user in userList" :key="user.id" :value="user.id">
+              {{ user.name }} ({{ user.email }})
+            </option>
+          </select>
         </div>
         <div class="form-group">
-          <label for="description">이벤트 설명</label>
-          <textarea
-            id="description"
-            v-model="newEvent.description"
-            rows="4"
-            placeholder="이벤트 상세 내용"
-            required
-          ></textarea>
+          <label for="coupon-type">쿠폰 종류</label>
+          <input type="text" id="coupon-type" value="소금 광산 채굴 부스트" disabled />
         </div>
         <div class="form-group-inline">
           <div class="form-group">
-            <label for="startDate">시작일</label>
-            <input
-              type="date"
-              id="startDate"
-              v-model="newEvent.startDate"
-              required
-            />
+            <label for="boost-percentage">부스트 비율 (%)</label>
+            <select id="boost-percentage" v-model="couponDetails.boostPercentage" required>
+              <option value="20">20%</option>
+              <option value="40">40%</option>
+              <option value="60">60%</option>
+              <option value="80">80%</option>
+              <option value="100">100%</option>
+            </select>
           </div>
           <div class="form-group">
-            <label for="endDate">종료일</label>
-            <input
-              type="date"
-              id="endDate"
-              v-model="newEvent.endDate"
-              required
-            />
+            <label for="duration">지속 시간 (분)</label>
+            <input type="number" id="duration" v-model="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
           </div>
         </div>
-        <button type="submit" class="btn btn-primary">이벤트 생성</button>
+        <button type="submit" class="btn btn-primary" :disabled="isIssuing">
+          <span v-if="isIssuing" class="spinner-small"></span>
+          <span v-else>쿠폰 발급</span>
+        </button>
       </form>
-    </div>
-
-    <div class="event-list card">
-      <h4>이벤트 목록</h4>
-      <div v-if="loading" class="loading-spinner"></div>
-      <table v-else-if="events.length > 0" class="event-table">
-        <thead>
-          <tr>
-            <th>제목</th>
-            <th>기간</th>
-            <th>상태</th>
-            <th>당첨자</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="event in events" :key="event.id">
-            <td>{{ event.title }}</td>
-            <td>
-              {{ formatDate(event.startDate) }} ~
-              {{ formatDate(event.endDate) }}
-            </td>
-            <td>
-              <span :class="`status-badge status-${getEventStatus(event)}`">
-                {{ getEventStatusText(getEventStatus(event)) }}
-              </span>
-            </td>
-            <td>{{ event.winnerName || "미선정" }}</td>
-            <td>
-              <button
-                v-if="getEventStatus(event) === 'ended' && !event.winnerId"
-                @click="selectWinner(event.id)"
-                class="btn btn-sm btn-success"
-              >
-                당첨자 선정
-              </button>
-              <button
-                @click="deleteEvent(event.id)"
-                class="btn btn-sm btn-danger"
-              >
-                삭제
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="no-data">생성된 이벤트가 없습니다.</div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from "vue";
-import { db } from "@/firebaseConfig";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  doc,
-  updateDoc,
-  Timestamp,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { db, functions } from "@/firebaseConfig";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
-const events = ref([]);
-const loading = ref(true);
-const newEvent = reactive({
-  title: "",
-  description: "",
-  startDate: "",
-  endDate: "",
+const userList = ref([]);
+const targetUser = ref("all");
+const isIssuing = ref(false);
+const couponDetails = reactive({
+  boostPercentage: 20,
+  durationMinutes: 60,
 });
 
-// --- Helper Functions ---
-const formatDate = (timestamp) => {
-  if (!timestamp) return "";
-  return timestamp.toDate().toLocaleDateString("ko-KR");
-};
-
-const getEventStatus = (event) => {
-  const now = new Date();
-  const start = event.startDate.toDate();
-  const end = event.endDate.toDate();
-  if (now < start) return "upcoming";
-  if (now > end) return "ended";
-  return "ongoing";
-};
-
-const getEventStatusText = (status) => {
-  const statusMap = {
-    upcoming: "진행 예정",
-    ongoing: "진행중",
-    ended: "종료",
-  };
-  return statusMap[status] || status;
-};
-
-// --- Firestore Functions ---
-const fetchEvents = async () => {
-  loading.value = true;
+const fetchUsers = async () => {
   try {
-    const eventsRef = collection(db, "events");
-    const q = query(eventsRef, orderBy("startDate", "desc"));
+    const q = query(collection(db, "users"), orderBy("name"));
     const querySnapshot = await getDocs(q);
-    events.value = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    userList.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
-    console.error("이벤트 목록을 불러오는 중 오류 발생:", error);
-  } finally {
-    loading.value = false;
+    console.error("사용자 목록 로딩 실패:", error);
   }
 };
 
-const createEvent = async () => {
-  if (
-    !newEvent.title ||
-    !newEvent.description ||
-    !newEvent.startDate ||
-    !newEvent.endDate
-  ) {
-    alert("모든 필드를 입력해주세요.");
-    return;
-  }
+const issueCoupons = async () => {
+  if (!confirm("선택한 조건으로 쿠폰을 발급하시겠습니까?")) return;
+  
+  isIssuing.value = true;
   try {
-    await addDoc(collection(db, "events"), {
-      ...newEvent,
-      startDate: Timestamp.fromDate(new Date(newEvent.startDate)),
-      endDate: Timestamp.fromDate(new Date(newEvent.endDate)),
-      winnerId: null,
-      winnerName: null,
-    });
-    alert("이벤트가 성공적으로 생성되었습니다.");
-    Object.assign(newEvent, {
-      title: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-    });
-    await fetchEvents();
-  } catch (error) {
-    console.error("이벤트 생성 중 오류 발생:", error);
-  }
-};
-
-const deleteEvent = async (eventId) => {
-  if (!confirm("정말로 이 이벤트를 삭제하시겠습니까?")) return;
-  try {
-    await deleteDoc(doc(db, "events", eventId));
-    alert("이벤트가 삭제되었습니다.");
-    await fetchEvents();
-  } catch (error) {
-    console.error("이벤트 삭제 중 오류 발생:", error);
-  }
-};
-
-const selectWinner = async (eventId) => {
-  if (!confirm("이벤트 당첨자를 무작위로 선정하시겠습니까?")) return;
-
-  // 실제 운영 환경에서는 이벤트 참여자 목록에서 추첨해야 합니다.
-  // 여기서는 임시로 전체 사용자 중 한 명을 무작위로 선택합니다.
-  try {
-    const usersSnapshot = await getDocs(collection(db, "users"));
-    const allUsers = usersSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    if (allUsers.length === 0) {
-      alert("추첨할 사용자가 없습니다.");
-      return;
+    let userIds = [];
+    if (targetUser.value === 'all') {
+      userIds = userList.value.map(user => user.id);
+    } else {
+      userIds.push(targetUser.value);
     }
 
-    const winner = allUsers[Math.floor(Math.random() * allUsers.length)];
-
-    const eventRef = doc(db, "events", eventId);
-    await updateDoc(eventRef, {
-      winnerId: winner.id,
-      winnerName: winner.name,
+    const issueCouponsToUser = httpsCallable(functions, "issueCouponsToUser");
+    const result = await issueCouponsToUser({
+      userIds,
+      couponType: 'SALT_MINE_BOOST',
+      boostPercentage: couponDetails.boostPercentage,
+      durationMinutes: couponDetails.durationMinutes
     });
 
-    alert(`당첨자가 선정되었습니다: ${winner.name}`);
-    await fetchEvents();
+    alert(result.data.message);
   } catch (error) {
-    console.error("당첨자 선정 중 오류 발생:", error);
-    alert("당첨자 선정에 실패했습니다.");
+    console.error("쿠폰 발급 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isIssuing.value = false;
   }
 };
 
-onMounted(fetchEvents);
+onMounted(fetchUsers);
 </script>
 
 <style scoped>

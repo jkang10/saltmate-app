@@ -1,28 +1,90 @@
 <template>
   <div class="my-events-page">
     <header class="page-header">
-      <h1><i class="fas fa-calendar-alt"></i> 나의 이벤트 관리</h1>
-      <p class="description">참여 가능한 이벤트 및 쿠폰 현황을 확인합니다.</p>
+      <h1><i class="fas fa-gift"></i> 나의 이벤트 공간</h1>
+      <p class="description">보유 쿠폰 현황을 확인하고 사용할 수 있습니다.</p>
     </header>
 
     <main class="content-wrapper card glassmorphism">
-      <h2>이벤트 및 쿠폰 현황</h2>
-      <p>
-        여기에 현재 참여 가능한 이벤트, 보유 쿠폰 목록, 지난 이벤트 기록 등을
-        표시합니다.
-      </p>
-      <p>이 페이지는 현재 개발 중입니다.</p>
-      <router-link to="/dashboard" class="back-button">
-        <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
-      </router-link>
+      <h2><i class="fas fa-ticket-alt"></i> 보유 쿠폰 목록</h2>
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+      </div>
+      <div v-else-if="coupons.length === 0" class="empty-state">
+        <p>현재 보유 중인 쿠폰이 없습니다.</p>
+      </div>
+      <div v-else class="coupon-list">
+        <div v-for="coupon in coupons" :key="coupon.id" class="coupon-item" :class="coupon.status">
+          <div class="coupon-icon"><i class="fas fa-cut"></i></div>
+          <div class="coupon-details">
+            <h4>소금 광산 채굴 부스트 (+{{ coupon.boostPercentage }}%)</h4>
+            <p><strong>효과:</strong> {{ coupon.durationMinutes }}분 동안 채굴 효율 증가</p>
+            <small>유효기간: ~{{ formatDate(coupon.expiresAt) }}</small>
+          </div>
+          <button @click="useCoupon(coupon.id)" class="btn btn-use" :disabled="coupon.status !== 'unused' || isUsing">
+             <span v-if="isUsing" class="spinner-small"></span>
+             <span v-else-if="coupon.status === 'used'">사용 완료</span>
+             <span v-else-if="coupon.status === 'expired'">기간 만료</span>
+             <span v-else>사용하기</span>
+          </button>
+        </div>
+      </div>
     </main>
   </div>
 </template>
 
-<script>
-export default {
-  name: "MyEventsPage",
+<script setup>
+import { ref, onMounted } from 'vue';
+import { auth, db, functions } from '@/firebaseConfig';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { useRouter } from 'vue-router';
+
+const coupons = ref([]);
+const isLoading = ref(true);
+const isUsing = ref(false);
+const router = useRouter();
+
+const formatDate = (timestamp) => {
+  if (!timestamp?.toDate) return "N/A";
+  return timestamp.toDate().toLocaleDateString("ko-KR");
 };
+
+const fetchCoupons = async () => {
+  isLoading.value = true;
+  try {
+    if (!auth.currentUser) return;
+    const q = query(
+      collection(db, `users/${auth.currentUser.uid}/coupons`),
+      orderBy("issuedAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    coupons.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("쿠폰 로딩 실패:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const useCoupon = async (couponId) => {
+  if (!confirm("쿠폰을 사용하시겠습니까? 사용 즉시 효과가 적용됩니다.")) return;
+  isUsing.value = true;
+  try {
+    const activateMiningBoost = httpsCallable(functions, "activateMiningBoost");
+    const result = await activateMiningBoost({ couponId });
+    alert(result.data.message);
+    // 성공 시, 소금 광산 페이지로 이동하여 효과를 바로 체감하게 함
+    router.push('/salt-mine-game');
+  } catch (error) {
+    console.error("쿠폰 사용 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isUsing.value = false;
+  }
+};
+
+onMounted(fetchCoupons);
 </script>
 
 <style scoped>
