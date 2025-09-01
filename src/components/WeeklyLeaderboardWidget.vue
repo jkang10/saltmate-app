@@ -42,11 +42,19 @@ const fetchWeeklyWinners = async () => {
   isLoading.value = true;
   error.value = null;
   try {
+    // 백엔드의 안정적인 날짜 계산 로직을 그대로 가져옵니다.
     const today = new Date();
-    const dayOfWeek = today.getDay(); 
-    const diff = today.getDate() - dayOfWeek - (dayOfWeek === 0 ? -1 : 6);
-    const lastMonday = new Date(today.setDate(diff));
+    const dayOfWeek = today.getDay();
+
+    const lastSunday = new Date(today);
+    lastSunday.setDate(today.getDate() - dayOfWeek);
+
+    const lastMonday = new Date(lastSunday);
+    lastMonday.setDate(lastSunday.getDate() - 6);
+    
     const weekId = lastMonday.toISOString().slice(0, 10);
+
+    console.log("Fetching weekly winners for weekId:", weekId); // 디버깅용 로그
 
     const q = query(
       collection(db, `leaderboards/weekly_winners/${weekId}`),
