@@ -8,11 +8,11 @@
       <small>{{ error }}</small>
     </div>
     <ol v-else-if="winners.length > 0" class="winner-list">
-      <li
-        v-for="(winner, index) in winners"
-        :key="winner.userId"
-        :class="{ 'top-rank': index < 3 }"
-      >
+	<li
+	  v-for="(winner, index) in winners"
+	  :key="winner.userId"
+	  :class="{ 'top-rank': index < 3, 'first-rank-item': index === 0 }"	
+	>
         <span class="rank">{{ index + 1 }}</span>
         <span class="name">{{ winner.userName }}</span>
         <span class="score"
@@ -70,11 +70,40 @@ onMounted(fetchWeeklyWinners);
 <style scoped>
 .leaderboard-widget {
   padding: 15px 20px;
-  background-color: #fff;
-  border: 1px solid #e9ecef;
-  display: flex; /* [수정] flexbox 레이아웃 적용 */
-  flex-direction: column; /* [수정] 세로 정렬 */
-  height: 100%; /* [수정] 부모 높이에 맞춤 */
+  /* [핵심] 배경을 어둡고 세련된 남색 계열 그라데이션으로 변경 */
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #ecf0f1; /* 기본 텍스트 색상을 밝게 변경 */
+  position: relative; /* 빛나는 효과를 위한 position 설정 */
+  overflow: hidden; /* 빛나는 효과가 카드 밖으로 나가지 않도록 */
+}
+
+/* [신규] 배경에 은은하게 빛나는 애니메이션 효과 추가 */
+.leaderboard-widget::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(144, 148, 255, 0.15) 0%, rgba(144, 148, 255, 0) 60%);
+  animation: rotateGlow 15s linear infinite;
+  z-index: 0;
+}
+
+@keyframes rotateGlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
+h3, .winner-list, .loading-state, .error-state, .empty-state {
+  position: relative; /* 내용이 애니메이션 위에 오도록 설정 */
+  z-index: 1;
 }
 
 h3 {
@@ -83,7 +112,8 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #333;
+  color: #fff; /* 제목 색상을 흰색으로 */
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 
 h3 .fa-trophy {
@@ -95,17 +125,17 @@ h3 .fa-trophy {
 .empty-state {
   text-align: center;
   padding: 20px 0;
-  color: #888;
+  color: #bdc3c7; /* 텍스트 색상 조정 */
   font-size: 0.9em;
-  flex-grow: 1; /* [수정] 남은 공간을 채워 길이를 맞춤 */
-  display: flex; /* [수정] 내부 요소 정렬 */
-  justify-content: center; /* [수정] 수직 중앙 정렬 */
-  align-items: center; /* [수정] 수평 중앙 정렬 */
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .spinner-small {
-  border: 3px solid rgba(0, 0, 0, 0.1);
-  border-top-color: #007bff;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
   border-radius: 50%;
   width: 24px;
   height: 24px;
@@ -125,25 +155,40 @@ h3 .fa-trophy {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px; /* 아이템 간 간격 */
-  flex-grow: 1; /* [수정] 남은 공간을 채워 길이를 맞춤 */
+  gap: 12px;
+  flex-grow: 1;
 }
 
 .winner-list li {
   display: flex;
   align-items: center;
   font-size: 0.95em;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
-.winner-list li.top-rank .rank {
-  font-weight: bold;
-  color: #007bff;
+.winner-list li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateX(3px);
 }
+
+.winner-list li.first-rank-item {
+  background: linear-gradient(90deg, #ff8a80 0%, #ffd180 100%);
+  color: #333;
+  font-weight: bold;
+}
+
+.winner-list li.first-rank-item .rank,
+.winner-list li.first-rank-item .name,
+.winner-list li.first-rank-item .score {
+  color: #333;
+}
+
 
 .rank {
   width: 25px;
   font-weight: bold;
-  color: #666;
   text-align: center;
 }
 
@@ -152,11 +197,144 @@ h3 .fa-trophy {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #555; /* [수정] 글씨 색상 */
 }
 
 .score {
   font-weight: bold;
-  color: #333; /* [수정] 글씨 색상 */
+}
+</style><style scoped>
+.leaderboard-widget {
+  padding: 15px 20px;
+  /* [핵심] 배경을 어둡고 세련된 남색 계열 그라데이션으로 변경 */
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #ecf0f1; /* 기본 텍스트 색상을 밝게 변경 */
+  position: relative; /* 빛나는 효과를 위한 position 설정 */
+  overflow: hidden; /* 빛나는 효과가 카드 밖으로 나가지 않도록 */
+}
+
+/* [신규] 배경에 은은하게 빛나는 애니메이션 효과 추가 */
+.leaderboard-widget::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(144, 148, 255, 0.15) 0%, rgba(144, 148, 255, 0) 60%);
+  animation: rotateGlow 15s linear infinite;
+  z-index: 0;
+}
+
+@keyframes rotateGlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
+h3, .winner-list, .loading-state, .error-state, .empty-state {
+  position: relative; /* 내용이 애니메이션 위에 오도록 설정 */
+  z-index: 1;
+}
+
+h3 {
+  font-size: 1.2em;
+  margin: 0 0 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff; /* 제목 색상을 흰색으로 */
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+}
+
+h3 .fa-trophy {
+  color: #ffc107;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  text-align: center;
+  padding: 20px 0;
+  color: #bdc3c7; /* 텍스트 색상 조정 */
+  font-size: 0.9em;
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spinner-small {
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.winner-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
+}
+
+.winner-list li {
+  display: flex;
+  align-items: center;
+  font-size: 0.95em;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.winner-list li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateX(3px);
+}
+
+.winner-list li.first-rank-item {
+  background: linear-gradient(90deg, #ff8a80 0%, #ffd180 100%);
+  color: #333;
+  font-weight: bold;
+}
+
+.winner-list li.first-rank-item .rank,
+.winner-list li.first-rank-item .name,
+.winner-list li.first-rank-item .score {
+  color: #333;
+}
+
+
+.rank {
+  width: 25px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.name {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score {
+  font-weight: bold;
 }
 </style>
