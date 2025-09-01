@@ -13,8 +13,8 @@
 
     <div v-else-if="topWinners.length > 0" class="winners-list">
       <transition-group name="flip-list" tag="ul">
-        <li v-for="winner in topWinners" :key="winner.userId" :class="['winner-item', `rank-${winner.rank}`]">
-          <div class="rank-badge">
+	<li v-for="winner in topWinners" :key="winner.id" :class="['winner-item', `rank-${winner.rank}`]">
+	<div class="rank-badge">
             <template v-if="winner.rank === 1">
               <i class="fas fa-crown gold-crown"></i>
             </template>
@@ -46,7 +46,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { db } from '@/firebaseConfig';
-import { collection, query, orderBy, onSnapshot, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 const topWinners = ref([]);
 const isLoading = ref(true);
