@@ -67,7 +67,7 @@ onMounted(fetchWeeklyWinners);
 </script>
 
 <style scoped>
-.leaderboard-widget {
+.leaderboard-widget.card { /* 또는 div.leaderboard-widget */
   padding: 15px 20px;
   background: linear-gradient(
     135deg,
