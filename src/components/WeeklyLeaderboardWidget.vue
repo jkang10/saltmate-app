@@ -159,4 +159,4 @@ h3 .fa-trophy {
   font-weight: bold;
   color: #333; /* [수정] 글씨 색상 */
 }
-</style>v
+</style>
