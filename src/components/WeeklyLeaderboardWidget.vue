@@ -11,7 +11,7 @@
       <li
         v-for="(winner, index) in winners"
         :key="winner.userId"
-        :class="{ 'top-rank': index < 3 }"
+        :class="{ 'top-rank': index < 3, 'first-rank-item': index === 0 }"
       >
         <span class="rank">{{ index + 1 }}</span>
         <span class="name">{{ winner.userName }}</span>
@@ -44,7 +44,6 @@ const fetchWeeklyWinners = async () => {
   try {
     const today = new Date();
     const dayOfWeek = today.getDay(); 
-    // 오늘이 월요일(1)이면 7일 전, 화요일(2)이면 8일 전 ... 일요일(0)이면 6일 전
     const diff = today.getDate() - dayOfWeek - (dayOfWeek === 0 ? -1 : 6);
     const lastMonday = new Date(today.setDate(diff));
     const weekId = lastMonday.toISOString().slice(0, 10);
@@ -70,14 +69,43 @@ onMounted(fetchWeeklyWinners);
 <style scoped>
 .leaderboard-widget {
   padding: 15px 20px;
-  background: linear-gradient(135deg, #535c82 0%, #3f466b 100%); /* 오늘의 TOP 7과 유사한 보라색 계열, 살짝 톤 다운 */
+  background: linear-gradient(
+    135deg,
+    #535c82 0%,
+    #3f466b 100%
+  ); 
   border: none;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   height: 100%;
-  color: #ecf0f1;
+  color: #ecf0f1; 
+  position: relative;
+  overflow: hidden; 
+}
+
+.leaderboard-widget::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(144, 148, 255, 0.15) 0%, rgba(144, 148, 255, 0) 60%);
+  animation: rotateGlow 15s linear infinite;
+  z-index: 0;
+}
+
+@keyframes rotateGlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
+h3, .winner-list, .loading-state, .error-state, .empty-state {
+  position: relative; 
+  z-index: 1;
 }
 
 h3 {
@@ -86,7 +114,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: #fff; 
   text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 
@@ -99,7 +127,7 @@ h3 .fa-trophy {
 .empty-state {
   text-align: center;
   padding: 20px 0;
-  color: #bdc3c7;
+  color: #bdc3c7; 
   font-size: 0.9em;
   flex-grow: 1;
   display: flex;
@@ -137,11 +165,28 @@ h3 .fa-trophy {
   display: flex;
   align-items: center;
   font-size: 0.95em;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
-.winner-list li.top-rank {
+.winner-list li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateX(3px);
+}
+
+.winner-list li.first-rank-item {
+  background: linear-gradient(90deg, #ff8a80 0%, #ffd180 100%);
+  color: #333;
   font-weight: bold;
 }
+
+.winner-list li.first-rank-item .rank,
+.winner-list li.first-rank-item .name,
+.winner-list li.first-rank-item .score {
+  color: #333;
+}
+
 
 .rank {
   width: 25px;
@@ -159,4 +204,4 @@ h3 .fa-trophy {
 .score {
   font-weight: bold;
 }
-</style>s
+</style>
