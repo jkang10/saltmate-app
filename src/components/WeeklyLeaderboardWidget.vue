@@ -159,4 +159,4 @@ h3 .fa-trophy {
 .score {
   font-weight: bold;
 }
-</style>
+</style>s
