@@ -42,7 +42,6 @@ const fetchWeeklyWinners = async () => {
   isLoading.value = true;
   error.value = null;
   try {
-    // 백엔드의 안정적인 날짜 계산 로직을 그대로 가져옵니다.
     const today = new Date();
     const dayOfWeek = today.getDay();
 
@@ -54,7 +53,7 @@ const fetchWeeklyWinners = async () => {
     
     const weekId = lastMonday.toISOString().slice(0, 10);
 
-    console.log("Fetching weekly winners for weekId:", weekId); // 디버깅용 로그
+    console.log("Fetching weekly winners for weekId:", weekId);
 
     const q = query(
       collection(db, `leaderboards/weekly_winners/${weekId}`),
@@ -87,13 +86,20 @@ onMounted(fetchWeeklyWinners);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 470px; /* 높이를 '오늘의 TOP 7'과 맞추기 위해 고정 (필요시 조절) */
+  height: 470px;
   color: #ecf0f1;
-  position: relative; /* ::before 요소의 위치 기준점 */
-  overflow: hidden;   /* 위젯 밖으로 나가는 효과를 숨김 */
+  position: relative;
+  overflow: hidden;
+  /* [수정] 호버 효과를 위한 transition 추가 */
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
 }
 
-/* 반짝이는 효과를 위한 가상 요소 */
+/* [수정] 마우스 호버 시 카드에 효과 적용 */
+.leaderboard-widget.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
 .leaderboard-widget::before {
   content: '';
   position: absolute;
@@ -103,16 +109,14 @@ onMounted(fetchWeeklyWinners);
   height: 200%;
   background: radial-gradient(circle, rgba(144, 148, 255, 0.15) 0%, rgba(144, 148, 255, 0) 60%);
   animation: rotateGlow 15s linear infinite;
-  z-index: 0; /* 콘텐츠보다 뒤에 위치 */
+  z-index: 0;
 }
 
-/* 회전 애니메이션 정의 */
 @keyframes rotateGlow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* 제목, 리스트 등 모든 콘텐츠가 효과보다 위에 보이도록 설정 */
 h3, .winner-list, .loading-state, .error-state, .empty-state {
   position: relative;
   z-index: 1;
