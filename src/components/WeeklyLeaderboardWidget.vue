@@ -202,7 +202,9 @@ h3 .fa-trophy {
 .score {
   font-weight: bold;
 }
-</style><style scoped>
+</style>
+
+<style scoped>
 .leaderboard-widget {
   padding: 15px 20px;
   /* [핵심] 배경을 어둡고 세련된 남색 계열 그라데이션으로 변경 */
