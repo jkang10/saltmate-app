@@ -13,7 +13,7 @@
 
     <div v-else-if="topWinners.length > 0" class="winners-list">
       <transition-group name="flip-list" tag="ul">
-        <li v-for="(winner, index) in topWinners" :key="winner.id" :class="['winner-item', `rank-${winner.rank}`]">
+	<li v-for="winner in topWinners" :key="winner.id" :class="['winner-item', `rank-${winner.rank}`]">
           <div class="rank-badge">
             <template v-if="winner.rank === 1">
               <i class="fas fa-crown gold-crown"></i>
