@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { db } from '@/firebaseConfig';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
