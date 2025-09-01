@@ -75,24 +75,25 @@ onMounted(fetchWeeklyWinners);
 </script>
 
 <style scoped>
-.leaderboard-widget.card { /* 또는 div.leaderboard-widget */
+.leaderboard-widget.card {
   padding: 15px 20px;
   background: linear-gradient(
     135deg,
     #535c82 0%,
     #3f466b 100%
-  ); 
+  );
   border: none;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 94%;
-  color: #ecf0f1; 
-  position: relative;
-  overflow: hidden; 
+  height: 350px; /* 높이를 '오늘의 TOP 7'과 맞추기 위해 고정 (필요시 조절) */
+  color: #ecf0f1;
+  position: relative; /* ::before 요소의 위치 기준점 */
+  overflow: hidden;   /* 위젯 밖으로 나가는 효과를 숨김 */
 }
 
+/* 반짝이는 효과를 위한 가상 요소 */
 .leaderboard-widget::before {
   content: '';
   position: absolute;
@@ -102,17 +103,18 @@ onMounted(fetchWeeklyWinners);
   height: 200%;
   background: radial-gradient(circle, rgba(144, 148, 255, 0.15) 0%, rgba(144, 148, 255, 0) 60%);
   animation: rotateGlow 15s linear infinite;
-  z-index: 0;
+  z-index: 0; /* 콘텐츠보다 뒤에 위치 */
 }
 
+/* 회전 애니메이션 정의 */
 @keyframes rotateGlow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-
+/* 제목, 리스트 등 모든 콘텐츠가 효과보다 위에 보이도록 설정 */
 h3, .winner-list, .loading-state, .error-state, .empty-state {
-  position: relative; 
+  position: relative;
   z-index: 1;
 }
 
@@ -122,7 +124,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff; 
+  color: #fff;
   text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 
@@ -135,7 +137,7 @@ h3 .fa-trophy {
 .empty-state {
   text-align: center;
   padding: 20px 0;
-  color: #bdc3c7; 
+  color: #bdc3c7;
   font-size: 0.9em;
   flex-grow: 1;
   display: flex;
@@ -194,7 +196,6 @@ h3 .fa-trophy {
 .winner-list li.first-rank-item .score {
   color: #333;
 }
-
 
 .rank {
   width: 25px;
