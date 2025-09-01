@@ -192,25 +192,28 @@ export default {
       }
       return this.perSecond;
     },
-    shopItems() {
-      const SHOP_DEFS = [
-        { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
-        { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
-        { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
-        { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
-        { id: "offline_miner_1", name: "기본 자동 채굴기", baseCost: 1000000, type: 'offline', duration: 2, desc: "최대 2시간 오프라인 채굴", icon: "fas fa-power-off" },
-      ];
-      return SHOP_DEFS.map((item) => ({
-        ...item,
-        cost: Math.ceil(
-          item.baseCost *
-            Math.pow(
-              item.id.startsWith("offline") ? 2.5 : 1.6,
-              this.upgrades[item.id] || 0,
-            ),
+
+shopItems() {
+  const SHOP_DEFS = [
+    { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
+    { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
+    { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
+    { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
+    // [핵심 수정] 설명을 '오프라인 채굴 효율'로 변경하고, type과 duration을 제거했습니다.
+    { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
+  ];
+  return SHOP_DEFS.map((item) => ({
+    ...item,
+    cost: Math.ceil(
+      item.baseCost *
+        Math.pow(
+          item.id.startsWith("offline") ? 2.5 : 1.6,
+          this.upgrades[item.id] || 0,
         ),
-      }));
-    },
+    ),
+  }));
+},
+
     currentPickaxeIcon() {
       if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
       if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
@@ -264,48 +267,61 @@ export default {
       this.activeBoost = null;
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
-    async loadGame() {
-      if (!this.gameStateRef) return;
-      this.isLoading = true;
-      try {
-        const docSnap = await getDoc(this.gameStateRef);
-        if (docSnap.exists()) {
-          const state = docSnap.data();
-          const upgrades = state.upgrades || {};
-          const offlineMinerLevel = upgrades.offline_miner_1 || 0;
-          let maxOfflineSeconds = 0;
-          if (offlineMinerLevel > 0) {
-            maxOfflineSeconds = (upgrades.offline_miner_1 || 0) * 2 * 3600;
-          }
-          const lastUpdate = state.lastUpdated?.toDate() || new Date();
-          const now = new Date();
-          const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-          const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
-          const offlineSalt = Math.floor(
-            effectiveSeconds * (state.perSecond || 0),
-          );
 
-          if (offlineSalt > 0) {
-            this.logEvent(
-              `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`,
-            );
-          }
-
-          this.salt = (state.salt || 0) + offlineSalt;
-          this.gold = state.gold || 0;
-          this.perClick = state.perClick || 1;
-          this.perSecond = state.perSecond || 0;
-          this.upgrades = state.upgrades || {};
-          this.activeBoost = state.activeBoost || null;
-        } else {
-          this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
-        }
-      } catch (error) {
-        console.error("게임 데이터 로딩 오류:", error);
-      } finally {
-        this.isLoading = false;
+async loadGame() {
+  if (!this.gameStateRef) return;
+  this.isLoading = true;
+  try {
+    const docSnap = await getDoc(this.gameStateRef);
+    if (docSnap.exists()) {
+      const state = docSnap.data();
+      const upgrades = state.upgrades || {};
+      
+      // --- [핵심 수정] ---
+      // 1. '기본 자동 채굴' 레벨을 가져옵니다.
+      const offlineMinerLevel = upgrades.offline_miner_1 || 0;
+      let offlineRate = 0;
+      if (offlineMinerLevel > 0) {
+        // 2. 레벨당 10%의 효율을 계산하되, 최대 100%(1.0)를 넘지 않도록 합니다.
+        offlineRate = Math.min(offlineMinerLevel * 0.1, 1.0);
       }
-    },
+
+      const lastUpdate = state.lastUpdated?.toDate() || new Date();
+      const now = new Date();
+      const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
+
+      // 3. 무한정 쌓이는 것을 방지하기 위해 오프라인 보상 시간을 최대 24시간으로 제한합니다.
+      const maxOfflineSeconds = 24 * 3600; 
+      const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
+
+      // 4. 최종 오프라인 채굴량을 '효율'을 곱하여 계산합니다.
+      const offlineSalt = Math.floor(
+        effectiveSeconds * (state.perSecond || 0) * offlineRate,
+      );
+      // --- 수정 끝 ---
+
+      if (offlineSalt > 0) {
+        this.logEvent(
+          `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`,
+        );
+      }
+
+      this.salt = (state.salt || 0) + offlineSalt;
+      this.gold = state.gold || 0;
+      this.perClick = state.perClick || 1;
+      this.perSecond = state.perSecond || 0;
+      this.upgrades = state.upgrades || {};
+      this.activeBoost = state.activeBoost || null;
+    } else {
+      this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
+    }
+  } catch (error) {
+    console.error("게임 데이터 로딩 오류:", error);
+  } finally {
+    this.isLoading = false;
+  }
+},
+
     async saveGame() {
       if (!this.currentUser || !this.gameStateRef || this.isLoading) {
         return;
