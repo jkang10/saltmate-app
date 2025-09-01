@@ -50,7 +50,6 @@ import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 const topWinners = ref([]);
 const isLoading = ref(true);
-let unsubscribe = null;
 
 const getLastMondayDateString = () => {
   const today = new Date();
@@ -91,11 +90,6 @@ onMounted(() => {
   fetchWeeklyWinners();
 });
 
-onUnmounted(() => {
-  if (unsubscribe) {
-    unsubscribe();
-  }
-});
 </script>
 
 <style scoped>
