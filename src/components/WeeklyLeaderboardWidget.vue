@@ -1,5 +1,5 @@
 <template>
-  <div class="leaderboard-widget card">
+  <div class="leaderboard-widget">
     <h3><i class="fas fa-trophy"></i> 주간 TOP 7</h3>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner-small"></div>
@@ -42,6 +42,7 @@ const fetchWeeklyWinners = async () => {
   isLoading.value = true;
   error.value = null;
   try {
+    // [핵심 수정] 백엔드와 동일하게 '지난주 월요일' 날짜를 기준으로 weekId를 계산합니다.
     const today = new Date();
     const dayOfWeek = today.getDay(); 
     const diff = today.getDate() - dayOfWeek - (dayOfWeek === 0 ? -1 : 6);
@@ -67,22 +68,17 @@ onMounted(fetchWeeklyWinners);
 </script>
 
 <style scoped>
-.leaderboard-widget.card { /* 또는 div.leaderboard-widget */
+.leaderboard-widget.card {
   padding: 15px 20px;
-  background: linear-gradient(
-    135deg,
-    #535c82 0%,
-    #3f466b 100%
-  ); 
-  border: none;
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 94%;
-  color: #ecf0f1; 
+  height: 100%;
+  color: #ecf0f1;
   position: relative;
-  overflow: hidden; 
+  overflow: hidden;
 }
 
 .leaderboard-widget::before {
@@ -102,7 +98,6 @@ onMounted(fetchWeeklyWinners);
   to { transform: rotate(360deg); }
 }
 
-
 h3, .winner-list, .loading-state, .error-state, .empty-state {
   position: relative; 
   z-index: 1;
@@ -114,7 +109,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff; 
+  color: #fff;
   text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 
@@ -127,12 +122,13 @@ h3 .fa-trophy {
 .empty-state {
   text-align: center;
   padding: 20px 0;
-  color: #bdc3c7; 
+  color: #bdc3c7;
   font-size: 0.9em;
   flex-grow: 1;
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-direction: column;
 }
 
 .spinner-small {
@@ -186,7 +182,6 @@ h3 .fa-trophy {
 .winner-list li.first-rank-item .score {
   color: #333;
 }
-
 
 .rank {
   width: 25px;
