@@ -3,7 +3,7 @@
     <div class="widget-header">
       <i class="fas fa-trophy trophy-icon"></i>
       <h3>주간 TOP 7</h3>
-      <p class="subtitle">이번 주 SaltMate 획득 랭킹</p>
+      <p class="subtitle">지난 주 SaltMate 획득 랭킹</p>
     </div>
 
     <div v-if="isLoading" class="loading-state">
@@ -13,7 +13,7 @@
 
     <div v-else-if="topWinners.length > 0" class="winners-list">
       <transition-group name="flip-list" tag="ul">
-	<li v-for="winner in topWinners" :key="winner.id" :class="['winner-item', `rank-${winner.rank}`]">
+        <li v-for="winner in topWinners" :key="winner.userId" :class="['winner-item', `rank-${winner.rank}`]">
           <div class="rank-badge">
             <template v-if="winner.rank === 1">
               <i class="fas fa-crown gold-crown"></i>
@@ -37,8 +37,8 @@
 
     <div v-else class="no-data">
       <i class="fas fa-sad-tear"></i>
-      <p>이번 주 랭킹 데이터가 아직 없습니다.</p>
-      <p class="small-text">매주 월요일 새로운 랭킹이 시작됩니다!</p>
+      <p>지난 주 랭킹 데이터가 아직 없습니다.</p>
+      <p class="small-text">매주 월요일 새로운 랭킹이 집계됩니다!</p>
     </div>
   </div>
 </template>
@@ -46,49 +46,49 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { db } from '@/firebaseConfig';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit, getDocs } from 'firebase/firestore';
 
 const topWinners = ref([]);
 const isLoading = ref(true);
 let unsubscribe = null;
 
-const getCurrentWeekId = () => {
+const getLastMondayDateString = () => {
   const today = new Date();
-  const dayOfWeek = today.getDay(); // 0 (일요일) - 6 (토요일)
-
-  // 주간 랭킹은 "일요일"을 기준으로 해당 주차가 끝나는 것으로 처리합니다.
-  // 따라서 오늘이 일요일이라면 오늘 날짜가 weekId가 되고,
-  // 오늘이 일요일이 아니라면 지난 일요일 날짜가 weekId가 됩니다.
-  let sunday = new Date(today);
-  if (dayOfWeek !== 0) { // 오늘이 일요일이 아니면
-    sunday.setDate(today.getDate() - dayOfWeek); // 지난 일요일로 설정
-  }
-  // 시간을 23:59:59.999로 설정하여 해당 일요일의 모든 데이터를 포함하도록 합니다.
-  sunday.setHours(23, 59, 59, 999);
-
-
-  const year = sunday.getFullYear();
-  const month = (sunday.getMonth() + 1).toString().padStart(2, '0');
-  const day = sunday.getDate().toString().padStart(2, '0');
+  const dayOfWeek = today.getDay(); // 일요일=0, 월요일=1, ...
+  // 오늘이 월요일(1)이면 7일 전, 화요일(2)이면 8일 전 ... 일요일(0)이면 6일 전
+  const diff = today.getDate() - dayOfWeek - (dayOfWeek === 0 ? -1 : 6);
+  const lastMonday = new Date(today.setDate(diff));
+  
+  const year = lastMonday.getFullYear();
+  const month = (lastMonday.getMonth() + 1).toString().padStart(2, '0');
+  const day = lastMonday.getDate().toString().padStart(2, '0');
+  
   return `${year}-${month}-${day}`;
 };
 
-onMounted(() => {
-  const weekId = getCurrentWeekId();
-  const leaderboardRef = collection(db, 'leaderboards', 'weekly_winners', weekId);
-  const q = query(leaderboardRef, orderBy('rank', 'asc'));
-
-  unsubscribe = onSnapshot(q, (snapshot) => {
+const fetchWeeklyWinners = async () => {
+  isLoading.value = true;
+  try {
+    const weekId = getLastMondayDateString();
+    const leaderboardRef = collection(db, 'leaderboards', 'weekly_winners', weekId);
+    const q = query(leaderboardRef, orderBy('rank', 'asc'), limit(7));
+    
+    const querySnapshot = await getDocs(q);
     const winners = [];
-    snapshot.forEach(doc => {
+    querySnapshot.forEach(doc => {
       winners.push({ id: doc.id, ...doc.data() });
     });
     topWinners.value = winners;
-    isLoading.value = false;
-  }, (error) => {
+
+  } catch (error) {
     console.error("주간 TOP 7 랭킹 로딩 중 오류:", error);
+  } finally {
     isLoading.value = false;
-  });
+  }
+};
+
+onMounted(() => {
+  fetchWeeklyWinners();
 });
 
 onUnmounted(() => {
