@@ -87,7 +87,7 @@ onMounted(fetchWeeklyWinners);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 350px; /* 높이를 '오늘의 TOP 7'과 맞추기 위해 고정 (필요시 조절) */
+  height: 390px; /* 높이를 '오늘의 TOP 7'과 맞추기 위해 고정 (필요시 조절) */
   color: #ecf0f1;
   position: relative; /* ::before 요소의 위치 기준점 */
   overflow: hidden;   /* 위젯 밖으로 나가는 효과를 숨김 */
