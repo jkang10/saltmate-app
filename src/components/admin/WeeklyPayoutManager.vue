@@ -45,6 +45,16 @@
       >
         <i class="fas fa-calculator"></i> 선택 주차 정산 생성
       </button>
+      
+      <button
+        @click="runManualRanking"
+        class="btn-manual-generate"
+        style="background-color: #dc3545;"
+        :disabled="isLoading"
+        title="지난주 랭킹이 표시되지 않을 경우, 이 버튼을 눌러 수동으로 집계할 수 있습니다."
+      >
+        <i class="fas fa-trophy"></i> 지난주 랭킹 집계
+      </button>
 
       <button
         v-if="selectedPayouts.length > 0"
@@ -181,7 +191,7 @@ export default {
       selectedDate: getTodayString(),
       searchMode: "pending",
       selectedPayouts: [],
-      statusFilter: "pending", // [신규 추가] 상태 필터 데이터
+      statusFilter: "pending",
     };
   },
   computed: {
@@ -198,7 +208,7 @@ export default {
   methods: {
     async fetchPendingRequests() {
       this.searchMode = "pending";
-      this.statusFilter = "pending"; // [수정] '승인 대기' 버튼 클릭 시 필터도 'pending'으로 설정
+      this.statusFilter = "pending";
       this.isLoading = true;
       try {
         const q = query(
@@ -218,7 +228,6 @@ export default {
         this.isLoading = false;
       }
     },
-    // [수정] fetchRequestsByDate 메소드가 상태 필터를 사용하도록 변경
     async fetchRequestsByDate() {
       if (!this.selectedDate) {
         alert("조회할 날짜를 선택해주세요.");
@@ -230,9 +239,8 @@ export default {
         let baseQuery = collection(db, "weekly_payout_requests");
         let constraints = [where("weekId", "==", this.selectedDate)];
 
-        // 상태 필터가 '전체'가 아닌 경우에만 status 조건 추가
-        if (this.statusFilter !== "all") {
-          constraints.push(where("status", "==", this.statusFilter));
+        if (this.statusFilter !== 'all') {
+            constraints.push(where("status", "==", this.statusFilter));
         }
 
         const q = query(baseQuery, ...constraints);
@@ -243,9 +251,7 @@ export default {
         }));
       } catch (error) {
         console.error("날짜별 정산 목록 조회 오류:", error);
-        alert(
-          "데이터를 불러오는 데 실패했습니다. Firestore 콘솔에서 색인(Index)이 생성되었는지 확인해주세요.",
-        );
+        alert("데이터를 불러오는 데 실패했습니다. Firestore 콘솔에서 색인(Index)이 생성되었는지 확인해주세요.");
       } finally {
         this.isLoading = false;
       }
@@ -272,7 +278,7 @@ export default {
           dateString: this.selectedDate,
         });
         alert(result.data.message);
-        this.statusFilter = "pending"; // 정산 생성 후에는 '승인 대기' 목록을 보도록 설정
+        this.statusFilter = 'pending';
         await this.fetchRequestsByDate();
       } catch (error) {
         console.error("수동 정산 생성 실패:", error);
@@ -282,8 +288,7 @@ export default {
       }
     },
     async approvePayout(payoutId) {
-      if (!confirm(`이 정산 요청을 승인하시겠습니까? (실제 지급이 처리됩니다)`))
-        return;
+      if (!confirm(`이 정산 요청을 승인하시겠습니까? (실제 지급이 처리됩니다)`)) return;
       this.isLoading = true;
       try {
         const reqRef = doc(db, "weekly_payout_requests", payoutId);
@@ -314,13 +319,10 @@ export default {
 
       this.isLoading = true;
       try {
-        const forceApproveFunction = httpsCallable(
-          functions,
-          "manuallyForceApprovePayouts",
-        );
+        const forceApproveFunction = httpsCallable(functions, "manuallyForceApprovePayouts");
         const result = await forceApproveFunction({ payoutIds: [payoutId] });
         alert(result.data.message);
-        if (this.searchMode === "pending") {
+        if (this.searchMode === 'pending') {
           await this.fetchPendingRequests();
         } else {
           await this.fetchRequestsByDate();
@@ -401,12 +403,26 @@ export default {
           return req.status;
       }
     },
+    async runManualRanking() {
+      if (!confirm("[1회성] 지난주 TOP 7 랭킹을 지금 집계하시겠습니까?")) return;
+
+      this.isLoading = true;
+      try {
+        const runWeeklyRank = httpsCallable(functions, 'manuallyCalculateLastWeekWinners');
+        const result = await runWeeklyRank();
+        alert(result.data.message);
+      } catch (error) {
+        console.error("주간 랭킹 수동 집계 오류:", error);
+        alert(`오류가 발생했습니다: ${error.message}`);
+      } finally {
+        this.isLoading = false;
+      }
+    },
   },
 };
 </script>
 
 <style scoped>
-/* [신규 추가] 상태 필터 스타일 */
 .status-filter-wrapper {
   display: flex;
   align-items: center;
@@ -417,7 +433,6 @@ export default {
   border-radius: 4px;
   border: 1px solid #ccc;
 }
-/* 기존 스타일 유지 */
 .payout-manager {
   padding: 20px;
 }
