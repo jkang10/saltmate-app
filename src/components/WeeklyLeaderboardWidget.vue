@@ -79,7 +79,7 @@ onMounted(fetchWeeklyWinners);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 90%;
   color: #ecf0f1; 
   position: relative;
   overflow: hidden; 
