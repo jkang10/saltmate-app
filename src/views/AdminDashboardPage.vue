@@ -72,8 +72,7 @@
               to="/admin-dashboard/notices-community"
               class="nav-item"
               active-class="active-link"
-              ><i class="fas fa-comments"></i> 공지사항 및 커뮤니티
-              관리</router-link
+              ><i class="fas fa-comments"></i> 공지사항 및 알림</router-link
             >
           </li>
           <li>
@@ -182,9 +181,6 @@
         </ul>
       </aside>
       <section class="admin-content card glassmorphism">
-        <div class="widgets-grid">
-          <RealtimeUsersWidget />
-        </div>
         <router-view></router-view>
       </section>
     </main>
@@ -201,7 +197,7 @@ import {
   onSnapshot,
   getCountFromServer,
 } from "firebase/firestore";
-import RealtimeUsersWidget from "@/components/admin/RealtimeUsersWidget.vue";
+// [수정] RealtimeUsersWidget는 이제 /admin-dashboard/users 경로에서만 보이므로 여기서 import할 필요가 없습니다.
 
 const notificationCounts = reactive({
   subscriptions: 0,
@@ -224,7 +220,8 @@ const setupNotificationListeners = () => {
         notificationCounts[countProperty] = snapshot.data().count;
       });
       unsubscribeListeners.push(unsubscribe);
-    } catch (error) {
+    } catch (error)
+      // eslint-disable-next-line no-console
       console.error(`Error setting up listener for ${collectionName}:`, error);
     }
   };
@@ -247,7 +244,7 @@ onUnmounted(() => {
 <style scoped>
 .admin-dashboard-page {
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1400px; /* [수정] 너비를 넓혀서 더 많은 콘텐츠를 표시 */
   margin: 70px auto 20px;
   display: flex;
   flex-direction: column;
@@ -279,7 +276,7 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 .admin-sidebar {
-  flex: 0 0 250px;
+  flex: 0 0 280px; /* [수정] 사이드바 너비 조정 */
   padding: 30px 20px;
   border-radius: 15px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
@@ -312,18 +309,18 @@ onUnmounted(() => {
   border-radius: 8px;
   color: #555;
   text-decoration: none;
-  font-size: 1.1em;
+  font-size: 1.05em; /* [수정] 폰트 크기 미세 조정 */
   font-weight: 500;
   transition:
     background-color 0.3s ease,
     color 0.3s ease,
     transform 0.2s ease;
-  position: relative; /* [추가] 뱃지 위치 기준 */
+  position: relative;
 }
 .admin-nav .nav-item i {
   font-size: 1.2em;
   color: #007bff;
-  width: 20px; /* 아이콘 너비 고정 */
+  width: 20px; 
   text-align: center;
 }
 .admin-nav .nav-item.active-link,
@@ -351,13 +348,6 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.5);
   min-height: 500px;
 }
-.widgets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-/* ▼▼▼ [신규 추가] 알림 뱃지 스타일 ▼▼▼ */
 .notification-badge {
   position: absolute;
   right: 15px;
@@ -375,7 +365,6 @@ onUnmounted(() => {
   font-weight: bold;
   box-shadow: 0 0 5px rgba(220, 53, 69, 0.7);
 }
-/* ▲▲▲ 신규 추가 완료 ▲▲▲ */
 
 @media (max-width: 992px) {
   .admin-layout {
