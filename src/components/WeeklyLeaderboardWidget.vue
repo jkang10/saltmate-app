@@ -90,39 +90,36 @@ onMounted(fetchWeeklyWinners);
   color: #ecf0f1;
   position: relative;
   overflow: hidden;
+  /* [수정] 호버 효과를 위한 transition 추가 */
   transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-  /* [수정] 상단 여백 추가로 위치 조정 */
-  margin-top: 0px; /* 이 값을 조절하여 위치를 맞춥니다. */
 }
 
-/* [수정] 대시보드 솔트메이트처럼 더 생동감 있는 배경 반짝임 */
-.leaderboard-widget::before {
-  content: '';
-  position: absolute;
-  top: -100%; /* 더 넓은 범위에서 시작 */
-  left: -100%; /* 더 넓은 범위에서 시작 */
-  width: 300%; /* 크기 더 키움 */
-  height: 300%; /* 크기 더 키움 */
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0) 50%); /* 빛나는 그라데이션 수정 */
-  animation: rotateLight 25s linear infinite; /* 애니메이션 속도 및 이름 변경 */
-  z-index: 0;
-  opacity: 0.7; /* 투명도 조절 */
-}
-
-/* [수정] 배경 애니메이션 키프레임 변경 */
-@keyframes rotateLight {
-  0% { transform: rotate(0deg) scale(0.8); opacity: 0.5; } /* 시작 시 작게, 흐리게 */
-  50% { transform: rotate(180deg) scale(1.1); opacity: 1; } /* 중간에 크게, 밝게 */
-  100% { transform: rotate(360deg) scale(0.8); opacity: 0.5; } /* 끝에 다시 작게, 흐리게 */
-}
-
-
-/* 기존 호버 효과 */
+/* [수정] 마우스 호버 시 카드에 효과 적용 */
 .leaderboard-widget.card:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
+
+.leaderboard-widget::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0) 50%);
+  animation: rotateLight 25s linear infinite;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+/* [수정] @keyframes 앞에 마침표(.)가 없어야 합니다. */
+@keyframes rotateLight {
+  0% { transform: rotate(0deg) scale(0.8); opacity: 0.5; }
+  50% { transform: rotate(180deg) scale(1.1); opacity: 1; }
+  100% { transform: rotate(360deg) scale(0.8); opacity: 0.5; }
+}
 
 /* 이하 기존 스타일 유지 */
 h3, .winner-list, .loading-state, .error-state, .empty-state {
@@ -148,13 +145,14 @@ h3 .fa-trophy {
 .error-state,
 .empty-state {
   text-align: center;
-  padding: 20px 0;
   color: #bdc3c7;
   font-size: 0.9em;
-  flex-grow: 1;
+  /* [수정] 아래 4줄 추가 */
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column; /* 컨텐츠를 세로로 쌓기 위함 */
+  justify-content: center; /* 세로 중앙 정렬 */
+  align-items: center; /* 가로 중앙 정렬 */
+  flex-grow: 1; /* 남은 공간을 모두 차지하여 중앙 정렬의 기준점으로 삼음 */
 }
 
 .spinner-small {
