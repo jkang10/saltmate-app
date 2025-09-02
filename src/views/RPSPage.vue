@@ -64,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue"; // [수정] onUnmounted 추가
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db, auth } from "@/firebaseConfig";
 import { doc, onSnapshot, getDoc } from "firebase/firestore";
@@ -74,11 +74,12 @@ const isLoading = ref(false);
 const result = ref(null);
 const gameSettings = reactive({
   rpsMultiplier: 1.2,
-  rpsLimit: 10, // [추가] 일일 제한 횟수 기본값
+  rpsLimit: 10,
 });
-const remainingPlays = ref(null); // [추가] 남은 횟수 상태 변수
+const remainingPlays = ref(null);
 
-// [추가] 페이지 로드 시 오늘 플레이 횟수를 가져오는 함수
+let unsubscribe = null; // [수정] 리스너 정리 함수를 저장할 변수
+
 const fetchPlayCount = async () => {
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
@@ -90,16 +91,23 @@ const fetchPlayCount = async () => {
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  const unsubscribe = onSnapshot(configRef, (docSnap) => {
+  // [수정] unsubscribe 변수에 리스너 정리 함수를 할당
+  unsubscribe = onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       gameSettings.rpsMultiplier = docSnap.data().rpsMultiplier || 1.2;
       gameSettings.rpsLimit = docSnap.data().rpsLimit || 10;
-      // 설정이 로드된 후 플레이 횟수 가져오기
       if (auth.currentUser) {
         fetchPlayCount();
       }
     }
   });
+});
+
+// [추가] 컴포넌트가 사라질 때 리스너를 정리하여 메모리 누수 방지
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe();
+  }
 });
 
 const resultText = computed(() => {
@@ -130,7 +138,6 @@ const play = async (choice) => {
     const playRPS = httpsCallable(functions, "playRPS");
     const response = await playRPS({ betAmount: betAmount.value, choice });
     result.value = response.data;
-    // [수정] 백엔드로부터 받은 남은 횟수로 업데이트
     remainingPlays.value = response.data.remainingPlays;
   } catch (error) {
     console.error("가위바위보 게임 오류:", error);
@@ -142,7 +149,6 @@ const play = async (choice) => {
 </script>
 
 <style scoped>
-/* [추가] 플레이 횟수 표시 스타일 */
 .play-count {
   margin-bottom: 15px;
   font-size: 1.1em;
@@ -284,4 +290,4 @@ const play = async (choice) => {
     transform: rotate(360deg);
   }
 }
-</style>s
+</style>
