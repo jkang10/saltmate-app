@@ -10,7 +10,7 @@
         오늘 남은 횟수: <strong>{{ remainingPlays }}</strong> / {{ maxPlaysToday }}
       </div>
 
-      <div class="crystal-container" @click="handleClick">
+      <div class="crystal-container" @click="handleClick" :class="{ harvestable: isHarvestable }">
         <img
           src="@/assets/crystal.png"
           alt="소금 결정"
@@ -43,9 +43,10 @@
       <button
         class="harvest-button"
         @click="harvest"
-        :disabled="isHarvesting || score < scoreGoal"
+        :disabled="isHarvesting || !isHarvestable || remainingPlays <= 0"
       >
         <span v-if="isHarvesting" class="spinner-small"></span>
+        <span v-else-if="remainingPlays <= 0">오늘 모두 수확했어요!</span>
         <span v-else
           >수확하기 ({{
             Math.floor(score / 10).toLocaleString()
@@ -53,52 +54,71 @@
           획득)</span
         >
       </button>
+       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
+       <p v-if="error" class="error-message">{{ error }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, reactive } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { db, auth } from "@/firebaseConfig";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
+// --- 상태 변수 ---
 const score = ref(0);
 const scoreGoal = ref(1000);
 const isHarvesting = ref(false);
 const floatingNumbers = ref([]);
-const userData = reactive({
-  saltGameData: {
-    date: "",
-    count: 0,
-  },
-});
+const userData = ref({ saltGameData: { date: "", count: 0 } });
+const error = ref("");
+const successMessage = ref("");
+
 let userDataUnsubscribe = null;
 
-// [수정] 요일별 플레이 횟수 배열 정의
+// --- 계산된 속성 ---
 const playLimits = [1, 1, 2, 1, 2, 1, 2]; // 일, 월, 화, 수, 목, 금, 토
 
 const maxPlaysToday = computed(() => {
   const dayOfWeek = new Date().getDay();
-  // [수정] 오늘 요일에 맞는 횟수를 가져옵니다.
   return playLimits[dayOfWeek];
 });
 
 const remainingPlays = computed(() => {
   const todayStr = new Date().toISOString().slice(0, 10);
-  if (userData.saltGameData.date === todayStr) {
-    return maxPlaysToday.value - userData.saltGameData.count;
+  if (userData.value.saltGameData.date === todayStr) {
+    return maxPlaysToday.value - userData.value.saltGameData.count;
   }
-  return maxPlaysToday.value; // 날짜가 다르면 초기 횟수 반환
+  return maxPlaysToday.value;
 });
+
+const isHarvestable = computed(() => score.value >= scoreGoal.value);
 
 const progressBarWidth = computed(() => {
   const percentage = (score.value / scoreGoal.value) * 100;
   return `${Math.min(percentage, 100)}%`;
 });
 
+
+// --- 함수 ---
+const getGameStatus = async () => {
+  if (!auth.currentUser) return;
+  try {
+    const userRef = doc(db, "users", auth.currentUser.uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists() && userSnap.data().saltGameData) {
+      userData.value.saltGameData = userSnap.data().saltGameData;
+    }
+  } catch (err) {
+    console.error("게임 상태 조회 오류:", err);
+    error.value = "게임 상태를 불러오는 데 실패했습니다.";
+  }
+};
+
+
 const handleClick = (event) => {
-  if (score.value >= scoreGoal.value) return;
+  if (isHarvestable.value || remainingPlays.value <= 0) return;
   score.value += 1;
 
   const rect = event.currentTarget.getBoundingClientRect();
@@ -115,7 +135,7 @@ const handleClick = (event) => {
 };
 
 const harvest = async () => {
-  if (!isHarvestable.value || isHarvesting.value || playsLeft.value <= 0) return;
+  if (!isHarvestable.value || isHarvesting.value || remainingPlays.value <= 0) return;
 
   isHarvesting.value = true;
   error.value = "";
@@ -124,22 +144,17 @@ const harvest = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const harvestSaltCrystals = httpsCallable(functions, "harvestSaltCrystals");
-    const result = await harvestSaltCrystals({ clicks: clicks.value });
+    const result = await harvestSaltCrystals({ clicks: score.value });
 
     const awarded = result.data.awardedPoints;
     successMessage.value = `성공! ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
-
-    clicks.value = 0;
-    localStorage.setItem("saltCrystalClicks", "0");
-    
-    // [수정] 수확 성공 후 게임 상태(남은 횟수)를 다시 불러옵니다.
-    await getGameStatus(); 
+    score.value = 0;
+    await getGameStatus();
 
     setTimeout(() => (successMessage.value = ""), 3000);
   } catch (err) {
     console.error("수확 오류:", err);
     error.value = `수확 실패: ${err.message}`;
-    // [수정] 오류 발생 시에도 게임 상태를 다시 불러와 정확한 횟수를 표시합니다.
     if (err.code?.includes("resource-exhausted")) {
       await getGameStatus();
     }
@@ -151,9 +166,10 @@ const harvest = async () => {
 onMounted(() => {
   if (auth.currentUser) {
     const userRef = doc(db, "users", auth.currentUser.uid);
+    // onSnapshot은 실시간으로 데이터를 감지하므로, getGameStatus 대신 사용
     userDataUnsubscribe = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists() && docSnap.data().saltGameData) {
-        userData.saltGameData = docSnap.data().saltGameData;
+        userData.value.saltGameData = docSnap.data().saltGameData;
       }
     });
   }
@@ -167,7 +183,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* (기존 스타일은 변경사항이 없으므로 생략) */
+/* 기존 스타일은 변경사항이 없으므로 생략 */
 .page-container {
   max-width: 600px;
   margin: 90px auto 20px;
@@ -204,6 +220,15 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   position: relative;
+  user-select: none;
+}
+.crystal-container.harvestable {
+  animation: glowing 1.5s infinite;
+}
+@keyframes glowing {
+  0% { filter: drop-shadow(0 0 5px #3498db); }
+  50% { filter: drop-shadow(0 0 20px #3498db); }
+  100% { filter: drop-shadow(0 0 5px #3498db); }
 }
 .crystal-image {
   width: 100%;
@@ -215,7 +240,7 @@ onUnmounted(() => {
   font-weight: bold;
   color: #007bff;
   animation: floatUp 1s ease-out forwards;
-  pointer-events: none; /* 클릭 이벤트 방해 방지 */
+  pointer-events: none;
 }
 @keyframes floatUp {
   to {
@@ -254,6 +279,10 @@ onUnmounted(() => {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  min-height: 58px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
 }
 .harvest-button:disabled {
   background-color: #ccc;
@@ -265,13 +294,18 @@ onUnmounted(() => {
   width: 24px;
   height: 24px;
   animation: spin 1s linear infinite;
-  display: inline-block; /* 추가: 버튼 내에서 올바르게 표시되도록 */
-  vertical-align: middle; /* 추가: 텍스트와 세로 정렬 */
+  display: inline-block;
+  vertical-align: middle;
 }
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
+.success-message, .error-message {
+  margin-top: 15px;
+  font-weight: bold;
+}
+.success-message { color: #28a745; }
+.error-message { color: #dc3545; }
 </style>
