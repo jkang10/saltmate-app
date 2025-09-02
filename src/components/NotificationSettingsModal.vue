@@ -40,7 +40,8 @@ import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 export default {
   name: 'NotificationSettingsModal',
   emits: ['close'],
-  setup(_, { emit }) {
+  // [수정] 사용하지 않는 인자 ' _, { emit } ' 를 제거합니다.
+  setup() {
     const hasPermission = ref(Notification.permission === 'granted');
     const isLoading = ref(false);
     const error = ref(null);
