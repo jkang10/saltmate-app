@@ -61,9 +61,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { db, auth } from "@/firebaseConfig";
-import { doc, onSnapshot, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // --- 상태 변수 ---
@@ -74,8 +74,7 @@ const floatingNumbers = ref([]);
 const userData = ref({ saltGameData: { date: "", count: 0 } });
 const error = ref("");
 const successMessage = ref("");
-
-let userDataUnsubscribe = null;
+const loadingStatus = ref(true);
 
 // --- 계산된 속성 ---
 const playLimits = [1, 1, 2, 1, 2, 1, 2]; // 일, 월, 화, 수, 목, 금, 토
@@ -104,6 +103,7 @@ const progressBarWidth = computed(() => {
 // --- 함수 ---
 const getGameStatus = async () => {
   if (!auth.currentUser) return;
+  loadingStatus.value = true;
   try {
     const userRef = doc(db, "users", auth.currentUser.uid);
     const userSnap = await getDoc(userRef);
@@ -113,6 +113,8 @@ const getGameStatus = async () => {
   } catch (err) {
     console.error("게임 상태 조회 오류:", err);
     error.value = "게임 상태를 불러오는 데 실패했습니다.";
+  } finally {
+    loadingStatus.value = false;
   }
 };
 
@@ -163,21 +165,10 @@ const harvest = async () => {
   }
 };
 
+// [수정] onMounted에서 onSnapshot 대신 getGameStatus를 호출합니다.
 onMounted(() => {
   if (auth.currentUser) {
-    const userRef = doc(db, "users", auth.currentUser.uid);
-    // onSnapshot은 실시간으로 데이터를 감지하므로, getGameStatus 대신 사용
-    userDataUnsubscribe = onSnapshot(userRef, (docSnap) => {
-      if (docSnap.exists() && docSnap.data().saltGameData) {
-        userData.value.saltGameData = docSnap.data().saltGameData;
-      }
-    });
-  }
-});
-
-onUnmounted(() => {
-  if (userDataUnsubscribe) {
-    userDataUnsubscribe();
+    getGameStatus();
   }
 });
 </script>
