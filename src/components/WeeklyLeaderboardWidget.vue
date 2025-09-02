@@ -1,7 +1,6 @@
 <template>
   <div class="leaderboard-widget card">
-    <div class="card-icon"><i class="fas fa-trophy"></i></div>
-    <h3> 주간 TOP 7</h3>
+    <h3><i class="fas fa-trophy"></i> 주간 TOP 7</h3>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner-small"></div>
     </div>
@@ -12,7 +11,7 @@
       <li
         v-for="(winner, index) in winners"
         :key="winner.userId"
-        :class="{ 'top-rank': index < 3, 'first-rank-item': index === 0 }"
+        :class="{ 'first-rank-item': index === 0 }"
       >
         <span class="rank">{{ index + 1 }}</span>
         <span class="name">{{ winner.userName }}</span>
@@ -54,8 +53,6 @@ const fetchWeeklyWinners = async () => {
     
     const weekId = lastMonday.toISOString().slice(0, 10);
 
-    console.log("Fetching weekly winners for weekId:", weekId);
-
     const q = query(
       collection(db, `leaderboards/weekly_winners/${weekId}`),
       orderBy("rank", "asc"),
@@ -76,7 +73,7 @@ onMounted(fetchWeeklyWinners);
 
 <style scoped>
 .leaderboard-widget.card {
-  padding: 15px 20px;
+  padding: 25px 20px;
   background: linear-gradient(
     135deg,
     #535c82 0%,
@@ -87,21 +84,19 @@ onMounted(fetchWeeklyWinners);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 470px; /* 고정된 높이 */
+  height: 470px;
   color: #ecf0f1;
   position: relative;
   overflow: hidden;
   transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-  /* [추가] 내부 콘텐츠를 세로 중앙 정렬하기 위한 속성 */
-  justify-content: center; /* 자식 요소들을 세로 중앙으로 정렬 */
 }
 
-/* [수정] 마우스 호버 시 카드에 효과 적용 */
 .leaderboard-widget.card:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
+/* [수정] 배경 반짝임 효과가 제목(h3) 뒤에 가려지지 않도록 z-index 추가 */
 .leaderboard-widget::before {
   content: '';
   position: absolute;
@@ -111,29 +106,31 @@ onMounted(fetchWeeklyWinners);
   height: 300%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0) 50%);
   animation: rotateLight 25s linear infinite;
-  z-index: 0;
+  z-index: 1; /* 콘텐츠와 동일한 z-index 레벨로 설정 */
   opacity: 0.7;
 }
 
-/* [수정] @keyframes 앞에 마침표(.)가 없어야 합니다. */
 @keyframes rotateLight {
   0% { transform: rotate(0deg) scale(0.8); opacity: 0.5; }
   50% { transform: rotate(180deg) scale(1.1); opacity: 1; }
   100% { transform: rotate(360deg) scale(0.8); opacity: 0.5; }
 }
 
-/* 이하 기존 스타일 유지 */
+
 h3, .winner-list, .loading-state, .error-state, .empty-state {
   position: relative;
-  z-index: 1;
+  /* [수정] z-index를 2로 상향 조정하여 배경 효과보다 위에 오도록 함 */
+  z-index: 2;
 }
 
 h3 {
-  font-size: 1.2em;
-  margin: 0 0 15px;
+  font-size: 1.4em;
+  margin: 0 0 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   color: #fff;
   text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
@@ -145,15 +142,14 @@ h3 .fa-trophy {
 .loading-state,
 .error-state,
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1;
   text-align: center;
   color: #bdc3c7;
-  font-size: 0.9em;
-  /* [수정] 아래 4줄 추가 */
-  display: flex;
-  flex-direction: column; /* 컨텐츠를 세로로 쌓기 위함 */
-  justify-content: center; /* 세로 중앙 정렬 */
-  align-items: center; /* 가로 중앙 정렬 */
-  flex-grow: 1; /* 남은 공간을 모두 차지하여 중앙 정렬의 기준점으로 삼음 */
+  font-size: 1em;
 }
 
 .spinner-small {
@@ -179,28 +175,49 @@ h3 .fa-trophy {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  flex-grow: 1; /* [추가] 부모의 남은 공간을 모두 차지하도록 설정 */
-  justify-content: center; /* [추가] 내부 리스트 아이템들을 세로 중앙으로 정렬 */
+  flex-grow: 1;
 }
 
 .winner-list li {
   display: flex;
   align-items: center;
-  font-size: 0.95em;
-  padding: 8px 12px;
+  font-size: 1em;
+  padding: 10px 15px;
   border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.05);
   transition: all 0.2s ease;
 }
 
 .winner-list li:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
     transform: translateX(3px);
 }
 
+/* [수정] 1등 애니메이션 효과를 위한 스타일 추가 */
 .winner-list li.first-rank-item {
-  background: linear-gradient(90deg, #ff8a80 0%, #ffd180 100%);
-  color: #333;
+  color: #212529;
   font-weight: bold;
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+    90deg,
+    #f8d7da 0%,
+    #fff3cd 50%,
+    #f8d7da 100%
+  );
+  animation: animated-gradient 3s ease-in-out infinite;
+}
+
+/* [추가] 1등 애니메이션 키프레임 */
+@keyframes animated-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .winner-list li.first-rank-item .rank,
@@ -210,9 +227,10 @@ h3 .fa-trophy {
 }
 
 .rank {
-  width: 25px;
+  width: 30px;
   font-weight: bold;
   text-align: center;
+  font-size: 1.1em;
 }
 
 .name {
