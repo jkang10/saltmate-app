@@ -1,6 +1,7 @@
 <template>
   <div class="leaderboard-widget card">
-    <h3><i class="fas fa-trophy"></i> 주간 TOP 7</h3>
+    <div class="card-icon"><i class="fas fa-trophy"></i></div>
+    <h3> 주간 TOP 7</h3>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner-small"></div>
     </div>
