@@ -92,7 +92,7 @@ onMounted(fetchWeeklyWinners);
   overflow: hidden;
   transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
   /* [수정] 상단 여백 추가로 위치 조정 */
-  margin-top: 20px; /* 이 값을 조절하여 위치를 맞춥니다. */
+  margin-top: 0px; /* 이 값을 조절하여 위치를 맞춥니다. */
 }
 
 /* [수정] 대시보드 솔트메이트처럼 더 생동감 있는 배경 반짝임 */
