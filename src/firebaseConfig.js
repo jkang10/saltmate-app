@@ -1,4 +1,4 @@
-// 파일 경로: src/firebaseConfig.js
+	// 파일 경로: src/firebaseConfig.js
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";

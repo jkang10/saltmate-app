@@ -290,4 +290,4 @@ const play = async (choice) => {
     transform: rotate(360deg);
   }
 }
-</style>
+</style>s
