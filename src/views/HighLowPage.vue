@@ -79,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -92,21 +92,13 @@ const gameSettings = reactive({
   highLowMultiplier: 1.2,
 });
 
-let unsubscribe = null; 
-
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  unsubscribe = onSnapshot(configRef, (docSnap) => {
+  onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       gameSettings.highLowMultiplier = docSnap.data().highLowMultiplier || 1.2;
     }
   });
-});
-
-onUnmounted(() => {
-  if (unsubscribe) {
-    unsubscribe();
-  }
 });
 
 const play = async (playerChoice) => {
@@ -120,7 +112,7 @@ const play = async (playerChoice) => {
   result.value = null;
 
   try {
-    const functions = getFunctions();
+    const functions = getFunctions(undefined, "asia-northeast3");
     const playHighLow = httpsCallable(functions, "playHighLow");
     const response = await playHighLow({
       betAmount: betAmount.value,

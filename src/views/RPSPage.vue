@@ -60,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -72,21 +72,13 @@ const gameSettings = reactive({
   rpsMultiplier: 1.2,
 });
 
-let unsubscribe = null; 
-
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  unsubscribe = onSnapshot(configRef, (docSnap) => {
+  onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       gameSettings.rpsMultiplier = docSnap.data().rpsMultiplier || 1.2;
     }
   });
-});
-
-onUnmounted(() => {
-  if (unsubscribe) {
-    unsubscribe();
-  }
 });
 
 const resultText = computed(() => {
@@ -113,7 +105,7 @@ const play = async (choice) => {
   result.value = null;
 
   try {
-    const functions = getFunctions();
+    const functions = getFunctions(undefined, "asia-northeast3");
     const playRPS = httpsCallable(functions, "playRPS");
     const response = await playRPS({ betAmount: betAmount.value, choice });
     result.value = response.data;
