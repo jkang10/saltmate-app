@@ -115,22 +115,34 @@ const handleClick = (event) => {
 };
 
 const harvest = async () => {
-  if (score.value < scoreGoal.value) {
-    alert("점수가 부족하여 수확할 수 없습니다.");
-    return;
-  }
+  if (!isHarvestable.value || isHarvesting.value || playsLeft.value <= 0) return;
+
   isHarvesting.value = true;
+  error.value = "";
+  successMessage.value = "";
+
   try {
-    const functions = getFunctions();
-    const harvestCrystals = httpsCallable(functions, "harvestSaltCrystals");
-    const result = await harvestCrystals({ clicks: score.value });
-    alert(
-      `${result.data.awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`,
-    );
-    score.value = 0; // 점수 초기화
-  } catch (error) {
-    console.error("수확 중 오류:", error);
-    alert(`오류: ${error.message}`);
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const harvestSaltCrystals = httpsCallable(functions, "harvestSaltCrystals");
+    const result = await harvestSaltCrystals({ clicks: clicks.value });
+
+    const awarded = result.data.awardedPoints;
+    successMessage.value = `성공! ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
+
+    clicks.value = 0;
+    localStorage.setItem("saltCrystalClicks", "0");
+    
+    // [수정] 수확 성공 후 게임 상태(남은 횟수)를 다시 불러옵니다.
+    await getGameStatus(); 
+
+    setTimeout(() => (successMessage.value = ""), 3000);
+  } catch (err) {
+    console.error("수확 오류:", err);
+    error.value = `수확 실패: ${err.message}`;
+    // [수정] 오류 발생 시에도 게임 상태를 다시 불러와 정확한 횟수를 표시합니다.
+    if (err.code?.includes("resource-exhausted")) {
+      await getGameStatus();
+    }
   } finally {
     isHarvesting.value = false;
   }
