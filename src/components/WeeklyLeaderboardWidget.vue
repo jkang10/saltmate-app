@@ -86,12 +86,13 @@ onMounted(fetchWeeklyWinners);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  height: 470px;
+  height: 470px; /* 고정된 높이 */
   color: #ecf0f1;
   position: relative;
   overflow: hidden;
-  /* [수정] 호버 효과를 위한 transition 추가 */
   transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  /* [추가] 내부 콘텐츠를 세로 중앙 정렬하기 위한 속성 */
+  justify-content: center; /* 자식 요소들을 세로 중앙으로 정렬 */
 }
 
 /* [수정] 마우스 호버 시 카드에 효과 적용 */
@@ -99,7 +100,6 @@ onMounted(fetchWeeklyWinners);
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
-
 
 .leaderboard-widget::before {
   content: '';
@@ -178,7 +178,8 @@ h3 .fa-trophy {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  flex-grow: 1;
+  flex-grow: 1; /* [추가] 부모의 남은 공간을 모두 차지하도록 설정 */
+  justify-content: center; /* [추가] 내부 리스트 아이템들을 세로 중앙으로 정렬 */
 }
 
 .winner-list li {
