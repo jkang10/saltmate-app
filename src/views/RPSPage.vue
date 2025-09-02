@@ -11,6 +11,10 @@
     </header>
 
     <div class="game-card card">
+      <div v-if="remainingPlays !== null" class="play-count">
+        오늘 남은 횟수: <strong>{{ remainingPlays }}</strong> / {{ gameSettings.rpsLimit }}
+      </div>
+
       <div v-if="result" class="result-display" :class="result.result">
         <div class="choices">
           <div class="choice">
@@ -62,21 +66,38 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "@/firebaseConfig";
-import { doc, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/firebaseConfig";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 
 const betAmount = ref(100);
 const isLoading = ref(false);
 const result = ref(null);
 const gameSettings = reactive({
   rpsMultiplier: 1.2,
+  rpsLimit: 10, // [추가] 일일 제한 횟수 기본값
 });
+const remainingPlays = ref(null); // [추가] 남은 횟수 상태 변수
+
+// [추가] 페이지 로드 시 오늘 플레이 횟수를 가져오는 함수
+const fetchPlayCount = async () => {
+  const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
+  const docSnap = await getDoc(playCountRef);
+  
+  const playCount = docSnap.exists() ? (docSnap.data().rps || 0) : 0;
+  remainingPlays.value = gameSettings.rpsLimit - playCount;
+};
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  onSnapshot(configRef, (docSnap) => {
+  const unsubscribe = onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       gameSettings.rpsMultiplier = docSnap.data().rpsMultiplier || 1.2;
+      gameSettings.rpsLimit = docSnap.data().rpsLimit || 10;
+      // 설정이 로드된 후 플레이 횟수 가져오기
+      if (auth.currentUser) {
+        fetchPlayCount();
+      }
     }
   });
 });
@@ -105,10 +126,12 @@ const play = async (choice) => {
   result.value = null;
 
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
+    const functions = getFunctions();
     const playRPS = httpsCallable(functions, "playRPS");
     const response = await playRPS({ betAmount: betAmount.value, choice });
     result.value = response.data;
+    // [수정] 백엔드로부터 받은 남은 횟수로 업데이트
+    remainingPlays.value = response.data.remainingPlays;
   } catch (error) {
     console.error("가위바위보 게임 오류:", error);
     alert(`오류: ${error.message}`);
@@ -119,6 +142,15 @@ const play = async (choice) => {
 </script>
 
 <style scoped>
+/* [추가] 플레이 횟수 표시 스타일 */
+.play-count {
+  margin-bottom: 15px;
+  font-size: 1.1em;
+  color: #333;
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+}
 .page-container {
   max-width: 600px;
   margin: 90px auto 20px;
@@ -252,4 +284,4 @@ const play = async (choice) => {
     transform: rotate(360deg);
   }
 }
-</style>
+</style>s
