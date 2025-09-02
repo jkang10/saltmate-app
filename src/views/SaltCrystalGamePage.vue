@@ -2,314 +2,264 @@
   <div class="page-container">
     <header class="page-header">
       <h1><i class="fas fa-gem"></i> 소금 결정 키우기</h1>
-      <p class="description">
-        소금 결정을 클릭해서 SaltMate 포인트를 수확하세요!
-      </p>
+      <p>소금 결정을 클릭해서 SaltMate 포인트를 수확하세요!</p>
     </header>
 
-    <main class="content-wrapper card">
-      <div class="game-info">
-        <span v-if="!loadingStatus"
-          >오늘 남은 횟수: {{ playsLeft }} / {{ totalPlaysToday }}</span
-        >
-        <span v-else>플레이 정보 확인 중...</span>
+    <div class="game-card card">
+      <div class="play-count">
+        오늘 남은 횟수: <strong>{{ remainingPlays }}</strong> / {{ maxPlaysToday }}
       </div>
-      <div class="game-area">
+
+      <div class="crystal-container" @click="handleClick">
+        <img
+          src="@/assets/crystal.png"
+          alt="소금 결정"
+          class="crystal-image"
+          :style="{ transform: `scale(${1 + score / 2000})` }"
+        />
         <div
-          class="crystal-container"
-          @click="handleClick"
-          :class="{ harvestable: isHarvestable }"
+          v-for="i in floatingNumbers"
+          :key="i.id"
+          class="floating-number"
+          :style="{ top: i.y + 'px', left: i.x + 'px' }"
         >
-          <img
-            src="@/assets/crystal.png"
-            alt="소금 결정"
-            class="crystal-image"
-            :style="{ transform: `scale(${crystalScale})` }"
-          />
-          <div
-            v-if="clickEffect.visible"
-            class="click-effect"
-            :style="{ top: clickEffect.y + 'px', left: clickEffect.x + 'px' }"
-          >
-            +1
-          </div>
+          +1
         </div>
-
-        <div class="progress-section">
-          <p class="click-counter">
-            현재 점수: <strong>{{ clicks.toLocaleString() }}</strong> /
-            {{ harvestGoal.toLocaleString() }}
-          </p>
-          <div class="progress-bar">
-            <div
-              class="progress-bar-fill"
-              :style="{ width: progressPercentage + '%' }"
-            ></div>
-          </div>
-        </div>
-
-        <button
-          @click="harvest"
-          class="harvest-button"
-          :disabled="!isHarvestable || isHarvesting || playsLeft === 0"
-        >
-          <span v-if="isHarvesting">수확 중...</span>
-          <span v-else-if="playsLeft === 0">오늘 모두 수확했어요!</span>
-          <span v-else
-            >수확하기 ({{ awardedPoints.toLocaleString() }}P 획득)</span
-          >
-        </button>
-
-        <p v-if="successMessage" class="success-message">
-          {{ successMessage }}
-        </p>
-        <p v-if="error" class="error-message">{{ error }}</p>
       </div>
-    </main>
+
+      <div class="score-progress">
+        <span class="score-text"
+          >현재 점수: {{ score.toLocaleString() }} /
+          {{ scoreGoal.toLocaleString() }}</span
+        >
+        <div class="progress-bar">
+          <div
+            class="progress-bar-inner"
+            :style="{ width: progressBarWidth }"
+          ></div>
+        </div>
+      </div>
+
+      <button
+        class="harvest-button"
+        @click="harvest"
+        :disabled="isHarvesting || score < scoreGoal"
+      >
+        <span v-if="isHarvesting" class="spinner-small"></span>
+        <span v-else
+          >수확하기 ({{
+            Math.floor(score / 10).toLocaleString()
+          }}P
+          획득)</span
+        >
+      </button>
+    </div>
   </div>
 </template>
 
-<script>
-import { auth, db } from "@/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+<script setup>
+import { ref, computed, onMounted, onUnmounted, reactive } from "vue";
+import { db, auth } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-export default {
-  name: "SaltCrystalGamePage",
-  data() {
-    return {
-      clicks: 0,
-      harvestGoal: 1000,
-      crystalScale: 1,
-      clickEffect: { visible: false, x: 0, y: 0 },
-      isHarvesting: false,
-      successMessage: "",
-      error: "",
-      playsLeft: 0,
-      totalPlaysToday: 1,
-      loadingStatus: true,
-    };
+const score = ref(0);
+const scoreGoal = ref(1000);
+const isHarvesting = ref(false);
+const floatingNumbers = ref([]);
+const userData = reactive({
+  saltGameData: {
+    date: "",
+    count: 0,
   },
-  computed: {
-    progressPercentage() {
-      return Math.min((this.clicks / this.harvestGoal) * 100, 100);
-    },
-    isHarvestable() {
-      return this.clicks >= this.harvestGoal;
-    },
-    awardedPoints() {
-      return Math.floor(this.clicks / 10);
-    },
-  },
-  async mounted() {
-    await this.getGameStatus();
-    const savedClicks = localStorage.getItem("saltCrystalClicks");
-    if (savedClicks) {
-      this.clicks = parseInt(savedClicks, 10);
-    }
-  },
-  methods: {
-    async getGameStatus() {
-      this.loadingStatus = true;
-      try {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const saltGameData = userData.saltGameData || { date: "", count: 0 };
+});
+let userDataUnsubscribe = null;
 
-          const now = new Date();
-          const todayStr = now.toISOString().slice(0, 10);
-          const dayOfWeek = now.getDay();
-          const playLimits = [1, 1, 2, 1, 2, 1, 2];
-          this.totalPlaysToday = playLimits[dayOfWeek];
+// [수정] 요일별 플레이 횟수 배열 정의
+const playLimits = [1, 1, 2, 1, 2, 1, 2]; // 일, 월, 화, 수, 목, 금, 토
 
-          if (saltGameData.date === todayStr) {
-            this.playsLeft = this.totalPlaysToday - saltGameData.count;
-          } else {
-            this.playsLeft = this.totalPlaysToday;
-            this.clicks = 0;
-            localStorage.setItem("saltCrystalClicks", "0");
-          }
-        }
-      } catch (error) {
-        console.error("게임 상태 조회 오류:", error);
-        this.error = "게임 상태를 불러오지 못했습니다.";
-      } finally {
-        this.loadingStatus = false;
-      }
-    },
-    handleClick(event) {
-      if (this.isHarvestable || this.playsLeft <= 0) return;
+const maxPlaysToday = computed(() => {
+  const dayOfWeek = new Date().getDay();
+  // [수정] 오늘 요일에 맞는 횟수를 가져옵니다.
+  return playLimits[dayOfWeek];
+});
 
-      this.clicks++;
-      localStorage.setItem("saltCrystalClicks", this.clicks);
+const remainingPlays = computed(() => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (userData.saltGameData.date === todayStr) {
+    return maxPlaysToday.value - userData.saltGameData.count;
+  }
+  return maxPlaysToday.value; // 날짜가 다르면 초기 횟수 반환
+});
 
-      this.crystalScale = 1.05;
-      setTimeout(() => (this.crystalScale = 1), 100);
+const progressBarWidth = computed(() => {
+  const percentage = (score.value / scoreGoal.value) * 100;
+  return `${Math.min(percentage, 100)}%`;
+});
 
-      const rect = event.currentTarget.getBoundingClientRect();
-      this.clickEffect.x = event.clientX - rect.left;
-      this.clickEffect.y = event.clientY - rect.top;
-      this.clickEffect.visible = true;
-      setTimeout(() => (this.clickEffect.visible = false), 500);
-    },
-    async harvest() {
-      if (!this.isHarvestable || this.isHarvesting || this.playsLeft <= 0)
-        return;
+const handleClick = (event) => {
+  if (score.value >= scoreGoal.value) return;
+  score.value += 1;
 
-      this.isHarvesting = true;
-      this.error = "";
-      this.successMessage = "";
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
 
-      try {
-        const functions = getFunctions();
-        const harvestSaltCrystals = httpsCallable(
-          functions,
-          "harvestSaltCrystals",
-        );
-        const result = await harvestSaltCrystals({ clicks: this.clicks });
-
-        const awarded = result.data.awardedPoints;
-        this.successMessage = `성공! ${awarded.toLocaleString()} SaltMate 포인트를 수확했습니다!`;
-
-        this.clicks = 0;
-        localStorage.setItem("saltCrystalClicks", "0");
-        await this.getGameStatus();
-
-        setTimeout(() => (this.successMessage = ""), 3000);
-      } catch (err) {
-        console.error("수확 오류:", err);
-        this.error = `수확 실패: ${err.message}`;
-        if (err.code?.includes("resource-exhausted")) {
-          await this.getGameStatus();
-        }
-      } finally {
-        this.isHarvesting = false;
-      }
-    },
-  },
+  const newNumber = { id: Date.now(), x, y };
+  floatingNumbers.value.push(newNumber);
+  setTimeout(() => {
+    floatingNumbers.value = floatingNumbers.value.filter(
+      (n) => n.id !== newNumber.id,
+    );
+  }, 1000);
 };
+
+const harvest = async () => {
+  if (score.value < scoreGoal.value) {
+    alert("점수가 부족하여 수확할 수 없습니다.");
+    return;
+  }
+  isHarvesting.value = true;
+  try {
+    const functions = getFunctions();
+    const harvestCrystals = httpsCallable(functions, "harvestSaltCrystals");
+    const result = await harvestCrystals({ clicks: score.value });
+    alert(
+      `${result.data.awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`,
+    );
+    score.value = 0; // 점수 초기화
+  } catch (error) {
+    console.error("수확 중 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isHarvesting.value = false;
+  }
+};
+
+onMounted(() => {
+  if (auth.currentUser) {
+    const userRef = doc(db, "users", auth.currentUser.uid);
+    userDataUnsubscribe = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists() && docSnap.data().saltGameData) {
+        userData.saltGameData = docSnap.data().saltGameData;
+      }
+    });
+  }
+});
+
+onUnmounted(() => {
+  if (userDataUnsubscribe) {
+    userDataUnsubscribe();
+  }
+});
 </script>
 
 <style scoped>
+/* (기존 스타일은 변경사항이 없으므로 생략) */
 .page-container {
-  max-width: 800px;
-  margin: 70px auto 20px;
+  max-width: 600px;
+  margin: 90px auto 20px;
   padding: 20px;
 }
 .page-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
-.page-header h1 i {
-  color: #3498db;
-}
-.content-wrapper {
+.game-card {
   padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
   position: relative;
 }
-.game-info {
+.play-count {
   position: absolute;
-  top: 15px;
+  top: 20px;
   right: 20px;
-  background-color: #e9ecef;
-  padding: 8px 12px;
+  background-color: #f8f9fa;
+  color: #333;
+  padding: 5px 10px;
   border-radius: 20px;
-  font-weight: bold;
   font-size: 0.9em;
-  color: #495057;
-}
-.game-area {
-  text-align: center;
+  font-weight: 500;
 }
 .crystal-container {
-  position: relative;
+  cursor: pointer;
+  margin: 20px auto;
   width: 200px;
   height: 200px;
-  margin: 20px auto;
-  cursor: pointer;
-  user-select: none;
-}
-.crystal-container.harvestable {
-  animation: glowing 1.5s infinite;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
 }
 .crystal-image {
   width: 100%;
   transition: transform 0.1s ease;
 }
-.click-effect {
+.floating-number {
   position: absolute;
   font-size: 1.5em;
   font-weight: bold;
-  color: #f39c12;
-  animation: floatUp 0.5s ease-out forwards;
-  pointer-events: none;
+  color: #007bff;
+  animation: floatUp 1s ease-out forwards;
+  pointer-events: none; /* 클릭 이벤트 방해 방지 */
 }
 @keyframes floatUp {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
   to {
     transform: translateY(-50px);
     opacity: 0;
   }
 }
-.progress-section {
-  margin: 30px 0;
+.score-progress {
+  margin: 20px 0;
 }
-.click-counter {
-  font-size: 1.2em;
+.score-text {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
 }
 .progress-bar {
   width: 100%;
+  height: 20px;
   background-color: #e9ecef;
   border-radius: 10px;
-  height: 20px;
+  overflow: hidden;
 }
-.progress-bar-fill {
+.progress-bar-inner {
   height: 100%;
-  background-color: #3498db;
+  background-color: #007bff;
   border-radius: 10px;
-  transition: width 0.2s;
+  transition: width 0.2s ease;
 }
 .harvest-button {
-  padding: 15px 30px;
+  width: 100%;
+  padding: 15px;
   font-size: 1.2em;
   font-weight: bold;
   color: white;
-  background-color: #27ae60;
+  background-color: #28a745;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
 }
 .harvest-button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
+  background-color: #ccc;
 }
-.success-message,
-.error-message {
-  margin-top: 15px;
-  font-weight: bold;
+.spinner-small {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  display: inline-block; /* 추가: 버튼 내에서 올바르게 표시되도록 */
+  vertical-align: middle; /* 추가: 텍스트와 세로 정렬 */
 }
-.success-message {
-  color: #27ae60;
-}
-.error-message {
-  color: #c0392b;
-}
-@keyframes glowing {
-  0% {
-    filter: drop-shadow(0 0 5px #3498db);
-  }
-  50% {
-    filter: drop-shadow(0 0 20px #3498db);
-  }
-  100% {
-    filter: drop-shadow(0 0 5px #3498db);
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>
