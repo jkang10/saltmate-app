@@ -197,7 +197,6 @@ import {
   onSnapshot,
   getCountFromServer,
 } from "firebase/firestore";
-// [수정] RealtimeUsersWidget는 이제 /admin-dashboard/users 경로에서만 보이므로 여기서 import할 필요가 없습니다.
 
 const notificationCounts = reactive({
   subscriptions: 0,
@@ -220,7 +219,7 @@ const setupNotificationListeners = () => {
         notificationCounts[countProperty] = snapshot.data().count;
       });
       unsubscribeListeners.push(unsubscribe);
-    } catch (error)
+    } catch (error) { // [수정] catch 블록을 올바르게 수정합니다.
       // eslint-disable-next-line no-console
       console.error(`Error setting up listener for ${collectionName}:`, error);
     }
