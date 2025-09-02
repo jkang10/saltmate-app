@@ -11,10 +11,6 @@
     </header>
 
     <div class="game-card card">
-      <div v-if="remainingPlays !== null" class="play-count">
-        오늘 남은 횟수: <strong>{{ remainingPlays }}</strong> / {{ gameSettings.highLowLimit }}
-      </div>
-
       <div
         v-if="result"
         class="result-display"
@@ -83,10 +79,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from "vue"; // [수정] onUnmounted 추가
+import { ref, reactive, onMounted, onUnmounted } from "vue";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { db, auth } from "@/firebaseConfig";
-import { doc, onSnapshot, getDoc } from "firebase/firestore";
+import { db } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const betAmount = ref(100);
 const isLoading = ref(false);
@@ -94,36 +90,19 @@ const result = ref(null);
 const choice = ref("");
 const gameSettings = reactive({
   highLowMultiplier: 1.2,
-  highLowLimit: 10,
 });
-const remainingPlays = ref(null);
 
-let unsubscribe = null; // [수정] 리스너 정리 함수를 저장할 변수
-
-const fetchPlayCount = async () => {
-  const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
-  const docSnap = await getDoc(playCountRef);
-  
-  const playCount = docSnap.exists() ? (docSnap.data().highLow || 0) : 0;
-  remainingPlays.value = gameSettings.highLowLimit - playCount;
-};
+let unsubscribe = null; 
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  // [수정] unsubscribe 변수에 리스너 정리 함수를 할당
   unsubscribe = onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       gameSettings.highLowMultiplier = docSnap.data().highLowMultiplier || 1.2;
-      gameSettings.highLowLimit = docSnap.data().highLowLimit || 10;
-      if (auth.currentUser) {
-        fetchPlayCount();
-      }
     }
   });
 });
 
-// [추가] 컴포넌트가 사라질 때 리스너를 정리하여 메모리 누수 방지
 onUnmounted(() => {
   if (unsubscribe) {
     unsubscribe();
@@ -148,7 +127,6 @@ const play = async (playerChoice) => {
       choice: playerChoice,
     });
     result.value = response.data;
-    remainingPlays.value = response.data.remainingPlays;
   } catch (error) {
     console.error("하이로우 게임 오류:", error);
     alert(`오류: ${error.message}`);
@@ -160,14 +138,6 @@ const play = async (playerChoice) => {
 </script>
 
 <style scoped>
-.play-count {
-  margin-bottom: 15px;
-  font-size: 1.1em;
-  color: #333;
-  background-color: #f8f9fa;
-  padding: 10px;
-  border-radius: 8px;
-}
 .page-container {
   max-width: 600px;
   margin: 90px auto 20px;
