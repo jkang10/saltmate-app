@@ -1,251 +1,251 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="modal-backdrop" @click.self="$emit('close')">
     <div class="modal-content card">
-      <h3><i class="fas fa-bell"></i> 알림 설정</h3>
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-      </div>
-      <div v-else>
+      <header class="modal-header">
+        <h3><i class="fas fa-bell"></i> 알림 설정</h3>
+        <button class="close-button" @click="$emit('close')">&times;</button>
+      </header>
+      <main class="modal-body">
         <p class="description">
-          새로운 공지사항이나 중요한 업데이트가 있을 때 웹 푸시 알림을
-          받으시겠습니까?
+          새로운 공지사항, 주요 업데이트 등 중요한 소식을 푸시 알림으로 받아보시겠습니까?
         </p>
-        <div class="status-text">
-          <span>현재 알림 상태:</span>
-          <strong :class="notificationStatus">{{
-            notificationStatusText
-          }}</strong>
+        <div class="toggle-switch-container">
+          <span class="label">알림 수신 동의</span>
+          <label class="switch">
+            <input type="checkbox" v-model="hasPermission" @change="handleToggle" :disabled="isLoading" />
+            <span class="slider round"></span>
+          </label>
         </div>
-        <div class="button-group">
-          <button
-            @click="subscribeToNotifications"
-            class="btn btn-success"
-            :disabled="isSubscribed || isBlocked || isProcessing"
-          >
-            <span v-if="isProcessing" class="spinner-small"></span>
-            <span v-else>알림 수신 동의</span>
-          </button>
-          <button
-            @click="unsubscribeFromNotifications"
-            class="btn btn-danger"
-            :disabled="!isSubscribed || isProcessing"
-          >
-            <span v-if="isProcessing" class="spinner-small"></span>
-            <span v-else>알림 수신 거부</span>
-          </button>
+        <div v-if="isLoading" class="loading-state">
+          <div class="spinner-small"></div>
+          <p>설정 변경 중...</p>
         </div>
-        <p v-if="isBlocked" class="error-message">
-          브라우저 설정에서 알림이 차단되었습니다. 사이트 설정에서 알림을
-          '허용'으로 변경해주세요.
-        </p>
-        <p v-if="error" class="error-message">{{ error }}</p>
-      </div>
-      <button @click="$emit('close')" class="close-button" title="닫기">&times;</button>
+        <div v-if="error" class="error-message">
+          <p>{{ error }}</p>
+        </div>
+        <div v-if="successMessage" class="success-message">
+          <p>{{ successMessage }}</p>
+        </div>
+      </main>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted, computed } from "vue";
-import { getMessaging, getToken, deleteToken } from "firebase/messaging";
-import { auth, db } from "@/firebaseConfig";
-import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+<script>
+import { ref, onMounted } from 'vue';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { auth, db } from '@/firebaseConfig';
+import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
-const isLoading = ref(true);
-const isProcessing = ref(false);
-const error = ref(null);
-const notificationPermission = ref(Notification.permission);
-const fcmToken = ref(null);
+export default {
+  name: 'NotificationSettingsModal',
+  emits: ['close'],
+  setup(_, { emit }) {
+    const hasPermission = ref(Notification.permission === 'granted');
+    const isLoading = ref(false);
+    const error = ref(null);
+    const successMessage = ref(null);
+    const VAPID_KEY = process.env.VUE_APP_VAPID_KEY;
 
-const notificationStatus = computed(() => {
-  if (notificationPermission.value === "granted" && fcmToken.value) {
-    return "subscribed";
-  }
-  if (notificationPermission.value === "denied") {
-    return "blocked";
-  }
-  return "unsubscribed";
-});
+    // 현재 사용자의 토큰을 DB에서 삭제하는 함수
+    const removeTokenFromFirestore = async (currentToken) => {
+      if (!auth.currentUser || !currentToken) return;
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        fcmTokens: arrayRemove(currentToken),
+      });
+    };
+    
+    // 알림 권한 상태를 확인하고 UI를 업데이트하는 함수
+    const checkCurrentPermission = () => {
+        hasPermission.value = Notification.permission === 'granted';
+    };
 
-const isSubscribed = computed(() => notificationStatus.value === "subscribed");
-const isBlocked = computed(() => notificationStatus.value === "denied");
+    const handleToggle = async () => {
+      isLoading.value = true;
+      error.value = null;
+      successMessage.value = null;
 
-const notificationStatusText = computed(() => {
-  switch (notificationStatus.value) {
-    case "subscribed":
-      return "수신 동의 상태";
-    case "blocked":
-      return "브라우저에서 차단됨";
-    default:
-      return "수신 거부 상태";
-  }
-});
+      try {
+        if (hasPermission.value) { // 스위치를 켰을 때 (동의)
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const messaging = getMessaging();
+            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+            
+            if (currentToken) {
+              const userRef = doc(db, 'users', auth.currentUser.uid);
+              await updateDoc(userRef, {
+                fcmTokens: arrayUnion(currentToken),
+              });
+              successMessage.value = '알림 수신이 설정되었습니다.';
+            } else {
+              throw new Error('토큰을 가져올 수 없습니다. 다시 시도해주세요.');
+            }
+          } else {
+            hasPermission.value = false; // 사용자가 권한 거부 시 스위치를 다시 끔
+            throw new Error('알림 권한이 거부되었습니다.');
+          }
+        } else { // 스위치를 껐을 때 (거부/해제)
+          // 현재는 브라우저에서 권한을 직접 해제해야 하므로, DB의 토큰만 삭제 시도
+           const messaging = getMessaging();
+           const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY }).catch(() => null);
+           if(currentToken) {
+             await removeTokenFromFirestore(currentToken);
+           }
+           successMessage.value = '알림 수신이 해제되었습니다. 브라우저 설정에서 알림을 차단해주세요.';
+        }
+      } catch (e) {
+        console.error('알림 설정 오류:', e);
+        error.value = `알림 토큰을 가져오는 데 실패했습니다. 브라우저 설정을 확인해주세요. (${e.message})`;
+        hasPermission.value = false; // 오류 발생 시 스위치 끔
+      } finally {
+        isLoading.value = false;
+      }
+    };
 
-const getFcmToken = async () => {
-  error.value = null;
-  try {
-    const messaging = getMessaging();
-    const currentToken = await getToken(messaging, {
-      vapidKey: "BOY_y-5Ew_5E-l_xX_8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E8E", // Firebase 콘솔에서 발급받은 VAPID 키
+    onMounted(() => {
+        checkCurrentPermission();
+        // 백그라운드가 아닌 앱 사용 중에 알림을 수신했을 때의 처리
+        const messaging = getMessaging();
+        onMessage(messaging, (payload) => {
+            console.log('Message received. ', payload);
+            // 필요 시 여기에 알림 UI를 직접 띄우는 로직 추가
+        });
     });
-    return currentToken;
-  } catch (err) {
-    console.error("FCM 토큰을 가져오는 데 실패했습니다:", err);
-    error.value = "알림 토큰을 가져오는 데 실패했습니다. 브라우저 설정을 확인해주세요.";
-    if (err.code === "messaging/notifications-blocked") {
-      notificationPermission.value = "denied";
-    }
-    return null;
-  }
+
+    return {
+      hasPermission,
+      isLoading,
+      error,
+      successMessage,
+      handleToggle,
+    };
+  },
 };
-
-const subscribeToNotifications = async () => {
-  isProcessing.value = true;
-  const permission = await Notification.requestPermission();
-  notificationPermission.value = permission;
-
-  if (permission === "granted") {
-    const token = await getFcmToken();
-    if (token && auth.currentUser) {
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(userRef, {
-        fcmTokens: arrayUnion(token),
-      });
-      fcmToken.value = token;
-      alert("알림 수신에 동의하셨습니다.");
-    }
-  } else {
-    alert("알림이 허용되지 않았습니다.");
-  }
-  isProcessing.value = false;
-};
-
-const unsubscribeFromNotifications = async () => {
-  if (fcmToken.value && auth.currentUser) {
-    isProcessing.value = true;
-    try {
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(userRef, {
-        fcmTokens: arrayRemove(fcmToken.value),
-      });
-      const messaging = getMessaging();
-      await deleteToken(messaging);
-      fcmToken.value = null;
-      notificationPermission.value = "default";
-      alert("알림 수신을 거부했습니다.");
-    } catch (err) {
-      console.error("알림 수신 거부 처리 중 오류 발생:", err);
-      error.value = "알림 수신 거부 중 오류가 발생했습니다.";
-    } finally {
-      isProcessing.value = false;
-    }
-  }
-};
-
-onMounted(async () => {
-  if (notificationPermission.value === "granted") {
-    fcmToken.value = await getFcmToken();
-  }
-  isLoading.value = false;
-});
 </script>
 
 <style scoped>
-.modal-overlay {
+.modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.6); /* 어두운 배경 추가 */
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
 }
 .modal-content {
-  position: relative;
-  padding: 30px;
-  width: 100%;
+  background-color: white;
+  padding: 25px;
+  border-radius: 12px;
+  width: 90%;
   max-width: 500px;
-  text-align: center;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
 }
-.modal-content h3 {
-  margin-top: 0;
-}
-.description {
-  margin: 20px 0;
-  color: #555;
-}
-.status-text {
-  margin-bottom: 25px;
-  padding: 10px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-}
-.status-text strong.subscribed {
-  color: #28a745;
-}
-.status-text strong.blocked {
-  color: #dc3545;
-}
-.status-text strong.unsubscribed {
-  color: #6c757d;
-}
-.button-group {
+.modal-header {
   display: flex;
-  gap: 15px;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 15px;
+  margin-bottom: 20px;
 }
-.btn {
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.5em;
+  color: #333;
 }
 .close-button {
-  position: absolute;
-  top: 15px;
-  right: 15px;
   background: none;
   border: none;
-  font-size: 1.8em;
+  font-size: 2em;
   cursor: pointer;
-  color: #aaa;
+  color: #888;
 }
-.error-message {
-  margin-top: 15px;
-  color: #dc3545;
-  font-size: 0.9em;
+.modal-body .description {
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 25px;
 }
-.spinner,
-.spinner-small {
+.toggle-switch-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+}
+.label {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: #333;
+}
+.switch {
+  position: relative;
   display: inline-block;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top-color: #fff;
+  width: 60px;
+  height: 34px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: #2196F3;
+}
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+.slider.round {
+  border-radius: 34px;
+}
+.slider.round:before {
   border-radius: 50%;
-  animation: spin 1s linear infinite;
 }
-.spinner {
-  width: 36px;
-  height: 36px;
+.loading-state, .error-message, .success-message {
+    margin-top: 15px;
+    text-align: center;
 }
+.error-message { color: #dc3545; }
+.success-message { color: #28a745; }
 .spinner-small {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 10px; /* 스피너와 텍스트 사이에 여백 추가 */
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
