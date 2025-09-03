@@ -66,15 +66,15 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted, computed } from 'vue'; // [수정] onMounted, computed 추가
+import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth'; // [신규] 사용자 이름 가져오기 위해 auth 모듈 추가
-
-// 사운드 파일 import
+import { getAuth } from 'firebase/auth';
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
-// [신규] 배경 이미지 import
 import backgroundPng from '@/assets/slatpang.png'; 
+
+// --- [수정] auth 객체를 setup 스코프 내에서 올바르게 초기화 ---
+const auth = getAuth();
 
 // --- 게임 상수 ---
 const BOARD_SIZE = 8;
@@ -103,21 +103,19 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
-const topRankings = ref([]); // [신규] 랭킹 데이터를 저장할 변수
+const topRankings = ref([]);
 
 let timerInterval = null;
 let sessionId = null;
 
-// [신규] 배경 스타일 computed 속성
 const pageBackgroundStyle = computed(() => ({
   backgroundImage: `url(${backgroundPng})`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
-  backgroundColor: 'rgba(0, 0, 0, 0.7)', // 어두운 배경색
-  backgroundBlendMode: 'darken', // 배경 이미지와 색상 혼합
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  backgroundBlendMode: 'darken',
   minHeight: '100vh',
 }));
-
 
 // --- 사운드 재생 관리 ---
 const playSound = (sound) => {
@@ -127,9 +125,7 @@ const playSound = (sound) => {
 
 const initAudioContext = () => {
   if (!audioContextStarted) {
-    // 사용자의 첫 상호작용 시 오디오 컨텍스트를 활성화
-    // 실제 소리를 작게 재생했다가 멈춰서 오디오 컨텍스트를 "active" 상태로 만듭니다.
-    const tempAudio = new Audio(soundMatch); // 아무 사운드 파일
+    const tempAudio = new Audio(soundMatch);
     tempAudio.volume = 0;
     tempAudio.play().then(() => {
       tempAudio.pause();
@@ -138,7 +134,6 @@ const initAudioContext = () => {
     }).catch(e => console.error("오디오 컨텍스트 초기화 오류:", e));
   }
 };
-
 
 // --- 게임 보드 생성 ---
 const createBoard = () => {
@@ -172,7 +167,6 @@ const hasInitialMatches = (boardToCheck) => {
   return false;
 };
 
-
 // --- 게임 시작/종료 ---
 const startGame = async () => {
   isStarting.value = true;
@@ -189,7 +183,6 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    // [수정] 오디오 컨텍스트가 활성화 된 후에만 배경음악 재생 시도
     if (audioContextStarted) {
       playSound(sounds.background);
     } else {
@@ -221,7 +214,6 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
 
-    // [수정] 미리 초기화된 auth 객체 사용
     const user = auth.currentUser;
     const username = user && user.displayName ? user.displayName : '익명';
 
@@ -239,9 +231,8 @@ const endGame = async () => {
 const resetGame = () => {
   gameState.value = 'ready';
   sessionId = null;
-  error.value = ''; // 에러 메시지 초기화
+  error.value = '';
 };
-
 
 // --- 랭킹 관련 함수 ---
 const fetchTopRankings = async () => {
@@ -256,11 +247,10 @@ const fetchTopRankings = async () => {
   }
 };
 
-
 // --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext(); // [수정] 첫 클릭 시 오디오 컨텍스트 초기화 시도
+  initAudioContext();
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
@@ -281,34 +271,30 @@ const selectCell = (index) => {
 const swapAndCheck = async (index1, index2) => {
   isProcessing.value = true;
   
-  // 실제 스왑 적용
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   await new Promise(resolve => setTimeout(resolve, 150));
   
-  const hasMatches = checkMatches(board.value); // [수정] 스왑 후 매치 여부만 확인
+  const hasMatches = checkMatches(board.value);
 
   if (!hasMatches) {
     await new Promise(resolve => setTimeout(resolve, 150));
-    // 매치가 없으면 다시 원래대로 되돌림
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   } else {
-    // 매치가 있다면 연쇄 반응 처리 시작
-    while (await processBoard()) {
-        // Continue processing board
-    }
+    // eslint-disable-next-line no-empty
+    while (await processBoard()) {}
   }
 
   isProcessing.value = false;
 };
 
 const processBoard = async () => {
-  await new Promise(resolve => setTimeout(resolve, 200)); // 매칭된 보드 상태를 시각적으로 보여주기 위함
+  await new Promise(resolve => setTimeout(resolve, 200));
   dropDownGems();
   fillEmptyCells();
   
-  await new Promise(resolve => setTimeout(resolve, 200)); // 새로운 보드 상태를 시각적으로 보여주기 위함
-  const hasCleared = await checkAndClearMatches(); // 새로 채워진 보드에서 매치 확인 및 처리
-  return hasCleared; // 연쇄 반응이 있었는지 여부 반환
+  await new Promise(resolve => setTimeout(resolve, 200));
+  const hasCleared = await checkAndClearMatches();
+  return hasCleared;
 }
 
 const checkAndClearMatches = async () => {
@@ -318,7 +304,7 @@ const checkAndClearMatches = async () => {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let i = r * BOARD_SIZE + c;
       if (board.value[i] && board.value[i] === board.value[i + 1] && board.value[i] === board.value[i + 2]) {
-        for (let k = c; k < BOARD_SIZE; k++) { // [수정] 4개 이상 매치될 경우를 위해 확장 확인
+        for (let k = c; k < BOARD_SIZE; k++) {
           i = r * BOARD_SIZE + k;
           if (board.value[i] === board.value[r * BOARD_SIZE + c]) matches.add(i);
           else break;
@@ -331,7 +317,7 @@ const checkAndClearMatches = async () => {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let i = r * BOARD_SIZE + c;
       if (board.value[i] && board.value[i] === board.value[i + BOARD_SIZE] && board.value[i] === board.value[i + 2 * BOARD_SIZE]) {
-        for (let k = r; k < BOARD_SIZE; k++) { // [수정] 4개 이상 매치될 경우를 위해 확장 확인
+        for (let k = r; k < BOARD_SIZE; k++) {
           i = k * BOARD_SIZE + c;
           if (board.value[i] === board.value[r * BOARD_SIZE + c]) matches.add(i);
           else break;
@@ -342,14 +328,13 @@ const checkAndClearMatches = async () => {
   
   if (matches.size > 0) {
     playSound(sounds.match);
-    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1); // 4개 이상 매치 시 추가 점수
+    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     matches.forEach(index => (board.value[index] = null));
     return true;
   }
   return false;
 };
 
-// [신규] 스왑 직후 매치 여부만 빠르게 확인하는 함수 (실제로 보드를 변경하지 않음)
 const checkMatches = (boardToCheck) => {
   // 가로 매치
   for (let r = 0; r < BOARD_SIZE; r++) {
@@ -371,7 +356,6 @@ const checkMatches = (boardToCheck) => {
   }
   return false;
 };
-
 
 const dropDownGems = () => {
   for (let c = 0; c < BOARD_SIZE; c++) {
@@ -398,9 +382,8 @@ const fillEmptyCells = () => {
   }
 };
 
-// --- 컴포넌트 생명 주기 훅 ---
 onMounted(() => {
-  fetchTopRankings(); // 컴포넌트 마운트 시 랭킹 불러오기
+  fetchTopRankings();
 });
 
 onUnmounted(() => {
