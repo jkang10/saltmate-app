@@ -64,8 +64,8 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- [수정] 사운드 객체 로드 방식 변경 ---
-// public 폴더를 기준으로 절대 경로를 사용합니다.
+// --- 사운드 객체 ---
+let audioContextStarted = false;
 const sounds = {
   match: new Audio('/sounds/match.mp3'),
   background: new Audio('/sounds/bgm.mp3'),
@@ -87,14 +87,54 @@ const awardedPoints = ref(0);
 let timerInterval = null;
 let sessionId = null;
 
-// --- 게임 보드 생성 로직 ---
-const createBoard = () => {
-  const newBoard = [];
-  for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
-    newBoard.push(Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
+
+// --- 사운드 재생 관리 ---
+const playSound = (sound) => {
+  sound.currentTime = 0;
+  sound.play().catch(e => console.error("사운드 재생 오류:", e));
+};
+
+const initAudioContext = () => {
+  if (!audioContextStarted) {
+    sounds.background.play().then(() => sounds.background.pause());
+    sounds.match.play().then(() => sounds.match.pause());
+    audioContextStarted = true;
   }
+};
+
+
+// --- 게임 보드 생성 ---
+const createBoard = () => {
+  let newBoard = [];
+  do {
+    newBoard = [];
+    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+      newBoard.push(Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
+    }
+  } while (hasInitialMatches(newBoard)); // 시작 시 매치된 것이 없도록 보드 재생성
   return newBoard;
 };
+
+const hasInitialMatches = (boardToCheck) => {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE - 2; c++) {
+      const i = r * BOARD_SIZE + c;
+      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + 1] && boardToCheck[i] === boardToCheck[i + 2]) {
+        return true;
+      }
+    }
+  }
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    for (let r = 0; r < BOARD_SIZE - 2; r++) {
+      const i = r * BOARD_SIZE + c;
+      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + BOARD_SIZE] && boardToCheck[i] === boardToCheck[i + 2 * BOARD_SIZE]) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 
 // --- 게임 시작/종료 ---
 const startGame = async () => {
@@ -112,7 +152,7 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    sounds.background.play().catch(e => console.error("배경음악 재생 오류:", e));
+    playSound(sounds.background);
 
     timerInterval = setInterval(() => {
       timer.value--;
@@ -151,9 +191,11 @@ const resetGame = () => {
   sessionId = null;
 };
 
+
 // --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
+  initAudioContext();
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
@@ -183,50 +225,56 @@ const swapAndCheck = async (index1, index2) => {
     await new Promise(resolve => setTimeout(resolve, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   } else {
-    // eslint-disable-next-line no-empty
-    while (await processBoard()) {}
+    while (await processBoard()) {
+        // Continue processing board
+    }
   }
 
   isProcessing.value = false;
 };
 
 const processBoard = async () => {
+  await new Promise(resolve => setTimeout(resolve, 200));
+  dropDownGems();
+  fillEmptyCells();
+  
+  await new Promise(resolve => setTimeout(resolve, 200));
   const hasCleared = await checkAndClearMatches();
-  if (hasCleared) {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    dropDownGems();
-    fillEmptyCells();
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return true;
-  }
-  return false;
+  return hasCleared;
 }
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로
+  // 가로 매치
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
-      const i = r * BOARD_SIZE + c;
-      if (board.value[i] && board.value[i] === board.value[i + 1] && board.value[i] === board.value[i + 2]) {
-        for (let k = 0; k < 3; k++) matches.add(i + k);
+      let i = r * BOARD_SIZE + c;
+      if(board.value[i] && board.value[i] === board.value[i+1] && board.value[i] === board.value[i+2]) {
+        for(let k=c; k<BOARD_SIZE; k++) {
+          i = r * BOARD_SIZE + k;
+          if(board.value[i] === board.value[r * BOARD_SIZE + c]) matches.add(i);
+          else break;
+        }
       }
     }
   }
-  // 세로
+  // 세로 매치
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
-      const i = r * BOARD_SIZE + c;
-      if (board.value[i] && board.value[i] === board.value[i + BOARD_SIZE] && board.value[i] === board.value[i + 2 * BOARD_SIZE]) {
-        for (let k = 0; k < 3; k++) matches.add(i + k * BOARD_SIZE);
+      let i = r * BOARD_SIZE + c;
+      if(board.value[i] && board.value[i] === board.value[i+BOARD_SIZE] && board.value[i] === board.value[i+2*BOARD_SIZE]) {
+        for(let k=r; k<BOARD_SIZE; k++) {
+          i = k * BOARD_SIZE + c;
+          if(board.value[i] === board.value[r*BOARD_SIZE + c]) matches.add(i);
+          else break;
+        }
       }
     }
   }
   
   if (matches.size > 0) {
-    sounds.match.currentTime = 0;
-    sounds.match.play().catch(e => console.error("효과음 재생 오류:", e));
-    score.value += matches.size * 10;
+    playSound(sounds.match);
+    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     matches.forEach(index => (board.value[index] = null));
     return true;
   }
@@ -281,4 +329,4 @@ onUnmounted(() => {
 .error-message { margin-top: 15px; color: red; text-align: center; }
 .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
 .pop-enter-from, .pop-leave-to { transform: scale(0); }
-</style>
+</style>v
