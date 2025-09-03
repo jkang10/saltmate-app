@@ -708,9 +708,11 @@ function closeTutorial() {
 }
 
 onMounted(() => {
+  // [수정] onAuthStateChanged 리스너 로직 변경
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
+      // 로그인이 감지되면 데이터를 불러옵니다.
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
       settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
@@ -718,9 +720,10 @@ onMounted(() => {
           gameSettings.deepSeaRate = docSnap.data().deepSeaRate || 100000;
       });
     } else {
+      // 로그아웃 상태일 때, 기존 데이터를 초기화하지 않고 리스너만 정리합니다.
       if (settingsUnsubscribe) settingsUnsubscribe();
-      Object.assign(state, clone(DEFAULT_STATE));
-      addLog("로그인하여 진행 상황을 서버에 저장하세요.");
+      // Object.assign(state, clone(DEFAULT_STATE)); // 이 줄을 삭제하거나 주석 처리합니다.
+      addLog("로그인이 필요합니다.");
     }
   });
 
