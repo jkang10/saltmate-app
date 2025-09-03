@@ -213,23 +213,24 @@ const startGame = async () => {
 const endGame = async () => {
   clearInterval(timerInterval);
   gameState.value = 'ended';
-  
+
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
-    
-    // [신규] 사용자 이름 가져오기
+
     const auth = getAuth();
     const user = auth.currentUser;
+    // [수정] displayName이 없을 경우 '익명'으로 기본값 설정
     const username = user && user.displayName ? user.displayName : '익명';
 
-    const result = await endSession({ sessionId, score: score.value, username: username }); // [수정] username 전달
+    // [수정] 백엔드로 username을 함께 전달합니다.
+    const result = await endSession({ sessionId, score: score.value, username: username }); 
     awardedPoints.value = result.data.awardedPoints;
 
-    fetchTopRankings(); // [신규] 게임 종료 후 랭킹 새로고침
+    fetchTopRankings();
 
   } catch (err) {
     console.error("게임 종료 오류:", err);
