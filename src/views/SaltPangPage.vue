@@ -55,8 +55,6 @@
 <script setup>
 import { ref, onUnmounted } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-
-// [수정] import 구문을 사용하여 사운드 파일을 직접 불러옵니다.
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
@@ -68,7 +66,8 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- [수정] 사운드 객체 생성 방식을 import된 파일로 변경 ---
+// --- [수정] audioContextStarted 변수 선언 ---
+let audioContextStarted = false; 
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
