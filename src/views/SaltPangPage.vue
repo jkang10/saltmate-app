@@ -8,7 +8,7 @@
     <main class="game-container card">
       <div v-if="gameState === 'ready'" class="game-intro">
         <h2>게임 준비</h2>
-        <p>입장료: <strong>10 SaltMate</strong></p>
+        <p>입장료: <strong>100 SaltMate</strong></p>
         <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
         <button @click="startGame" class="game-button" :disabled="isStarting">
            <span v-if="isStarting">입장 중...</span>
@@ -64,9 +64,11 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
+// --- [수정] 사운드 객체 로드 방식 변경 ---
+// public 폴더를 기준으로 절대 경로를 사용합니다.
 const sounds = {
-  match: new Audio(require('@/assets/sounds/match.mp3')),
-  background: new Audio(require('@/assets/sounds/bgm.mp3')),
+  match: new Audio('/sounds/match.mp3'),
+  background: new Audio('/sounds/bgm.mp3'),
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
@@ -85,7 +87,7 @@ const awardedPoints = ref(0);
 let timerInterval = null;
 let sessionId = null;
 
-// --- 게임 보드 생성 ---
+// --- 게임 보드 생성 로직 ---
 const createBoard = () => {
   const newBoard = [];
   for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
@@ -110,7 +112,7 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    sounds.background.play();
+    sounds.background.play().catch(e => console.error("배경음악 재생 오류:", e));
 
     timerInterval = setInterval(() => {
       timer.value--;
@@ -181,7 +183,6 @@ const swapAndCheck = async (index1, index2) => {
     await new Promise(resolve => setTimeout(resolve, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   } else {
-    // [수정] 아래 while 루프가 연쇄 반응을 처리합니다.
     // eslint-disable-next-line no-empty
     while (await processBoard()) {}
   }
@@ -224,7 +225,7 @@ const checkAndClearMatches = async () => {
   
   if (matches.size > 0) {
     sounds.match.currentTime = 0;
-    sounds.match.play();
+    sounds.match.play().catch(e => console.error("효과음 재생 오류:", e));
     score.value += matches.size * 10;
     matches.forEach(index => (board.value[index] = null));
     return true;
