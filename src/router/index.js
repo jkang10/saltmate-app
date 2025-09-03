@@ -52,6 +52,28 @@ const routes = [
     name: "CommunityPage",
     component: () => import("@/views/CommunityPage.vue"),
     meta: { requiresAuth: true },
+    // [신규 추가] CommunityPage 하위에 자식 라우트(nested routes)를 설정합니다.
+    children: [
+      {
+        path: ':category', // 동적 세그먼트 :category 사용
+        name: 'BoardPage',
+        component: () => import('@/views/community/BoardPage.vue'), // 각 게시판 목록을 보여줄 컴포넌트
+        props: true // category를 props로 전달
+      }
+    ]
+  },
+  {
+    path: "/community/post/:postId",
+    name: "PostDetailPage",
+    component: () => import("@/views/community/PostDetailPage.vue"),
+    meta: { requiresAuth: true },
+    props: true,
+  },
+  {
+    path: "/community/write",
+    name: "PostWritePage",
+    component: () => import("@/views/community/PostWritePage.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "/community/:category",

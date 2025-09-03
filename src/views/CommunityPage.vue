@@ -11,6 +11,8 @@
         <h2><i class="fas fa-list-alt"></i> 게시판</h2>
         <ul>
           <li><router-link to="/community/notices">공지사항</router-link></li>
+          <li><router-link to="/community/payment_requests">구독/등급 입금승인요청</router-link></li>
+          <li><router-link to="/community/bug_reports">버그 알리기</router-link></li>
           <li>
             <router-link to="/community/nft-bids">NFT 입찰 정보</router-link>
           </li>
@@ -36,89 +38,24 @@
           </li>
         </ul>
       </section>
+      
       <section class="post-list card glassmorphism">
-        <h2><i class="fas fa-newspaper"></i> 최신 게시글</h2>
-        <div class="search-and-write">
-          <input
-            type="text"
-            placeholder="게시글 검색..."
-            class="search-input"
-          />
-          <router-link
-            v-if="isAdmin"
-            to="/community/write"
-            class="write-post-button"
-          >
-            <i class="fas fa-pen"></i> 글쓰기
-          </router-link>
-        </div>
-        <ul class="posts">
-          <li v-for="post in recentPosts" :key="post.id" class="post-item">
-            <router-link :to="`/community/post/${post.id}`" class="post-link">
-              <span class="post-title">{{ post.title }}</span>
-              <span class="post-meta">
-                <span class="post-author">{{ post.author }}</span> |
-                <span class="post-date">{{ post.date }}</span> |
-                <span class="post-views">조회 {{ post.views }}</span>
-              </span>
-            </router-link>
-          </li>
-          <li v-if="recentPosts.length === 0" class="no-posts">
-            아직 게시글이 없습니다.
-          </li>
-        </ul>
+         <router-view :key="$route.fullPath"></router-view>
       </section>
     </main>
   </div>
 </template>
 
 <script>
-import { ref, onMounted } from "vue";
-import { auth, db } from "@/firebaseConfig"; // db 임포트
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore"; // Firestore 함수 임포트
-
+// [수정] setup 스크립트를 제거하여 단순 템플릿 컴포넌트로 변경
+// 이제 각 게시판의 로직은 자식 라우트 컴포넌트(BoardPage.vue 등)에서 처리합니다.
 export default {
   name: "CommunityPage",
-  setup() {
-    const recentPosts = ref([]);
-    const isAdmin = ref(false);
-
-    // [수정됨] 실제 데이터 로딩 및 관리자 확인 로직 추가
-    onMounted(async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const idTokenResult = await user.getIdTokenResult();
-        isAdmin.value = idTokenResult.claims.admin === true;
-
-        // 최신글 5개 가져오기
-        const q = query(
-          collection(db, "posts"),
-          orderBy("createdAt", "desc"),
-          limit(5),
-        );
-        const querySnapshot = await getDocs(q);
-        recentPosts.value = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            title: data.title,
-            author: data.authorName,
-            date: data.createdAt?.toDate().toLocaleDateString("ko-KR") || "",
-            views: data.views || 0,
-          };
-        });
-      }
-    });
-
-    return {
-      recentPosts,
-      isAdmin,
-    };
-  },
 };
 </script>
 
 <style scoped>
+/* (기존 스타일과 동일) */
 .community-page {
   padding: 20px;
   max-width: 1200px;
@@ -155,8 +92,7 @@ export default {
   padding: 30px;
   border-radius: 12px;
 }
-.forum-list h2,
-.post-list h2 {
+.forum-list h2 {
   font-size: 1.8em;
   color: #34495e;
   margin-top: 0;
@@ -187,100 +123,11 @@ export default {
     color 0.3s ease;
   font-weight: 500;
 }
-.forum-list ul li a:hover {
+.forum-list ul li a:hover,
+.forum-list ul li a.router-link-exact-active { /* 현재 활성화된 링크 스타일 */
   background-color: rgba(0, 123, 255, 0.1);
   color: #007bff;
-}
-.search-and-write {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.search-input {
-  flex-grow: 1;
-  padding: 10px 15px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 1em;
-  outline: none;
-  transition: border-color 0.3s ease;
-}
-.search-input:focus {
-  border-color: #007bff;
-}
-.write-post-button {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
   font-weight: bold;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: background-color 0.3s ease;
-}
-.write-post-button:hover {
-  background-color: #218838;
-}
-.posts {
-  list-style: none;
-  padding: 0;
-}
-.post-item {
-  margin-bottom: 12px;
-  background-color: rgba(255, 255, 255, 0.4);
-  padding: 15px 20px;
-  border-radius: 8px;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
-}
-.post-item:hover {
-  background-color: rgba(255, 255, 255, 0.6);
-  transform: translateY(-3px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-.post-link {
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
-  color: #333;
-}
-.post-title {
-  font-size: 1.1em;
-  font-weight: bold;
-  margin-bottom: 5px;
-  color: #34495e;
-}
-.post-meta {
-  font-size: 0.85em;
-  color: #777;
-}
-.no-posts {
-  text-align: center;
-  color: #888;
-  padding: 30px;
-  font-style: italic;
-}
-.view-all-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #007bff;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 5px;
-  text-decoration: none;
-  font-weight: bold;
-  margin-top: 20px;
-  transition: background-color 0.3s ease;
-}
-.view-all-button:hover {
-  background-color: #0056b3;
 }
 .card {
   background: rgba(255, 255, 255, 0.3);

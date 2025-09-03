@@ -1,184 +1,275 @@
 <template>
   <div class="post-detail-page">
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>게시글을 불러오는 중입니다...</p>
-    </div>
-    <div v-else-if="error" class="error-state">
-      <p>{{ error }}</p>
-    </div>
-    <main v-else-if="post" class="post-container card">
+    <div v-if="loading" class="loading-spinner"></div>
+    <div v-else-if="post" class="post-container card">
       <header class="post-header">
         <h1>{{ post.title }}</h1>
         <div class="post-meta">
           <span>작성자: {{ post.authorName }}</span>
-          <span>|</span>
           <span>작성일: {{ formatDate(post.createdAt) }}</span>
-          <span>|</span>
-          <span>조회수: {{ post.views || 0 }}</span>
+          <span>조회수: {{ post.views }}</span>
         </div>
       </header>
-      <div class="post-content" v-html="formattedContent"></div>
-      <router-link :to="`/community/${post.category || 'notices'}`" class="back-button">
-        <i class="fas fa-list"></i> 목록으로 돌아가기
-      </router-link>
-    </main>
-    <div v-else class="error-state">
-      <p>게시글을 찾을 수 없습니다.</p>
+      <main class="post-content" v-html="post.content"></main>
+
+      <div class="post-actions" v-if="isAuthorOrAdmin">
+         <button @click="deletePost" class="btn btn-danger">글 삭제</button>
+      </div>
+    </div>
+    <div v-else class="no-post">
+      게시글을 찾을 수 없습니다.
+    </div>
+
+    <section class="comments-section card" v-if="post">
+      <h3><i class="fas fa-comments"></i> 댓글</h3>
+      <div v-if="comments.length > 0" class="comment-list">
+        <div v-for="comment in comments" :key="comment.id" class="comment-item">
+          <p class="comment-author">{{ comment.authorName }}</p>
+          <p class="comment-body">{{ comment.content }}</p>
+          <p class="comment-date">{{ formatDate(comment.createdAt) }}</p>
+        </div>
+      </div>
+      <div v-else class="no-comments">
+        아직 댓글이 없습니다.
+      </div>
+
+      <div v-if="isAdmin" class="comment-form">
+        <h4>댓글 작성</h4>
+        <textarea v-model="newComment" placeholder="관리자만 댓글을 작성할 수 있습니다."></textarea>
+        <button @click="addComment" class="btn btn-primary">댓글 등록</button>
+      </div>
+    </section>
+
+     <div class="navigation-buttons">
+        <router-link :to="`/community/${post.category || 'notices'}`" class="btn btn-secondary">목록으로</router-link>
     </div>
   </div>
 </template>
 
-<script>
-import { db, functions } from "@/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { useRoute } from "vue-router"; // [신규] useRoute import
-import { ref, onMounted, computed } from "vue"; // [신규] Vue 3 Composition API 함수 import
+<script setup>
+import { ref, onMounted, computed, defineProps } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { db, auth } from '@/firebaseConfig';
+import { doc, getDoc, updateDoc, collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
-export default {
-  name: "PostDetailPage",
-  // [삭제] props 옵션을 더 이상 사용하지 않으므로 삭제합니다.
-  // props: ["postId"],
-  setup() {
-    const route = useRoute(); // [신규] useRoute를 사용하여 라우트 정보에 접근
-    const post = ref(null);
-    const isLoading = ref(true);
-    const error = ref(null);
-
-    const formattedContent = computed(() => {
-      return post.value?.content?.replace(/\n/g, "<br />") || "";
-    });
-
-    const formatDate = (timestamp) => {
-      if (!timestamp?.toDate) return "날짜 정보 없음";
-      return timestamp.toDate().toLocaleDateString("ko-KR");
-    };
-
-    const fetchPost = async () => {
-      isLoading.value = true;
-      error.value = null;
-      try {
-        // [수정] this.postId 대신 route.params.postId를 사용하여 URL에서 직접 ID를 가져옵니다.
-        const postId = route.params.postId;
-        if (!postId) {
-          throw new Error("게시글 ID를 찾을 수 없습니다.");
-        }
-        
-        const postRef = doc(db, "posts", postId);
-
-        const viewedKey = `viewed_${postId}`;
-        if (!sessionStorage.getItem(viewedKey)) {
-          try {
-            const incrementView = httpsCallable(functions, "incrementPostView");
-            await incrementView({ postId });
-            sessionStorage.setItem(viewedKey, "true");
-          } catch (viewError) {
-            console.error("조회수 업데이트 실패:", viewError);
-          }
-        }
-
-        const docSnap = await getDoc(postRef);
-        if (docSnap.exists()) {
-          post.value = { id: docSnap.id, ...docSnap.data() };
-          // 조회수가 즉시 반영된 것처럼 보이게 로컬 데이터도 조정
-          if (sessionStorage.getItem(viewedKey) && !post.value.views) {
-            post.value.views = 1;
-          } else if (sessionStorage.getItem(viewedKey) && post.value.views > 0 && !this.initialViewCount) {
-            this.initialViewCount = post.value.views;
-            post.value.views++;
-          }
-        } else {
-          throw new Error("게시글을 찾을 수 없습니다.");
-        }
-      } catch (fetchError) {
-        console.error("게시글 조회 오류:", fetchError);
-        error.value = "게시글을 불러오는 중 오류가 발생했습니다.";
-      } finally {
-        isLoading.value = false;
-      }
-    };
-
-    onMounted(fetchPost);
-
-    return {
-      post,
-      isLoading,
-      error,
-      formattedContent,
-      formatDate,
-    };
+const props = defineProps({
+  postId: {
+    type: String,
+    required: true,
   },
+});
+
+const route = useRoute();
+const router = useRouter();
+const post = ref(null);
+const comments = ref([]);
+const newComment = ref('');
+const loading = ref(true);
+const isAdmin = ref(false);
+
+const isAuthorOrAdmin = computed(() => {
+  if (!auth.currentUser || !post.value) return false;
+  return auth.currentUser.uid === post.value.authorId || isAdmin.value;
+});
+
+const formatDate = (timestamp) => {
+  if (!timestamp?.toDate) return '';
+  return timestamp.toDate().toLocaleString('ko-KR');
 };
+
+const fetchPostAndComments = async () => {
+  loading.value = true;
+  try {
+    // 게시글 가져오기
+    const postRef = doc(db, 'posts', props.postId);
+    const postSnap = await getDoc(postRef);
+
+    if (postSnap.exists()) {
+      post.value = { id: postSnap.id, ...postSnap.data() };
+      // 조회수 1 증가 (본인 글이 아닐 때만)
+      if (auth.currentUser?.uid !== post.value.authorId) {
+        await updateDoc(postRef, { views: (post.value.views || 0) + 1 });
+      }
+
+      // 댓글 가져오기
+      const commentsRef = collection(db, 'posts', props.postId, 'comments');
+      const q = query(commentsRef, orderBy('createdAt', 'asc'));
+      const commentsSnap = await getDocs(q);
+      comments.value = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    } else {
+      console.error("게시글을 찾을 수 없습니다.");
+    }
+  } catch (error) {
+    console.error("데이터 로딩 오류:", error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const addComment = async () => {
+  if (!newComment.value.trim() || !isAdmin.value) return;
+
+  try {
+    const commentsRef = collection(db, 'posts', props.postId, 'comments');
+    await addDoc(commentsRef, {
+      content: newComment.value,
+      authorId: auth.currentUser.uid,
+      authorName: auth.currentUser.displayName || '관리자',
+      createdAt: serverTimestamp(),
+    });
+    newComment.value = '';
+    await fetchPostAndComments(); // 댓글 목록 새로고침
+  } catch (error) {
+    console.error("댓글 작성 오류:", error);
+    alert("댓글 작성에 실패했습니다.");
+  }
+};
+
+const deletePost = async () => {
+    if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) return;
+    try {
+        await deleteDoc(doc(db, "posts", props.postId));
+        alert("게시글이 삭제되었습니다.");
+        router.push(`/community/${post.value.category || 'notices'}`);
+    } catch (error) {
+        console.error("게시글 삭제 오류:", error);
+        alert("게시글 삭제에 실패했습니다.");
+    }
+};
+
+onMounted(async () => {
+  const user = auth.currentUser;
+  if (user) {
+    const idTokenResult = await user.getIdTokenResult();
+    isAdmin.value = idTokenResult.claims.admin === true;
+  }
+  await fetchPostAndComments();
+});
 </script>
 
 <style scoped>
 .post-detail-page {
-  max-width: 800px;
-  margin: 90px auto 40px;
-  padding: 20px;
+  max-width: 900px;
+  margin: 20px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 .card {
-  background: rgba(255, 255, 255, 0.9);
-  padding: 40px;
+  background-color: #fff;
+  padding: 30px;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 .post-header {
   border-bottom: 1px solid #eee;
+  margin-bottom: 20px;
   padding-bottom: 20px;
-  margin-bottom: 30px;
 }
 .post-header h1 {
   font-size: 2.2em;
   margin: 0 0 15px;
-  color: #333;
 }
 .post-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  color: #666;
+  gap: 20px;
   font-size: 0.9em;
+  color: #777;
 }
 .post-content {
   line-height: 1.8;
   font-size: 1.1em;
-  color: #444;
-  word-break: keep-all;
-  overflow-wrap: break-word;
+  min-height: 200px;
+  white-space: pre-wrap; /* 줄바꿈 및 공백 유지 */
 }
-.back-button {
-  background-color: #6c757d;
-  color: white;
-  padding: 10px 20px;
+.post-actions {
+    text-align: right;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.comments-section h3 {
+  font-size: 1.6em;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.comment-item {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+}
+.comment-author {
+  font-weight: bold;
+  margin: 0 0 5px;
+}
+.comment-body {
+  margin: 0 0 10px;
+}
+.comment-date {
+  font-size: 0.8em;
+  color: #888;
+  text-align: right;
+  margin: 0;
+}
+.no-comments, .no-post {
+  text-align: center;
+  color: #888;
+  padding: 30px;
+}
+.comment-form {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+.comment-form textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+.navigation-buttons {
+    text-align: center;
+}
+.btn {
   border: none;
   border-radius: 8px;
+  padding: 10px 20px;
   cursor: pointer;
-  font-size: 0.9em;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 40px;
+  font-weight: bold;
+  transition: background-color 0.3s;
 }
-.back-button:hover {
-  background-color: #5a6268;
+.btn-primary {
+  background-color: #007bff;
+  color: white;
 }
-.loading-state,
-.error-state {
-  text-align: center;
-  padding: 40px;
-  color: #666;
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
 }
-.spinner {
-  display: inline-block;
-  border: 4px solid rgba(0,0,0,0.1);
-  border-top-color: #007bff;
-  border-radius: 50%;
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    text-decoration: none;
+}
+.loading-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
   width: 36px;
   height: 36px;
+  border-radius: 50%;
+  border-left-color: #007bff;
   animation: spin 1s ease infinite;
+  margin: 50px auto;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }

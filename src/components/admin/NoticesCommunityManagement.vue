@@ -58,8 +58,19 @@
 
     <div class="post-list card">
       <h4>게시글 목록</h4>
+      <div class="filter-controls">
+        <label for="category-filter">게시판 필터:</label>
+        <select id="category-filter" v-model="selectedCategory">
+          <option value="all">전체 보기</option>
+          <option value="notices">공지사항</option>
+          <option value="payment_requests">입금승인요청</option>
+          <option value="bug_reports">버그 알리기</option>
+          <option value="freeboard">자유게시판</option>
+        </select>
+      </div>
+
       <div v-if="loadingPosts" class="loading-spinner"></div>
-      <table v-else-if="posts.length > 0" class="post-table">
+      <table v-else-if="filteredPosts.length > 0" class="post-table">
         <thead>
           <tr>
             <th>유형</th>
@@ -70,7 +81,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="post in posts" :key="post.id">
+          <tr v-for="post in filteredPosts" :key="post.id">
             <td>
               <span :class="`type-badge type-${post.category || 'default'}`">{{ getPostTypeText(post.category) }}</span>
             </td>
@@ -85,13 +96,13 @@
           </tr>
         </tbody>
       </table>
-      <div v-else class="no-data">작성된 게시글이 없습니다.</div>
+      <div v-else class="no-data">해당 유형의 게시글이 없습니다.</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import { db, auth } from "@/firebaseConfig";
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -105,41 +116,39 @@ import {
   query,
 } from "firebase/firestore";
 
-// --- 상태 변수 ---
 const activeTab = ref('notice');
 const posts = ref([]);
 const loadingPosts = ref(true);
 const isSubmittingNotice = ref(false);
 const isSendingNotification = ref(false);
+const selectedCategory = ref('all');
 
-const newNotice = reactive({
-  title: "",
-  content: "",
+const newNotice = reactive({ title: "", content: "" });
+const notification = reactive({ title: '', body: '', link: '', message: '', isError: false });
+
+const filteredPosts = computed(() => {
+  if (selectedCategory.value === 'all') {
+    return posts.value;
+  }
+  return posts.value.filter(post => post.category === selectedCategory.value);
 });
 
-const notification = reactive({
-  title: '',
-  body: '',
-  link: '',
-  message: '',
-  isError: false,
-});
-
-
-// --- 헬퍼 함수 ---
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
 
+// [수정] 새로운 게시판 유형 추가
 const getPostTypeText = (category) => {
-  if (category === 'notices') return '공지';
-  if (category === 'freeboard') return '자유';
-  return '기타';
+  const types = {
+    notices: '공지',
+    payment_requests: '입금승인',
+    bug_reports: '버그',
+    freeboard: '자유',
+  };
+  return types[category] || '기타';
 };
 
-
-// --- Firestore 및 Functions 연동 함수 ---
 const fetchPosts = async () => {
   loadingPosts.value = true;
   try {
@@ -175,7 +184,6 @@ const createNotice = async () => {
       createdAt: serverTimestamp(),
       views: 0
     });
-
     alert("공지사항이 성공적으로 등록되었습니다.");
     newNotice.title = "";
     newNotice.content = "";
@@ -190,7 +198,6 @@ const createNotice = async () => {
 
 const deletePost = async (postId) => {
   if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) return;
-
   try {
     await deleteDoc(doc(db, "posts", postId));
     alert("게시글이 성공적으로 삭제되었습니다.");
@@ -207,15 +214,12 @@ const sendNotification = async () => {
     notification.isError = true;
     return;
   }
-
   if (!confirm('정말로 모든 사용자에게 알림을 발송하시겠습니까?')) return;
-
   isSendingNotification.value = true;
   notification.message = '';
   notification.isError = false;
-
   try {
-    const functions = getFunctions();
+    const functions = getFunctions(undefined, "asia-northeast3");
     const sendNotificationToUsers = httpsCallable(functions, 'sendNotificationToUsers');
     const result = await sendNotificationToUsers({
       target: 'all',
@@ -223,16 +227,13 @@ const sendNotification = async () => {
       body: notification.body,
       link: notification.link || undefined
     });
-    
     notification.message = result.data.message;
     notification.isError = !result.data.success;
-    
     if (result.data.success) {
       notification.title = '';
       notification.body = '';
       notification.link = '';
     }
-
   } catch (error) {
     console.error("알림 발송 함수 호출 오류:", error);
     notification.message = `알림 발송에 실패했습니다: ${error.message}`;
@@ -246,6 +247,21 @@ onMounted(fetchPosts);
 </script>
 
 <style scoped>
+/* [신규 추가] 필터 스타일 */
+.filter-controls {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-controls label {
+  font-weight: 500;
+}
+.filter-controls select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+}
 .management-container {
   display: flex;
   flex-direction: column;
@@ -265,8 +281,6 @@ h3, h4 {
   margin-bottom: 20px;
   color: #6c757d;
 }
-
-/* 탭 스타일 */
 .tabs {
   display: flex;
   gap: 10px;
@@ -288,8 +302,6 @@ h3, h4 {
   color: #007bff;
   border-bottom-color: #007bff;
 }
-
-/* 폼 스타일 */
 .form-group {
   margin-bottom: 20px;
 }
@@ -310,8 +322,6 @@ h3, h4 {
 .form-group textarea {
   resize: vertical;
 }
-
-/* 메시지 스타일 */
 .message {
   margin-top: 15px;
   padding: 12px;
@@ -320,9 +330,6 @@ h3, h4 {
 }
 .message.error { background-color: #f8d7da; color: #721c24; }
 .message.success { background-color: #d4edda; color: #155724; }
-
-
-/* 테이블 스타일 */
 .post-table {
   width: 100%;
   border-collapse: collapse;
@@ -338,8 +345,6 @@ h3, h4 {
 .post-table th {
   background-color: #f8f9fa;
 }
-
-/* 타입 배지 */
 .type-badge {
   padding: 4px 10px;
   border-radius: 15px;
@@ -348,16 +353,22 @@ h3, h4 {
   color: #fff;
 }
 .type-notices {
-  background-color: #17a2b8; /* 청록색 */
+  background-color: #17a2b8;
+}
+/* [신규 추가] 신규 게시판 타입 배지 스타일 */
+.type-payment_requests {
+  background-color: #28a745; /* 초록색 */
+}
+.type-bug_reports {
+  background-color: #ffc107; /* 노란색 */
+  color: #212529;
 }
 .type-freeboard {
-  background-color: #007bff; /* 파란색 */
+  background-color: #007bff;
 }
 .type-default {
-  background-color: #6c757d; /* 회색 */
+  background-color: #6c757d;
 }
-
-/* 버튼 및 로딩 */
 .btn {
   border: none;
   border-radius: 8px;
