@@ -59,12 +59,11 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 // --- 게임 상수 ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
-const GAME_DURATION = 60; // 초
+const GAME_DURATION = 60;
 
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- [신규] 사운드 객체 ---
 const sounds = {
   match: new Audio(require('@/assets/sounds/match.mp3')),
   background: new Audio(require('@/assets/sounds/bgm.mp3')),
@@ -73,7 +72,7 @@ sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
 // --- 상태 변수 ---
-const gameState = ref('ready'); // ready, playing, ended
+const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
 const timer = ref(GAME_DURATION);
@@ -86,7 +85,7 @@ const awardedPoints = ref(0);
 let timerInterval = null;
 let sessionId = null;
 
-// --- 게임 보드 생성 로직 ---
+// --- 게임 보드 생성 ---
 const createBoard = () => {
   const newBoard = [];
   for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
@@ -109,10 +108,8 @@ const startGame = async () => {
     awardedPoints.value = 0;
     timer.value = GAME_DURATION;
     board.value = createBoard();
-    // 초기 매치 제거 (단순화를 위해 여기선 생략, 실제 구현 시 필요)
     gameState.value = 'playing';
     
-    // [수정] 사운드 재생 추가
     sounds.background.play();
 
     timerInterval = setInterval(() => {
@@ -133,7 +130,6 @@ const endGame = async () => {
   clearInterval(timerInterval);
   gameState.value = 'ended';
   
-  // [수정] 사운드 정지 추가
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
@@ -153,19 +149,17 @@ const resetGame = () => {
   sessionId = null;
 };
 
-// --- 셀 선택 및 스왑 로직 ---
+// --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
   } else {
-    // 인접 셀인지 확인 (가로, 세로)
     const row1 = Math.floor(selectedCell.value / BOARD_SIZE);
     const col1 = selectedCell.value % BOARD_SIZE;
     const row2 = Math.floor(index / BOARD_SIZE);
     const col2 = index % BOARD_SIZE;
-
     const isAdjacent = Math.abs(row1 - row2) + Math.abs(col1 - col2) === 1;
     
     if (isAdjacent) {
@@ -179,25 +173,22 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = true;
   
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-
-  // 잠시 후 매치 확인 (애니메이션 시간 고려)
   await new Promise(resolve => setTimeout(resolve, 150));
   
   const hasMatches = await checkAndClearMatches();
 
-  // 만약 스왑 후 매치가 없다면, 다시 원위치
   if (!hasMatches) {
     await new Promise(resolve => setTimeout(resolve, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   } else {
-    // 매치가 있다면, 연쇄 반응 처리
+    // [수정] 아래 while 루프가 연쇄 반응을 처리합니다.
+    // eslint-disable-next-line no-empty
     while (await processBoard()) {}
   }
 
   isProcessing.value = false;
 };
 
-// --- 매치 확인 및 보드 정리 로직 ---
 const processBoard = async () => {
   const hasCleared = await checkAndClearMatches();
   if (hasCleared) {
@@ -205,14 +196,14 @@ const processBoard = async () => {
     dropDownGems();
     fillEmptyCells();
     await new Promise(resolve => setTimeout(resolve, 300));
-    return true; // 연쇄 반응이 있었음
+    return true;
   }
-  return false; // 더 이상 반응 없음
+  return false;
 }
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로 매치
+  // 가로
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       const i = r * BOARD_SIZE + c;
@@ -221,7 +212,7 @@ const checkAndClearMatches = async () => {
       }
     }
   }
-  // 세로 매치
+  // 세로
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       const i = r * BOARD_SIZE + c;
@@ -232,7 +223,6 @@ const checkAndClearMatches = async () => {
   }
   
   if (matches.size > 0) {
-    // [수정] 사운드 재생 추가
     sounds.match.currentTime = 0;
     sounds.match.play();
     score.value += matches.size * 10;
@@ -269,7 +259,6 @@ const fillEmptyCells = () => {
 
 onUnmounted(() => {
   clearInterval(timerInterval);
-  // [수정] 사운드 정지 추가
   sounds.background.pause();
 });
 </script>
