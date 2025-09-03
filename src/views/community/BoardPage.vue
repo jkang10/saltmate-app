@@ -2,7 +2,7 @@
   <div class="board-page">
     <header class="board-header">
       <h2><i :class="boardIcon"></i> {{ boardTitle }}</h2>
-      <router-link to="/community/write" class="write-post-button">
+      <router-link v-if="canWritePost" to="/community/write" class="write-post-button">
         <i class="fas fa-pen"></i> 글쓰기
       </router-link>
     </header>
@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref, computed, onMounted, defineProps } from 'vue';
-import { db } from '@/firebaseConfig';
+import { db, auth } from '@/firebaseConfig'; // [수정] auth import 추가
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const props = defineProps({
@@ -42,14 +42,32 @@ const props = defineProps({
 
 const posts = ref([]);
 const loading = ref(true);
+const isAdmin = ref(false); // [신규 추가] 관리자 여부 상태
 
 const boardInfo = {
   notices: { title: '공지사항', icon: 'fas fa-bullhorn' },
   payment_requests: { title: '구독/등급 입금승인요청', icon: 'fas fa-file-invoice-dollar' },
   bug_reports: { title: '버그 알리기', icon: 'fas fa-bug' },
-  // (기타 게시판 정보 추가 가능)
+  'nft-bids': { title: 'NFT 입찰 정보', icon: 'fas fa-gavel' },
+  'equity-info': { title: '지분 공지 정보', icon: 'fas fa-chart-pie' },
+  'salt-tech': { title: '소금 기술 이야기', icon: 'fas fa-flask' },
+  'solein-tech': { title: '스마트 솔레인 테크', icon: 'fas fa-microchip' },
+  'deep-sea-water': { title: '해양 심층수', icon: 'fas fa-water' },
   default: { title: '게시판', icon: 'fas fa-comments' },
 };
+
+// [신규 추가] 글쓰기 버튼 표시 여부를 결정하는 computed 속성
+const canWritePost = computed(() => {
+  // 일반 회원이 글을 쓸 수 있는 게시판 목록
+  const userWritableBoards = ['payment_requests', 'bug_reports'];
+  
+  if (userWritableBoards.includes(props.category)) {
+    return true; // 입금승인, 버그알리기 게시판은 누구나 글쓰기 가능
+  }
+  
+  // 나머지 게시판은 관리자만 글쓰기 가능
+  return isAdmin.value;
+});
 
 const boardTitle = computed(() => {
   return boardInfo[props.category]?.title || boardInfo.default.title;
@@ -81,10 +99,19 @@ const fetchPosts = async () => {
   }
 };
 
-onMounted(fetchPosts);
+onMounted(async () => {
+  // [신규 추가] 컴포넌트 마운트 시 관리자 여부 확인
+  const user = auth.currentUser;
+  if (user) {
+    const idTokenResult = await user.getIdTokenResult();
+    isAdmin.value = idTokenResult.claims.admin === true;
+  }
+  await fetchPosts();
+});
 </script>
 
 <style scoped>
+/* (기존 스타일과 동일) */
 .board-header {
   display: flex;
   justify-content: space-between;
