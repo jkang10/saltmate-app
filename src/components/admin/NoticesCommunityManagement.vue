@@ -8,7 +8,7 @@
         공지사항 작성
       </button>
       <button class="tab-button" :class="{ active: activeTab === 'notification' }" @click="activeTab = 'notification'">
-        전체 알림 발송
+        알림 발송
       </button>
     </div>
 
@@ -32,8 +32,9 @@
     </div>
 
     <div v-if="activeTab === 'notification'" class="notification-form card">
-      <h4>전체 알림 발송</h4>
-      <p class="description">알림 수신에 동의한 모든 사용자에게 푸시 알림을 보냅니다.</p>
+      <h4>알림 발송</h4>
+      <p class="description">전체 또는 특정 사용자에게 푸시 알림을 보냅니다.</p>
+      
       <div class="form-group">
         <label for="notification-title">알림 제목</label>
         <input id="notification-title" type="text" v-model="notification.title" placeholder="알림의 제목을 입력하세요." />
@@ -46,10 +47,36 @@
         <label for="notification-link">클릭 시 이동할 링크 (선택 사항)</label>
         <input id="notification-link" type="text" v-model="notification.link" placeholder="예: /community/notices" />
       </div>
-      <button class="btn btn-danger" @click="sendNotification" :disabled="isSendingNotification">
-        <span v-if="isSendingNotification">전송 중...</span>
-        <span v-else>전체 사용자에게 발송</span>
-      </button>
+
+      <div class="user-selection-section">
+        <h5><i class="fas fa-users"></i> 발송 대상 선택</h5>
+        <div v-if="loadingUsers" class="loading-spinner small"></div>
+        <div v-else-if="users.length > 0" class="user-list">
+          <div class="user-list-header">
+            <input type="checkbox" @change="toggleSelectAllUsers" :checked="areAllUsersSelected" />
+            <span>전체 선택 (총 {{ users.length }}명)</span>
+          </div>
+          <div class="user-list-items">
+            <div v-for="user in users" :key="user.id" class="user-item">
+              <input type="checkbox" :value="user.id" v-model="selectedUserIds" />
+              <label>{{ user.name }} ({{ user.email }})</label>
+            </div>
+          </div>
+        </div>
+        <div v-else class="no-data">알림 수신 동의 사용자가 없습니다.</div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn btn-primary" @click="sendNotification('selected')" :disabled="isSendingNotification || selectedUserIds.length === 0">
+            <span v-if="isSendingNotification && targetType === 'selected'">전송 중...</span>
+            <span v-else>선택된 사용자에게 발송 ({{ selectedUserIds.length }}명)</span>
+        </button>
+        <button class="btn btn-danger" @click="sendNotification('all')" :disabled="isSendingNotification">
+          <span v-if="isSendingNotification && targetType === 'all'">전송 중...</span>
+          <span v-else>전체 사용자에게 발송</span>
+        </button>
+      </div>
+
        <div v-if="notification.message" :class="notification.isError ? 'message error' : 'message success'">
         <p>{{ notification.message }}</p>
       </div>
@@ -102,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, computed, watch } from "vue";
 import { db, auth } from "@/firebaseConfig";
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -114,6 +141,7 @@ import {
   serverTimestamp,
   orderBy,
   query,
+  where,
 } from "firebase/firestore";
 
 const activeTab = ref('notice');
@@ -122,6 +150,11 @@ const loadingPosts = ref(true);
 const isSubmittingNotice = ref(false);
 const isSendingNotification = ref(false);
 const selectedCategory = ref('all');
+
+const users = ref([]);
+const loadingUsers = ref(false);
+const selectedUserIds = ref([]);
+const targetType = ref('');
 
 const newNotice = reactive({ title: "", content: "" });
 const notification = reactive({ title: '', body: '', link: '', message: '', isError: false });
@@ -138,7 +171,6 @@ const formatDate = (timestamp) => {
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
 
-// [수정] 새로운 게시판 유형 추가
 const getPostTypeText = (category) => {
   const types = {
     notices: '공지',
@@ -208,60 +240,107 @@ const deletePost = async (postId) => {
   }
 };
 
-const sendNotification = async () => {
+const fetchUsersWithFcmTokens = async () => {
+  loadingUsers.value = true;
+  try {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("fcmTokens", "!=", []));
+    const querySnapshot = await getDocs(q);
+    users.value = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().name,
+      email: doc.data().email,
+    }));
+  } catch (error) {
+    console.error("FCM 토큰 보유 사용자 로딩 오류:", error);
+  } finally {
+    loadingUsers.value = false;
+  }
+};
+
+const areAllUsersSelected = computed(() => {
+  return users.value.length > 0 && selectedUserIds.value.length === users.value.length;
+});
+
+const toggleSelectAllUsers = (event) => {
+  if (event.target.checked) {
+    selectedUserIds.value = users.value.map(user => user.id);
+  } else {
+    selectedUserIds.value = [];
+  }
+};
+
+const sendNotification = async (target) => {
+  targetType.value = target;
+
   if (!notification.title || !notification.body) {
     notification.message = '제목과 내용은 반드시 입력해야 합니다.';
     notification.isError = true;
     return;
   }
-  if (!confirm('정말로 모든 사용자에게 알림을 발송하시겠습니까?')) return;
+
+  let targetIds = [];
+  let confirmMessage = '';
+
+  if (target === 'all') {
+    targetIds = 'all';
+    confirmMessage = '정말로 모든 사용자에게 알림을 발송하시겠습니까?';
+  } else if (target === 'selected') {
+    targetIds = selectedUserIds.value;
+    if (targetIds.length === 0) {
+      notification.message = '발송할 사용자를 선택해주세요.';
+      notification.isError = true;
+      return;
+    }
+    confirmMessage = `선택된 ${targetIds.length}명의 사용자에게 알림을 발송하시겠습니까?`;
+  }
+
+  if (!confirm(confirmMessage)) return;
+
   isSendingNotification.value = true;
   notification.message = '';
   notification.isError = false;
+
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const sendNotificationToUsers = httpsCallable(functions, 'sendNotificationToUsers');
     const result = await sendNotificationToUsers({
-      target: 'all',
+      target: targetIds,
       title: notification.title,
       body: notification.body,
       link: notification.link || undefined
     });
+    
     notification.message = result.data.message;
     notification.isError = !result.data.success;
+    
     if (result.data.success) {
       notification.title = '';
       notification.body = '';
       notification.link = '';
+      selectedUserIds.value = [];
     }
+
   } catch (error) {
     console.error("알림 발송 함수 호출 오류:", error);
     notification.message = `알림 발송에 실패했습니다: ${error.message}`;
     notification.isError = true;
   } finally {
     isSendingNotification.value = false;
+    targetType.value = '';
   }
 };
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'notification' && users.value.length === 0) {
+    fetchUsersWithFcmTokens();
+  }
+});
 
 onMounted(fetchPosts);
 </script>
 
 <style scoped>
-/* [신규 추가] 필터 스타일 */
-.filter-controls {
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.filter-controls label {
-  font-weight: 500;
-}
-.filter-controls select {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #ced4da;
-}
 .management-container {
   display: flex;
   flex-direction: column;
@@ -330,6 +409,23 @@ h3, h4 {
 }
 .message.error { background-color: #f8d7da; color: #721c24; }
 .message.success { background-color: #d4edda; color: #155724; }
+.post-list {
+  margin-top: 20px;
+}
+.filter-controls {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-controls label {
+  font-weight: 500;
+}
+.filter-controls select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+}
 .post-table {
   width: 100%;
   border-collapse: collapse;
@@ -352,23 +448,11 @@ h3, h4 {
   font-weight: bold;
   color: #fff;
 }
-.type-notices {
-  background-color: #17a2b8;
-}
-/* [신규 추가] 신규 게시판 타입 배지 스타일 */
-.type-payment_requests {
-  background-color: #28a745; /* 초록색 */
-}
-.type-bug_reports {
-  background-color: #ffc107; /* 노란색 */
-  color: #212529;
-}
-.type-freeboard {
-  background-color: #007bff;
-}
-.type-default {
-  background-color: #6c757d;
-}
+.type-notices { background-color: #17a2b8; }
+.type-payment_requests { background-color: #28a745; }
+.type-bug_reports { background-color: #ffc107; color: #212529; }
+.type-freeboard { background-color: #007bff; }
+.type-default { background-color: #6c757d; }
 .btn {
   border: none;
   border-radius: 8px;
@@ -377,20 +461,10 @@ h3, h4 {
   font-weight: bold;
   transition: background-color 0.3s;
 }
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-.btn-primary:hover {
-  background-color: #0056b3;
-}
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-.btn-danger:hover {
-  background-color: #c82333;
-}
+.btn-primary { background-color: #007bff; color: white; }
+.btn-primary:hover { background-color: #0056b3; }
+.btn-danger { background-color: #dc3545; color: white; }
+.btn-danger:hover { background-color: #c82333; }
 .btn-outline-danger {
     background-color: transparent;
     border: 1px solid #dc3545;
@@ -400,12 +474,8 @@ h3, h4 {
     background-color: #dc3545;
     color: white;
 }
-.btn-sm {
-  padding: 5px 10px;
-  font-size: 0.85em;
-}
-.loading-spinner,
-.no-data {
+.btn-sm { padding: 5px 10px; font-size: 0.85em; }
+.loading-spinner, .no-data {
   text-align: center;
   padding: 50px;
   color: #777;
@@ -419,7 +489,34 @@ h3, h4 {
   animation: spin 1s ease infinite;
   margin: 50px auto;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.user-selection-section {
+  margin-top: 30px;
+  border-top: 1px solid #e9ecef;
+  padding-top: 20px;
+}
+.user-selection-section h5 { font-size: 1.2em; margin-bottom: 15px; }
+.user-list { border: 1px solid #ddd; border-radius: 8px; }
+.user-list-header {
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+  font-weight: 500;
+}
+.user-list-header input { margin-right: 10px; }
+.user-list-items {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px 15px;
+}
+.user-item { display: block; margin-bottom: 8px; }
+.user-item input { margin-right: 10px; }
+.button-group { display: flex; gap: 15px; margin-top: 20px; }
+.button-group .btn { flex-grow: 1; }
+.loading-spinner.small {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+    margin: 20px auto;
 }
 </style>
