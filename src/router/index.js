@@ -151,6 +151,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/salt-pang',
+    name: 'SaltPangPage',
+    component: () => import('@/views/SaltPangPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: "/treasure-box",
     name: "TreasureBoxPage",
     component: () => import("@/views/TreasureBoxPage.vue"),

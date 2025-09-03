@@ -258,6 +258,12 @@
           <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
           <span class="card-enter">탐험 시작 &rarr;</span>
         </router-link>
+        <router-link to="/salt-pang" class="feature-card game">
+          <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
+          <h3>솔트팡</h3>
+          <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
+          <span class="card-enter">게임 시작 &rarr;</span>
+        </router-link>
       </div>
     </main>
     <TransactionHistoryModal
