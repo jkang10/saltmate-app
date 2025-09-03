@@ -47,8 +47,9 @@
 </template>
 
 <script setup>
+// [수정] 사용하지 않는 useRoute와 route 변수를 제거합니다.
 import { ref, onMounted, computed, defineProps } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebaseConfig';
 import { doc, getDoc, updateDoc, collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
@@ -59,7 +60,7 @@ const props = defineProps({
   },
 });
 
-const route = useRoute();
+// const route = useRoute(); // 이 줄을 삭제하거나 주석 처리
 const router = useRouter();
 const post = ref(null);
 const comments = ref([]);
