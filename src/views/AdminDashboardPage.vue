@@ -83,6 +83,14 @@
               ><i class="fas fa-calendar-alt"></i> 이벤트 관리</router-link
             >
           </li>
+	<li>
+	  <router-link
+	    to="/admin-dashboard/attendance"
+	    class="nav-item"
+	    active-class="active-link"
+	    ><i class="fas fa-user-check"></i> 출석 관리</router-link
+	  >
+	</li>
           <li>
             <router-link
               to="/admin-dashboard/products"

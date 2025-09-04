@@ -70,6 +70,12 @@ const routes = [
     meta: { requiresAuth: true },
     props: true,
   },
+	{
+      path: "attendance",
+      name: "AdminAttendance",
+      component: () => import("@/components/admin/AttendanceManagement.vue"),
+	},
+
   {
     path: "/community/write",
     name: "PostWritePage",
