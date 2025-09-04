@@ -1,5 +1,5 @@
 <template>
-  <div class="salt-pang-page" :style="pageBackgroundStyle">
+  <div class="salt-pang-page">
     <header class="page-header">
       <h1>💎 솔트팡</h1>
       <p>같은 모양의 소금 결정을 3개 이상 맞춰보세요!</p>
@@ -53,12 +53,9 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, computed } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth'; // [신규 추가] auth 모듈 import
-import soundMatch from '@/assets/sounds/match.mp3';
-import soundBgm from '@/assets/sounds/bgm.mp3';
-import backgroundPng from '@/assets/slatpang.png'; 
+import { getAuth } from 'firebase/auth';
 
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
@@ -66,14 +63,6 @@ const GAME_DURATION = 60;
 
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
-
-let audioContextStarted = false;
-const sounds = {
-  match: new Audio(soundMatch),
-  background: new Audio(soundBgm),
-};
-sounds.background.loop = true;
-sounds.background.volume = 0.3;
 
 const gameState = ref('ready');
 const board = ref([]);
@@ -87,29 +76,6 @@ const awardedPoints = ref(0);
 
 let timerInterval = null;
 let sessionId = null;
-
-const pageBackgroundStyle = computed(() => ({
-  backgroundImage: `url(${backgroundPng})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  backgroundBlendMode: 'darken',
-  minHeight: '100vh',
-}));
-
-const playSound = (sound) => {
-  if (audioContextStarted) {
-    sound.currentTime = 0;
-    sound.play().catch(e => console.error("사운드 재생 오류:", e));
-  }
-};
-
-const initAudioContext = () => {
-  if (!audioContextStarted) {
-    audioContextStarted = true;
-    console.log("오디오 컨텍스트가 활성화되었습니다. 첫 클릭 후 사운드가 재생됩니다.");
-  }
-};
 
 const createBoard = () => {
   let newBoard = [];
@@ -126,17 +92,13 @@ const hasInitialMatches = (boardToCheck) => {
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       const i = r * BOARD_SIZE + c;
-      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + 1] && boardToCheck[i] === boardToCheck[i + 2]) {
-        return true;
-      }
+      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + 1] && boardToCheck[i] === boardToCheck[i + 2]) return true;
     }
   }
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       const i = r * BOARD_SIZE + c;
-      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + BOARD_SIZE] && boardToCheck[i] === boardToCheck[i + 2 * BOARD_SIZE]) {
-        return true;
-      }
+      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + BOARD_SIZE] && boardToCheck[i] === boardToCheck[i + 2 * BOARD_SIZE]) return true;
     }
   }
   return false;
@@ -145,7 +107,6 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  initAudioContext();
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
@@ -158,8 +119,6 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    playSound(sounds.background);
-
     timerInterval = setInterval(() => {
       timer.value--;
       if (timer.value <= 0) {
@@ -178,23 +137,13 @@ const endGame = async () => {
   clearInterval(timerInterval);
   gameState.value = 'ended';
 
-  sounds.background.pause();
-  sounds.background.currentTime = 0;
-
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
-    // [수정] 현재 로그인된 사용자의 이름을 가져옵니다.
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const username = user && user.displayName ? user.displayName : '익명';
-
-    // [수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
-      score: score.value,
-      username: username 
+      score: score.value
     }); 
     
     awardedPoints.value = result.data.awardedPoints;
@@ -261,7 +210,7 @@ const processBoard = async () => {
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로 매치
+  // 가로
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let i = r * BOARD_SIZE + c;
@@ -274,7 +223,7 @@ const checkAndClearMatches = async () => {
       }
     }
   }
-  // 세로 매치
+  // 세로
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let i = r * BOARD_SIZE + c;
@@ -289,7 +238,6 @@ const checkAndClearMatches = async () => {
   }
   
   if (matches.size > 0) {
-    playSound(sounds.match);
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     matches.forEach(index => (board.value[index] = null));
     return true;
@@ -324,27 +272,23 @@ const fillEmptyCells = () => {
 
 onUnmounted(() => {
   clearInterval(timerInterval);
-  sounds.background.pause();
 });
 </script>
 
 <style scoped>
-/* (기존 스타일과 동일) */
-.salt-pang-page { max-width: 500px; margin: 0 auto; padding: 20px; box-sizing: border-box; color: white; }
+.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
-.game-container { padding: 20px; background-color: rgba(0, 0, 0, 0.5); border-radius: 12px; }
+.game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
 .game-intro { text-align: center; }
-.game-stats { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.2em; color: #eee; }
-.game-board { display: grid; gap: 4px; border: 2px solid #555; padding: 5px; border-radius: 8px; background-color: rgba(0, 0, 0, 0.6); }
-.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.15); }
-.cell.selected { background-color: rgba(255, 255, 255, 0.3); }
+.game-stats { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.2em; }
+.game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
+.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
+.cell.selected { background-color: #a0a0a0; }
 .gem { font-size: 2em; user-select: none; transition: transform 0.2s; }
-.game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; background-color: #3498db; color: white; border: none; border-radius: 8px; transition: background-color 0.3s; }
-.game-button:hover:not(:disabled) { background-color: #2980b9; }
-.game-button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
-.game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; border-radius: 12px; }
-.end-modal { background-color: #2c3e50; padding: 30px; border-radius: 8px; text-align: center; color: white; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-.error-message { margin-top: 15px; color: #e74c3c; text-align: center; font-weight: bold; }
+.game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; }
+.game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; }
+.end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
+.error-message { margin-top: 15px; color: red; text-align: center; }
 .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
 .pop-enter-from, .pop-leave-to { transform: scale(0); }
 </style>
