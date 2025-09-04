@@ -179,16 +179,23 @@ export default {
 
       const reqRef = doc(db, "subscription_requests", requestId);
       try {
-        // [수정] 승인자 정보(이메일)를 함께 기록
         const auth = getAuth();
         const adminEmail = auth.currentUser
           ? auth.currentUser.email
           : "unknown_admin";
 
-        await updateDoc(reqRef, {
+        // [수정] 업데이트할 데이터를 객체로 정의
+        const updateData = {
           status,
           approvedBy: status === "approved" ? adminEmail : null,
-        });
+        };
+
+        // [신규 추가] 승인 시, 승인 시각 필드 추가
+        if (status === "approved") {
+          updateData.approvedAt = new Date();
+        }
+
+        await updateDoc(reqRef, updateData);
 
         alert(`요청이 성공적으로 처리되었습니다.`);
         await this.fetchRequests();
@@ -211,11 +218,12 @@ export default {
 </script>
 
 <style scoped>
-/* [신규 추가] 승인 대기 중인 행의 배경색 스타일 */
-.request-table tbody .pending-row {
-  background-color: #fffbe6; /* 연한 노란색 */
+.subscription-manager {
+  padding: 20px;
 }
-
+.request-table tbody .pending-row {
+  background-color: #fffbe6;
+}
 .subscription-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
@@ -228,6 +236,7 @@ export default {
   padding: 10px 15px;
   background-color: #f8f9fa;
   border-radius: 8px;
+  border: 1px solid #dee2e6;
 }
 .search-bar input {
   border: none;
