@@ -19,6 +19,9 @@
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <div class="game-stats">
           <div class="stat-item">시간: <strong>{{ timer }}</strong></div>
+          <button @click="toggleMute" class="mute-button">
+            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
+          </button>
           <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
         </div>
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
@@ -55,7 +58,10 @@
 <script setup>
 import { ref, onUnmounted } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-// [수정] 사용하지 않는 getAuth import 제거
+
+// [수정] import 구문을 사용하여 사운드 파일을 직접 불러옵니다.
+import soundMatch from '@/assets/sounds/match.mp3';
+import soundBgm from '@/assets/sounds/bgm.mp3';
 
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
@@ -64,6 +70,17 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
+// --- 사운드 객체 ---
+let audioContextStarted = false;
+const isMuted = ref(false);
+const sounds = {
+  match: new Audio(soundMatch),
+  background: new Audio(soundBgm),
+};
+sounds.background.loop = true;
+sounds.background.volume = 0.3;
+
+// --- 상태 변수 ---
 const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
@@ -77,6 +94,31 @@ const awardedPoints = ref(0);
 let timerInterval = null;
 let sessionId = null;
 
+// --- 사운드 재생 관리 ---
+const playSound = (sound) => {
+  if (!isMuted.value && audioContextStarted) {
+    sound.currentTime = 0;
+    sound.play().catch(e => console.error("사운드 재생 오류:", e));
+  }
+};
+
+const initAudioContext = () => {
+  if (!audioContextStarted) {
+    audioContextStarted = true;
+    console.log("오디오 컨텍스트가 활성화되었습니다.");
+  }
+};
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (isMuted.value) {
+    sounds.background.pause();
+  } else if (gameState.value === 'playing') {
+    sounds.background.play();
+  }
+};
+
+// --- 게임 보드 생성 ---
 const createBoard = () => {
   let newBoard = [];
   do {
@@ -104,9 +146,11 @@ const hasInitialMatches = (boardToCheck) => {
   return false;
 };
 
+// --- 게임 시작/종료 ---
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
+  initAudioContext();
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
@@ -119,6 +163,8 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
+    playSound(sounds.background);
+
     timerInterval = setInterval(() => {
       timer.value--;
       if (timer.value <= 0) {
@@ -136,6 +182,9 @@ const startGame = async () => {
 const endGame = async () => {
   clearInterval(timerInterval);
   gameState.value = 'ended';
+  
+  sounds.background.pause();
+  sounds.background.currentTime = 0;
 
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
@@ -160,8 +209,10 @@ const resetGame = () => {
   error.value = '';
 };
 
+// --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
+  initAudioContext();
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
@@ -238,6 +289,7 @@ const checkAndClearMatches = async () => {
   }
   
   if (matches.size > 0) {
+    playSound(sounds.match);
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     matches.forEach(index => (board.value[index] = null));
     return true;
@@ -272,6 +324,7 @@ const fillEmptyCells = () => {
 
 onUnmounted(() => {
   clearInterval(timerInterval);
+  sounds.background.pause();
 });
 </script>
 
@@ -280,7 +333,7 @@ onUnmounted(() => {
 .page-header { text-align: center; margin-bottom: 20px; }
 .game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
 .game-intro { text-align: center; }
-.game-stats { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.2em; }
+.game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
 .cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
 .cell.selected { background-color: #a0a0a0; }
@@ -291,4 +344,15 @@ onUnmounted(() => {
 .error-message { margin-top: 15px; color: red; text-align: center; }
 .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
 .pop-enter-from, .pop-leave-to { transform: scale(0); }
+/* [신규 추가] 음소거 버튼 스타일 */
+.mute-button {
+  background: none;
+  border: 1px solid #ccc;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1em;
+  cursor: pointer;
+  color: #555;
+}
 </style>
