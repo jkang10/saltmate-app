@@ -215,8 +215,10 @@ const endGame = async () => {
     const endSession = httpsCallable(functions, 'endSaltPangSession');
 
     const user = auth.currentUser;
+    // [수정] displayName이 없을 경우 '익명'으로 기본값 설정
     const username = user && user.displayName ? user.displayName : '익명';
 
+    // [수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ sessionId, score: score.value, username: username }); 
     awardedPoints.value = result.data.awardedPoints;
 
