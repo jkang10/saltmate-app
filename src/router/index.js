@@ -52,7 +52,6 @@ const routes = [
     name: "CommunityPage",
     component: () => import("@/views/CommunityPage.vue"),
     meta: { requiresAuth: true },
-    // [수정] 아래 redirect 속성을 추가합니다.
     redirect: '/community/notices', 
     children: [
       {
@@ -70,36 +69,10 @@ const routes = [
     meta: { requiresAuth: true },
     props: true,
   },
-	{
-      path: "attendance",
-      name: "AdminAttendance",
-      component: () => import("@/components/admin/AttendanceManagement.vue"),
-	},
-
   {
     path: "/community/write",
     name: "PostWritePage",
     component: () => import("@/views/community/PostWritePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/community/:category",
-    name: "Board",
-    component: () => import("@/views/community/Board.vue"),
-    props: true,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/community/write",
-    name: "PostWrite",
-    component: () => import("@/views/community/PostWritePage.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/community/post/:postId",
-    name: "PostDetail",
-    component: () => import("@/views/community/PostDetailPage.vue"),
-    props: true,
     meta: { requiresAuth: true },
   },
   {
@@ -268,6 +241,12 @@ const routes = [
         name: "AdminEventManagement",
         component: () => import("@/components/admin/EventManagement.vue"),
       },
+      // [신규 추가] 출석 관리 페이지 라우트
+      {
+        path: "attendance",
+        name: "AdminAttendance",
+        component: () => import("@/components/admin/AttendanceManagement.vue"),
+      },
       {
         path: "products",
         name: "AdminProductManagement",
@@ -294,13 +273,11 @@ const routes = [
         name: "AdminNFTManagement",
         component: () => import("@/components/admin/NFTManagement.vue"),
       },
-      // ▼▼▼ [신규 추가] NFT 종류 관리 페이지 라우트 ▼▼▼
       {
         path: "nft-types",
         name: "AdminNftTypeManagement",
         component: () => import("@/components/admin/NftTypeManagement.vue"),
       },
-      // ▲▲▲ 추가 완료 ▲▲▲
       {
         path: "equity",
         name: "AdminEquityManagement",
