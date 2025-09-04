@@ -1,5 +1,50 @@
 <template>
   <div class="attendance-manager">
+    <h2><i class="fas fa-user-check"></i> 출석 현황 관리</h2>
+    <p>회원별 출석 현황과 연속 출석 보상 지급 내역을 확인합니다.</p>
+
+    <div class="user-list card">
+      <div class="search-bar">
+        <input v-model="searchQuery" type="text" placeholder="회원 이름 또는 이메일로 검색..." />
+        
+        <select v-model.number="consecutiveDaysFilter" class="filter-select">
+          <option :value="0">연속 출석일 전체</option>
+          <option :value="7">7일 이상</option>
+          <option :value="15">15일 이상</option>
+          <option :value="30">30일 이상</option>
+        </select>
+      </div>
+      
+      <div v-if="loadingUsers" class="loading-spinner"></div>
+      <table v-else class="user-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>이메일</th>
+            <th>연속 출석</th>
+            <th>최근 출석일</th>
+            <th>상세 보기</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in filteredUsers" :key="user.id">
+            <td>{{ user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.attendance?.consecutiveDays || 0 }}일</td>
+            <td>{{ user.attendance?.lastCheckIn || '기록 없음' }}</td>
+            <td>
+              <button @click="showUserDetail(user)" class="btn btn-sm btn-primary">
+                현황 보기
+              </button>
+            </td>
+          </tr>
+          <tr v-if="filteredUsers.length === 0">
+             <td colspan="5" class="no-data">검색 결과가 없습니다.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div v-if="selectedUser" class="modal-backdrop" @click.self="selectedUser = null">
       <div class="modal-content">
         <header class="modal-header">
@@ -24,7 +69,6 @@
   </div>
 </template>
 
-
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { db, functions } from '@/firebaseConfig';
@@ -37,12 +81,11 @@ const searchQuery = ref('');
 const selectedUser = ref(null);
 const detailData = ref(null);
 const loadingDetail = ref(false);
-const consecutiveDaysFilter = ref(0); // [신규 추가] 필터 상태 변수
+const consecutiveDaysFilter = ref(0);
 
 const filteredUsers = computed(() => {
   let result = users.value;
 
-  // 1. 이름/이메일 검색 필터
   if (searchQuery.value) {
     const lowerQuery = searchQuery.value.toLowerCase();
     result = result.filter(u => 
@@ -50,7 +93,6 @@ const filteredUsers = computed(() => {
     );
   }
 
-  // 2. [신규 추가] 연속 출석일 필터
   if (consecutiveDaysFilter.value > 0) {
     result = result.filter(u => 
       (u.attendance?.consecutiveDays || 0) >= consecutiveDaysFilter.value
@@ -93,30 +135,6 @@ onMounted(fetchAllUsers);
 </script>
 
 <style scoped>
-.search-bar {
-  margin-bottom: 20px;
-  display: flex; /* [수정] flex 레이아웃으로 변경 */
-  gap: 15px; /* [수정] 검색창과 필터 사이 간격 */
-}
-.search-bar input {
-  flex-grow: 1; /* [수정] 검색창이 남은 공간을 모두 차지하도록 */
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #ced4da;
-  font-size: 1em;
-}
-.filter-select {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #ced4da;
-  font-size: 1em;
-  background-color: #fff;
-}
-.no-data td {
-    text-align: center;
-    padding: 20px;
-    color: #777;
-}
 .attendance-manager {
   display: flex;
   flex-direction: column;
@@ -134,13 +152,22 @@ onMounted(fetchAllUsers);
 }
 .search-bar {
   margin-bottom: 20px;
+  display: flex;
+  gap: 15px;
 }
 .search-bar input {
-  width: 100%;
+  flex-grow: 1;
   padding: 12px;
   border-radius: 8px;
   border: 1px solid #ced4da;
   font-size: 1em;
+}
+.filter-select {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  font-size: 1em;
+  background-color: #fff;
 }
 .loading-spinner {
   border: 4px solid rgba(0, 0, 0, 0.1);
@@ -157,7 +184,6 @@ onMounted(fetchAllUsers);
 .user-table {
   width: 100%;
   border-collapse: collapse;
-  text-align: center;
 }
 .user-table th,
 .user-table td {
@@ -168,6 +194,12 @@ onMounted(fetchAllUsers);
 }
 .user-table th {
   background-color: #f8f9fa;
+  text-align: left;
+}
+.no-data {
+    text-align: center;
+    padding: 20px;
+    color: #777;
 }
 .btn {
   border: none;
@@ -248,4 +280,4 @@ onMounted(fetchAllUsers);
   border-radius: 6px;
   margin-bottom: 5px;
 }
-</style>v
+</style>
