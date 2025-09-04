@@ -1,54 +1,29 @@
 <template>
   <div class="attendance-manager">
-    <h2><i class="fas fa-user-check"></i> 출석 현황 관리</h2>
-    <p>회원별 출석 현황과 연속 출석 보상 지급 내역을 확인합니다.</p>
-
-    <div class="user-list card">
-      <div class="search-bar">
-        <input v-model="searchQuery" type="text" placeholder="회원 이름 또는 이메일로 검색..." />
-        
-        <select v-model.number="consecutiveDaysFilter" class="filter-select">
-          <option :value="0">연속 출석일 전체</option>
-          <option :value="7">7일 이상</option>
-          <option :value="15">15일 이상</option>
-          <option :value="30">30일 이상</option>
-        </select>
+    <div v-if="selectedUser" class="modal-backdrop" @click.self="selectedUser = null">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3>{{ selectedUser.name }}님 출석 상세</h3>
+          <button @click="selectedUser = null" class="close-button">&times;</button>
+        </header>
+        <main class="modal-body" v-if="!loadingDetail">
+           <p><strong>연속 출석:</strong> {{ detailData.attendance?.consecutiveDays || 0 }}일</p>
+           <p><strong>최근 출석일:</strong> {{ detailData.attendance?.lastCheckIn || '기록 없음' }}</p>
+           <h4>획득한 연속 출석 쿠폰</h4>
+           <ul v-if="detailData.coupons && detailData.coupons.length > 0">
+             <li v-for="(coupon, i) in detailData.coupons" :key="i">
+               {{ coupon.description }} ({{ coupon.boostPercentage }}% 부스트) - {{ coupon.status }}
+             </li>
+           </ul>
+           <p v-else>획득한 연속 출석 보상 쿠폰이 없습니다.</p>
+        </main>
+        <div v-else class="loading-spinner"></div>
       </div>
-      
-      <div v-if="loadingUsers" class="loading-spinner"></div>
-      <table v-else class="user-table">
-        <thead>
-          <tr>
-            <th>이름</th>
-            <th>이메일</th>
-            <th>연속 출석</th>
-            <th>최근 출석일</th>
-            <th>상세 보기</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in filteredUsers" :key="user.id">
-            <td>{{ user.name }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.attendance?.consecutiveDays || 0 }}일</td>
-            <td>{{ user.attendance?.lastCheckIn || '기록 없음' }}</td>
-            <td>
-              <button @click="showUserDetail(user)" class="btn btn-sm btn-primary">
-                현황 보기
-              </button>
-            </td>
-          </tr>
-          <tr v-if="filteredUsers.length === 0">
-             <td colspan="5" class="no-data">검색 결과가 없습니다.</td>
-          </tr>
-        </tbody>
-      </table>
     </div>
 
-    <div v-if="selectedUser" class="modal-backdrop" @click.self="selectedUser = null">
-      </div>
   </div>
 </template>
+
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
