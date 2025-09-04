@@ -32,8 +32,8 @@
             @click="selectCell(index)"
             :class="{ selected: selectedCell === index }"
           >
-            <transition name="pop">
-              <span v-if="cell" class="gem" :style="{ color: gemColors[cell] }">
+            <transition name="gem-explode">
+              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
                 {{ gemIcons[cell] }}
               </span>
             </transition>
@@ -59,7 +59,6 @@
 import { ref, onUnmounted } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-// [수정] import 구문을 사용하여 사운드 파일을 직접 불러옵니다.
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
@@ -90,6 +89,9 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
+
+// [신규 추가] 터지는 효과를 위한 Set
+const explodingGems = ref(new Set()); 
 
 let timerInterval = null;
 let sessionId = null;
@@ -207,6 +209,7 @@ const resetGame = () => {
   gameState.value = 'ready';
   sessionId = null;
   error.value = '';
+  explodingGems.value.clear(); // [추가] 리셋 시 터지는 보석 상태 초기화
 };
 
 // --- 게임 로직 ---
@@ -291,7 +294,14 @@ const checkAndClearMatches = async () => {
   if (matches.size > 0) {
     playSound(sounds.match);
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
+    
+    // [수정] 터지는 보석들을 explodingGems Set에 추가하여 애니메이션 트리거
+    matches.forEach(index => explodingGems.value.add(index));
+
+    // [수정] 애니메이션 재생 시간 후 실제 보석 제거
+    await new Promise(resolve => setTimeout(resolve, 300)); // 애니메이션 지속 시간 (CSS와 일치)
     matches.forEach(index => (board.value[index] = null));
+    explodingGems.value.clear(); // 애니메이션 완료 후 Set 비우기
     return true;
   }
   return false;
@@ -335,15 +345,17 @@ onUnmounted(() => {
 .game-intro { text-align: center; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
-.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
+.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden;} /* [수정] position: relative와 overflow: hidden 추가 */
 .cell.selected { background-color: #a0a0a0; }
-.gem { font-size: 2em; user-select: none; transition: transform 0.2s; }
+.gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; } /* [수정] position: absolute 추가 */
 .game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; }
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
 .error-message { margin-top: 15px; color: red; text-align: center; }
-.pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
-.pop-enter-from, .pop-leave-to { transform: scale(0); }
+/* [기존 애니메이션 제거/수정] */
+/* .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
+.pop-enter-from, .pop-leave-to { transform: scale(0); } */
+
 /* [신규 추가] 음소거 버튼 스타일 */
 .mute-button {
   background: none;
@@ -354,5 +366,17 @@ onUnmounted(() => {
   font-size: 1em;
   cursor: pointer;
   color: #555;
+}
+
+/* [신규 추가] 보석 터지는 애니메이션 */
+.gem-explode-enter-active,
+.gem-explode-leave-active {
+  transition: all 0.3s ease-out; /* 애니메이션 지속 시간 */
+}
+
+.gem-explode-enter-from,
+.gem-explode-leave-to {
+  opacity: 0;
+  transform: scale(2) rotate(45deg); /* 크게 확대되면서 회전하여 사라지는 효과 */
 }
 </style>
