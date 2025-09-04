@@ -14,19 +14,6 @@
            <span v-if="isStarting">입장 중...</span>
            <span v-else>게임 시작</span>
         </button>
-
-        <div class="ranking-section">
-          <h3>오늘의 TOP 7</h3>
-          <ul class="ranking-list">
-            <li v-for="(rank, index) in topRankings" :key="rank.uid">
-              <span>{{ index + 1 }}위</span>
-              <span>{{ rank.username }}</span>
-              <span>{{ rank.score.toLocaleString() }}점</span>
-            </li>
-            <li v-if="topRankings.length === 0">랭킹 데이터가 없습니다.</li>
-          </ul>
-        </div>
-
       </div>
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
@@ -66,17 +53,12 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted, computed } from 'vue';
+import { ref, onUnmounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 import backgroundPng from '@/assets/slatpang.png'; 
 
-// --- [수정] auth 객체를 setup 스코프 내에서 올바르게 초기화 ---
-const auth = getAuth();
-
-// --- 게임 상수 ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
 const GAME_DURATION = 60;
@@ -84,7 +66,6 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- 사운드 객체 ---
 let audioContextStarted = false;
 const sounds = {
   match: new Audio(soundMatch),
@@ -93,7 +74,6 @@ const sounds = {
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
-// --- 상태 변수 ---
 const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
@@ -103,7 +83,6 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
-const topRankings = ref([]);
 
 let timerInterval = null;
 let sessionId = null;
@@ -117,25 +96,20 @@ const pageBackgroundStyle = computed(() => ({
   minHeight: '100vh',
 }));
 
-// --- 사운드 재생 관리 ---
 const playSound = (sound) => {
-  sound.currentTime = 0;
-  sound.play().catch(e => console.error("사운드 재생 오류:", e));
+  if (audioContextStarted) {
+    sound.currentTime = 0;
+    sound.play().catch(e => console.error("사운드 재생 오류:", e));
+  }
 };
 
 const initAudioContext = () => {
   if (!audioContextStarted) {
-    const tempAudio = new Audio(soundMatch);
-    tempAudio.volume = 0;
-    tempAudio.play().then(() => {
-      tempAudio.pause();
-      tempAudio.currentTime = 0;
-      audioContextStarted = true;
-    }).catch(e => console.error("오디오 컨텍스트 초기화 오류:", e));
+    audioContextStarted = true;
+    console.log("오디오 컨텍스트가 활성화되었습니다. 첫 클릭 후 사운드가 재생됩니다.");
   }
 };
 
-// --- 게임 보드 생성 ---
 const createBoard = () => {
   let newBoard = [];
   do {
@@ -167,10 +141,10 @@ const hasInitialMatches = (boardToCheck) => {
   return false;
 };
 
-// --- 게임 시작/종료 ---
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
+  initAudioContext(); // 게임 시작 시 오디오 컨텍스트 활성화 시도
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
@@ -183,11 +157,7 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    if (audioContextStarted) {
-      playSound(sounds.background);
-    } else {
-      console.warn("오디오 컨텍스트가 아직 활성화되지 않아 배경음악이 재생되지 않을 수 있습니다. 첫 클릭 후 활성화됩니다.");
-    }
+    playSound(sounds.background);
 
     timerInterval = setInterval(() => {
       timer.value--;
@@ -213,17 +183,8 @@ const endGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
-
-    const user = auth.currentUser;
-    // [수정] displayName이 없을 경우 '익명'으로 기본값 설정
-    const username = user && user.displayName ? user.displayName : '익명';
-
-    // [수정] 백엔드로 username을 함께 전달합니다.
-    const result = await endSession({ sessionId, score: score.value, username: username }); 
+    const result = await endSession({ sessionId, score: score.value }); 
     awardedPoints.value = result.data.awardedPoints;
-
-    fetchTopRankings();
-
   } catch (err) {
     console.error("게임 종료 오류:", err);
     error.value = `결과 처리 실패: ${err.message}`;
@@ -236,23 +197,8 @@ const resetGame = () => {
   error.value = '';
 };
 
-// --- 랭킹 관련 함수 ---
-const fetchTopRankings = async () => {
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const getRankings = httpsCallable(functions, 'getSaltPangTopRankings');
-    const result = await getRankings();
-    topRankings.value = result.data.rankings;
-  } catch (err) {
-    console.error("랭킹 조회 오류:", err);
-    error.value = "랭킹을 불러오지 못했습니다.";
-  }
-};
-
-// --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext();
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
@@ -276,7 +222,7 @@ const swapAndCheck = async (index1, index2) => {
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   await new Promise(resolve => setTimeout(resolve, 150));
   
-  const hasMatches = checkMatches(board.value);
+  const hasMatches = await checkAndClearMatches();
 
   if (!hasMatches) {
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -337,28 +283,6 @@ const checkAndClearMatches = async () => {
   return false;
 };
 
-const checkMatches = (boardToCheck) => {
-  // 가로 매치
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE - 2; c++) {
-      const i = r * BOARD_SIZE + c;
-      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + 1] && boardToCheck[i] === boardToCheck[i + 2]) {
-        return true;
-      }
-    }
-  }
-  // 세로 매치
-  for (let c = 0; c < BOARD_SIZE; c++) {
-    for (let r = 0; r < BOARD_SIZE - 2; r++) {
-      const i = r * BOARD_SIZE + c;
-      if (boardToCheck[i] && boardToCheck[i] === boardToCheck[i + BOARD_SIZE] && boardToCheck[i] === boardToCheck[i + 2 * BOARD_SIZE]) {
-        return true;
-      }
-    }
-  }
-  return false;
-};
-
 const dropDownGems = () => {
   for (let c = 0; c < BOARD_SIZE; c++) {
     let emptyRow = -1;
@@ -384,10 +308,6 @@ const fillEmptyCells = () => {
   }
 };
 
-onMounted(() => {
-  fetchTopRankings();
-});
-
 onUnmounted(() => {
   clearInterval(timerInterval);
   sounds.background.pause();
@@ -395,102 +315,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.salt-pang-page { 
-  max-width: 500px; 
-  margin: 0 auto; /* 중앙 정렬 */
-  padding: 20px; 
-  box-sizing: border-box; /* 패딩이 너비에 포함되도록 */
-  color: white; /* 텍스트 색상 흰색 */
-}
+/* (기존 스타일과 동일) */
+.salt-pang-page { max-width: 500px; margin: 0 auto; padding: 20px; box-sizing: border-box; color: white; }
 .page-header { text-align: center; margin-bottom: 20px; }
-.game-container { 
-  padding: 20px; 
-  background-color: rgba(0, 0, 0, 0.5); /* 카드 배경을 반투명하게 */
-  border-radius: 12px;
-}
+.game-container { padding: 20px; background-color: rgba(0, 0, 0, 0.5); border-radius: 12px; }
 .game-intro { text-align: center; }
-.game-stats { 
-  display: flex; justify-content: space-between; 
-  margin-bottom: 15px; font-size: 1.2em; 
-  color: #eee; /* 통계 텍스트 색상 */
-}
-.game-board { 
-  display: grid; gap: 4px; 
-  border: 2px solid #555; /* 보드 테두리 색상 변경 */
-  padding: 5px; border-radius: 8px; 
-  background-color: rgba(0, 0, 0, 0.6); /* 보드 배경 반투명 */
-}
-.cell { 
-  width: 50px; height: 50px; 
-  display: flex; justify-content: center; align-items: center; 
-  background-color: rgba(255, 255, 255, 0.1); /* 셀 배경색 변경 */
-  border-radius: 4px; cursor: pointer; 
-  border: 1px solid rgba(255, 255, 255, 0.15); /* 셀 테두리 추가 */
-}
+.game-stats { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.2em; color: #eee; }
+.game-board { display: grid; gap: 4px; border: 2px solid #555; padding: 5px; border-radius: 8px; background-color: rgba(0, 0, 0, 0.6); }
+.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.15); }
 .cell.selected { background-color: rgba(255, 255, 255, 0.3); }
 .gem { font-size: 2em; user-select: none; transition: transform 0.2s; }
-.game-button { 
-  padding: 12px 25px; font-size: 1.1em; cursor: pointer; 
-  background-color: #3498db; /* 버튼 색상 */
-  color: white; border: none; border-radius: 8px;
-  transition: background-color 0.3s;
-}
+.game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; background-color: #3498db; color: white; border: none; border-radius: 8px; transition: background-color 0.3s; }
 .game-button:hover:not(:disabled) { background-color: #2980b9; }
 .game-button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
-
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; border-radius: 12px; }
-.end-modal { 
-  background-color: #2c3e50; /* 모달 배경색 어둡게 */
-  padding: 30px; border-radius: 8px; text-align: center; 
-  color: white; 
-  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-}
+.end-modal { background-color: #2c3e50; padding: 30px; border-radius: 8px; text-align: center; color: white; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
 .error-message { margin-top: 15px; color: #e74c3c; text-align: center; font-weight: bold; }
 .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
 .pop-enter-from, .pop-leave-to { transform: scale(0); }
-
-/* [신규] 랭킹 섹션 스타일 */
-.ranking-section {
-  margin-top: 30px;
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 20px;
-  border-radius: 8px;
-  color: #eee;
-}
-.ranking-section h3 {
-  color: #f1c40f; /* 노란색 강조 */
-  margin-bottom: 15px;
-  font-size: 1.5em;
-}
-.ranking-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.ranking-list li {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
-}
-.ranking-list li:last-child {
-  border-bottom: none;
-}
-.ranking-list li span:first-child {
-  font-weight: bold;
-  color: #3498db;
-  width: 50px; /* 순위 너비 고정 */
-  text-align: left;
-}
-.ranking-list li span:nth-child(2) {
-  flex-grow: 1; /* 사용자 이름이 공간을 채우도록 */
-  text-align: left;
-  margin-left: 10px;
-}
-.ranking-list li span:last-child {
-  font-weight: bold;
-  color: #2ecc71;
-  width: 100px; /* 점수 너비 고정 */
-  text-align: right;
-}
 </style>
