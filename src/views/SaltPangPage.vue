@@ -55,6 +55,7 @@
 <script setup>
 import { ref, onUnmounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth'; // [신규 추가] auth 모듈 import
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 import backgroundPng from '@/assets/slatpang.png'; 
@@ -144,7 +145,7 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  initAudioContext(); // 게임 시작 시 오디오 컨텍스트 활성화 시도
+  initAudioContext();
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
@@ -183,8 +184,21 @@ const endGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
-    const result = await endSession({ sessionId, score: score.value }); 
+    
+    // [수정] 현재 로그인된 사용자의 이름을 가져옵니다.
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const username = user && user.displayName ? user.displayName : '익명';
+
+    // [수정] 백엔드로 username을 함께 전달합니다.
+    const result = await endSession({ 
+      sessionId: sessionId, 
+      score: score.value,
+      username: username 
+    }); 
+    
     awardedPoints.value = result.data.awardedPoints;
+
   } catch (err) {
     console.error("게임 종료 오류:", err);
     error.value = `결과 처리 실패: ${err.message}`;
