@@ -6,6 +6,13 @@
     <div class="user-list card">
       <div class="search-bar">
         <input v-model="searchQuery" type="text" placeholder="회원 이름 또는 이메일로 검색..." />
+        
+        <select v-model.number="consecutiveDaysFilter" class="filter-select">
+          <option :value="0">연속 출석일 전체</option>
+          <option :value="7">7일 이상</option>
+          <option :value="15">15일 이상</option>
+          <option :value="30">30일 이상</option>
+        </select>
       </div>
       
       <div v-if="loadingUsers" class="loading-spinner"></div>
@@ -31,31 +38,15 @@
               </button>
             </td>
           </tr>
+          <tr v-if="filteredUsers.length === 0">
+             <td colspan="5" class="no-data">검색 결과가 없습니다.</td>
+          </tr>
         </tbody>
       </table>
     </div>
 
     <div v-if="selectedUser" class="modal-backdrop" @click.self="selectedUser = null">
-      <div class="modal-content">
-        <header class="modal-header">
-          <h3>{{ selectedUser.name }}님 출석 상세</h3>
-          <button @click="selectedUser = null" class="close-button">&times;</button>
-        </header>
-        <main class="modal-body" v-if="!loadingDetail">
-           <p><strong>연속 출석:</strong> {{ detailData.attendance?.consecutiveDays || 0 }}일</p>
-           <p><strong>최근 출석일:</strong> {{ detailData.attendance?.lastCheckIn || '기록 없음' }}</p>
-           <h4>획득한 연속 출석 쿠폰</h4>
-           <ul v-if="detailData.coupons && detailData.coupons.length > 0">
-             <li v-for="(coupon, i) in detailData.coupons" :key="i">
-               {{ coupon.description }} ({{ coupon.boostPercentage }}% 부스트) - {{ coupon.status }}
-             </li>
-           </ul>
-           <p v-else>획득한 연속 출석 보상 쿠폰이 없습니다.</p>
-        </main>
-        <div v-else class="loading-spinner"></div>
       </div>
-    </div>
-
   </div>
 </template>
 
@@ -71,12 +62,27 @@ const searchQuery = ref('');
 const selectedUser = ref(null);
 const detailData = ref(null);
 const loadingDetail = ref(false);
+const consecutiveDaysFilter = ref(0); // [신규 추가] 필터 상태 변수
 
 const filteredUsers = computed(() => {
-  if (!searchQuery.value) return users.value;
-  return users.value.filter(u => 
-    u.name.includes(searchQuery.value) || u.email.includes(searchQuery.value)
-  );
+  let result = users.value;
+
+  // 1. 이름/이메일 검색 필터
+  if (searchQuery.value) {
+    const lowerQuery = searchQuery.value.toLowerCase();
+    result = result.filter(u => 
+      u.name.toLowerCase().includes(lowerQuery) || u.email.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  // 2. [신규 추가] 연속 출석일 필터
+  if (consecutiveDaysFilter.value > 0) {
+    result = result.filter(u => 
+      (u.attendance?.consecutiveDays || 0) >= consecutiveDaysFilter.value
+    );
+  }
+
+  return result;
 });
 
 const fetchAllUsers = async () => {
@@ -112,6 +118,30 @@ onMounted(fetchAllUsers);
 </script>
 
 <style scoped>
+.search-bar {
+  margin-bottom: 20px;
+  display: flex; /* [수정] flex 레이아웃으로 변경 */
+  gap: 15px; /* [수정] 검색창과 필터 사이 간격 */
+}
+.search-bar input {
+  flex-grow: 1; /* [수정] 검색창이 남은 공간을 모두 차지하도록 */
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  font-size: 1em;
+}
+.filter-select {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  font-size: 1em;
+  background-color: #fff;
+}
+.no-data td {
+    text-align: center;
+    padding: 20px;
+    color: #777;
+}
 .attendance-manager {
   display: flex;
   flex-direction: column;
