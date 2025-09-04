@@ -55,7 +55,7 @@
 <script setup>
 import { ref, onUnmounted } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
+// [수정] 사용하지 않는 getAuth import 제거
 
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
