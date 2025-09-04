@@ -16,7 +16,6 @@
           <label for="upgrade-amount">추가 구독 금액:</label>
           <select id="upgrade-amount" v-model="selectedAmount" required>
             <option value="" disabled>금액을 선택하세요</option>
-            <option value="10000">만원의 행복</option>
             <option value="100000">10만원</option>
             <option value="300000">30만원</option>
             <option value="500000">50만원</option>

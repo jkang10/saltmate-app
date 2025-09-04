@@ -113,7 +113,7 @@
               :disabled="isRequestingPayment"
             >
               <span v-if="isRequestingPayment" class="spinner-small"></span>
-              <span v-else>미리 결제하기</span>
+              <span v-else>월간 구독 미리 결제하기</span>
             </button>
           </div>
           <div v-else-if="userProfile?.subscriptionStatus === 'overdue'">
