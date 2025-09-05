@@ -6,7 +6,7 @@
     </header>
 
     <main class="game-container card">
-	<div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
+      <div v-if="gameState === 'ready'" class="game-intro">
         <h2>게임 준비</h2>
         <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
         <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
