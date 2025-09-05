@@ -51,7 +51,6 @@ onMounted(fetchHallOfFame);
 </script>
 
 <style scoped>
-/* [수정] .hall-of-fame-widget 클래스에 important 키워드를 제거하고 스타일 재정의 */
 .hall-of-fame-widget {
   background: #2c3e50 !important; /* 어두운 배경색 강제 적용 */
   color: #ecf0f1;
@@ -92,7 +91,7 @@ onMounted(fetchHallOfFame);
   height: 24px;
   animation: spin 1s linear infinite;
 }
-@keyframes spin { to { transform: rotate(3deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .ranking-list {
   list-style: none;
@@ -101,8 +100,8 @@ onMounted(fetchHallOfFame);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  flex-grow: 1; /* [추가] 남은 공간을 채우도록 */
-  justify-content: center; /* [추가] 세로 중앙 정렬 */
+  flex-grow: 1;
+  justify-content: center;
 }
 .ranking-list li {
   display: flex;
@@ -111,6 +110,8 @@ onMounted(fetchHallOfFame);
   border-radius: 8px;
   background-color: rgba(255, 255, 255, 0.05);
   font-size: 1.1em;
+  position: relative; /* [추가] 슈도 엘리먼트 위치 지정을 위함 */
+  overflow: hidden; /* [추가] 반짝이 효과가 바깥으로 나가지 않도록 */
 }
 .rank-badge {
   width: 35px;
@@ -121,11 +122,16 @@ onMounted(fetchHallOfFame);
 }
 .player-name {
   flex-grow: 1;
+  /* [수정] 기본 글 색상 흰색 */
+  color: #fff; 
 }
 .player-score {
   font-weight: bold;
+  /* [수정] 기본 글 색상 흰색 */
+  color: #fff;
 }
 
+/* 1위 유저를 위한 화려한 이펙트 */
 .rank-1 {
   background: linear-gradient(-45deg, #f1c40f, #e67e22, #f39c12, #f1c40f);
   background-size: 400% 400%;
@@ -135,11 +141,30 @@ onMounted(fetchHallOfFame);
   border: 2px solid #fff;
   box-shadow: 0 0 15px #f1c40f;
 }
+/* [신규 추가] 1위 반짝이 애니메이션 */
+.rank-1::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 0;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.4); /* 반짝이 색상 */
+  transform: rotate(45deg);
+  animation: shine-animation 3s infinite linear;
+}
+
 .rank-1 .rank-badge {
   color: #fff;
   text-shadow: 0 0 5px #000;
   animation: crown-glow 2s infinite alternate;
 }
+/* [수정] 1위일 경우 글 색상 다시 어둡게 (배경이 밝으니까) */
+.rank-1 .player-name,
+.rank-1 .player-score {
+  color: #2c3e50; 
+}
+
 .rank-2 {
   background-color: rgba(192, 192, 192, 0.2);
 }
@@ -155,5 +180,20 @@ onMounted(fetchHallOfFame);
 @keyframes crown-glow {
   from { transform: scale(1); }
   to { transform: scale(1.2); }
+}
+/* [신규 추가] 반짝이 애니메이션 키프레임 */
+@keyframes shine-animation {
+  0% {
+    left: -50%;
+    width: 0;
+  }
+  50% {
+    left: 100%;
+    width: 100%;
+  }
+  100% {
+    left: 100%;
+    width: 0;
+  }
 }
 </style>
