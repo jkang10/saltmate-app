@@ -17,10 +17,38 @@
       </div>
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
+        <div class="game-stats">
+          <div class="stat-item">시간: <strong>{{ timer }}</strong></div>
+          <button @click="toggleMute" class="mute-button">
+            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
+          </button>
+          <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
         </div>
+        <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
+          <div
+            v-for="(cell, index) in board"
+            :key="index"
+            class="cell"
+            @click="selectCell(index)"
+            :class="{ selected: selectedCell === index }"
+          >
+            <transition name="gem-explode">
+              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
+                {{ gemIcons[cell] }}
+              </span>
+            </transition>
+          </div>
+        </div>
+      </div>
       
       <div v-if="gameState === 'ended'" class="game-overlay">
+        <div class="end-modal">
+          <h2>게임 종료!</h2>
+          <p>최종 점수: <strong>{{ score.toLocaleString() }}</strong></p>
+          <p>획득 보상: <strong>{{ awardedPoints.toLocaleString() }} SaltMate</strong></p>
+          <button @click="resetGame" class="game-button">다시하기</button>
         </div>
+      </div>
     </main>
 
     <div v-if="error" class="error-message">{{ error }}</div>
