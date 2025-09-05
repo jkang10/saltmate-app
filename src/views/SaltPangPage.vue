@@ -49,7 +49,7 @@
           <button @click="resetGame" class="game-button">다시하기</button>
         </div>
       </div>
-      
+
       <div v-if="gameState === 'playing' && timer <= 5 && timer > 0" class="countdown-overlay">
         {{ timer }}
       </div>
@@ -60,6 +60,7 @@
 </template>
 
 <script setup>
+import { getAuth } from 'firebase/auth'; // [신규 추가] script setup 상단에 추가
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
@@ -127,7 +128,7 @@ const playSound = (sound) => {
 const initAudioContext = () => {
   if (!audioContextStarted) {
     audioContextStarted = true;
-    console.log("오디오 컨텍스트가 활성화되었습니다.");
+    console.log("오디오 컨텍스트가 활성화되었습니다.");	
   }
 };
 
@@ -184,10 +185,11 @@ const startGame = async () => {
     
     await fetchPlayCount(); 
     
+    // [수정] 모든 상태 설정이 끝난 후 게임 상태 변경 및 타이머 시작
     gameState.value = 'playing';
     playSound(sounds.background);
 
-    if(timerInterval) clearInterval(timerInterval);
+    if(timerInterval) clearInterval(timerInterval); // 만약을 위해 기존 타이머 정리
     timerInterval = setInterval(() => {
       timer.value--;
       if (timer.value <= 0) {
@@ -204,9 +206,9 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  if(timerInterval) clearInterval(timerInterval);
+  clearInterval(timerInterval);
   gameState.value = 'ended';
-  
+
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
@@ -214,9 +216,16 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
+    // [신규 추가] 현재 로그인된 사용자의 이름을 가져옵니다.
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const username = user && user.displayName ? user.displayName : '익명';
+
+    // [수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
-      score: score.value
+      score: score.value,
+      username: username 
     }); 
     
     awardedPoints.value = result.data.awardedPoints;
@@ -363,23 +372,22 @@ onUnmounted(() => {
 <style scoped>
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
-.game-container { 
-  padding: 20px; 
-  background: #fff; 
-  border-radius: 12px; 
-  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-  position: relative; /* [수정] 카운트다운 위치의 기준점으로 설정 */
-}
+.game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
 .game-intro { text-align: center; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
-.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
+.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden;} /* [수정] position: relative와 overflow: hidden 추가 */
 .cell.selected { background-color: #a0a0a0; }
-.gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; }
+.gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; } /* [수정] position: absolute 추가 */
 .game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; }
-.game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
+.game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
 .error-message { margin-top: 15px; color: red; text-align: center; }
+/* [기존 애니메이션 제거/수정] */
+/* .pop-enter-active, .pop-leave-active { transition: transform 0.3s; }
+.pop-enter-from, .pop-leave-to { transform: scale(0); } */
+
+/* [신규 추가] 음소거 버튼 스타일 */
 .mute-button {
   background: none;
   border: 1px solid #ccc;
@@ -390,30 +398,21 @@ onUnmounted(() => {
   cursor: pointer;
   color: #555;
 }
-.countdown-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 8em;
-  font-weight: bold;
-  color: rgba(0, 0, 0, 0.2);
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-  animation: countdown-pulse 1s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: 10;
-}
+/* [신규 추가] 카운트다운 애니메이션 키프레임 */
 @keyframes countdown-pulse {
   from { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
   to { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; }
 }
+
+/* [신규 추가] 보석 터지는 애니메이션 */
 .gem-explode-enter-active,
 .gem-explode-leave-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.3s ease-out; /* 애니메이션 지속 시간 */
 }
+
 .gem-explode-enter-from,
 .gem-explode-leave-to {
   opacity: 0;
-  transform: scale(2) rotate(45deg);
+  transform: scale(2) rotate(45deg); /* 크게 확대되면서 회전하여 사라지는 효과 */
 }
 </style>
