@@ -224,74 +224,73 @@ export default {
       referrerStatus.type = "";
     };
 
-    const handleSignup = async () => {
-      error.value = null;
+const handleSignup = async () => {
+  error.value = null;
 
-      if (!name.value.trim()) {
-        error.value = "이름을 반드시 입력해주세요.";
-        return;
-      }
-      if (!phone.value.trim()) {
-        error.value = "전화번호를 반드시 입력해주세요.";
-        return;
-      }
-      if (password.value !== confirmPassword.value) {
-        error.value = "비밀번호가 일치하지 않습니다.";
-        return;
-      }
-      // ▼▼▼ [수정됨] selectedCenterId 유효성 검사 추가 ▼▼▼
-      if (!selectedCenterId.value) {
-        error.value = "지역(센터)를 선택해주세요.";
-        return;
-      }
-      // ▲▲▲ 수정 완료 ▲▲▲
-      if (!investmentAmount.value) {
-        error.value = "구독 등급을 선택해주세요.";
-        return;
-      }
-      isLoading.value = true;
-      try {
-        await createUserWithEmailAndPassword(auth, email.value, password.value);
+  if (password.value !== confirmPassword.value) {
+    error.value = "비밀번호가 일치하지 않습니다.";
+    return;
+  }
+  if (!selectedCenterId.value) {
+    error.value = "지역(센터)를 선택해주세요.";
+    return;
+  }
+  if (!investmentAmount.value) {
+    error.value = "구독 등급을 선택해주세요.";
+    return;
+  }
 
-        const functions = getFunctions();
-        const createNewUser = httpsCallable(functions, "createNewUser");
+  isLoading.value = true;
+  try {
+    // 1. Firebase 인증으로 사용자 계정 생성 (이 부분은 그대로 유지)
+    const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
+    
+    // 이 시점부터 사용자는 '로그인'된 상태입니다.
+    // 이 로그인된 사용자의 권한으로 백엔드 함수를 호출합니다.
 
-        const selectElement = document.getElementById("investment-amount");
-        const selectedTierName =
-          selectElement.options[selectElement.selectedIndex].text;
+    const functions = getFunctions();
+    // 'asia-northeast3' 리전 지정
+    functions.region = "asia-northeast3"; 
+    const createNewUser = httpsCallable(functions, "createNewUser");
 
-        // ▼▼▼ [수정됨] userData 객체에 centerId와 region(센터이름) 추가 ▼▼▼
-        const selectedCenter = centers.value.find(
-          (c) => c.id === selectedCenterId.value,
-        );
-        const centerName = selectedCenter ? selectedCenter.name : "";
+    const selectElement = document.getElementById("investment-amount");
+    const selectedTierName = selectElement.options[selectElement.selectedIndex].text;
 
-        const userData = {
-          name: name.value,
-          phone: phone.value,
-          region: centerName,
-          centerId: selectedCenterId.value,
-          investmentAmount: Number(investmentAmount.value),
-          uplineReferrer: validatedReferrer.uid || null,
-          tierName: selectedTierName,
-        };
-        // ▲▲▲ 수정 완료 ▲▲▲
-
-        await createNewUser(userData);
-
-        alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
-        router.push("/login");
-      } catch (err) {
-        console.error("회원가입 오류:", err);
-        if (err.code === "auth/email-already-in-use") {
-          error.value = "이미 가입된 이메일 주소입니다.";
-        } else {
-          error.value = `오류가 발생했습니다: ${err.message}`;
-        }
-      } finally {
-        isLoading.value = false;
-      }
+    // 2. 백엔드 함수에 전달할 '추가 정보' 객체 생성
+    // [핵심 수정] email, password는 더 이상 보내지 않습니다.
+    const userData = {
+      name: name.value,
+      phone: phone.value,
+      centerId: selectedCenterId.value,
+      requestedAmount: Number(investmentAmount.value),
+      uplineReferrer: validatedReferrer.uid || null,
+      requestedTierName: selectedTierName,
     };
+
+    // 3. 수정된 백엔드 함수 호출
+    await createNewUser(userData);
+
+    // 4. 성공 후 로그아웃 처리 (선택사항)
+    // 관리자 승인 전까지는 로그인을 막기 위해 가입 직후 로그아웃 시킵니다.
+    await auth.signOut();
+
+    alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
+    router.push("/login");
+
+  } catch (err) {
+    console.error("회원가입 오류:", err);
+    if (err.code === "auth/email-already-in-use") {
+      error.value = "이미 가입된 이메일 주소입니다.";
+    } else if (err.code && err.message) {
+      // 백엔드(Cloud Function)에서 보낸 오류 메시지를 표시
+      error.value = `오류가 발생했습니다: ${err.message}`;
+    } else {
+      error.value = `오류가 발생했습니다: ${err.message || "알 수 없는 오류"}`;
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
 
     return {
       email,
