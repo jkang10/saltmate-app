@@ -28,11 +28,10 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted, computed } from 'vue'; // onMounted, computed 추가
+import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db, auth } from "@/firebaseConfig"; // db, auth 추가
-import { doc, getDoc } from "firebase/firestore"; // getDoc 추가
-
+import { db, auth } from "@/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
@@ -62,21 +61,17 @@ const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
-
-// [신규 추가] 오늘 플레이 횟수 상태 변수
 const playCount = ref(0);
 
 let timerInterval = null;
 let sessionId = null;
 
-// [신규 추가] 현재 플레이 횟수에 따라 입장료를 계산
 const currentEntryFee = computed(() => {
   if (playCount.value >= 30) return 300;
   if (playCount.value >= 15) return 200;
   return 100;
 });
 
-// [신규 추가] 오늘 플레이 횟수를 Firestore에서 가져오는 함수
 const fetchPlayCount = async () => {
   if (!auth.currentUser) return;
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -90,13 +85,6 @@ const fetchPlayCount = async () => {
   }
 };
 
-// [신규 추가] 터지는 효과를 위한 Set
-const explodingGems = ref(new Set()); 
-
-let timerInterval = null;
-let sessionId = null;
-
-// --- 사운드 재생 관리 ---
 const playSound = (sound) => {
   if (!isMuted.value && audioContextStarted) {
     sound.currentTime = 0;
@@ -120,7 +108,6 @@ const toggleMute = () => {
   }
 };
 
-// --- 게임 보드 생성 ---
 const createBoard = () => {
   let newBoard = [];
   do {
@@ -148,7 +135,6 @@ const hasInitialMatches = (boardToCheck) => {
   return false;
 };
 
-// --- 게임 시작/종료 ---
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
@@ -165,7 +151,6 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
-    // [수정] 게임 시작 후 플레이 횟수 즉시 업데이트
     await fetchPlayCount(); 
     
     playSound(sounds.background);
@@ -213,11 +198,9 @@ const resetGame = async () => {
   sessionId = null;
   error.value = '';
   explodingGems.value.clear();
-  // [수정] 다시하기 시 최신 플레이 횟수 반영
   await fetchPlayCount(); 
 };
 
-// --- 게임 로직 ---
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
   initAudioContext();
@@ -300,13 +283,11 @@ const checkAndClearMatches = async () => {
     playSound(sounds.match);
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     
-    // [수정] 터지는 보석들을 explodingGems Set에 추가하여 애니메이션 트리거
     matches.forEach(index => explodingGems.value.add(index));
 
-    // [수정] 애니메이션 재생 시간 후 실제 보석 제거
-    await new Promise(resolve => setTimeout(resolve, 300)); // 애니메이션 지속 시간 (CSS와 일치)
+    await new Promise(resolve => setTimeout(resolve, 300));
     matches.forEach(index => (board.value[index] = null));
-    explodingGems.value.clear(); // 애니메이션 완료 후 Set 비우기
+    explodingGems.value.clear();
     return true;
   }
   return false;
@@ -337,7 +318,6 @@ const fillEmptyCells = () => {
   }
 };
 
-// [추가] 컴포넌트가 마운트될 때 플레이 횟수를 가져옴
 onMounted(fetchPlayCount);
 
 onUnmounted(() => {
