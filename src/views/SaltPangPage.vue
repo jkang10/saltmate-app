@@ -177,18 +177,21 @@ const startGame = async () => {
     awardedPoints.value = 0;
     timer.value = GAME_DURATION;
     board.value = createBoard();
-    gameState.value = 'playing';
     
     await fetchPlayCount(); 
     
+    // [수정] 모든 상태 설정이 끝난 후 게임 상태 변경 및 타이머 시작
+    gameState.value = 'playing';
     playSound(sounds.background);
 
+    if(timerInterval) clearInterval(timerInterval); // 만약을 위해 기존 타이머 정리
     timerInterval = setInterval(() => {
       timer.value--;
       if (timer.value <= 0) {
         endGame();
       }
     }, 1000);
+
   } catch (err) {
     console.error("게임 시작 오류:", err);
     error.value = `게임 시작 실패: ${err.message}`;
@@ -198,7 +201,7 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  clearInterval(timerInterval);
+  if(timerInterval) clearInterval(timerInterval);
   gameState.value = 'ended';
   
   sounds.background.pause();
@@ -349,7 +352,7 @@ const fillEmptyCells = () => {
 onMounted(fetchPlayCount);
 
 onUnmounted(() => {
-  clearInterval(timerInterval);
+  if (timerInterval) clearInterval(timerInterval);
   sounds.background.pause();
 });
 </script>
