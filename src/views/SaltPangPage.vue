@@ -60,7 +60,6 @@
 </template>
 
 <script setup>
-import { getAuth } from 'firebase/auth'; // [신규 추가] script setup 상단에 추가
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
@@ -80,8 +79,6 @@ const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
-  countdownTick: null, // Tone.js 신스는 동적으로 생성
-  countdownEnd: null,
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
@@ -194,7 +191,6 @@ const startGame = async () => {
     timerInterval = setInterval(() => {
       timer.value--;
 	
-      // [신규 추가] 카운트다운 사운드 로직
       if (timer.value <= 4 && timer.value >= 1 && sounds.countdownTick) {
         sounds.countdownTick.triggerAttackRelease("C5", "8n");
       }
@@ -217,16 +213,18 @@ const endGame = async () => {
   clearInterval(timerInterval);
   gameState.value = 'ended';
 
+  sounds.background.pause();
+  sounds.background.currentTime = 0;
+
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
-    // [신규 추가] 현재 로그인된 사용자의 이름을 가져옵니다.
-    const auth = getAuth();
+    // [핵심 수정] 현재 로그인된 사용자의 이름을 가져옵니다.
     const user = auth.currentUser;
     const username = user && user.displayName ? user.displayName : '익명';
 
-    // [수정] 백엔드로 username을 함께 전달합니다.
+    // [핵심 수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
