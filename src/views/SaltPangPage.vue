@@ -6,7 +6,7 @@
     </header>
 
     <main class="game-container card">
-      <div v-if="gameState === 'ready'" class="game-intro">
+	<div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <h2>게임 준비</h2>
         <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
         <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
@@ -80,6 +80,8 @@ const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
+  countdownTick: null, // Tone.js 신스는 동적으로 생성
+  countdownEnd: null,
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
@@ -191,7 +193,14 @@ const startGame = async () => {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timer.value--;
+	
+      // [신규 추가] 카운트다운 사운드 로직
+      if (timer.value <= 4 && timer.value >= 1 && sounds.countdownTick) {
+        sounds.countdownTick.triggerAttackRelease("C5", "8n");
+      }
+
       if (timer.value <= 0) {
+        if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
         endGame();
       }
     }, 1000);
@@ -395,22 +404,23 @@ onUnmounted(() => {
   cursor: pointer;
   color: #555;
 }
+/* [수정] 카운트다운 오버레이 스타일 */
 .countdown-overlay {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 8em;
-  font-weight: bold;
-  color: rgba(0, 0, 0, 0.2);
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-  animation: countdown-pulse 1s ease-in-out infinite alternate;
+  font-size: 10em; /* 글씨 크기 더 키움 */
+  font-weight: 900; /* 더 굵게 */
+  color: rgba(220, 53, 69, 0.7); /* 강렬한 빨간색, 반투명 */
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); /* 흰색 빛 번짐 효과 */
+  animation: countdown-pulse 1s ease-in-out infinite;
   pointer-events: none;
   z-index: 10;
 }
 @keyframes countdown-pulse {
-  from { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
-  to { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; }
+  from { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+  to { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
 }
 .gem-explode-enter-active,
 .gem-explode-leave-active {
