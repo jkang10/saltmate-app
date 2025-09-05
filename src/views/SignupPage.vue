@@ -242,22 +242,18 @@ const handleSignup = async () => {
 
   isLoading.value = true;
   try {
-    // 1. Firebase 인증으로 사용자 계정 생성 (이 부분은 그대로 유지)
-    const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
+    // ▼▼▼ [수정된 부분] ▼▼▼
+    // 'const userCredential =' 부분을 삭제하여 사용하지 않는 변수 할당을 제거합니다.
+    await createUserWithEmailAndPassword(auth, email.value, password.value);
+    // ▲▲▲ 수정 완료 ▲▲▲
     
-    // 이 시점부터 사용자는 '로그인'된 상태입니다.
-    // 이 로그인된 사용자의 권한으로 백엔드 함수를 호출합니다.
-
     const functions = getFunctions();
-    // 'asia-northeast3' 리전 지정
     functions.region = "asia-northeast3"; 
     const createNewUser = httpsCallable(functions, "createNewUser");
 
     const selectElement = document.getElementById("investment-amount");
     const selectedTierName = selectElement.options[selectElement.selectedIndex].text;
 
-    // 2. 백엔드 함수에 전달할 '추가 정보' 객체 생성
-    // [핵심 수정] email, password는 더 이상 보내지 않습니다.
     const userData = {
       name: name.value,
       phone: phone.value,
@@ -267,11 +263,7 @@ const handleSignup = async () => {
       requestedTierName: selectedTierName,
     };
 
-    // 3. 수정된 백엔드 함수 호출
     await createNewUser(userData);
-
-    // 4. 성공 후 로그아웃 처리 (선택사항)
-    // 관리자 승인 전까지는 로그인을 막기 위해 가입 직후 로그아웃 시킵니다.
     await auth.signOut();
 
     alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인해주세요.");
@@ -282,7 +274,6 @@ const handleSignup = async () => {
     if (err.code === "auth/email-already-in-use") {
       error.value = "이미 가입된 이메일 주소입니다.";
     } else if (err.code && err.message) {
-      // 백엔드(Cloud Function)에서 보낸 오류 메시지를 표시
       error.value = `오류가 발생했습니다: ${err.message}`;
     } else {
       error.value = `오류가 발생했습니다: ${err.message || "알 수 없는 오류"}`;
@@ -291,7 +282,6 @@ const handleSignup = async () => {
     isLoading.value = false;
   }
 };
-
     return {
       email,
       password,
