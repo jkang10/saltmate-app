@@ -328,7 +328,6 @@ export default {
     LeaderboardWidget,
     WeeklyLeaderboardWidget, // [수정] 컴포넌트 등록
     SaltPangHallOfFame, // [신규 추가]
-    export default {
   },
   data() {
     return {
