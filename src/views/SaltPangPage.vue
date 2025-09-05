@@ -56,6 +56,7 @@
 </template>
 
 <script setup>
+import { getAuth } from 'firebase/auth'; // [신규 추가] script setup 상단에 추가
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
@@ -201,9 +202,9 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  if(timerInterval) clearInterval(timerInterval);
+  clearInterval(timerInterval);
   gameState.value = 'ended';
-  
+
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
@@ -211,9 +212,16 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
+    // [신규 추가] 현재 로그인된 사용자의 이름을 가져옵니다.
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const username = user && user.displayName ? user.displayName : '익명';
+
+    // [수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
-      score: score.value
+      score: score.value,
+      username: username 
     }); 
     
     awardedPoints.value = result.data.awardedPoints;

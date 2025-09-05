@@ -51,8 +51,9 @@ onMounted(fetchHallOfFame);
 </script>
 
 <style scoped>
+/* [수정] .hall-of-fame-widget 클래스에 important 키워드를 제거하고 스타일 재정의 */
 .hall-of-fame-widget {
-  background: #2c3e50; /* 어두운 배경색 */
+  background: #2c3e50 !important; /* 어두운 배경색 강제 적용 */
   color: #ecf0f1;
   padding: 20px;
   display: flex;
@@ -91,7 +92,7 @@ onMounted(fetchHallOfFame);
   height: 24px;
   animation: spin 1s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(3deg); } }
 
 .ranking-list {
   list-style: none;
@@ -100,6 +101,8 @@ onMounted(fetchHallOfFame);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex-grow: 1; /* [추가] 남은 공간을 채우도록 */
+  justify-content: center; /* [추가] 세로 중앙 정렬 */
 }
 .ranking-list li {
   display: flex;
@@ -123,7 +126,6 @@ onMounted(fetchHallOfFame);
   font-weight: bold;
 }
 
-/* 1위 유저를 위한 화려한 이펙트 */
 .rank-1 {
   background: linear-gradient(-45deg, #f1c40f, #e67e22, #f39c12, #f1c40f);
   background-size: 400% 400%;
