@@ -171,6 +171,10 @@ onMounted(fetchHallOfFame);
 .rank-3 {
   background-color: rgba(205, 127, 50, 0.2);
 }
+/* [신규 추가] 2등과 3등의 모든 텍스트 색상을 흰색으로 변경 */
+.rank-2, .rank-3 {
+  color: #fff;
+}
 
 @keyframes gradient-animation {
   0% { background-position: 0% 50%; }

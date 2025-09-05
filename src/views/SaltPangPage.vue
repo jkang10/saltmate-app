@@ -49,6 +49,10 @@
           <button @click="resetGame" class="game-button">다시하기</button>
         </div>
       </div>
+
+      <div v-if="gameState === 'playing' && timer <= 5 && timer > 0" class="countdown-overlay">
+        {{ timer }}
+      </div>
     </main>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -393,6 +397,11 @@ onUnmounted(() => {
   font-size: 1em;
   cursor: pointer;
   color: #555;
+}
+/* [신규 추가] 카운트다운 애니메이션 키프레임 */
+@keyframes countdown-pulse {
+  from { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
+  to { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; }
 }
 
 /* [신규 추가] 보석 터지는 애니메이션 */
