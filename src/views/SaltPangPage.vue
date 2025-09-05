@@ -8,7 +8,7 @@
     <main class="game-container card">
       <div v-if="gameState === 'ready'" class="game-intro">
         <h2>게임 준비</h2>
-        <p>입장료: <strong>100 SaltMate</strong></p>
+        <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
         <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
         <button @click="startGame" class="game-button" :disabled="isStarting">
            <span v-if="isStarting">입장 중...</span>
@@ -17,38 +17,10 @@
       </div>
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
-        <div class="game-stats">
-          <div class="stat-item">시간: <strong>{{ timer }}</strong></div>
-          <button @click="toggleMute" class="mute-button">
-            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
-          </button>
-          <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
         </div>
-        <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
-          <div
-            v-for="(cell, index) in board"
-            :key="index"
-            class="cell"
-            @click="selectCell(index)"
-            :class="{ selected: selectedCell === index }"
-          >
-            <transition name="gem-explode">
-              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
-                {{ gemIcons[cell] }}
-              </span>
-            </transition>
-          </div>
-        </div>
-      </div>
       
       <div v-if="gameState === 'ended'" class="game-overlay">
-        <div class="end-modal">
-          <h2>게임 종료!</h2>
-          <p>최종 점수: <strong>{{ score.toLocaleString() }}</strong></p>
-          <p>획득 보상: <strong>{{ awardedPoints.toLocaleString() }} SaltMate</strong></p>
-          <button @click="resetGame" class="game-button">다시하기</button>
         </div>
-      </div>
     </main>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -56,8 +28,10 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, onMounted, computed } from 'vue'; // onMounted, computed 추가
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { db, auth } from "@/firebaseConfig"; // db, auth 추가
+import { doc, getDoc } from "firebase/firestore"; // getDoc 추가
 
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
@@ -69,7 +43,6 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- 사운드 객체 ---
 let audioContextStarted = false;
 const isMuted = ref(false);
 const sounds = {
@@ -79,7 +52,6 @@ const sounds = {
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
-// --- 상태 변수 ---
 const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
@@ -89,6 +61,34 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
+const explodingGems = ref(new Set()); 
+
+// [신규 추가] 오늘 플레이 횟수 상태 변수
+const playCount = ref(0);
+
+let timerInterval = null;
+let sessionId = null;
+
+// [신규 추가] 현재 플레이 횟수에 따라 입장료를 계산
+const currentEntryFee = computed(() => {
+  if (playCount.value >= 30) return 300;
+  if (playCount.value >= 15) return 200;
+  return 100;
+});
+
+// [신규 추가] 오늘 플레이 횟수를 Firestore에서 가져오는 함수
+const fetchPlayCount = async () => {
+  if (!auth.currentUser) return;
+  const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
+  const docSnap = await getDoc(playCountRef);
+  
+  if (docSnap.exists() && docSnap.data().saltPang) {
+    playCount.value = docSnap.data().saltPang;
+  } else {
+    playCount.value = 0;
+  }
+};
 
 // [신규 추가] 터지는 효과를 위한 Set
 const explodingGems = ref(new Set()); 
@@ -165,6 +165,9 @@ const startGame = async () => {
     board.value = createBoard();
     gameState.value = 'playing';
     
+    // [수정] 게임 시작 후 플레이 횟수 즉시 업데이트
+    await fetchPlayCount(); 
+    
     playSound(sounds.background);
 
     timerInterval = setInterval(() => {
@@ -205,11 +208,13 @@ const endGame = async () => {
   }
 };
 
-const resetGame = () => {
+const resetGame = async () => {
   gameState.value = 'ready';
   sessionId = null;
   error.value = '';
-  explodingGems.value.clear(); // [추가] 리셋 시 터지는 보석 상태 초기화
+  explodingGems.value.clear();
+  // [수정] 다시하기 시 최신 플레이 횟수 반영
+  await fetchPlayCount(); 
 };
 
 // --- 게임 로직 ---
@@ -331,6 +336,9 @@ const fillEmptyCells = () => {
     }
   }
 };
+
+// [추가] 컴포넌트가 마운트될 때 플레이 횟수를 가져옴
+onMounted(fetchPlayCount);
 
 onUnmounted(() => {
   clearInterval(timerInterval);
