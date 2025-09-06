@@ -327,7 +327,10 @@ const checkAndClearMatches = async () => {
   }
   
   if (matches.size > 0) {
-    playSound(sounds.match); // [수정] 사운드 재생 코드 추가
+    // ▼▼▼ [수정된 부분] ▼▼▼
+    // 소리 파일 객체(sounds.match) 대신 소리 이름('match')을 전달합니다.
+    playSound('match');
+    // ▲▲▲ 수정 완료 ▲▲▲
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
     matches.forEach(index => (board.value[index] = null));
     return true;
