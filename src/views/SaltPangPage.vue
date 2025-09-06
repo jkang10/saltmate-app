@@ -62,8 +62,7 @@
 <script setup>
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth'; // [신규 추가] auth 모듈 import
-import { db } from "@/firebaseConfig";	
+import { db, auth } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
@@ -75,19 +74,17 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-// --- 사운드 관련 변수 ---
 let audioContextStarted = false;
 const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
-  countdownTick: null,
-  countdownEnd: null,
+  countdownTick: null, // [수정] 게임 시작 시 생성되도록 null로 초기화
+  countdownEnd: null,  // [수정] 게임 시작 시 생성되도록 null로 초기화
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
-// --- 게임 상태 변수 ---
 const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
@@ -97,44 +94,46 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
-const explodingGems = ref(new Set());
+const explodingGems = ref(new Set()); 
 const playCount = ref(0);
 
 let timerInterval = null;
 let sessionId = null;
 
-// --- Computed 속성 ---
 const currentEntryFee = computed(() => {
   if (playCount.value >= 30) return 300;
   if (playCount.value >= 15) return 200;
   return 100;
 });
 
-// --- 함수 ---
 const fetchPlayCount = async () => {
-  const auth = getAuth();
   if (!auth.currentUser) return;
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
   const docSnap = await getDoc(playCountRef);
-  playCount.value = (docSnap.exists() && docSnap.data().saltPang) ? docSnap.data().saltPang : 0;
-};
-
-const playSound = (sound) => {
-  if (!isMuted.value && audioContextStarted) {
-    sound.currentTime = 0;
-    sound.play().catch(e => console.error("사운드 재생 오류:", e));
+  
+  if (docSnap.exists() && docSnap.data().saltPang) {
+    playCount.value = docSnap.data().saltPang;
+  } else {
+    playCount.value = 0;
   }
 };
 
-const initAudioContext = () => {
-  if (!audioContextStarted) {
+const playSound = (soundKey) => {
+  if (!isMuted.value && audioContextStarted && sounds[soundKey]) {
+    const sound = sounds[soundKey];
+    sound.currentTime = 0;
+    sound.play().catch(e => console.error(`${soundKey} 사운드 재생 오류:`, e));
+  }
+};
+
+const initAudioContext = async () => {
+  if (!audioContextStarted && window.Tone) {
+    await window.Tone.start();
+    // [수정] 신디사이저 객체를 여기서 생성
+    sounds.countdownTick = new window.Tone.Synth().toDestination();
+    sounds.countdownEnd = new window.Tone.Synth().toDestination();
     audioContextStarted = true;
-    // 사용자의 첫 상호작용 시 오디오 컨텍스트를 활성화하기 위해,
-    // 소리를 아주 작게 재생했다가 즉시 멈추는 트릭을 사용합니다.
-    const tempSound = new Audio(soundMatch);
-    tempSound.volume = 0;
-    tempSound.play().catch(()=>{});
     console.log("오디오 컨텍스트가 활성화되었습니다.");
   }
 };
@@ -149,10 +148,13 @@ const toggleMute = () => {
 };
 
 const createBoard = () => {
-  let newBoard;
+  let newBoard = [];
   do {
-    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
-  } while (hasInitialMatches(newBoard));
+    newBoard = [];
+    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+      newBoard.push(Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
+    }
+  } while (hasInitialMatches(newBoard)); 
   return newBoard;
 };
 
@@ -175,28 +177,38 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  initAudioContext();
+  await initAudioContext(); // [수정] await로 오디오 컨텍스트 활성화를 기다림
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession();
     sessionId = result.data.sessionId;
-
+    
     score.value = 0;
     awardedPoints.value = 0;
     timer.value = GAME_DURATION;
     board.value = createBoard();
-    await fetchPlayCount();
+    
+    await fetchPlayCount(); 
+    
     gameState.value = 'playing';
-    playSound(sounds.background);
+    playSound('background');
 
-    if (timerInterval) clearInterval(timerInterval);
+    if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timer.value--;
+      
+      // [수정] timer.value가 5일 때도 소리가 나도록 조건 변경
+      if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
+        sounds.countdownTick.triggerAttackRelease("C5", "8n");
+      }
+
       if (timer.value <= 0) {
+        if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
         endGame();
       }
     }, 1000);
+
   } catch (err) {
     console.error("게임 시작 오류:", err);
     error.value = `게임 시작 실패: ${err.message}`;
