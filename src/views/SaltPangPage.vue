@@ -62,7 +62,8 @@
 <script setup>
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db, auth } from "@/firebaseConfig";
+import { getAuth } from 'firebase/auth'; // [신규 추가] auth 모듈 import
+import { db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
@@ -74,17 +75,17 @@ const GAME_DURATION = 60;
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
+// --- 사운드 관련 변수 ---
 let audioContextStarted = false;
 const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
-  countdownTick: null, // [수정] 게임 시작 시 생성되도록 null로 초기화
-  countdownEnd: null,  // [수정] 게임 시작 시 생성되도록 null로 초기화
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
+// --- 게임 상태 변수 ---
 const gameState = ref('ready');
 const board = ref([]);
 const score = ref(0);
@@ -94,46 +95,44 @@ const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
-const explodingGems = ref(new Set()); 
+const explodingGems = ref(new Set());
 const playCount = ref(0);
 
 let timerInterval = null;
 let sessionId = null;
 
+// --- Computed 속성 ---
 const currentEntryFee = computed(() => {
   if (playCount.value >= 30) return 300;
   if (playCount.value >= 15) return 200;
   return 100;
 });
 
+// --- 함수 ---
 const fetchPlayCount = async () => {
+  const auth = getAuth();
   if (!auth.currentUser) return;
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
   const docSnap = await getDoc(playCountRef);
-  
-  if (docSnap.exists() && docSnap.data().saltPang) {
-    playCount.value = docSnap.data().saltPang;
-  } else {
-    playCount.value = 0;
-  }
+  playCount.value = (docSnap.exists() && docSnap.data().saltPang) ? docSnap.data().saltPang : 0;
 };
 
-const playSound = (soundKey) => {
-  if (!isMuted.value && audioContextStarted && sounds[soundKey]) {
-    const sound = sounds[soundKey];
+const playSound = (sound) => {
+  if (!isMuted.value && audioContextStarted) {
     sound.currentTime = 0;
-    sound.play().catch(e => console.error(`${soundKey} 사운드 재생 오류:`, e));
+    sound.play().catch(e => console.error("사운드 재생 오류:", e));
   }
 };
 
-const initAudioContext = async () => {
-  if (!audioContextStarted && window.Tone) {
-    await window.Tone.start();
-    // [수정] 신디사이저 객체를 여기서 생성
-    sounds.countdownTick = new window.Tone.Synth().toDestination();
-    sounds.countdownEnd = new window.Tone.Synth().toDestination();
+const initAudioContext = () => {
+  if (!audioContextStarted) {
     audioContextStarted = true;
+    // 사용자의 첫 상호작용 시 오디오 컨텍스트를 활성화하기 위해,
+    // 소리를 아주 작게 재생했다가 즉시 멈추는 트릭을 사용합니다.
+    const tempSound = new Audio(soundMatch);
+    tempSound.volume = 0;
+    tempSound.play().catch(()=>{});
     console.log("오디오 컨텍스트가 활성화되었습니다.");
   }
 };
@@ -148,13 +147,10 @@ const toggleMute = () => {
 };
 
 const createBoard = () => {
-  let newBoard = [];
+  let newBoard;
   do {
-    newBoard = [];
-    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
-      newBoard.push(Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
-    }
-  } while (hasInitialMatches(newBoard)); 
+    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
+  } while (hasInitialMatches(newBoard));
   return newBoard;
 };
 
@@ -177,38 +173,28 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  await initAudioContext(); // [수정] await로 오디오 컨텍스트 활성화를 기다림
+  initAudioContext();
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession();
     sessionId = result.data.sessionId;
-    
+
     score.value = 0;
     awardedPoints.value = 0;
     timer.value = GAME_DURATION;
     board.value = createBoard();
-    
-    await fetchPlayCount(); 
-    
+    await fetchPlayCount();
     gameState.value = 'playing';
-    playSound('background');
+    playSound(sounds.background);
 
-    if(timerInterval) clearInterval(timerInterval);
+    if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timer.value--;
-      
-      // [수정] timer.value가 5일 때도 소리가 나도록 조건 변경
-      if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
-        sounds.countdownTick.triggerAttackRelease("C5", "8n");
-      }
-
       if (timer.value <= 0) {
-        if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
         endGame();
       }
     }, 1000);
-
   } catch (err) {
     console.error("게임 시작 오류:", err);
     error.value = `게임 시작 실패: ${err.message}`;
@@ -218,9 +204,8 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  clearInterval(timerInterval);
+  if (timerInterval) clearInterval(timerInterval);
   gameState.value = 'ended';
-
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
@@ -228,11 +213,10 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
-    // [핵심 수정] 현재 로그인된 사용자의 이름을 가져옵니다.
+    const auth = getAuth();
     const user = auth.currentUser;
     const username = user && user.displayName ? user.displayName : '익명';
 
-    // [핵심 수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
@@ -240,7 +224,6 @@ const endGame = async () => {
     }); 
     
     awardedPoints.value = result.data.awardedPoints;
-
   } catch (err) {
     console.error("게임 종료 오류:", err);
     error.value = `결과 처리 실패: ${err.message}`;
@@ -252,12 +235,12 @@ const resetGame = async () => {
   sessionId = null;
   error.value = '';
   explodingGems.value.clear();
-  await fetchPlayCount(); 
+  await fetchPlayCount();
 };
 
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext();
+  initAudioContext(); // [핵심] 사용자의 첫 클릭 시 오디오 활성화
 
   if (selectedCell.value === null) {
     selectedCell.value = index;
@@ -267,7 +250,7 @@ const selectCell = (index) => {
     const row2 = Math.floor(index / BOARD_SIZE);
     const col2 = index % BOARD_SIZE;
     const isAdjacent = Math.abs(row1 - row2) + Math.abs(col1 - col2) === 1;
-    
+
     if (isAdjacent) {
       swapAndCheck(selectedCell.value, index);
     }
@@ -277,12 +260,10 @@ const selectCell = (index) => {
 
 const swapAndCheck = async (index1, index2) => {
   isProcessing.value = true;
-  
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   await new Promise(resolve => setTimeout(resolve, 150));
   
   const hasMatches = await checkAndClearMatches();
-
   if (!hasMatches) {
     await new Promise(resolve => setTimeout(resolve, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
@@ -290,7 +271,6 @@ const swapAndCheck = async (index1, index2) => {
     // eslint-disable-next-line no-empty
     while (await processBoard()) {}
   }
-
   isProcessing.value = false;
 };
 
@@ -298,15 +278,13 @@ const processBoard = async () => {
   await new Promise(resolve => setTimeout(resolve, 200));
   dropDownGems();
   fillEmptyCells();
-  
   await new Promise(resolve => setTimeout(resolve, 200));
-  const hasCleared = await checkAndClearMatches();
-  return hasCleared;
-}
+  return await checkAndClearMatches();
+};
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로
+  // 가로/세로 매치 확인 로직 (기존과 동일)
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let i = r * BOARD_SIZE + c;
@@ -319,7 +297,6 @@ const checkAndClearMatches = async () => {
       }
     }
   }
-  // 세로
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let i = r * BOARD_SIZE + c;
@@ -332,13 +309,11 @@ const checkAndClearMatches = async () => {
       }
     }
   }
-  
-  if (matches.size > 0) {
-    playSound(sounds.match);
-    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
-    
-    matches.forEach(index => explodingGems.value.add(index));
 
+  if (matches.size > 0) {
+    playSound(sounds.match); // [핵심] 사운드 재생
+    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
+    matches.forEach(index => explodingGems.value.add(index));
     await new Promise(resolve => setTimeout(resolve, 300));
     matches.forEach(index => (board.value[index] = null));
     explodingGems.value.clear();

@@ -37,7 +37,7 @@ onMounted(() => {
   const q = query(
     collection(db, "game_feed"),
     orderBy("timestamp", "desc"),
-    limit(6),
+    limit(5),
   );
   unsubscribe = onSnapshot(q, (querySnapshot) => {
     const items = [];
