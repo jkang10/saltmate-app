@@ -7,13 +7,47 @@
 
     <main class="game-container card">
       <div v-if="gameState === 'ready'" class="game-intro">
-        <h2>게임 준비</h2>
-        <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
-        <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
-        <button @click="startGame" class="game-button" :disabled="isStarting">
-           <span v-if="isStarting">입장 중...</span>
-           <span v-else>게임 시작</span>
-        </button>
+        <h2>게임 설정</h2>
+        
+        <div class="setting-group">
+          <h3>게임 모드 선택</h3>
+          <div class="mode-selection">
+            <button @click="gameMode = 'classic'" :class="{ active: gameMode === 'classic' }">
+              클래식 모드 (60초)
+            </button>
+            <button @click="gameMode = 'timeAttack'" :class="{ active: gameMode === 'timeAttack' }">
+              타임 어택 (30초 +)
+            </button>
+          </div>
+          <p class="mode-description">
+            <span v-if="gameMode === 'classic'">60초 동안 최대한 높은 점수를 획득하세요!</span>
+            <span v-if="gameMode === 'timeAttack'">30초로 시작하여 보석을 맞출 때마다 시간이 추가됩니다!</span>
+          </p>
+        </div>
+
+        <div class="setting-group">
+          <h3>아이템 상점 (SaltMate 사용)</h3>
+          <div class="item-shop">
+            <div 
+              v-for="item in items" :key="item.id" 
+              class="item" 
+              :class="{ purchased: purchasedItems.has(item.id) }"
+              @click="buyItem(item)"
+            >
+              <div class="item-name">{{ item.name }}</div>
+              <div class="item-cost">{{ item.cost }} SP</div>
+              <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="start-info">
+          <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
+          <button @click="startGame" class="game-button" :disabled="isStarting">
+            <span v-if="isStarting">입장 중...</span>
+            <span v-else>게임 시작</span>
+          </button>
+        </div>
       </div>
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
@@ -26,11 +60,8 @@
         </div>
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
           <div
-            v-for="(cell, index) in board"
-            :key="index"
-            class="cell"
-            @click="selectCell(index)"
-            :class="{ selected: selectedCell === index }"
+            v-for="(cell, index) in board" :key="index" class="cell"
+            @click="selectCell(index)" :class="{ selected: selectedCell === index }"
           >
             <transition name="gem-explode">
               <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
@@ -38,6 +69,9 @@
               </span>
             </transition>
           </div>
+        </div>
+        <div v-if="isScoreBoostActive" class="score-boost-overlay">
+          SCORE x2!
         </div>
       </div>
       
@@ -55,68 +89,94 @@
       </div>
     </main>
 
-    <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted, computed } from 'vue';
+import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { getAuth } from 'firebase/auth'; // [신규 추가] getAuth import
+import { getAuth } from 'firebase/auth';
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
+// --- 기본 설정 ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
-const GAME_DURATION = 60;
+const CLASSIC_DURATION = 60;
+const TIME_ATTACK_DURATION = 30;
 
 const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
 
-let audioContextStarted = false;
-const isMuted = ref(false);
-const sounds = {
-  match: new Audio(soundMatch),
-  background: new Audio(soundBgm),
-  countdownTick: null, // [수정] 게임 시작 시 생성되도록 null로 초기화
-  countdownEnd: null,  // [수정] 게임 시작 시 생성되도록 null로 초기화
-};
-sounds.background.loop = true;
-sounds.background.volume = 0.3;
-
+// --- 상태 변수 (Refs) ---
 const gameState = ref('ready');
+const gameMode = ref('classic');
 const board = ref([]);
 const score = ref(0);
-const timer = ref(GAME_DURATION);
+const timer = ref(CLASSIC_DURATION);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
-const playCount = ref(0);
+const playCount = reactive({ classic: 0, timeAttack: 0 });
 
+// --- [신규] 아이템 관련 상태 ---
+const items = ref([
+  { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150 },
+  { id: 'score_x2_10s', name: '10초간 점수 2배', cost: 300 },
+]);
+const purchasedItems = ref(new Set());
+const isScoreBoostActive = ref(false);
+
+// --- 오디오 관련 ---
+let audioContextStarted = false;
+const isMuted = ref(false);
+const sounds = {
+  match: new Audio(soundMatch),
+  background: new Audio(soundBgm),
+  countdownTick: null,
+  countdownEnd: null,
+};
+sounds.background.loop = true;
+sounds.background.volume = 0.3;
+
+// --- 내부 변수 ---
 let timerInterval = null;
 let sessionId = null;
+let scoreBoostTimeout = null;
 
+// --- 계산된 속성 (Computed) ---
 const currentEntryFee = computed(() => {
-  if (playCount.value >= 30) return 300;
-  if (playCount.value >= 15) return 200;
-  return 100;
+  if (gameMode.value === 'classic') {
+    if (playCount.classic >= 30) return 300;
+    if (playCount.classic >= 15) return 200;
+    return 100;
+  }
+  if (gameMode.value === 'timeAttack') {
+    return 150;
+  }
+  return 100; // 기본값
 });
 
+// --- 함수 ---
 const fetchPlayCount = async () => {
   if (!auth.currentUser) return;
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
   const docSnap = await getDoc(playCountRef);
   
-  if (docSnap.exists() && docSnap.data().saltPang) {
-    playCount.value = docSnap.data().saltPang;
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    playCount.classic = data.saltPang_classic || 0;
+    playCount.timeAttack = data.saltPang_timeAttack || 0;
   } else {
-    playCount.value = 0;
+    playCount.classic = 0;
+    playCount.timeAttack = 0;
   }
 };
 
@@ -131,30 +191,22 @@ const playSound = (soundKey) => {
 const initAudioContext = async () => {
   if (!audioContextStarted && window.Tone) {
     await window.Tone.start();
-    // [수정] 신디사이저 객체를 여기서 생성
     sounds.countdownTick = new window.Tone.Synth().toDestination();
     sounds.countdownEnd = new window.Tone.Synth().toDestination();
     audioContextStarted = true;
-    console.log("오디오 컨텍스트가 활성화되었습니다.");
   }
 };
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value;
-  if (isMuted.value) {
-    sounds.background.pause();
-  } else if (gameState.value === 'playing') {
-    sounds.background.play();
-  }
+  if (isMuted.value) sounds.background.pause();
+  else if (gameState.value === 'playing') sounds.background.play();
 };
 
 const createBoard = () => {
-  let newBoard = [];
+  let newBoard;
   do {
-    newBoard = [];
-    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
-      newBoard.push(Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
-    }
+    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
   } while (hasInitialMatches(newBoard)); 
   return newBoard;
 };
@@ -175,35 +227,68 @@ const hasInitialMatches = (boardToCheck) => {
   return false;
 };
 
+// [신규] 아이템 구매 함수
+const buyItem = async (item) => {
+  if (purchasedItems.value.has(item.id)) return; // 이미 구매한 아이템
+  error.value = '';
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
+    await purchaseItemFunc({ itemId: item.id });
+    purchasedItems.value.add(item.id);
+  } catch (err) {
+    console.error("아이템 구매 오류:", err);
+    error.value = `구매 실패: ${err.message}`;
+  }
+};
+
+// [수정] 게임 시작 로직 (모드, 아이템 적용)
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  await initAudioContext(); // [수정] await로 오디오 컨텍스트 활성화를 기다림
+  await initAudioContext();
+
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
-    const result = await startSession();
+    const result = await startSession({ gameMode: gameMode.value });
     sessionId = result.data.sessionId;
     
+    // 초기화
     score.value = 0;
     awardedPoints.value = 0;
-    timer.value = GAME_DURATION;
     board.value = createBoard();
     
-    await fetchPlayCount(); 
+    // 게임 모드에 따른 설정
+    if (gameMode.value === 'classic') {
+      timer.value = CLASSIC_DURATION;
+    } else if (gameMode.value === 'timeAttack') {
+      timer.value = TIME_ATTACK_DURATION;
+    }
+
+    // 아이템 효과 적용
+    if (purchasedItems.value.has('time_plus_5')) {
+      timer.value += 5;
+    }
+    if (purchasedItems.value.has('score_x2_10s')) {
+      // 10초 뒤에 점수 2배 부스트 활성화
+      scoreBoostTimeout = setTimeout(() => {
+        isScoreBoostActive.value = true;
+        // 10초 뒤에 비활성화
+        setTimeout(() => isScoreBoostActive.value = false, 10000);
+      }, 10000);
+    }
     
+    await fetchPlayCount(); 
     gameState.value = 'playing';
     playSound('background');
 
-    if(timerInterval) clearInterval(timerInterval);
+    if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timer.value--;
-      
-      // [수정] timer.value가 5일 때도 소리가 나도록 조건 변경
       if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
         sounds.countdownTick.triggerAttackRelease("C5", "8n");
       }
-
       if (timer.value <= 0) {
         if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
         endGame();
@@ -220,6 +305,8 @@ const startGame = async () => {
 
 const endGame = async () => {
   if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
+  isScoreBoostActive.value = false;
   gameState.value = 'ended';
   sounds.background.pause();
   sounds.background.currentTime = 0;
@@ -228,14 +315,10 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const username = user && user.displayName ? user.displayName : '익명';
-
+    // [수정] username을 보내는 부분을 삭제합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
-      username: username 
     }); 
     
     awardedPoints.value = result.data.awardedPoints;
@@ -249,14 +332,14 @@ const resetGame = async () => {
   gameState.value = 'ready';
   sessionId = null;
   error.value = '';
+  purchasedItems.value.clear(); // 구매한 아이템 초기화
   explodingGems.value.clear();
   await fetchPlayCount();
 };
 
 const selectCell = (index) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext(); // [핵심] 사용자의 첫 클릭 시 오디오 활성화
-
+  initAudioContext();
   if (selectedCell.value === null) {
     selectedCell.value = index;
   } else {
@@ -264,9 +347,7 @@ const selectCell = (index) => {
     const col1 = selectedCell.value % BOARD_SIZE;
     const row2 = Math.floor(index / BOARD_SIZE);
     const col2 = index % BOARD_SIZE;
-    const isAdjacent = Math.abs(row1 - row2) + Math.abs(col1 - col2) === 1;
-
-    if (isAdjacent) {
+    if (Math.abs(row1 - row2) + Math.abs(col1 - col2) === 1) {
       swapAndCheck(selectedCell.value, index);
     }
     selectedCell.value = null;
@@ -276,62 +357,45 @@ const selectCell = (index) => {
 const swapAndCheck = async (index1, index2) => {
   isProcessing.value = true;
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await new Promise(r => setTimeout(r, 150));
   
   const hasMatches = await checkAndClearMatches();
   if (!hasMatches) {
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   } else {
-    // eslint-disable-next-line no-empty
-    while (await processBoard()) {}
+    while (await processBoard());
   }
   isProcessing.value = false;
 };
 
 const processBoard = async () => {
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(r => setTimeout(r, 200));
   dropDownGems();
   fillEmptyCells();
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(r => setTimeout(r, 200));
   return await checkAndClearMatches();
 };
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로 매치
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE - 2; c++) {
-      let i = r * BOARD_SIZE + c;
-      if (board.value[i] && board.value[i] === board.value[i + 1] && board.value[i] === board.value[i + 2]) {
-        for (let k = c; k < BOARD_SIZE; k++) {
-          i = r * BOARD_SIZE + k;
-          if (board.value[i] === board.value[r * BOARD_SIZE + c]) matches.add(i);
-          else break;
-        }
-      }
-    }
-  }
-  // 세로 매치
-  for (let c = 0; c < BOARD_SIZE; c++) {
-    for (let r = 0; r < BOARD_SIZE - 2; r++) {
-      let i = r * BOARD_SIZE + c;
-      if (board.value[i] && board.value[i] === board.value[i + BOARD_SIZE] && board.value[i] === board.value[i + 2 * BOARD_SIZE]) {
-        for (let k = r; k < BOARD_SIZE; k++) {
-          i = k * BOARD_SIZE + c;
-          if (board.value[i] === board.value[r * BOARD_SIZE + c]) matches.add(i);
-          else break;
-        }
-      }
-    }
-  }
+  // 가로/세로 매치 검사 로직 (기존과 동일)
+  for (let r = 0; r < BOARD_SIZE; r++) for (let c = 0; c < BOARD_SIZE - 2; c++) { let i = r * BOARD_SIZE + c; if (board.value[i] && board.value[i] === board.value[i+1] && board.value[i] === board.value[i+2]) for (let k=c; k<BOARD_SIZE; k++) { i = r * BOARD_SIZE + k; if (board.value[i] === board.value[r*BOARD_SIZE+c]) matches.add(i); else break; } }
+  for (let c = 0; c < BOARD_SIZE; c++) for (let r = 0; r < BOARD_SIZE - 2; r++) { let i = r * BOARD_SIZE + c; if (board.value[i] && board.value[i] === board.value[i+BOARD_SIZE] && board.value[i] === board.value[i+2*BOARD_SIZE]) for (let k=r; k<BOARD_SIZE; k++) { i = k * BOARD_SIZE + c; if (board.value[i] === board.value[r*BOARD_SIZE+c]) matches.add(i); else break; } }
   
   if (matches.size > 0) {
-    // ▼▼▼ [수정된 부분] ▼▼▼
-    // 소리 파일 객체(sounds.match) 대신 소리 이름('match')을 전달합니다.
     playSound('match');
-    // ▲▲▲ 수정 완료 ▲▲▲
-    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
+
+    // [수정] 게임 모드 및 아이템 효과 적용
+    if (gameMode.value === 'timeAttack') {
+      timer.value += 1; // 타임 어택 모드: 시간 추가
+    }
+    let scoreMultiplier = 1;
+    if (isScoreBoostActive.value) {
+      scoreMultiplier = 2; // 점수 2배 부스터
+    }
+
+    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1) * scoreMultiplier;
     matches.forEach(index => (board.value[index] = null));
     return true;
   }
@@ -343,11 +407,9 @@ const dropDownGems = () => {
     let emptyRow = -1;
     for (let r = BOARD_SIZE - 1; r >= 0; r--) {
       const i = r * BOARD_SIZE + c;
-      if (board.value[i] === null && emptyRow === -1) {
-        emptyRow = r;
-      } else if (board.value[i] !== null && emptyRow !== -1) {
-        const emptyIndex = emptyRow * BOARD_SIZE + c;
-        board.value[emptyIndex] = board.value[i];
+      if (board.value[i] === null && emptyRow === -1) emptyRow = r;
+      else if (board.value[i] !== null && emptyRow !== -1) {
+        board.value[emptyRow * BOARD_SIZE + c] = board.value[i];
         board.value[i] = null;
         emptyRow--;
       }
@@ -367,93 +429,69 @@ onMounted(fetchPlayCount);
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
   sounds.background.pause();
 });
-</script>	
+</script>
 
 <style scoped>
+/* 기존 스타일 ... */
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
-.game-container { 
-  padding: 20px; 
-  background: #fff; 
-  border-radius: 12px; 
-  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-  position: relative; /* [수정] 카운트다운 위치의 기준점으로 설정 */
-}
+.game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
 .game-intro { text-align: center; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
 .cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
 .cell.selected { background-color: #a0a0a0; }
 .gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; }
-.game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; }
+.game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; font-weight: bold; }
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
-.error-message { margin-top: 15px; color: red; text-align: center; }
-.mute-button {
-  background: none;
-  border: 1px solid #ccc;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 1em;
-  cursor: pointer;
-  color: #555;
-}
-/* [수정] 카운트다운 오버레이 스타일 */
-.countdown-overlay {
+.error-message { margin-top: 15px; color: red; text-align: center; cursor: pointer; }
+.mute-button { background: none; border: 1px solid #ccc; width: 40px; height: 40px; border-radius: 50%; font-size: 1em; cursor: pointer; color: #555; }
+.countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10em; font-weight: 900; color: rgba(220, 53, 69, 0.7); text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); animation: countdown-pulse 1s ease-in-out infinite; pointer-events: none; z-index: 10; }
+@keyframes countdown-pulse { from { transform: translate(-50%, -50%) scale(1); opacity: 0.7; } to { transform: translate(-50%, -50%) scale(1.15); opacity: 1; } }
+.gem-explode-enter-active, .gem-explode-leave-active { transition: all 0.3s ease-out; }
+.gem-explode-enter-from, .gem-explode-leave-to { opacity: 0; transform: scale(2) rotate(45deg); }
+
+/* --- 신규 스타일 --- */
+.setting-group { margin-bottom: 25px; border-top: 1px solid #eee; padding-top: 20px; }
+.setting-group h3 { margin-bottom: 10px; color: #333; }
+.mode-selection { display: flex; gap: 10px; justify-content: center; }
+.mode-selection button { padding: 10px 15px; border: 1px solid #ccc; background-color: #f8f9fa; cursor: pointer; border-radius: 8px; font-weight: bold; transition: all 0.2s; }
+.mode-selection button.active { background-color: #007bff; color: white; border-color: #007bff; }
+.mode-description { margin-top: 10px; color: #666; font-size: 0.9em; min-height: 2.7em; }
+.item-shop { display: flex; justify-content: center; gap: 10px; }
+.item { border: 1px solid #ccc; border-radius: 8px; padding: 10px; cursor: pointer; text-align: center; transition: all 0.2s; position: relative; }
+.item:hover { border-color: #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.item.purchased { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+.item-name { font-weight: bold; }
+.item-cost { font-size: 0.9em; color: #007bff; }
+.purchased-badge { position: absolute; top: -10px; right: -10px; background-color: #28a745; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.start-info { border-top: 1px solid #eee; padding-top: 20px; }
+.score-boost-overlay {
   position: absolute;
-  top: 50%;
+  top: 100px;
   left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 10em; /* 글씨 크기 더 키움 */
-  font-weight: 900; /* 더 굵게 */
-  color: rgba(220, 53, 69, 0.7); /* 강렬한 빨간색, 반투명 */
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); /* 흰색 빛 번짐 효과 */
-  animation: countdown-pulse 1s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 10;
+  transform: translateX(-50%);
+  font-size: 2em;
+  font-weight: bold;
+  color: #e67e22;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 5px 15px;
+  border-radius: 20px;
+  z-index: 15;
+  animation: boost-fade 10s linear forwards;
 }
-@keyframes countdown-pulse {
-  from { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
-  to { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
-}
-.gem-explode-enter-active,
-.gem-explode-leave-active {
-  transition: all 0.3s ease-out;
-}
-.gem-explode-enter-from,
-.gem-explode-leave-to {
-  opacity: 0;
-  transform: scale(2) rotate(45deg);
-}
+@keyframes boost-fade { from { opacity: 1; } to { opacity: 0; } }
+
+/* 반응형 스타일 */
 @media (max-width: 480px) {
-  .salt-pang-page {
-    padding: 10px; /* 모바일 화면의 전체 여백을 줄입니다. */
-  }
-
-  .game-container.card {
-    padding: 15px 10px; /* 게임 컨테이너의 내부 여백을 조절합니다. */
-  }
-
-  .cell {
-    /* 기존의 고정된 50px 대신, 화면 너비에 비례하는 vw 단위를 사용합니다. */
-    width: 11vw;
-    height: 11vw;
-  }
-
-  .gem {
-    /* 보석 아이콘의 크기도 화면 너비에 맞춰 조절합니다. */
-    font-size: 7vw;
-  }
-
-  .game-stats {
-    font-size: 1em; /* 상단 스탯(시간, 점수)의 글씨 크기를 조절합니다. */
-  }
-
-  .page-header h1 {
-    font-size: 1.8em; /* 제목 크기를 모바일에 맞게 조절합니다. */
-  }
+  /* ... 기존 반응형 스타일 ... */
+  .cell { width: 11vw; height: 11vw; }
+  .gem { font-size: 7vw; }
+  .game-stats { font-size: 1em; }
+  .page-header h1 { font-size: 1.8em; }
 }
 </style>
