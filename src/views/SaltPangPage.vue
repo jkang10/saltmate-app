@@ -64,6 +64,7 @@ import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import { getAuth } from 'firebase/auth'; // [신규 추가] getAuth import
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
