@@ -299,7 +299,7 @@ const processBoard = async () => {
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로/세로 매치 확인 로직 (기존과 동일)
+  // 가로 매치
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let i = r * BOARD_SIZE + c;
@@ -312,6 +312,7 @@ const checkAndClearMatches = async () => {
       }
     }
   }
+  // 세로 매치
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let i = r * BOARD_SIZE + c;
@@ -324,14 +325,11 @@ const checkAndClearMatches = async () => {
       }
     }
   }
-
+  
   if (matches.size > 0) {
-    playSound(sounds.match); // [핵심] 사운드 재생
+    playSound(sounds.match); // [수정] 사운드 재생 코드 추가
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1);
-    matches.forEach(index => explodingGems.value.add(index));
-    await new Promise(resolve => setTimeout(resolve, 300));
     matches.forEach(index => (board.value[index] = null));
-    explodingGems.value.clear();
     return true;
   }
   return false;
