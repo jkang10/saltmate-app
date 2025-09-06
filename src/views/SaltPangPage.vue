@@ -79,8 +79,8 @@ const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
-  countdownTick: null,
-  countdownEnd: null,
+  countdownTick: null, // [수정] 게임 시작 시 생성되도록 null로 초기화
+  countdownEnd: null,  // [수정] 게임 시작 시 생성되도록 null로 초기화
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
@@ -130,6 +130,7 @@ const playSound = (soundKey) => {
 const initAudioContext = async () => {
   if (!audioContextStarted && window.Tone) {
     await window.Tone.start();
+    // [수정] 신디사이저 객체를 여기서 생성
     sounds.countdownTick = new window.Tone.Synth().toDestination();
     sounds.countdownEnd = new window.Tone.Synth().toDestination();
     audioContextStarted = true;
@@ -176,7 +177,7 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  await initAudioContext();
+  await initAudioContext(); // [수정] await로 오디오 컨텍스트 활성화를 기다림
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
@@ -197,6 +198,7 @@ const startGame = async () => {
     timerInterval = setInterval(() => {
       timer.value--;
       
+      // [수정] timer.value가 5일 때도 소리가 나도록 조건 변경
       if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
         sounds.countdownTick.triggerAttackRelease("C5", "8n");
       }
@@ -216,9 +218,9 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  if(timerInterval) clearInterval(timerInterval);
+  clearInterval(timerInterval);
   gameState.value = 'ended';
-  
+
   sounds.background.pause();
   sounds.background.currentTime = 0;
 
@@ -226,9 +228,15 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
+    // [핵심 수정] 현재 로그인된 사용자의 이름을 가져옵니다.
+    const user = auth.currentUser;
+    const username = user && user.displayName ? user.displayName : '익명';
+
+    // [핵심 수정] 백엔드로 username을 함께 전달합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
-      score: score.value
+      score: score.value,
+      username: username 
     }); 
     
     awardedPoints.value = result.data.awardedPoints;
@@ -370,7 +378,7 @@ onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   sounds.background.pause();
 });
-</script>
+</script>	
 
 <style scoped>
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
@@ -380,7 +388,7 @@ onUnmounted(() => {
   background: #fff; 
   border-radius: 12px; 
   box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-  position: relative;
+  position: relative; /* [수정] 카운트다운 위치의 기준점으로 설정 */
 }
 .game-intro { text-align: center; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
@@ -402,15 +410,16 @@ onUnmounted(() => {
   cursor: pointer;
   color: #555;
 }
+/* [수정] 카운트다운 오버레이 스타일 */
 .countdown-overlay {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 10em;
-  font-weight: 900;
-  color: rgba(220, 53, 69, 0.7);
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.7);
+  font-size: 10em; /* 글씨 크기 더 키움 */
+  font-weight: 900; /* 더 굵게 */
+  color: rgba(220, 53, 69, 0.7); /* 강렬한 빨간색, 반투명 */
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); /* 흰색 빛 번짐 효과 */
   animation: countdown-pulse 1s ease-in-out infinite;
   pointer-events: none;
   z-index: 10;
