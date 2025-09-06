@@ -3,105 +3,93 @@
     <h2><i class="fas fa-gamepad"></i> 게임 설정</h2>
 
     <div class="card">
-      <h3>재화 전환 비율 설정</h3>
+      <h3 class="section-title">솔트팡: 타임 어택 입장료 설정</h3>
       <div class="form-group">
-        <label for="salt-rate"
-          ><i class="fas fa-gem"></i> 소금 광산 (Salt ➞ SaltMate)</label
-        >
+        <label for="time-attack-tier1-count">
+          <i class="fas fa-layer-group"></i> 1단계 적용 횟수
+        </label>
         <div class="input-group">
-          <input
-            type="number"
-            step="100"
-            v-model.number="settings.saltMineRate"
-          />
-          <span> Salt = 1 SaltMate</span>
+          <input type="number" step="1" v-model.number="settings.timeAttackTier1Count" />
+          <span> 회 까지</span>
         </div>
-        <small>1 SaltMate를 얻기 위해 필요한 소금의 개수를 입력하세요.</small>
+        <small>이 횟수까지는 1단계 입장료가 적용됩니다.</small>
+      </div>
+       <div class="form-group">
+        <label for="time-attack-tier1-fee">
+          <i class="fas fa-coins"></i> 1단계 입장료
+        </label>
+        <div class="input-group">
+          <input type="number" step="100" v-model.number="settings.timeAttackTier1Fee" />
+          <span> SaltMate</span>
+        </div>
       </div>
       <div class="form-group">
-        <label for="sea-rate"
-          ><i class="fas fa-water"></i> 해양심층수 탐험 (자금 ➞ SaltMate)</label
-        >
+        <label for="time-attack-tier2-fee">
+          <i class="fas fa-coins"></i> 2단계 입장료
+        </label>
         <div class="input-group">
-          <input
-            type="number"
-            step="1000"
-            v-model.number="settings.deepSeaRate"
-          />
+          <input type="number" step="100" v-model.number="settings.timeAttackTier2Fee" />
+          <span> SaltMate</span>
+        </div>
+        <small>1단계 횟수를 초과하면 2단계 입장료가 적용됩니다.</small>
+      </div>
+
+
+      <h3 class="section-title">재화 전환 비율 설정</h3>
+      <div class="form-group">
+        <label for="salt-rate"><i class="fas fa-gem"></i> 소금 광산 (Salt ➞ SaltMate)</label>
+        <div class="input-group">
+          <input type="number" step="100" v-model.number="settings.saltMineRate" />
+          <span> Salt = 1 SaltMate</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="sea-rate"><i class="fas fa-water"></i> 해양심층수 탐험 (자금 ➞ SaltMate)</label>
+        <div class="input-group">
+          <input type="number" step="1000" v-model.number="settings.deepSeaRate" />
           <span> 자금 = 1 SaltMate</span>
         </div>
-        <small>1 SaltMate를 얻기 위해 필요한 자금의 액수를 입력하세요.</small>
       </div>
 
       <h3 class="section-title">일일 이용 횟수 설정</h3>
       <div class="form-group">
-        <label for="rps-limit"
-          ><i class="fas fa-hand-scissors"></i> 가위바위보</label
-        >
+        <label for="rps-limit"><i class="fas fa-hand-scissors"></i> 가위바위보</label>
         <div class="input-group">
           <input type="number" step="1" v-model.number="settings.rpsLimit" />
           <span> 회 / 일</span>
         </div>
-        <small>하루에 참여할 수 있는 최대 횟수를 입력하세요.</small>
       </div>
       <div class="form-group">
-        <label for="high-low-limit"
-          ><i class="fas fa-arrows-alt-v"></i> 하이로우</label
-        >
+        <label for="high-low-limit"><i class="fas fa-arrows-alt-v"></i> 하이로우</label>
         <div class="input-group">
-          <input
-            type="number"
-            step="1"
-            v-model.number="settings.highLowLimit"
-          />
+          <input type="number" step="1" v-model.number="settings.highLowLimit" />
           <span> 회 / 일</span>
         </div>
-        <small>하루에 참여할 수 있는 최대 횟수를 입력하세요.</small>
       </div>
       
       <h3 class="section-title">게임 시스템 설정</h3>
       <div class="form-group">
-        <label for="auto-sell-interval">
-          <i class="fas fa-history"></i> 심해 해구 자동 판매 간격
-        </label>
+        <label for="auto-sell-interval"><i class="fas fa-history"></i> 심해 해구 자동 판매 간격</label>
         <div class="input-group">
-          <input
-            type="number"
-            step="1"
-            min="1"
-            v-model.number="settings.autoSellIntervalMinutes"
-          />
+          <input type="number" step="1" min="1" v-model.number="settings.autoSellIntervalMinutes" />
           <span> 분</span>
         </div>
-        <small>자동으로 자원을 판매하는 시간 간격(분)을 입력하세요.</small>
       </div>
 
       <h3 class="section-title">게임 승리 배수 설정</h3>
       <div class="form-group">
-        <label for="rps-multiplier"
-          ><i class="fas fa-hand-scissors"></i> 가위바위보 (승리 시)</label
-        >
+        <label for="rps-multiplier"><i class="fas fa-hand-scissors"></i> 가위바위보 (승리 시)</label>
         <div class="input-group">
           <span>베팅금액의 </span>
-          <input
-            type="number"
-            step="0.1"
-            v-model.number="settings.rpsMultiplier"
-          />
+          <input type="number" step="0.1" v-model.number="settings.rpsMultiplier" />
           <span> 배</span>
         </div>
       </div>
       <div class="form-group">
-        <label for="high-low-multiplier"
-          ><i class="fas fa-arrows-alt-v"></i> 하이로우 (성공 시)</label
-        >
+        <label for="high-low-multiplier"><i class="fas fa-arrows-alt-v"></i> 하이로우 (성공 시)</label>
         <div class="input-group">
           <span>베팅금액의 </span>
-          <input
-            type="number"
-            step="0.1"
-            v-model.number="settings.highLowMultiplier"
-          />
+          <input type="number" step="0.1" v-model.number="settings.highLowMultiplier" />
           <span> 배</span>
         </div>
       </div>
@@ -133,7 +121,11 @@ export default {
       highLowLimit: 10,
       rpsMultiplier: 1.2,
       highLowMultiplier: 1.2,
-      autoSellIntervalMinutes: 10, // [신규 추가] 설정값 추가
+      autoSellIntervalMinutes: 10,
+      // [신규 추가] 타임 어택 설정값
+      timeAttackTier1Count: 10,
+      timeAttackTier1Fee: 400,
+      timeAttackTier2Fee: 800,
     });
 
     const fetchSettings = async () => {
@@ -142,9 +134,7 @@ export default {
         const configRef = doc(db, "configuration", "gameSettings");
         const docSnap = await getDoc(configRef);
         if (docSnap.exists()) {
-          // ▼▼▼ [수정] Object.assign을 사용하여 DB에 있는 모든 설정값을 한 번에 반영합니다. ▼▼▼
           Object.assign(settings, docSnap.data());
-          // ▲▲▲ 수정 완료 ▲▲▲
         }
       } catch (error) {
         console.error("설정 불러오기 실패:", error);
@@ -158,11 +148,7 @@ export default {
       if (!confirm("게임 설정을 저장하시겠습니까?")) return;
       isLoading.value = true;
       try {
-        const updateSettings = httpsCallable(
-          functions,
-          "updateGameConversionSettings",
-        );
-        // settings 객체 전체를 서버로 보냅니다.
+        const updateSettings = httpsCallable(functions, "updateGameConversionSettings");
         await updateSettings(settings);
         alert("설정이 성공적으로 저장되었습니다.");
       } catch (error) {
@@ -181,6 +167,7 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 스타일과 동일 (변경 없음) */
 .settings-manager {
   padding: 20px;
 }

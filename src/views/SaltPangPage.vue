@@ -192,7 +192,12 @@ const currentEntryFee = computed(() => {
     if (playCount.classic >= 15) return 200;
     return 100;
   }
-  if (gameMode.value === 'timeAttack') { return 150; }
+  // [핵심 수정] 타임 어택 모드 입장료는 이제 백엔드에서 결정되므로
+  // 프론트에서는 "변동" 이라고 표시하거나 단순 기본값을 보여줍니다.
+  // 정확한 금액은 게임 시작 버튼을 눌렀을 때 서버로부터 최종 확인됩니다.
+  if (gameMode.value === 'timeAttack') { 
+    return "400 ~"; // 예시: "400 ~" 또는 "변동"
+  }
   return 100;
 });
 
