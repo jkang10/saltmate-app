@@ -428,4 +428,32 @@ onUnmounted(() => {
   opacity: 0;
   transform: scale(2) rotate(45deg);
 }
+@media (max-width: 480px) {
+  .salt-pang-page {
+    padding: 10px; /* 모바일 화면의 전체 여백을 줄입니다. */
+  }
+
+  .game-container.card {
+    padding: 15px 10px; /* 게임 컨테이너의 내부 여백을 조절합니다. */
+  }
+
+  .cell {
+    /* 기존의 고정된 50px 대신, 화면 너비에 비례하는 vw 단위를 사용합니다. */
+    width: 11vw;
+    height: 11vw;
+  }
+
+  .gem {
+    /* 보석 아이콘의 크기도 화면 너비에 맞춰 조절합니다. */
+    font-size: 7vw;
+  }
+
+  .game-stats {
+    font-size: 1em; /* 상단 스탯(시간, 점수)의 글씨 크기를 조절합니다. */
+  }
+
+  .page-header h1 {
+    font-size: 1.8em; /* 제목 크기를 모바일에 맞게 조절합니다. */
+  }
+}
 </style>
