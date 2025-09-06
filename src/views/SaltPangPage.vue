@@ -1,64 +1,3 @@
-<template>
-  <div class="salt-pang-page">
-    <header class="page-header">
-      <h1>💎 솔트팡</h1>
-      <p>같은 모양의 소금 결정을 3개 이상 맞춰보세요!</p>
-    </header>
-
-    <main class="game-container card">
-      <div v-if="gameState === 'ready'" class="game-intro">
-        <h2>게임 준비</h2>
-        <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
-        <p>60초 동안 최대한 높은 점수를 획득하세요!</p>
-        <button @click="startGame" class="game-button" :disabled="isStarting">
-           <span v-if="isStarting">입장 중...</span>
-           <span v-else>게임 시작</span>
-        </button>
-      </div>
-
-      <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
-        <div class="game-stats">
-          <div class="stat-item">시간: <strong>{{ timer }}</strong></div>
-          <button @click="toggleMute" class="mute-button">
-            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
-          </button>
-          <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
-        </div>
-        <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
-          <div
-            v-for="(cell, index) in board"
-            :key="index"
-            class="cell"
-            @click="selectCell(index)"
-            :class="{ selected: selectedCell === index }"
-          >
-            <transition name="gem-explode">
-              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
-                {{ gemIcons[cell] }}
-              </span>
-            </transition>
-          </div>
-        </div>
-      </div>
-      
-      <div v-if="gameState === 'ended'" class="game-overlay">
-        <div class="end-modal">
-          <h2>게임 종료!</h2>
-          <p>최종 점수: <strong>{{ score.toLocaleString() }}</strong></p>
-          <p>획득 보상: <strong>{{ awardedPoints.toLocaleString() }} SaltMate</strong></p>
-          <button @click="resetGame" class="game-button">다시하기</button>
-        </div>
-      </div>
-      
-      <div v-if="gameState === 'playing' && timer <= 5 && timer > 0" class="countdown-overlay">
-        {{ timer }}
-      </div>
-    </main>
-
-    <div v-if="error" class="error-message">{{ error }}</div>
-  </div>
-</template>
-
 <script setup>
 import { ref, onUnmounted, onMounted, computed } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -79,6 +18,8 @@ const isMuted = ref(false);
 const sounds = {
   match: new Audio(soundMatch),
   background: new Audio(soundBgm),
+  countdownTick: null, // [수정] 게임 시작 시 생성되도록 null로 초기화
+  countdownEnd: null,  // [수정] 게임 시작 시 생성되도록 null로 초기화
 };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
@@ -117,15 +58,20 @@ const fetchPlayCount = async () => {
   }
 };
 
-const playSound = (sound) => {
-  if (!isMuted.value && audioContextStarted) {
+const playSound = (soundKey) => {
+  if (!isMuted.value && audioContextStarted && sounds[soundKey]) {
+    const sound = sounds[soundKey];
     sound.currentTime = 0;
-    sound.play().catch(e => console.error("사운드 재생 오류:", e));
+    sound.play().catch(e => console.error(`${soundKey} 사운드 재생 오류:`, e));
   }
 };
 
-const initAudioContext = () => {
-  if (!audioContextStarted) {
+const initAudioContext = async () => {
+  if (!audioContextStarted && window.Tone) {
+    await window.Tone.start();
+    // [수정] 신디사이저 객체를 여기서 생성
+    sounds.countdownTick = new window.Tone.Synth().toDestination();
+    sounds.countdownEnd = new window.Tone.Synth().toDestination();
     audioContextStarted = true;
     console.log("오디오 컨텍스트가 활성화되었습니다.");
   }
@@ -170,13 +116,13 @@ const hasInitialMatches = (boardToCheck) => {
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
-  initAudioContext();
+  await initAudioContext(); // [수정] await로 오디오 컨텍스트 활성화를 기다림
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession();
     sessionId = result.data.sessionId;
-
+    
     score.value = 0;
     awardedPoints.value = 0;
     timer.value = GAME_DURATION;
@@ -185,13 +131,14 @@ const startGame = async () => {
     await fetchPlayCount(); 
     
     gameState.value = 'playing';
-    playSound(sounds.background);
+    playSound('background');
 
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timer.value--;
-	
-      if (timer.value <= 4 && timer.value >= 1 && sounds.countdownTick) {
+      
+      // [수정] timer.value가 5일 때도 소리가 나도록 조건 변경
+      if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
         sounds.countdownTick.triggerAttackRelease("C5", "8n");
       }
 
@@ -370,7 +317,7 @@ onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   sounds.background.pause();
 });
-</script>
+</script>	
 
 <style scoped>
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
