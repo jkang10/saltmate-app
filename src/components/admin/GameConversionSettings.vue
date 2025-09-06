@@ -58,6 +58,23 @@
         </div>
         <small>하루에 참여할 수 있는 최대 횟수를 입력하세요.</small>
       </div>
+      
+      <h3 class="section-title">게임 시스템 설정</h3>
+      <div class="form-group">
+        <label for="auto-sell-interval">
+          <i class="fas fa-history"></i> 심해 해구 자동 판매 간격
+        </label>
+        <div class="input-group">
+          <input
+            type="number"
+            step="1"
+            min="1"
+            v-model.number="settings.autoSellIntervalMinutes"
+          />
+          <span> 분</span>
+        </div>
+        <small>자동으로 자원을 판매하는 시간 간격(분)을 입력하세요.</small>
+      </div>
 
       <h3 class="section-title">게임 승리 배수 설정</h3>
       <div class="form-group">
@@ -116,6 +133,7 @@ export default {
       highLowLimit: 10,
       rpsMultiplier: 1.2,
       highLowMultiplier: 1.2,
+      autoSellIntervalMinutes: 10, // [신규 추가] 설정값 추가
     });
 
     const fetchSettings = async () => {

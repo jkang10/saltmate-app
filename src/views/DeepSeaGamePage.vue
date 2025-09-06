@@ -300,7 +300,10 @@ const logs = ref([]);
 const showTutorial = ref(false);
 const logBox = ref(null);
 const isSellingFunds = ref(false);
-const gameSettings = reactive({ deepSeaRate: 100000 });
+const gameSettings = reactive({ 
+  deepSeaRate: 100000,
+  autoSellIntervalMinutes: 10, // [신규 추가] 설정값 추가
+});
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
 let tickTimer, eventTimer, autosaveTimer, goldenTimeInterval;
@@ -715,10 +718,14 @@ onMounted(() => {
       // 로그인이 감지되면 데이터를 불러옵니다.
       loadGame(user);
       const configRef = doc(db, "configuration", "gameSettings");
-      settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
-        if (docSnap.exists())
-          gameSettings.deepSeaRate = docSnap.data().deepSeaRate || 100000;
-      });
+  // [수정] onSnapshot 리스너에 autoSellIntervalMinutes 값도 가져오도록 추가
+  settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+      gameSettings.autoSellIntervalMinutes = data.autoSellIntervalMinutes || 10;
+    }
+  });
     } else {
       // 로그아웃 상태일 때, 기존 데이터를 초기화하지 않고 리스너만 정리합니다.
       if (settingsUnsubscribe) settingsUnsubscribe();
