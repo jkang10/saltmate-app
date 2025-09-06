@@ -11,8 +11,8 @@
         
         <div class="setting-group">
           <h3>오늘의 미션</h3>
-          <div v-if="missions.length > 0" class="mission-list">
-            <div v-for="mission in missions" :key="mission.missionId" class="mission-item">
+          <div v-if="missions.daily.length > 0" class="mission-list">
+            <div v-for="mission in missions.daily" :key="mission.missionId" class="mission-item">
               <div class="mission-desc">{{ mission.description }}</div>
               <div class="mission-progress-bar">
                 <div class="progress" :style="{ width: `${Math.min(100, (mission.progress / mission.targetCount) * 100)}%` }"></div>
@@ -26,7 +26,27 @@
               </div>
             </div>
           </div>
-          <p v-else>미션을 불러오는 중...</p>
+          <p v-else>일일 미션을 불러오는 중...</p>
+        </div>
+
+        <div class="setting-group">
+          <h3>이번 주 미션</h3>
+          <div v-if="missions.weekly.length > 0" class="mission-list">
+             <div v-for="mission in missions.weekly" :key="mission.missionId" class="mission-item">
+              <div class="mission-desc">{{ mission.description }}</div>
+              <div class="mission-progress-bar">
+                <div class="progress" :style="{ width: `${Math.min(100, (mission.progress / mission.targetCount) * 100)}%` }"></div>
+              </div>
+              <div class="mission-status">
+                <span v-if="mission.completed && mission.claimed" class="claimed">✓ 완료</span>
+                <button v-else-if="mission.completed && !mission.claimed" @click="claimReward(mission)" class="claim-button">
+                  보상 받기 (+{{ mission.reward }} SP)
+                </button>
+                <span v-else>{{ mission.progress }} / {{ mission.targetCount }}</span>
+              </div>
+            </div>
+          </div>
+          <p v-else>주간 미션을 불러오는 중...</p>
         </div>
 
         <div class="setting-group">
@@ -71,7 +91,7 @@
             @click="selectCell(index)" :class="{ selected: selectedCell === index }"
           >
             <transition name="gem-explode">
-              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :style="{ color: gemColors[cell] }">
+              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :class="{'jackpot': cell === 6}" :style="{ color: gemColors[cell] }">
                 {{ gemIcons[cell] }}
               </span>
             </transition>
@@ -113,8 +133,8 @@ const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
 const CLASSIC_DURATION = 60;
 const TIME_ATTACK_DURATION = 30;
-const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴'];
-const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22'];
+const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴', '✨']; // 6번 인덱스가 잭팟 보석
+const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22', '#ffdd57'];
 
 // --- 상태 변수 (Refs) ---
 const gameState = ref('ready');
@@ -138,11 +158,13 @@ const items = ref([
 const purchasedItems = ref(new Set());
 const isScoreBoostActive = ref(false);
 
-// --- [신규] 미션 관련 상태 ---
-const missions = ref([]);
+// --- 미션 관련 상태 ---
+const missions = reactive({ daily: [], weekly: [] });
 const gameStats = reactive({
   gemsMatched: {},
   maxCombo: 0,
+  jackpotGemsMatched: 0,
+  playCount: 0,
 });
 let currentCombo = 0;
 
@@ -190,29 +212,27 @@ const fetchPlayCount = async () => {
   }
 };
 
-// [신규] 미션 불러오기 함수
 const fetchMissions = async () => {
   error.value = '';
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
     const result = await getMissionsFunc();
-    missions.value = result.data;
+    missions.daily = result.data.daily;
+    missions.weekly = result.data.weekly;
   } catch (err) {
     console.error("미션 불러오기 오류:", err);
     error.value = `미션 로딩 실패: ${err.message}`;
   }
 };
 
-// [신규] 미션 보상 수령 함수
 const claimReward = async (mission) => {
   error.value = '';
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
     await claimRewardFunc({ missionId: mission.missionId });
-    // UI 즉시 업데이트
-    mission.claimed = true;
+    mission.claimed = true; // UI 즉시 업데이트
   } catch(err) {
     console.error("미션 보상 수령 오류:", err);
     error.value = `보상 수령 실패: ${err.message}`;
@@ -244,7 +264,11 @@ const toggleMute = () => {
 
 const createBoard = () => {
   let newBoard;
-  do { newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
+  do { 
+    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
+      if (Math.random() < 0.005) return 6; // 0.5% 확률로 잭팟 보석
+      return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+    });
   } while (hasInitialMatches(newBoard)); 
   return newBoard;
 };
@@ -269,7 +293,6 @@ const buyItem = async (item) => {
   }
 };
 
-// [수정] 게임 시작 시 미션 통계 초기화
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
@@ -286,9 +309,11 @@ const startGame = async () => {
     awardedPoints.value = 0;
     board.value = createBoard();
     
-    // [신규] 미션 통계 초기화
+    // 미션 통계 초기화
     gameStats.gemsMatched = {};
     gameStats.maxCombo = 0;
+    gameStats.jackpotGemsMatched = 0;
+    gameStats.playCount = 1;
     currentCombo = 0;
 
     if (gameMode.value === 'classic') timer.value = CLASSIC_DURATION;
@@ -324,7 +349,6 @@ const startGame = async () => {
   }
 };
 
-// [수정] 게임 종료 시 미션 통계 전송
 const endGame = async () => {
   if (timerInterval) clearInterval(timerInterval);
   if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
@@ -340,9 +364,11 @@ const endGame = async () => {
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
-      gameStats: { // [신규] 게임 통계를 백엔드로 전송
+      gameStats: {
         gemsMatched: gameStats.gemsMatched,
         maxCombo: gameStats.maxCombo,
+        jackpotGemsMatched: gameStats.jackpotGemsMatched,
+        playCount: gameStats.playCount,
       }
     }); 
     
@@ -360,7 +386,7 @@ const resetGame = async () => {
   purchasedItems.value.clear();
   explodingGems.value.clear();
   await fetchPlayCount();
-  await fetchMissions(); // [신규] 다시하기 시 미션 진행도 갱신
+  await fetchMissions();
 };
 
 const selectCell = (index) => {
@@ -384,7 +410,7 @@ const swapAndCheck = async (index1, index2) => {
   if (!hasMatches) {
     await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-    currentCombo = 0; // 콤보 초기화
+    currentCombo = 0;
   } else {
     while (await processBoard());
   }
@@ -398,12 +424,11 @@ const processBoard = async () => {
   await new Promise(r => setTimeout(r, 200));
   const hasMoreMatches = await checkAndClearMatches();
   if (!hasMoreMatches) {
-    currentCombo = 0; // 콤보 종료
+    currentCombo = 0;
   }
   return hasMoreMatches;
 };
 
-// [수정] 매치 시 미션 데이터 수집
 const checkAndClearMatches = async () => {
   const matches = new Set();
   for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
@@ -412,7 +437,6 @@ const checkAndClearMatches = async () => {
   if (matches.size > 0) {
     playSound('match');
     
-    // [신규] 미션 통계 수집
     currentCombo++;
     if (currentCombo > gameStats.maxCombo) {
       gameStats.maxCombo = currentCombo;
@@ -420,6 +444,7 @@ const checkAndClearMatches = async () => {
     matches.forEach(index => {
       const gemType = board.value[index];
       if (gemType) {
+        if(gemType === 6) gameStats.jackpotGemsMatched++;
         gameStats.gemsMatched[gemType] = (gameStats.gemsMatched[gemType] || 0) + 1;
       }
     });
@@ -438,11 +463,11 @@ const checkAndClearMatches = async () => {
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
 };
+
 const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
 
-// [수정] onMounted에서 미션과 플레이 횟수를 모두 불러옴
 onMounted(() => {
   fetchPlayCount();
   fetchMissions();
@@ -456,7 +481,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ... 기존 스타일 ... */
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
 .game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
@@ -466,6 +490,11 @@ onUnmounted(() => {
 .cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
 .cell.selected { background-color: #a0a0a0; }
 .gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; }
+.gem.jackpot { animation: jackpot-glow 1.5s ease-in-out infinite; }
+@keyframes jackpot-glow {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.1); filter: brightness(1.5) drop-shadow(0 0 5px #ffdd57); }
+}
 .game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; font-weight: bold; }
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
@@ -480,7 +509,6 @@ onUnmounted(() => {
 .mode-selection { display: flex; gap: 10px; justify-content: center; }
 .mode-selection button { padding: 10px 15px; border: 1px solid #ccc; background-color: #f8f9fa; cursor: pointer; border-radius: 8px; font-weight: bold; transition: all 0.2s; }
 .mode-selection button.active { background-color: #007bff; color: white; border-color: #007bff; }
-.mode-description { margin-top: 10px; color: #666; font-size: 0.9em; min-height: 1em; } /* min-height 수정 */
 .item-shop { display: flex; justify-content: center; gap: 10px; }
 .item { border: 1px solid #ccc; border-radius: 8px; padding: 10px; cursor: pointer; text-align: center; transition: all 0.2s; position: relative; }
 .item:hover { border-color: #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -492,13 +520,12 @@ onUnmounted(() => {
 .score-boost-overlay { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); font-size: 2em; font-weight: bold; color: #e67e22; background-color: rgba(255, 255, 255, 0.9); padding: 5px 15px; border-radius: 20px; z-index: 15; animation: boost-fade 10s linear forwards; }
 @keyframes boost-fade { from { opacity: 1; } to { opacity: 0; } }
 
-/* --- [신규] 미션 관련 스타일 --- */
 .mission-list { display: flex; flex-direction: column; gap: 10px; }
-.mission-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 6px; }
-.mission-desc { font-weight: 500; text-align: left; }
+.mission-item { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 5px 10px; padding: 10px; background-color: #f8f9fa; border-radius: 6px; }
+.mission-desc { grid-column: 1 / 2; font-weight: 500; text-align: left; }
+.mission-status { grid-column: 2 / 3; grid-row: 1 / 2; text-align: right; font-size: 0.9em; }
 .mission-progress-bar { grid-column: 1 / 3; width: 100%; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; }
 .mission-progress-bar .progress { height: 100%; background-color: #28a745; transition: width 0.3s ease; }
-.mission-status { text-align: right; font-size: 0.9em; }
 .mission-status .claimed { color: #28a745; font-weight: bold; }
 .claim-button { padding: 4px 8px; font-size: 0.8em; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
 
