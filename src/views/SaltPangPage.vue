@@ -454,7 +454,10 @@ const swapAndCheck = async (index1, index2) => {
     currentCombo = 0;
     if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   } else {
-    while (await processBoard()){}
+    // [수정] while문의 빈 블록 {} 대신 세미콜론(;)을 사용하여
+    // linter 오류를 해결하고 코드를 더 간결하게 만듭니다.
+    while (await processBoard());
+
     if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   }
   isProcessing.value = false;
