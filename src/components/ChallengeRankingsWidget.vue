@@ -79,107 +79,77 @@ onMounted(fetchRankings);
 </script>
 
 <style scoped>
-.widget-card { 
-    background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%); 
-    color: #fff; 
-    border-radius: 15px; 
-    padding: 20px; 
-    display: flex; 
-    flex-direction: column; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
-    overflow: hidden; /* [신규] 빛나는 효과를 위해 추가 */
-    position: relative; /* [신규] 빛나는 효과를 위해 추가 */
+.widget-card {
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
-.widget-header { 
-    text-align: center; 
-    border-bottom: 1px solid rgba(255,255,255,0.2); 
-    padding-bottom: 10px; 
-    margin-bottom: 15px; 
+.widget-header {
+  margin-bottom: 15px;
 }
-.widget-header h4 { 
-    margin: 0; 
-    font-size: 1.3em; 
-    font-weight: 700; 
+.widget-header h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.2em;
+  text-align: center;
 }
-.week-info { 
-    font-size: 0.85em; 
-    color: #bdc3c7; 
+.tabs {
+  display: flex;
+  justify-content: center;
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 5px;
 }
-.ranking-list { 
-    list-style: none; 
-    padding: 0; 
-    margin: 0; 
+.tabs button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  background-color: transparent;
+  color: #bdc3c7;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
-.ranking-list li { 
-    display: grid; 
-    grid-template-columns: 40px 1fr auto; 
-    gap: 10px; 
-    align-items: center; 
-    padding: 12px 10px; 
-    border-radius: 8px; 
-    transition: background-color 0.2s; 
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+.tabs button.active {
+  background-color: #3498db;
+  color: white;
 }
-.ranking-list li:last-child {
-    border-bottom: none;
+.ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
-.ranking-list li:hover { 
-    background-color: rgba(255,255,255,0.1); 
+.ranking-list li {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 5px;
 }
-.rank { 
-    font-weight: bold; 
-    font-size: 1.2em; 
-    text-align: center; 
+.ranking-list li:not(:last-child) {
+  border-bottom: 1px solid #34495e;
 }
-.name { 
-    font-weight: 500; 
-    font-size: 1.1em; 
+.rank {
+  font-weight: bold;
+  font-size: 1.1em;
+  text-align: center;
 }
-.score { 
-    font-family: monospace; 
-    font-size: 1.2em; 
-    font-weight: bold; 
+.name {
+  font-weight: 500;
 }
-
-/* --- [핵심 수정] 1등 스타일 강화 --- */
-.rank-1 { 
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));
-    box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.3);
-    border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+.score {
+  font-family: monospace;
+  font-size: 1.1em;
 }
-.rank-1 .rank, .rank-1 .name, .rank-1 .score {
-    color: #fff;
-    text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
-}
-.rank .fa-crown { 
-    color: #ffd700; /* 금색 */
-    animation: crown-glow 2s ease-in-out infinite;
-}
-
-@keyframes crown-glow {
-    0%, 100% { filter: drop-shadow(0 0 3px #ffd700); }
-    50% { filter: drop-shadow(0 0 10px #ffed8a); }
-}
-
-/* --- 나머지 순위 스타일 (기존과 동일) --- */
+.rank-1 { background-color: rgba(241, 196, 15, 0.2); }
+.rank-1 .rank { color: #f1c40f; }
+.rank-2 { background-color: rgba(192, 192, 192, 0.2); }
 .rank-2 .rank { color: #c0c0c0; }
+.rank-3 { background-color: rgba(205, 127, 50, 0.2); }
 .rank-3 .rank { color: #cd7f32; }
-
-.widget-footer { 
-    text-align: center; 
-    font-size: 0.8em; 
-    color: #95a5a6; 
-    margin-top: 15px; 
-    padding-top: 10px; 
-    border-top: 1px solid rgba(255,255,255,0.2); 
-}
-.loading-spinner, .no-data { 
-    text-align: center; 
-    padding: 30px 0; 
-    color: #bdc3c7; 
-}
-.no-data p { 
-    margin: 0; 
-    line-height: 1.4; 
-}
+.loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
 </style>
