@@ -602,7 +602,14 @@ onUnmounted(() => {
 .game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
 .game-intro { text-align: center; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
-.game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
+.game-board {
+  display: grid;
+  gap: 4px;
+  border: 2px solid #ccc;
+  padding: 5px;
+  border-radius: 8px;
+  touch-action: none; /* [수정] 이 한 줄을 추가합니다. */
+}
 .cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
 .cell.selected { background-color: #a0a0a0; transform: scale(0.95); }
 .gem-image { width: 90%; height: 90%; object-fit: contain; user-select: none; position: absolute; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
@@ -652,4 +659,4 @@ onUnmounted(() => {
   .game-stats { font-size: 1em; }
   .page-header h1 { font-size: 1.8em; }
 }
-</style>
+</style>2025-09-07
