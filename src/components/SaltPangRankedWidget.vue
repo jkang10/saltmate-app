@@ -68,6 +68,7 @@ const fetchRankings = async () => {
       orderBy('score', 'desc'),
       limit(3)
     );
+    // [수정] getDocs 호출 앞에 await를 명시적으로 추가하여 비동기 작업을 기다립니다.
     const snapshot = await getDocs(q);
     rankings.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
