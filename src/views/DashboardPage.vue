@@ -161,7 +161,17 @@
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, orderBy, limit, getDocs, doc, getDoc, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where, // [수정] 이 부분을 추가하세요.
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+} from "firebase/firestore";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -172,6 +182,7 @@ import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
 import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
+
 
 export default {
   name: "DashboardPage",
