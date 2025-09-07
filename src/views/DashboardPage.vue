@@ -148,6 +148,7 @@
         <WeeklyLeaderboardWidget />
 	<SaltPangHallOfFame />
 	<ChallengeRankingsWidget />
+	<SaltPangRankedWidget /></div>
 	<router-link to="/attendance" class="feature-card events">
 	  <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
 	  <h3>매일매일 출석체크</h3>
@@ -318,6 +319,7 @@ import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
 import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
 import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue"; // [신규 추가]
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue"; // [신규 추가]
+import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue"; // [신규 추가]
 
 export default {
   name: "DashboardPage",
@@ -331,6 +333,7 @@ export default {
     WeeklyLeaderboardWidget, // [수정] 컴포넌트 등록
     SaltPangHallOfFame, // [신규 추가]
     ChallengeRankingsWidget, // [신규 추가]
+    SaltPangRankedWidget, // [신규 추가]
   },
   data() {
     return {
@@ -640,7 +643,7 @@ export default {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
 .performance-card {
-  background: linear-gradient(135deg, #007bff, #0056b3);
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
   color: #fff;
   padding: 25px;
 }
