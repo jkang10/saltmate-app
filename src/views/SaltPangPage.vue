@@ -52,9 +52,18 @@
         <div class="setting-group">
           <h3>게임 모드 선택</h3>
           <div class="mode-selection">
-            <button @click="gameMode = 'classic'" :class="{ active: gameMode === 'classic' }">클래식 모드 (60초)</button>
-            <button @click="gameMode = 'timeAttack'" :class="{ active: gameMode === 'timeAttack' }">타임 어택 (30초 +)</button>
+            <button @click="selectGameMode('classic')" :class="{ active: gameMode === 'classic' }">클래식</button>
+            <button @click="selectGameMode('timeAttack')" :class="{ active: gameMode === 'timeAttack' }">타임 어택</button>
+            <button @click="selectGameMode('infinite')" :class="{ active: gameMode === 'infinite' }">무한 모드</button>
+            <button @click="selectGameMode('ranked')" :class="{ active: gameMode === 'ranked' }" :disabled="!isRankedPlayable">랭킹전</button>
           </div>
+           <p class="mode-description">
+            <span v-if="gameMode === 'classic'">60초 동안 최대한 높은 점수를 획득하세요!</span>
+            <span v-else-if="gameMode === 'timeAttack'">30초로 시작하여 보석을 맞출 때마다 시간이 추가됩니다!</span>
+            <span v-else-if="gameMode === 'infinite'">시간 제한 없이, 30번의 이동으로 최고 점수에 도전하세요!</span>
+            <span v-else-if="gameMode === 'ranked'">주말(토/일)에만 열리는 특별 랭킹전입니다! 높은 입장료, 높은 보상!</span>
+            <span v-if="!isRankedPlayable && gameMode !== 'ranked'" class="ranked-notice">랭킹전은 토/일에만 참여할 수 있습니다.</span>
+          </p>
         </div>
 
         <div class="setting-group">
@@ -79,7 +88,8 @@
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <div class="game-stats">
-          <div class="stat-item">시간: <strong>{{ timer }}</strong></div>
+          <div class="stat-item" v-if="gameMode === 'infinite'">이동: <strong>{{ movesLeft }} / {{ INFINITE_MODE_MOVES }}</strong></div>
+          <div class="stat-item" v-else>시간: <strong>{{ timer }}</strong></div>
           <button @click="toggleMute" class="mute-button">
             <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
           </button>
@@ -111,7 +121,7 @@
         </div>
       </div>
 
-      <div v-if="gameState === 'playing' && timer <= 5 && timer > 0" class="countdown-overlay">
+      <div v-if="gameState === 'playing' && timer <= 5 && timer > 0 && gameMode !== 'infinite'" class="countdown-overlay">
         {{ timer }}
       </div>
     </main>
@@ -133,7 +143,8 @@ const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
 const CLASSIC_DURATION = 60;
 const TIME_ATTACK_DURATION = 30;
-const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴', '✨']; // 6번 인덱스가 잭팟 보석
+const INFINITE_MODE_MOVES = 30;
+const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴', '✨'];
 const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22', '#ffdd57'];
 
 // --- 상태 변수 (Refs) ---
@@ -142,6 +153,7 @@ const gameMode = ref('classic');
 const board = ref([]);
 const score = ref(0);
 const timer = ref(CLASSIC_DURATION);
+const movesLeft = ref(INFINITE_MODE_MOVES);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
@@ -186,18 +198,23 @@ let sessionId = null;
 let scoreBoostTimeout = null;
 
 // --- 계산된 속성 (Computed) ---
+const isRankedPlayable = computed(() => {
+  const today = new Date();
+  const day = today.getDay(); // 0=일요일, 6=토요일
+  return day === 0 || day === 6;
+});
+
 const currentEntryFee = computed(() => {
   if (gameMode.value === 'classic') {
     if (playCount.classic >= 30) return 300;
     if (playCount.classic >= 15) return 200;
     return 100;
   }
-  // [핵심 수정] 타임 어택 모드 입장료는 이제 백엔드에서 결정되므로
-  // 프론트에서는 "변동" 이라고 표시하거나 단순 기본값을 보여줍니다.
-  // 정확한 금액은 게임 시작 버튼을 눌렀을 때 서버로부터 최종 확인됩니다.
   if (gameMode.value === 'timeAttack') { 
-    return "400 ~"; // 예시: "400 ~" 또는 "변동"
+    return "400 ~";
   }
+  if (gameMode.value === 'infinite') return 200;
+  if (gameMode.value === 'ranked') return 500;
   return 100;
 });
 
@@ -237,7 +254,7 @@ const claimReward = async (mission) => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
     await claimRewardFunc({ missionId: mission.missionId });
-    mission.claimed = true; // UI 즉시 업데이트
+    mission.claimed = true;
   } catch(err) {
     console.error("미션 보상 수령 오류:", err);
     error.value = `보상 수령 실패: ${err.message}`;
@@ -271,7 +288,7 @@ const createBoard = () => {
   let newBoard;
   do { 
     newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
-      if (Math.random() < 0.005) return 6; // 0.5% 확률로 잭팟 보석
+      if (Math.random() < 0.005) return 6;
       return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
     });
   } while (hasInitialMatches(newBoard)); 
@@ -298,6 +315,15 @@ const buyItem = async (item) => {
   }
 };
 
+const selectGameMode = (mode) => {
+  if (mode === 'ranked' && !isRankedPlayable.value) {
+    error.value = '랭킹전은 토요일과 일요일에만 참여할 수 있습니다.';
+    return;
+  }
+  error.value = '';
+  gameMode.value = mode;
+};
+
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
@@ -309,12 +335,10 @@ const startGame = async () => {
     const result = await startSession({ gameMode: gameMode.value });
     sessionId = result.data.sessionId;
     
-    // 초기화
     score.value = 0;
     awardedPoints.value = 0;
     board.value = createBoard();
     
-    // 미션 통계 초기화
     gameStats.gemsMatched = {};
     gameStats.maxCombo = 0;
     gameStats.jackpotGemsMatched = 0;
@@ -323,8 +347,14 @@ const startGame = async () => {
 
     if (gameMode.value === 'classic') timer.value = CLASSIC_DURATION;
     else if (gameMode.value === 'timeAttack') timer.value = TIME_ATTACK_DURATION;
+    else if (gameMode.value === 'infinite') {
+      timer.value = 0;
+      movesLeft.value = INFINITE_MODE_MOVES;
+    } else if (gameMode.value === 'ranked') {
+        timer.value = CLASSIC_DURATION; // 랭킹전은 클래식과 동일한 60초
+    }
 
-    if (purchasedItems.value.has('time_plus_5')) timer.value += 5;
+    if (purchasedItems.value.has('time_plus_5') && gameMode.value !== 'infinite') timer.value += 5;
     if (purchasedItems.value.has('score_x2_10s')) {
       scoreBoostTimeout = setTimeout(() => {
         isScoreBoostActive.value = true;
@@ -336,15 +366,17 @@ const startGame = async () => {
     gameState.value = 'playing';
     playSound('background');
 
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      timer.value--;
-      if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) sounds.countdownTick.triggerAttackRelease("C5", "8n");
-      if (timer.value <= 0) {
-        if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
-        endGame();
-      }
-    }, 1000);
+    if (gameMode.value !== 'infinite') {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timer.value--;
+        if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) sounds.countdownTick.triggerAttackRelease("C5", "8n");
+        if (timer.value <= 0) {
+          if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
+          endGame();
+        }
+      }, 1000);
+    }
 
   } catch (err) {
     console.error("게임 시작 오류:", err);
@@ -407,6 +439,10 @@ const selectCell = (index) => {
 };
 
 const swapAndCheck = async (index1, index2) => {
+  if (gameMode.value === 'infinite') {
+    if (movesLeft.value <= 0) return;
+    movesLeft.value--;
+  }
   isProcessing.value = true;
   [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
   await new Promise(r => setTimeout(r, 150));
@@ -416,8 +452,10 @@ const swapAndCheck = async (index1, index2) => {
     await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
     currentCombo = 0;
+    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   } else {
-    while (await processBoard());
+    while (await processBoard()){}
+    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   }
   isProcessing.value = false;
 };
@@ -443,9 +481,8 @@ const checkAndClearMatches = async () => {
     playSound('match');
     
     currentCombo++;
-    if (currentCombo > gameStats.maxCombo) {
-      gameStats.maxCombo = currentCombo;
-    }
+    if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
+    
     matches.forEach(index => {
       const gemType = board.value[index];
       if (gemType) {
@@ -511,9 +548,12 @@ onUnmounted(() => {
 .gem-explode-enter-from, .gem-explode-leave-to { opacity: 0; transform: scale(2) rotate(45deg); }
 .setting-group { margin-bottom: 25px; border-top: 1px solid #eee; padding-top: 20px; }
 .setting-group h3 { margin-bottom: 10px; color: #333; }
-.mode-selection { display: flex; gap: 10px; justify-content: center; }
+.mode-selection { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .mode-selection button { padding: 10px 15px; border: 1px solid #ccc; background-color: #f8f9fa; cursor: pointer; border-radius: 8px; font-weight: bold; transition: all 0.2s; }
 .mode-selection button.active { background-color: #007bff; color: white; border-color: #007bff; }
+.mode-selection button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #e9ecef; color: #6c757d; border-color: #ddd; }
+.mode-description { margin-top: 10px; color: #666; font-size: 0.9em; min-height: 2.7em; }
+.ranked-notice { color: #dc3545; font-weight: 500; }
 .item-shop { display: flex; justify-content: center; gap: 10px; }
 .item { border: 1px solid #ccc; border-radius: 8px; padding: 10px; cursor: pointer; text-align: center; transition: all 0.2s; position: relative; }
 .item:hover { border-color: #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
