@@ -88,8 +88,7 @@
             <span v-else>게임 시작</span>
           </button>
         </div>
-
-      <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
+      </div> <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <div class="game-stats">
           <div class="stat-item" v-if="gameMode === 'infinite'">이동: <strong>{{ movesLeft }} / {{ INFINITE_MODE_MOVES }}</strong></div>
           <div class="stat-item" v-else>시간: <strong>{{ timer }}</strong></div>
@@ -127,9 +126,7 @@
       <div v-if="gameState === 'playing' && timer <= 5 && timer > 0 && gameMode !== 'infinite'" class="countdown-overlay">
         {{ timer }}
       </div>
-    </main>
-
-    <div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
+    </main><div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
   </div>
 </template>
 
