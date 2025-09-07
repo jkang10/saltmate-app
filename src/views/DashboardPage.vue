@@ -147,6 +147,7 @@
         <LeaderboardWidget />
         <WeeklyLeaderboardWidget />
 	<SaltPangHallOfFame />
+	<ChallengeRankingsWidget />
 	<router-link to="/attendance" class="feature-card events">
 	  <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
 	  <h3>매일매일 출석체크</h3>
@@ -315,7 +316,8 @@ import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
 import LiveGameFeed from "@/components/LiveGameFeed.vue";
 import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
 import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
-import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue"; // [신규 추가]s
+import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue"; // [신규 추가]
+import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue"; // [신규 추가]
 
 export default {
   name: "DashboardPage",
@@ -328,6 +330,7 @@ export default {
     LeaderboardWidget,
     WeeklyLeaderboardWidget, // [수정] 컴포넌트 등록
     SaltPangHallOfFame, // [신규 추가]
+    ChallengeRankingsWidget, // [신규 추가]
   },
   data() {
     return {
