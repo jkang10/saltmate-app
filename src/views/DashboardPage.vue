@@ -148,7 +148,7 @@
         <WeeklyLeaderboardWidget />
 	<SaltPangHallOfFame />
 	<ChallengeRankingsWidget />
-	<SaltPangRankedWidget /></div>
+	<SaltPangRankedWidget />
 	<router-link to="/attendance" class="feature-card events">
 	  <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
 	  <h3>매일매일 출석체크</h3>
