@@ -66,7 +66,7 @@
           </p>
         </div>
 
-	<div class="setting-group">
+        <div class="setting-group">
           <h3>아이템 상점 (SaltMate 사용)</h3>
           <div class="item-shop">
             <div v-for="item in items" :key="item.id" class="item" :class="{ purchased: purchasedItems.has(item.id) }" @click="buyItem(item)">
@@ -75,7 +75,7 @@
               <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
             </div>
           </div>
-          <p v-if="gameMode === 'timeAttack'" class="item-notice">
+           <p v-if="gameMode === 'timeAttack'" class="item-notice">
             아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
           </p>
         </div>
@@ -88,7 +88,9 @@
             <span v-else>게임 시작</span>
           </button>
         </div>
-      </div> <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
+      </div>
+
+      <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <div class="game-stats">
           <div class="stat-item" v-if="gameMode === 'infinite'">이동: <strong>{{ movesLeft }} / {{ INFINITE_MODE_MOVES }}</strong></div>
           <div class="stat-item" v-else>시간: <strong>{{ timer }}</strong></div>
@@ -100,12 +102,20 @@
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
           <div
             v-for="(cell, index) in board" :key="index" class="cell"
-            @click="selectCell(index)" :class="{ selected: selectedCell === index }"
+            @click="selectCell(index)"
+            :class="{ selected: selectedCell === index }"
+            @touchstart="handleTouchStart(index, $event)"
+            @touchmove="handleTouchMove($event)"
+            @touchend="handleTouchEnd()"
           >
-            <transition name="gem-explode">
-              <span v-if="cell !== null && !explodingGems.has(index)" class="gem" :class="{'jackpot': cell === 6}" :style="{ color: gemColors[cell] }">
-                {{ gemIcons[cell] }}
-              </span>
+            <transition name="gem-fall">
+              <img
+                v-if="cell !== null"
+                :src="getGemImage(cell)"
+                class="gem-image"
+                :class="{ 'clearing': explodingGems.has(index) }"
+                alt="Gem"
+              />
             </transition>
           </div>
         </div>
@@ -126,7 +136,9 @@
       <div v-if="gameState === 'playing' && timer <= 5 && timer > 0 && gameMode !== 'infinite'" class="countdown-overlay">
         {{ timer }}
       </div>
-    </main><div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
+    </main>
+
+    <div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
   </div>
 </template>
 
@@ -140,12 +152,10 @@ import soundBgm from '@/assets/sounds/bgm.mp3';
 
 // --- 기본 설정 ---
 const BOARD_SIZE = 8;
-const NUM_GEM_TYPES = 5;
+const NUM_GEM_TYPES = 5; // 일반 보석 종류 (1~5)
 const CLASSIC_DURATION = 60;
 const TIME_ATTACK_DURATION = 30;
 const INFINITE_MODE_MOVES = 30;
-const gemIcons = ['💎', '🟡', '🟢', '🔵', '🟣', '🔴', '✨'];
-const gemColors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#e74c3c', '#e67e22', '#ffdd57'];
 
 // --- 상태 변수 (Refs) ---
 const gameState = ref('ready');
@@ -157,7 +167,7 @@ const movesLeft = ref(INFINITE_MODE_MOVES);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
-const isBuyingItem = ref(false); // [신규 추가] 아이템 구매 진행 상태
+const isBuyingItem = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
@@ -180,6 +190,10 @@ const gameStats = reactive({
   playCount: 0,
 });
 let currentCombo = 0;
+
+// --- 스와이프 관련 상태 ---
+const touchStart = reactive({ index: null, x: 0, y: 0 });
+const hasSwiped = ref(false);
 
 // --- 오디오 관련 ---
 let audioContextStarted = false;
@@ -220,6 +234,16 @@ const currentEntryFee = computed(() => {
 });
 
 // --- 함수 ---
+const getGemImage = (gemType) => {
+  if (gemType === null) return '';
+  try {
+    return require(`@/assets/gems/gem_${gemType}.png`);
+  } catch (e) {
+    // 이미지를 찾을 수 없을 경우 대체 이미지나 경로 반환
+    return require(`@/assets/logo.png`); 
+  }
+};
+
 const fetchPlayCount = async () => {
   if (!auth.currentUser) return;
   const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -289,7 +313,7 @@ const createBoard = () => {
   let newBoard;
   do { 
     newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
-      if (Math.random() < 0.005) return 6;
+      if (Math.random() < 0.005) return 6; // 잭팟 보석 (타입 6)
       return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
     });
   } while (hasInitialMatches(newBoard)); 
@@ -302,11 +326,10 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
-// [수정] buyItem 함수 전체를 아래 코드로 교체
 const buyItem = async (item) => {
   if (purchasedItems.value.has(item.id) || isBuyingItem.value) return;
   error.value = '';
-  isBuyingItem.value = true; // 아이템 구매 시작
+  isBuyingItem.value = true;
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
@@ -316,7 +339,7 @@ const buyItem = async (item) => {
     console.error("아이템 구매 오류:", err);
     error.value = `구매 실패: ${err.message}`;
   } finally {
-    isBuyingItem.value = false; // 아이템 구매 종료 (성공/실패 무관)
+    isBuyingItem.value = false;
   }
 };
 
@@ -356,7 +379,7 @@ const startGame = async () => {
       timer.value = 0;
       movesLeft.value = INFINITE_MODE_MOVES;
     } else if (gameMode.value === 'ranked') {
-        timer.value = CLASSIC_DURATION; // 랭킹전은 클래식과 동일한 60초
+        timer.value = CLASSIC_DURATION;
     }
 
     if (purchasedItems.value.has('time_plus_5') && gameMode.value !== 'infinite') timer.value += 5;
@@ -431,10 +454,50 @@ const resetGame = async () => {
   await fetchMissions();
 };
 
-const selectCell = (index) => {
+const handleTouchStart = (index, event) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
+  touchStart.index = index;
+  touchStart.x = event.touches[0].clientX;
+  touchStart.y = event.touches[0].clientY;
+  hasSwiped.value = false;
+};
+
+const handleTouchMove = (event) => {
+  if (touchStart.index === null || hasSwiped.value) return;
+
+  const dx = event.touches[0].clientX - touchStart.x;
+  const dy = event.touches[0].clientY - touchStart.y;
+  const SWIPE_THRESHOLD = 20;
+
+  if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+    hasSwiped.value = true;
+    let targetIndex = -1;
+    const { index } = touchStart;
+    const col = index % BOARD_SIZE;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
+      else if (dx < 0 && col > 0) targetIndex = index - 1;
+    } else {
+      if (dy > 0) targetIndex = index + BOARD_SIZE;
+      else if (dy < 0) targetIndex = index - BOARD_SIZE;
+    }
+
+    if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
+      swapAndCheck(index, targetIndex);
+    }
+  }
+};
+
+const handleTouchEnd = () => {
+  touchStart.index = null;
+};
+
+const selectCell = (index) => {
+  if (hasSwiped.value || isProcessing.value || gameState.value !== 'playing') return;
   initAudioContext();
-  if (selectedCell.value === null) { selectedCell.value = index;
+  if (selectedCell.value === null) {
+    selectedCell.value = index;
   } else {
     const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
     const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
@@ -459,10 +522,7 @@ const swapAndCheck = async (index1, index2) => {
     currentCombo = 0;
     if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   } else {
-    // [수정] while문의 빈 블록 {} 대신 세미콜론(;)을 사용하여
-    // linter 오류를 해결하고 코드를 더 간결하게 만듭니다.
     while (await processBoard());
-
     if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
   }
   isProcessing.value = false;
@@ -471,6 +531,7 @@ const swapAndCheck = async (index1, index2) => {
 const processBoard = async () => {
   await new Promise(r => setTimeout(r, 200));
   dropDownGems();
+  await new Promise(r => setTimeout(r, 200));
   fillEmptyCells();
   await new Promise(r => setTimeout(r, 200));
   const hasMoreMatches = await checkAndClearMatches();
@@ -492,6 +553,7 @@ const checkAndClearMatches = async () => {
     if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
     
     matches.forEach(index => {
+      explodingGems.value.add(index);
       const gemType = board.value[index];
       if (gemType) {
         if(gemType === 6) gameStats.jackpotGemsMatched++;
@@ -504,7 +566,11 @@ const checkAndClearMatches = async () => {
     if (isScoreBoostActive.value) scoreMultiplier = 2;
     score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1) * scoreMultiplier;
     
-    matches.forEach(index => (board.value[index] = null));
+    await new Promise(r => setTimeout(r, 300));
+    matches.forEach(index => {
+      board.value[index] = null;
+      explodingGems.value.delete(index);
+    });
     return true;
   }
   return false;
@@ -531,12 +597,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.item-notice {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #007bff;
-  font-weight: 500;
-}
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
 .game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
@@ -544,13 +604,13 @@ onUnmounted(() => {
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; }
 .cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
-.cell.selected { background-color: #a0a0a0; }
-.gem { font-size: 2em; user-select: none; transition: transform 0.2s; position: absolute; }
-.gem.jackpot { animation: jackpot-glow 1.5s ease-in-out infinite; }
-@keyframes jackpot-glow {
-  0%, 100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.1); filter: brightness(1.5) drop-shadow(0 0 5px #ffdd57); }
-}
+.cell.selected { background-color: #a0a0a0; transform: scale(0.95); }
+.gem-image { width: 90%; height: 90%; object-fit: contain; user-select: none; position: absolute; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.cell.selected .gem-image { transform: scale(1.15); filter: brightness(1.2); }
+.gem-image.clearing { animation: gem-clear 0.3s ease-out forwards; }
+@keyframes gem-clear { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+.gem-fall-enter-active { animation: gem-fall 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes gem-fall { 0% { transform: translateY(-50px) scale(0.5); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 .game-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; font-weight: bold; }
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
@@ -558,8 +618,6 @@ onUnmounted(() => {
 .mute-button { background: none; border: 1px solid #ccc; width: 40px; height: 40px; border-radius: 50%; font-size: 1em; cursor: pointer; color: #555; }
 .countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10em; font-weight: 900; color: rgba(220, 53, 69, 0.7); text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); animation: countdown-pulse 1s ease-in-out infinite; pointer-events: none; z-index: 10; }
 @keyframes countdown-pulse { from { transform: translate(-50%, -50%) scale(1); opacity: 0.7; } to { transform: translate(-50%, -50%) scale(1.15); opacity: 1; } }
-.gem-explode-enter-active, .gem-explode-leave-active { transition: all 0.3s ease-out; }
-.gem-explode-enter-from, .gem-explode-leave-to { opacity: 0; transform: scale(2) rotate(45deg); }
 .setting-group { margin-bottom: 25px; border-top: 1px solid #eee; padding-top: 20px; }
 .setting-group h3 { margin-bottom: 10px; color: #333; }
 .mode-selection { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -587,10 +645,10 @@ onUnmounted(() => {
 .mission-progress-bar .progress { height: 100%; background-color: #28a745; transition: width 0.3s ease; }
 .mission-status .claimed { color: #28a745; font-weight: bold; }
 .claim-button { padding: 4px 8px; font-size: 0.8em; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.item-notice { margin-top: 10px; font-size: 0.9em; color: #007bff; font-weight: 500; }
 
 @media (max-width: 480px) {
   .cell { width: 11vw; height: 11vw; }
-  .gem { font-size: 7vw; }
   .game-stats { font-size: 1em; }
   .page-header h1 { font-size: 1.8em; }
 }
