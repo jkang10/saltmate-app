@@ -66,7 +66,7 @@
           </p>
         </div>
 
-        <div class="setting-group">
+	<div class="setting-group">
           <h3>아이템 상점 (SaltMate 사용)</h3>
           <div class="item-shop">
             <div v-for="item in items" :key="item.id" class="item" :class="{ purchased: purchasedItems.has(item.id) }" @click="buyItem(item)">
@@ -75,16 +75,19 @@
               <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
             </div>
           </div>
+          <p v-if="gameMode === 'timeAttack'" class="item-notice">
+            아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
+          </p>
         </div>
 
         <div class="start-info">
           <p>입장료: <strong>{{ currentEntryFee }} SaltMate</strong></p>
-          <button @click="startGame" class="game-button" :disabled="isStarting">
+          <button @click="startGame" class="game-button" :disabled="isStarting || isBuyingItem">
             <span v-if="isStarting">입장 중...</span>
+            <span v-else-if="isBuyingItem">아이템 구매 중...</span>
             <span v-else>게임 시작</span>
           </button>
         </div>
-      </div>
 
       <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
         <div class="game-stats">
@@ -157,6 +160,7 @@ const movesLeft = ref(INFINITE_MODE_MOVES);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
+const isBuyingItem = ref(false); // [신규 추가] 아이템 구매 진행 상태
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
@@ -301,9 +305,11 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
+// [수정] buyItem 함수 전체를 아래 코드로 교체
 const buyItem = async (item) => {
-  if (purchasedItems.value.has(item.id)) return;
+  if (purchasedItems.value.has(item.id) || isBuyingItem.value) return;
   error.value = '';
+  isBuyingItem.value = true; // 아이템 구매 시작
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
@@ -312,6 +318,8 @@ const buyItem = async (item) => {
   } catch (err) {
     console.error("아이템 구매 오류:", err);
     error.value = `구매 실패: ${err.message}`;
+  } finally {
+    isBuyingItem.value = false; // 아이템 구매 종료 (성공/실패 무관)
   }
 };
 
@@ -526,6 +534,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.item-notice {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+}
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
 .game-container { padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
