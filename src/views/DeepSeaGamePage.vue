@@ -266,56 +266,49 @@
 </template>
 
 <script setup>
-
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
-// 기존 toggleAutoSell 함수를 아래 코드로 교체합니다.
+// [핵심 수정] 페이지를 나갈 때 상태를 저장하는 onUnmounted 로직을 완전히 제거하고,
+// 모든 데이터 변경은 각 기능(toggleAutoSell, sellResources 등) 내에서 즉시 서버에 반영되도록 합니다.
+// 이렇게 하면 데이터 충돌 및 롤백 현상이 사라집니다.
+
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
-    // 로그인하지 않은 경우 UI 변경을 되돌립니다.
     state.autoSellEnabled = !state.autoSellEnabled;
     return;
   }
 
-  // v-model이 상태를 이미 변경했으므로, state.autoSellEnabled는 새로운 목표 값을 가집니다.
   const newEnabledState = state.autoSellEnabled;
-
   try {
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
-    
     const updatePayload = {
       autoSellEnabled: newEnabledState,
     };
-
-    // 자동 판매를 활성화할 때, 즉시 판매되지 않도록 항상 타이머를 리셋합니다.
-    // 비활성화할 때는 타임스탬프를 건드릴 필요가 없습니다.
     if (newEnabledState) {
       updatePayload.lastAutoSellTime = serverTimestamp();
     }
-    
-    // 게임 상태에만 업데이트를 수행합니다.
     await setDoc(gameStateRef, updatePayload, { merge: true });
-
     addLog(`자동 판매 기능이 ${newEnabledState ? "활성화" : "비활성화"}되었습니다.`);
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-    // DB 업데이트에 실패하면, v-model에 의한 변경을 되돌립니다.
     state.autoSellEnabled = !newEnabledState;
   }
 };
 
 const sellFundsForPoints = async () => {
-  if (state.funds <= 0) return alert("판매할 자금이 없습니다.");
+  if (state.funds < gameSettings.deepSeaRate) {
+    return alert(`판매할 자금이 ${gameSettings.deepSeaRate.toLocaleString()} 미만입니다.`);
+  }
   isSellingFunds.value = true;
   try {
     const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
-    const result = await sellFunds({ amountToSell: state.funds });
+    const result = await sellFunds(); // 서버 함수가 모든 자금을 판매하도록 수정됨
     alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
   } catch (error) {
     console.error("자금 판매 오류:", error);
@@ -324,6 +317,8 @@ const sellFundsForPoints = async () => {
     isSellingFunds.value = false;
   }
 };
+
+// --- 이하 모든 코드를 아래 내용으로 교체해주세요 ---
 
 const DEFAULT_STATE = {
   water: 0, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
@@ -338,7 +333,7 @@ const logBox = ref(null);
 const isSellingFunds = ref(false);
 const gameSettings = reactive({ 
   deepSeaRate: 100000,
-  autoSellIntervalMinutes: 10,
+  autoSellIntervalMinutes: 1,
 });
 
 let DB_SAVE_REF = null;
@@ -380,7 +375,7 @@ const ZONE_DEFS = {
 
 const derived = computed(() => {
   const shop = state.shop;
-  const capacity = 200 + (shop.tank || 0) * 300;
+  const capacity = 19700 + (shop.tank || 0) * 300;
   const perSecond = (shop.rov || 0) * 1 + (shop.harvester || 0) * 5;
   const marketMultiplier = 1 + (shop.market || 0) * 0.1;
   return { capacity, perSecond, marketMultiplier };
@@ -431,12 +426,11 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function fmt(n) { return Math.floor(Number(n) || 0); }
 
 function addLog(msg, type = 'normal') {
-  // 'sync' 타입의 로그는 콘솔에만 출력하고, 화면 로그에는 추가하지 않습니다.
   if (type === 'sync') {
     console.log(`[SYNC] ${msg}`);
     return;
   }
-  logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
+  logs.value.unshift(`[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${msg}`);
   if (logs.value.length > 100) logs.value.pop();
   nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
 }
@@ -462,42 +456,21 @@ const activateGoldenTime = async () => {
 };
 
 const collectClick = () => {
-  if (state.water >= derived.value.capacity && state.activeZoneId !== "hydrothermal_vent") {
-    return addLog("저장 공간이 가득 찼습니다!");
+  if (state.water >= derived.value.capacity) {
+     return addLog("저장 공간이 가득 찼습니다!");
   }
-  const chanceMultiplier = 1 + (state.shop.lab || 0) * 0.02;
-  const isGoldenTime = state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date();
-  const chance = isGoldenTime ? chanceMultiplier * 5 : chanceMultiplier;
 
-  switch (state.activeZoneId) {
-    case "default":
-      state.water += 1; if (Math.random() < 0.05 * chance) state.minerals += 1; if (Math.random() < 0.08 * chance) state.research += 1;
-      break;
-    case "coral_reef":
-      state.water += 1; if (Math.random() < 0.01) state.plankton += 1; if (Math.random() < 0.03 * chance) state.minerals += 1;
-      break;
-    case "hydrothermal_vent":
-      if (Math.random() < 0.05 * chance) state.minerals += 1; if (Math.random() < 0.001 * chance) state.relics += 1;
-      break;
-    case "abyssal_trench":
-      state.water += 2; if (Math.random() < 0.1 * chance) state.minerals += 2; if (Math.random() < 0.15 * chance) state.research += 2; if (Math.random() < 0.005 * chance) state.funds += 100000;
-      break;
-  }
+  // 이 함수는 이제 서버에 요청을 보냅니다.
+  callFunction("collectDeepSeaResources").catch(err => {
+      addLog(`채집 오류: ${err.message}`);
+  });
 };
 
 const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0) return alert("판매할 자원이 없습니다.");
   try {
-    const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier) + Math.floor(state.plankton * 15 * derived.value.marketMultiplier);
-    if (DB_SAVE_REF) {
-      await setDoc(DB_SAVE_REF, {
-        funds: increment(revenue),
-        water: 0,
-        plankton: 0,
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-    }
-    addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
+    const result = await callFunction("sellDeepSeaResources");
+    addLog(`자원 판매: +${result.data.revenue.toLocaleString()} 자금`);
   } catch (error) {
     console.error("자원 판매 오류:", error);
     alert(`자원 판매 실패: ${error.message}`);
@@ -539,9 +512,8 @@ function buy(id) {
   if (DB_SAVE_REF) {
     const newLevel = (state.shop[id] || 0) + 1;
     setDoc(DB_SAVE_REF, {
-      funds: state.funds - item.cost,
+      funds: increment(-item.cost),
       shop: { ...state.shop, [id]: newLevel },
-      lastUpdated: serverTimestamp()
     }, { merge: true });
   }
   
@@ -552,8 +524,10 @@ function buy(id) {
 function checkAchievements() {
   ACH_DEFS.forEach((ach) => {
     if (!state.achievements[ach.id] && ach.condition()) {
-      state.achievements[ach.id] = true;
-      addLog(`업적 달성: ${ach.name}`);
+       if(DB_SAVE_REF) {
+           setDoc(DB_SAVE_REF, { achievements: { [ach.id]: true } }, { merge: true });
+           addLog(`업적 달성: ${ach.name}`);
+       }
     }
   });
 }
@@ -561,12 +535,18 @@ function checkAchievements() {
 function runEvent() {
   if (Math.random() < 0.2) {
     const eventType = Math.random();
+    let payload = {};
+    let msg = "";
     if (eventType < 0.5) {
-      addLog("이벤트: 강한 해류 발견! 10초간 수집량 2배!");
-      state.water += derived.value.perSecond * 10 * 2;
+      msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
+      payload = { water: increment(derived.value.perSecond * 10 * 2) };
     } else {
-      addLog("이벤트: 희귀 생물 발견! 연구 데이터 +100!");
-      state.research += 100;
+      msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
+      payload = { research: increment(100) };
+    }
+    if (DB_SAVE_REF) {
+        setDoc(DB_SAVE_REF, payload, { merge: true });
+        addLog(msg);
     }
   }
 }
@@ -579,19 +559,26 @@ const listenToGame = (user) => {
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      if (!state.lastUpdated) { // 첫 로딩 시에만 오프라인 수익 계산
+      const isFirstLoad = !state.lastUpdated;
+
+      if (isFirstLoad) {
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-        const offlineProduction = Math.floor(secondsDiff * ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5));
+        const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
+        const capacity = 19700 + (dbState.shop?.tank || 0) * 300;
+        const offlineProduction = Math.floor(secondsDiff * perSecondProd);
         
         if (offlineProduction > 0) {
-          addLog(`오프라인 동안 ${offlineProduction.toLocaleString()} L의 심층수를 채집했습니다.`);
-          dbState.water = (dbState.water || 0) + offlineProduction;
+          const currentWater = dbState.water || 0;
+          const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
+          addLog(`오프라인 동안 ${fmt(waterAfterOffline - currentWater)} L의 심층수를 채집했습니다.`);
+          dbState.water = waterAfterOffline;
         }
-        addLog("서버와 데이터 동기화 완료.", 'sync'); // 'sync' 타입으로 변경
+        addLog("서버와 데이터 동기화 완료.", 'sync');
       }
       Object.assign(state, dbState);
+
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       addLog("새로운 탐사를 시작합니다. (서버)");
@@ -605,7 +592,6 @@ const listenToGame = (user) => {
 };
 
 function closeTutorial() {
-  state.seenTutorial = true;
   showTutorial.value = false;
   if (DB_SAVE_REF) {
       setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
@@ -623,7 +609,7 @@ onMounted(() => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           gameSettings.deepSeaRate = data.deepSeaRate || 100000;
-          gameSettings.autoSellIntervalMinutes = data.autoSellIntervalMinutes || 10;
+          gameSettings.autoSellIntervalMinutes = data.autoSellIntervalMinutes || 1;
         }
       });
     } else {
@@ -637,6 +623,7 @@ onMounted(() => {
   goldenTimeInterval = setInterval(() => {
     if (isGoldenTimeActive.value) {
       const remaining = state.goldenTimeUntil.toDate().getTime() - new Date().getTime();
+      if (remaining <= 0) return;
       const minutes = Math.floor((remaining / 1000 / 60) % 60);
       const seconds = Math.floor((remaining / 1000) % 60);
       goldenTimeRemaining.value = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
@@ -647,7 +634,10 @@ onMounted(() => {
   tickTimer = setInterval(() => {
     const delta = (Date.now() - lastTick) / 1000;
     lastTick = Date.now();
-    state.water = Math.min(derived.value.capacity, state.water + derived.value.perSecond * delta);
+    const production = derived.value.perSecond * delta;
+    if (production > 0 && state.water < derived.value.capacity) {
+        state.water = Math.min(derived.value.capacity, state.water + production);
+    }
     checkAchievements();
   }, 1000);
   
@@ -661,13 +651,8 @@ onUnmounted(() => {
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-
-  // 페이지를 나갈 때 최종 상태를 저장합니다.
-  if (DB_SAVE_REF) {
-    setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() }, { merge: true });
-  }
+  // [핵심 수정] 페이지를 나갈 때 저장하는 로직을 제거합니다.
 });
-
 </script>
 
 <style scoped>
