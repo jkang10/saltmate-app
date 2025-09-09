@@ -273,6 +273,7 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 
+// [핵심 수정] saveGame() 호출을 완전히 제거하고, 모든 DB 업데이트를 직접 처리합니다.
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
@@ -293,10 +294,9 @@ const toggleAutoSell = async () => {
     }, { merge: true });
 
     await Promise.all([userUpdate, gameStateUpdate]);
-
+    
     // onSnapshot이 DB 변경을 감지하고 state를 자동으로 업데이트하므로,
-    // 여기에서 수동으로 state를 변경할 필요가 없습니다.
-    // state.autoSellEnabled = intendedState; 
+    // 여기에서 수동으로 state를 변경하는 코드를 제거합니다.
 
     addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
 
@@ -427,6 +427,7 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function fmt(n) { return Math.floor(Number(n) || 0); }
 
 function addLog(msg, type = 'normal') {
+  // 'sync' 타입의 로그는 콘솔에만 출력하고, 화면 로그에는 추가하지 않습니다.
   if (type === 'sync') {
     console.log(`[SYNC] ${msg}`);
     return;
@@ -565,7 +566,7 @@ const listenToGame = (user) => {
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      if (!state.lastUpdated) {
+      if (!state.lastUpdated) { // 첫 로딩 시에만 오프라인 수익 계산
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
@@ -575,13 +576,14 @@ const listenToGame = (user) => {
           addLog(`오프라인 동안 ${offlineProduction.toLocaleString()} L의 심층수를 채집했습니다.`);
           dbState.water = (dbState.water || 0) + offlineProduction;
         }
-        addLog("서버와 데이터 동기화 완료.", 'sync');
+        addLog("서버와 데이터 동기화 완료.", 'sync'); // 'sync' 타입으로 변경
       }
       Object.assign(state, dbState);
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       addLog("새로운 탐사를 시작합니다. (서버)");
-      saveGame();
+      // 첫 데이터 생성 시 saveGame() 대신 setDoc 사용
+      if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() }, { merge: true });
     }
     if (!state.seenTutorial) showTutorial.value = true;
   }, (e) => {
@@ -648,21 +650,16 @@ onMounted(() => {
   }, 1000);
   
   eventTimer = setInterval(runEvent, 25000);
-
-  // [핵심 수정] 상태 충돌을 일으키는 autosaveTimer를 제거합니다.
-  // clearInterval(autosaveTimer); 
 });
 
 onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
-  // [핵심 수정] autosaveTimer 정리 코드 제거
-  // clearInterval(autosaveTimer); 
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-  saveGame();
+  saveGame(); // 페이지를 나갈 때 최종 상태를 저장합니다.
 });
 
 </script>
