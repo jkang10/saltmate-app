@@ -598,18 +598,6 @@ const listenToGame = (user) => {
   });
 };
 
-async function saveGame() {
-  if (DB_SAVE_REF) {
-    try {
-      const saveData = { ...state, lastUpdated: serverTimestamp() };
-      await setDoc(DB_SAVE_REF, saveData, { merge: true });
-      console.log("게임 진행 상황이 저장되었습니다.");
-    } catch (e) {
-      console.error("Firestore save error", e);
-    }
-  }
-}
-
 function closeTutorial() {
   state.seenTutorial = true;
   showTutorial.value = false;
