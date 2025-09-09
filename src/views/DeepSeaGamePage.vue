@@ -314,7 +314,7 @@ const activeTab = ref("upgrades");
 const isUnlocking = ref(false);
 let authUnsubscribe = null;
 let settingsUnsubscribe = null;
-let gameStateUnsubscribe = null; // [신규] 게임 상태 리스너 구독 해제 함수
+let gameStateUnsubscribe = null;
 
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
 
@@ -393,7 +393,12 @@ const achievements = computed(() => {
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function fmt(n) { return Math.floor(Number(n) || 0); }
 
-function addLog(msg) {
+function addLog(msg, type = 'normal') {
+  // [수정] 동기화 로그는 콘솔에만 출력하고, 화면 로그에는 추가하지 않음
+  if (type === 'sync') {
+    console.log(`[SYNC] ${msg}`);
+    return;
+  }
   logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
   if (logs.value.length > 100) logs.value.pop();
   nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
@@ -404,46 +409,38 @@ async function callFunction(name, data) {
   return await func(data);
 }
 
+// [핵심 수정] toggleAutoSell 함수 로직 변경
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
     return;
   }
-
+  
   const intendedState = !state.autoSellEnabled;
 
   try {
     const userRef = doc(db, "users", authUser.value.uid);
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     
-    // DB에 업데이트할 내용들을 미리 정의합니다.
-    const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
-    
-    const gameStateUpdatePayload = { 
+    // DB 업데이트를 먼저 보냅니다.
+    await setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    await setDoc(gameStateRef, { 
       autoSellEnabled: intendedState,
       ...(intendedState && { lastAutoSellTime: serverTimestamp() })
-    };
-    const gameStateUpdate = setDoc(gameStateRef, gameStateUpdatePayload, { merge: true });
+    }, { merge: true });
 
-    // Promise.all을 사용하여 모든 DB 업데이트를 병렬로 실행하고 기다립니다.
-    await Promise.all([userUpdate, gameStateUpdate]);
-
-    // [핵심 수정] DB 업데이트가 성공한 후, 프론트엔드의 상태(state)를 명시적으로 업데이트합니다.
-    // 이 코드가 누락되어 화면이 갱신되지 않았습니다.
+    // DB 업데이트 성공 후, 프론트엔드 상태를 수동으로 업데이트합니다.
+    // 이렇게 하면 onSnapshot 리스너가 자신의 변경사항을 다시 받아 덮어쓰는 것을 방지합니다.
     state.autoSellEnabled = intendedState;
 
-    addLog(
-      `자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`
-    );
+    addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
 
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-    // 오류가 발생하면 UI 상태를 원래대로 되돌리지 않습니다.
-    // 이는 사용자가 재시도할 수 있도록 하기 위함이며,
-    // 실시간 리스너(onSnapshot)가 결국 DB의 최종 상태를 가져와 동기화합니다.
   }
 };
+
 
 const activateGoldenTime = async () => {
   if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?")) return;
@@ -561,18 +558,15 @@ function runEvent() {
   }
 }
 
-// [핵심 수정] loadGame을 listenToGame으로 변경하여 실시간 감지
 const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
-
-  if (gameStateUnsubscribe) gameStateUnsubscribe(); // 기존 리스너 정리
+  if (gameStateUnsubscribe) gameStateUnsubscribe();
 
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      // 오프라인 생산량 계산은 첫 로딩 시에만 한번 수행
-      if (!state.lastUpdated) {
+      if (!state.lastUpdated) { // 첫 로딩 시에만 오프라인 수익 계산
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
@@ -582,13 +576,13 @@ const listenToGame = (user) => {
           addLog(`오프라인 동안 ${offlineProduction.toLocaleString()} L의 심층수를 채집했습니다.`);
           dbState.water = (dbState.water || 0) + offlineProduction;
         }
+        addLog("서버와 데이터 동기화 완료.", 'sync');
       }
       Object.assign(state, dbState);
-      addLog("서버와 데이터 동기화 완료.");
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       addLog("새로운 탐사를 시작합니다. (서버)");
-      saveGame(); // 최초 데이터 생성
+      saveGame();
     }
     if (!state.seenTutorial) showTutorial.value = true;
   }, (e) => {
@@ -596,7 +590,6 @@ const listenToGame = (user) => {
     addLog("서버 데이터 동기화 실패.");
   });
 };
-
 
 async function saveGame() {
   if (DB_SAVE_REF) {
@@ -620,7 +613,7 @@ onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
-      listenToGame(user); // [핵심 수정] getDoc -> onSnapshot으로 변경
+      listenToGame(user);
       
       const configRef = doc(db, "configuration", "gameSettings");
       settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
@@ -632,7 +625,7 @@ onMounted(() => {
       });
     } else {
       if (settingsUnsubscribe) settingsUnsubscribe();
-      if (gameStateUnsubscribe) gameStateUnsubscribe(); // [신규] 로그아웃 시 리스너 정리
+      if (gameStateUnsubscribe) gameStateUnsubscribe();
       addLog("로그인이 필요합니다.");
     }
   });
@@ -665,7 +658,7 @@ onUnmounted(() => {
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
-  if (gameStateUnsubscribe) gameStateUnsubscribe(); // [신규] 컴포넌트 파괴 시 리스너 정리
+  if (gameStateUnsubscribe) gameStateUnsubscribe();
   saveGame();
 });
 
