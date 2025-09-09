@@ -295,12 +295,6 @@ const DEFAULT_STATE = {
   lastUpdated: null,
 };
 
-// [신규 추가] 관리자 설정값을 저장할 반응형 객체
-const gameSettings = reactive({ 
-  deepSeaRate: 100000,
-  autoSellIntervalMinutes: 10, // 기본값 10분
-});
-
 const state = reactive(clone(DEFAULT_STATE));
 let settingsUnsubscribe = null; // [신규 추가] 설정 리스너 구독 해제 함수
 const logs = ref([]);
