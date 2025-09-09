@@ -599,7 +599,7 @@ function closeTutorial() {
   }
 }
 
-2025-09-09onMounted(() => {
+onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
