@@ -339,7 +339,7 @@ const gameSettings = reactive({
 
 let DB_SAVE_REF = null;
 let lastTick = Date.now();
-let tickTimer, eventTimer, autosaveTimer, goldenTimeInterval;
+let tickTimer, eventTimer, goldenTimeInterval;
 const authUser = ref(null);
 const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
