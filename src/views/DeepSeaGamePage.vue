@@ -285,9 +285,8 @@ const toggleAutoSell = async () => {
     const userRef = doc(db, "users", authUser.value.uid);
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     
+    // DB 업데이트를 먼저 보냅니다.
     const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
-    
-    // [핵심 수정] autoSellEnabled 상태도 함께 저장하도록 변경
     const gameStateUpdate = setDoc(gameStateRef, { 
       autoSellEnabled: intendedState,
       ...(intendedState && { lastAutoSellTime: serverTimestamp() })
@@ -484,11 +483,11 @@ const sellResources = async () => {
     const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier) + Math.floor(state.plankton * 15 * derived.value.marketMultiplier);
     
     if (DB_SAVE_REF) {
-      // [핵심 수정] admin.firestore.FieldValue.increment -> increment 로 변경
       await setDoc(DB_SAVE_REF, {
         funds: increment(revenue),
         water: 0,
         plankton: 0,
+        lastUpdated: serverTimestamp()
       }, { merge: true });
     }
     addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
@@ -499,9 +498,10 @@ const sellResources = async () => {
 };
 
 const setActiveZone = async (zoneId) => {
-  state.activeZoneId = zoneId;
+  if (DB_SAVE_REF) {
+    await setDoc(DB_SAVE_REF, { activeZoneId: zoneId }, { merge: true });
+  }
   addLog(`'${ZONE_DEFS[zoneId].name}' 지역 탐사를 시작합니다.`);
-  await saveGame();
 };
 
 const unlockZone = async (zoneId) => {
@@ -509,7 +509,6 @@ const unlockZone = async (zoneId) => {
   if (!zone || !zone.canUnlock) return;
   isUnlocking.value = true;
   try {
-    // await saveGame(); // 이 라인 삭제
     const result = await callFunction("unlockExplorationZone", { zoneId });
     alert(result.data.message);
     addLog(result.data.message);
@@ -530,18 +529,17 @@ function buy(id) {
   const item = shopItems.value.find((i) => i.id === id);
   if (!item.canAfford) return alert("자금이 부족합니다.");
 
-  // [핵심 수정] DB 업데이트를 직접 수행하도록 변경
   if (DB_SAVE_REF) {
     const newLevel = (state.shop[id] || 0) + 1;
     setDoc(DB_SAVE_REF, {
       funds: state.funds - item.cost,
-      shop: { ...state.shop, [id]: newLevel }
+      shop: { ...state.shop, [id]: newLevel },
+      lastUpdated: serverTimestamp()
     }, { merge: true });
   }
   
   addLog(`${item.name} 구매`);
   checkAchievements();
-  // saveGame(); // 이 라인 삭제
 }
 
 function checkAchievements() {
@@ -615,7 +613,6 @@ async function saveGame() {
 function closeTutorial() {
   state.seenTutorial = true;
   showTutorial.value = false;
-  // saveGame(); // 이 라인 삭제
   if (DB_SAVE_REF) {
       setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
   }
@@ -670,7 +667,11 @@ onUnmounted(() => {
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-  saveGame(); // 페이지를 나갈 때 최종 상태를 저장합니다.
+
+  // 페이지를 나갈 때 최종 상태를 저장합니다.
+  if (DB_SAVE_REF) {
+    setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() }, { merge: true });
+  }
 });
 
 </script>
