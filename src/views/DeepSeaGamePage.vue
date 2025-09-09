@@ -470,33 +470,34 @@ async function callFunction(name, data) {
 }
 
 const toggleAutoSell = async () => {
-  // authUser.value가 없으면 함수를 실행하지 않습니다.
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
-    // 스위치를 원래 상태로 되돌립니다.
     state.autoSellEnabled = !state.autoSellEnabled; 
     return;
   }
 
   try {
-    // 1. [신규] 사용자(users) 문서에 deepSeaAutoSellEnabled 필드를 직접 업데이트합니다.
-    // 백엔드 함수가 이 필드를 기준으로 자동 판매 대상을 찾습니다.
     const userRef = doc(db, "users", authUser.value.uid);
     await setDoc(userRef, {
       deepSeaAutoSellEnabled: state.autoSellEnabled
     }, { merge: true });
 
-    // 2. 기존과 동일하게 게임 상태(game_state)도 저장합니다.
-    await saveGame();
+    // [핵심 수정] 자동 판매를 켤 때 lastAutoSellTime 필드를 초기화합니다.
+    // 이렇게 하면 다음 1분 스케줄에 바로 판매가 실행될 수 있습니다.
+    if (state.autoSellEnabled) {
+      const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
+      await setDoc(gameStateRef, { 
+        lastAutoSellTime: serverTimestamp() 
+      }, { merge: true });
+    }
     
-    addLog(
-      `자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`
-    );
+    await saveGame(); // autoSellEnabled 상태를 저장합니다.
+    
+    addLog(`자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`);
 
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-    // 오류 발생 시 스위치를 원래 상태로 되돌립니다.
     state.autoSellEnabled = !state.autoSellEnabled;
   }
 };
