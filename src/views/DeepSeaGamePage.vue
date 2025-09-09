@@ -338,7 +338,6 @@ const gameSettings = reactive({
 
 let DB_SAVE_REF = null;
 // [수정] 아래 줄에서 'lastTick'과 'tickTimer'를 삭제합니다.
-let eventTimer, goldenTimeInterval; 
 const authUser = ref(null);
 const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
