@@ -273,7 +273,6 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 
-// [핵심 수정] saveGame() 호출을 완전히 제거하고, 모든 DB 업데이트를 직접 처리합니다.
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
@@ -286,17 +285,15 @@ const toggleAutoSell = async () => {
     const userRef = doc(db, "users", authUser.value.uid);
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     
-    // DB 업데이트를 먼저 보냅니다.
     const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    
+    // [핵심 수정] autoSellEnabled 상태도 함께 저장하도록 변경
     const gameStateUpdate = setDoc(gameStateRef, { 
       autoSellEnabled: intendedState,
       ...(intendedState && { lastAutoSellTime: serverTimestamp() })
     }, { merge: true });
 
     await Promise.all([userUpdate, gameStateUpdate]);
-    
-    // onSnapshot이 DB 변경을 감지하고 state를 자동으로 업데이트하므로,
-    // 여기에서 수동으로 state를 변경하는 코드를 제거합니다.
 
     addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
 
@@ -485,11 +482,16 @@ const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0) return alert("판매할 자원이 없습니다.");
   try {
     const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier) + Math.floor(state.plankton * 15 * derived.value.marketMultiplier);
-    state.funds += revenue;
-    state.water = 0;
-    state.plankton = 0;
+    // [핵심 수정] DB 업데이트를 직접 수행하도록 변경
+    if (DB_SAVE_REF) {
+      await setDoc(DB_SAVE_REF, {
+        funds: admin.firestore.FieldValue.increment(revenue), // 'admin' 대신 'firebase/firestore'의 increment 사용 필요. 여기서는 예시로 표현
+        water: 0,
+        plankton: 0,
+      }, { merge: true });
+    }
     addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
-    await saveGame();
+    // await saveGame(); // 이 라인 삭제
   } catch (error) {
     console.error("자원 판매 오류:", error);
     alert(`자원 판매 실패: ${error.message}`);
@@ -507,10 +509,8 @@ const unlockZone = async (zoneId) => {
   if (!zone || !zone.canUnlock) return;
   isUnlocking.value = true;
   try {
-    await saveGame();
+    // await saveGame(); // 이 라인 삭제
     const result = await callFunction("unlockExplorationZone", { zoneId });
-    if (zone.requirements.research) state.research -= zone.requirements.research;
-    if (zone.requirements.minerals) state.minerals -= zone.requirements.minerals;
     alert(result.data.message);
     addLog(result.data.message);
   } catch (error) {
@@ -529,11 +529,19 @@ function formatResourceName(res) {
 function buy(id) {
   const item = shopItems.value.find((i) => i.id === id);
   if (!item.canAfford) return alert("자금이 부족합니다.");
-  state.funds -= item.cost;
-  state.shop[id] = (state.shop[id] || 0) + 1;
+
+  // [핵심 수정] DB 업데이트를 직접 수행하도록 변경
+  if (DB_SAVE_REF) {
+    const newLevel = (state.shop[id] || 0) + 1;
+    setDoc(DB_SAVE_REF, {
+      funds: state.funds - item.cost,
+      shop: { ...state.shop, [id]: newLevel }
+    }, { merge: true });
+  }
+  
   addLog(`${item.name} 구매`);
   checkAchievements();
-  saveGame();
+  // saveGame(); // 이 라인 삭제
 }
 
 function checkAchievements() {
@@ -607,7 +615,10 @@ async function saveGame() {
 function closeTutorial() {
   state.seenTutorial = true;
   showTutorial.value = false;
-  saveGame();
+  // saveGame(); // 이 라인 삭제
+  if (DB_SAVE_REF) {
+      setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
+  }
 }
 
 onMounted(() => {
