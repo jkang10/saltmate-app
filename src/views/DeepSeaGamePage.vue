@@ -321,7 +321,7 @@ const sellFundsForPoints = async () => {
 // --- 이하 모든 코드를 아래 내용으로 교체해주세요 ---
 
 const DEFAULT_STATE = {
-  water: 0, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
+  water: 0,   capacity: 200, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
   shop: {}, achievements: {}, seenTutorial: false, goldenTimeUntil: null,
   unlockedZones: { default: true }, activeZoneId: "default", autoSellEnabled: false, lastUpdated: null,
 };
@@ -375,7 +375,8 @@ const ZONE_DEFS = {
 
 const derived = computed(() => {
   const shop = state.shop;
-  const capacity = 19700 + (shop.tank || 0) * 300;
+  // [수정] 아래 코드의 '19700'을 'state.capacity'로 변경해주세요.
+  const capacity = (state.capacity || 200) + (shop.tank || 0) * 300; 
   const perSecond = (shop.rov || 0) * 1 + (shop.harvester || 0) * 5;
   const marketMultiplier = 1 + (shop.market || 0) * 0.1;
   return { capacity, perSecond, marketMultiplier };
@@ -598,7 +599,7 @@ function closeTutorial() {
   }
 }
 
-onMounted(() => {
+2025-09-09onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
@@ -618,6 +619,23 @@ onMounted(() => {
       addLog("로그인이 필요합니다.");
     }
   });
+
+  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
+  goldenTimeInterval = setInterval(() => {
+    if (isGoldenTimeActive.value) {
+      const remaining = state.goldenTimeUntil.toDate().getTime() - new Date().getTime();
+      if (remaining <= 0) return;
+      const minutes = Math.floor((remaining / 1000 / 60) % 60);
+      const seconds = Math.floor((remaining / 1000) % 60);
+      goldenTimeRemaining.value = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+  }, 1000);
+  
+  // [핵심 수정] 클라이언트에서 자체적으로 자원을 생산하던 tickTimer 로직을 제거합니다.
+  // clearInterval(tickTimer); // 이 줄도 필요 없으므로 제거하거나 주석 처리합니다.
+  
+  eventTimer = setInterval(runEvent, 25000);
+});
 
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   goldenTimeInterval = setInterval(() => {
