@@ -470,34 +470,34 @@ async function callFunction(name, data) {
 }
 
 const toggleAutoSell = async () => {
-  await saveGame();
-  addLog(
-    `자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`,
-  );
-};
-
-const sellFundsForPoints = async () => {
-  if (state.funds < gameSettings.deepSeaRate)
-    return alert(
-      `최소 ${gameSettings.deepSeaRate.toLocaleString()} 자금이 필요합니다.`,
-    );
-  if (!confirm(`${fmt(state.funds).toLocaleString()} 자금을 판매하시겠습니까?`))
+  // authUser.value가 없으면 함수를 실행하지 않습니다.
+  if (!authUser.value) {
+    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
+    // 스위치를 원래 상태로 되돌립니다.
+    state.autoSellEnabled = !state.autoSellEnabled; 
     return;
-  isSellingFunds.value = true;
+  }
+
   try {
+    // 1. [신규] 사용자(users) 문서에 deepSeaAutoSellEnabled 필드를 직접 업데이트합니다.
+    // 백엔드 함수가 이 필드를 기준으로 자동 판매 대상을 찾습니다.
+    const userRef = doc(db, "users", authUser.value.uid);
+    await setDoc(userRef, {
+      deepSeaAutoSellEnabled: state.autoSellEnabled
+    }, { merge: true });
+
+    // 2. 기존과 동일하게 게임 상태(game_state)도 저장합니다.
     await saveGame();
-    const result = await callFunction("sellDeepSeaFunds");
-    const { awardedPoints, soldFunds } = result.data;
-    state.funds = 0;
-    alert(
-      `성공! ${soldFunds.toLocaleString()} 자금을 판매하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`,
+    
+    addLog(
+      `자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`
     );
-    addLog(`자금 판매: +${awardedPoints.toLocaleString()} SaltMate`);
+
   } catch (error) {
-    console.error("자금 판매 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isSellingFunds.value = false;
+    console.error("자동 판매 상태 변경 실패:", error);
+    addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
+    // 오류 발생 시 스위치를 원래 상태로 되돌립니다.
+    state.autoSellEnabled = !state.autoSellEnabled;
   }
 };
 
