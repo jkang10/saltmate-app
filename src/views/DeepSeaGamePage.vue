@@ -273,6 +273,8 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
+// 기존 toggleAutoSell 함수를 아래 코드로 교체합니다.
+
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
@@ -287,6 +289,7 @@ const toggleAutoSell = async () => {
     
     // DB 업데이트를 먼저 보냅니다.
     const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    
     const gameStateUpdate = setDoc(gameStateRef, { 
       autoSellEnabled: intendedState,
       ...(intendedState && { lastAutoSellTime: serverTimestamp() })
@@ -481,7 +484,6 @@ const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0) return alert("판매할 자원이 없습니다.");
   try {
     const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier) + Math.floor(state.plankton * 15 * derived.value.marketMultiplier);
-    
     if (DB_SAVE_REF) {
       await setDoc(DB_SAVE_REF, {
         funds: increment(revenue),
@@ -588,7 +590,6 @@ const listenToGame = (user) => {
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       addLog("새로운 탐사를 시작합니다. (서버)");
-      // 첫 데이터 생성 시 saveGame() 대신 setDoc 사용
       if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() }, { merge: true });
     }
     if (!state.seenTutorial) showTutorial.value = true;
