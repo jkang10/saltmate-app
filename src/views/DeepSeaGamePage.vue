@@ -271,7 +271,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 
 const sellFundsForPoints = async () => {
   if (state.funds <= 0) return alert("판매할 자금이 없습니다.");
