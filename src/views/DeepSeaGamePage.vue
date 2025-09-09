@@ -371,7 +371,7 @@ const ZONE_DEFS = {
   default: { name: "기본 해역", icon: "fas fa-water" },
   coral_reef: { name: "산호초 군락", icon: "fas fa-fish", requirements: { research: 5000 } },
   hydrothermal_vent: { name: "열수 분출구", icon: "fas fa-fire", requirements: { research: 50000, minerals: 30000 } },
-  abyssal_trench: { name: "심해 해구", icon: "fas fa-skull-crossbones", requirements: { research: 200000, allUpgradesLevel: 25 } },
+  abyssal_trench: { name: "심해 해구", icon: "fas fa-skull-crossbones", requirements: { research: 200000, allUpgradesLevel: 35 } },
 };
 
 const derived = computed(() => {

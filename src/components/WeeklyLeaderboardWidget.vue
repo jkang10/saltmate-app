@@ -1,6 +1,6 @@
 <template>
   <div class="leaderboard-widget card">
-    <h3><i class="fas fa-trophy"></i> 주간 TOP 7</h3>
+    <h3><i class="fas fa-trophy"></i> 주간 SaltMate TOP 7</h3>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner-small"></div>
     </div>
@@ -43,13 +43,16 @@ const fetchWeeklyWinners = async () => {
   error.value = null;
   try {
     const today = new Date();
-    const dayOfWeek = today.getDay();
+    
+    // [핵심 수정] 서버와 동일한 방식으로 '지난주'를 계산합니다.
+    // 1. 오늘로부터 7일 전의 날짜를 기준으로 합니다.
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
 
-    const lastSunday = new Date(today);
-    lastSunday.setDate(today.getDate() - dayOfWeek);
-
-    const lastMonday = new Date(lastSunday);
-    lastMonday.setDate(lastSunday.getDate() - 6);
+    // 2. 그 날짜가 속한 주의 월요일을 찾습니다.
+    const dayOfWeek = sevenDaysAgo.getDay(); // 0(일) ~ 6(토)
+    const lastMonday = new Date(sevenDaysAgo);
+    lastMonday.setDate(sevenDaysAgo.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)); // 월요일로 보정
     
     const weekId = lastMonday.toISOString().slice(0, 10);
 

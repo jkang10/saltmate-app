@@ -1,7 +1,7 @@
 <template>
   <div class="feature-card leaderboard">
     <div class="card-icon"><i class="fas fa-crown"></i></div>
-    <h3>오늘의 TOP 7</h3>
+    <h3>오늘의 SaltMate TOP 7</h3>
     <ol class="leaderboard-list">
       <li
         v-for="(winner, index) in winners"
