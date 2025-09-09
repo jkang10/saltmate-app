@@ -274,34 +274,39 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
 // 기존 toggleAutoSell 함수를 아래 코드로 교체합니다.
-
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
+    // 로그인하지 않은 경우 UI 변경을 되돌립니다.
+    state.autoSellEnabled = !state.autoSellEnabled;
     return;
   }
-  
-  const intendedState = !state.autoSellEnabled;
+
+  // v-model이 상태를 이미 변경했으므로, state.autoSellEnabled는 새로운 목표 값을 가집니다.
+  const newEnabledState = state.autoSellEnabled;
 
   try {
-    const userRef = doc(db, "users", authUser.value.uid);
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     
-    // DB 업데이트를 먼저 보냅니다.
-    const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    const updatePayload = {
+      autoSellEnabled: newEnabledState,
+    };
+
+    // 자동 판매를 활성화할 때, 즉시 판매되지 않도록 항상 타이머를 리셋합니다.
+    // 비활성화할 때는 타임스탬프를 건드릴 필요가 없습니다.
+    if (newEnabledState) {
+      updatePayload.lastAutoSellTime = serverTimestamp();
+    }
     
-    const gameStateUpdate = setDoc(gameStateRef, { 
-      autoSellEnabled: intendedState,
-      ...(intendedState && { lastAutoSellTime: serverTimestamp() })
-    }, { merge: true });
+    // 게임 상태에만 업데이트를 수행합니다.
+    await setDoc(gameStateRef, updatePayload, { merge: true });
 
-    await Promise.all([userUpdate, gameStateUpdate]);
-
-    addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
-
+    addLog(`자동 판매 기능이 ${newEnabledState ? "활성화" : "비활성화"}되었습니다.`);
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
+    // DB 업데이트에 실패하면, v-model에 의한 변경을 되돌립니다.
+    state.autoSellEnabled = !newEnabledState;
   }
 };
 
