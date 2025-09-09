@@ -93,14 +93,14 @@
             현재 시세: {{ gameSettings.deepSeaRate.toLocaleString() }} 자금 = 1
             SaltMate
           </p>
-          <button
-            class="btn sell-all-btn"
-            @click="sellFundsForPoints"
-            :disabled="isSellingFunds || state.funds < gameSettings.deepSeaRate"
-          >
-            <span v-if="isSellingFunds" class="spinner-small"></span>
-            <span v-else>모두 판매하기</span>
-          </button>
+	<button
+	  class="btn sell-all-btn"
+	  @click="sellFundsForPoints"
+	  :disabled="isSellingFunds"
+	>
+	  <span v-if="isSellingFunds" class="spinner-small"></span>
+	  <span v-else>모두 판매하기</span>
+	</button>
         </div>
 
         <div class="resources-grid">
