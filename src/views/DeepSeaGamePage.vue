@@ -278,6 +278,24 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+const sellFundsForPoints = async () => {
+  if (state.funds <= 0) return alert("판매할 자금이 없습니다.");
+  isSellingFunds.value = true;
+  try {
+    const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
+    // [핵심 수정] 현재 보유 자금(state.funds)을 amountToSell 파라미터로 전달합니다.
+    const result = await sellFunds({ amountToSell: state.funds });
+    
+    alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
+    // state.funds는 실시간 리스너를 통해 자동으로 갱신됩니다.
+  } catch (error) {
+    console.error("자금 판매 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isSellingFunds.value = false;
+  }
+};
+
 const DEFAULT_STATE = {
   water: 0,
   minerals: 0,
