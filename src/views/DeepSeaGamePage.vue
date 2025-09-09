@@ -273,6 +273,39 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 
+// [핵심 수정] 이 함수는 더 이상 saveGame()을 호출하지 않고, 필요한 모든 DB 업데이트를 직접 처리합니다.
+const toggleAutoSell = async () => {
+  if (!authUser.value) {
+    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
+    return;
+  }
+  
+  const intendedState = !state.autoSellEnabled;
+
+  try {
+    const userRef = doc(db, "users", authUser.value.uid);
+    const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
+    
+    // DB 업데이트를 먼저 보냅니다.
+    const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    const gameStateUpdate = setDoc(gameStateRef, { 
+      autoSellEnabled: intendedState,
+      ...(intendedState && { lastAutoSellTime: serverTimestamp() }) // 켤 때만 시간 기록
+    }, { merge: true });
+
+    await Promise.all([userUpdate, gameStateUpdate]);
+
+    // DB 업데이트 성공 후, 프론트엔드 상태를 수동으로 업데이트합니다.
+    state.autoSellEnabled = intendedState;
+
+    addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
+
+  } catch (error) {
+    console.error("자동 판매 상태 변경 실패:", error);
+    addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
+  }
+};
+
 const sellFundsForPoints = async () => {
   if (state.funds <= 0) return alert("판매할 자금이 없습니다.");
   isSellingFunds.value = true;
@@ -394,7 +427,6 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function fmt(n) { return Math.floor(Number(n) || 0); }
 
 function addLog(msg, type = 'normal') {
-  // [수정] 동기화 로그는 콘솔에만 출력하고, 화면 로그에는 추가하지 않음
   if (type === 'sync') {
     console.log(`[SYNC] ${msg}`);
     return;
@@ -408,39 +440,6 @@ async function callFunction(name, data) {
   const func = httpsCallable(functions, name);
   return await func(data);
 }
-
-// [핵심 수정] toggleAutoSell 함수 로직 변경
-const toggleAutoSell = async () => {
-  if (!authUser.value) {
-    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
-    return;
-  }
-  
-  const intendedState = !state.autoSellEnabled;
-
-  try {
-    const userRef = doc(db, "users", authUser.value.uid);
-    const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
-    
-    // DB 업데이트를 먼저 보냅니다.
-    await setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
-    await setDoc(gameStateRef, { 
-      autoSellEnabled: intendedState,
-      ...(intendedState && { lastAutoSellTime: serverTimestamp() })
-    }, { merge: true });
-
-    // DB 업데이트 성공 후, 프론트엔드 상태를 수동으로 업데이트합니다.
-    // 이렇게 하면 onSnapshot 리스너가 자신의 변경사항을 다시 받아 덮어쓰는 것을 방지합니다.
-    state.autoSellEnabled = intendedState;
-
-    addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
-
-  } catch (error) {
-    console.error("자동 판매 상태 변경 실패:", error);
-    addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-  }
-};
-
 
 const activateGoldenTime = async () => {
   if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?")) return;
@@ -566,7 +565,7 @@ const listenToGame = (user) => {
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      if (!state.lastUpdated) { // 첫 로딩 시에만 오프라인 수익 계산
+      if (!state.lastUpdated) {
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
