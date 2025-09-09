@@ -314,7 +314,6 @@ const goldenTimeRemaining = ref("00:00");
 const activeTab = ref("upgrades");
 const isUnlocking = ref(false);
 let authUnsubscribe = null;
-let settingsUnsubscribe = null;
 
 const isGoldenTimeActive = computed(
   () => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date(),
