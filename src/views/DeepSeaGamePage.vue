@@ -273,7 +273,6 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 
-// [핵심 수정] 이 함수는 더 이상 saveGame()을 호출하지 않고, 필요한 모든 DB 업데이트를 직접 처리합니다.
 const toggleAutoSell = async () => {
   if (!authUser.value) {
     addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
@@ -290,13 +289,14 @@ const toggleAutoSell = async () => {
     const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
     const gameStateUpdate = setDoc(gameStateRef, { 
       autoSellEnabled: intendedState,
-      ...(intendedState && { lastAutoSellTime: serverTimestamp() }) // 켤 때만 시간 기록
+      ...(intendedState && { lastAutoSellTime: serverTimestamp() })
     }, { merge: true });
 
     await Promise.all([userUpdate, gameStateUpdate]);
 
-    // DB 업데이트 성공 후, 프론트엔드 상태를 수동으로 업데이트합니다.
-    state.autoSellEnabled = intendedState;
+    // onSnapshot이 DB 변경을 감지하고 state를 자동으로 업데이트하므로,
+    // 여기에서 수동으로 state를 변경할 필요가 없습니다.
+    // state.autoSellEnabled = intendedState; 
 
     addLog(`자동 판매 기능이 ${intendedState ? "활성화" : "비활성화"}되었습니다.`);
 
@@ -646,14 +646,18 @@ onMounted(() => {
     state.water = Math.min(derived.value.capacity, state.water + derived.value.perSecond * delta);
     checkAchievements();
   }, 1000);
+  
   eventTimer = setInterval(runEvent, 25000);
-  autosaveTimer = setInterval(saveGame, 10000);
+
+  // [핵심 수정] 상태 충돌을 일으키는 autosaveTimer를 제거합니다.
+  // clearInterval(autosaveTimer); 
 });
 
 onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
-  clearInterval(autosaveTimer);
+  // [핵심 수정] autosaveTimer 정리 코드 제거
+  // clearInterval(autosaveTimer); 
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
