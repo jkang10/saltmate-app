@@ -482,18 +482,21 @@ const toggleAutoSell = async () => {
       deepSeaAutoSellEnabled: state.autoSellEnabled
     }, { merge: true });
 
-    // [핵심 수정] 자동 판매를 켤 때 lastAutoSellTime 필드를 초기화합니다.
-    // 이렇게 하면 다음 1분 스케줄에 바로 판매가 실행될 수 있습니다.
+    // [핵심 수정] 자동 판매를 켤 때, 'lastAutoSellTime' 필드를 서버 시간으로
+    // 명시적으로 생성하여 백엔드가 즉시 인식할 수 있도록 합니다.
+    const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     if (state.autoSellEnabled) {
-      const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
       await setDoc(gameStateRef, { 
         lastAutoSellTime: serverTimestamp() 
       }, { merge: true });
     }
     
-    await saveGame(); // autoSellEnabled 상태를 저장합니다.
+    // 이 saveGame()은 autoSellEnabled 상태 자체를 저장합니다.
+    await saveGame();
     
-    addLog(`자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`);
+    addLog(
+      `자동 판매 기능이 ${state.autoSellEnabled ? "활성화" : "비활성화"}되었습니다.`
+    );
 
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
