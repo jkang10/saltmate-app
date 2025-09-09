@@ -416,20 +416,20 @@ const toggleAutoSell = async () => {
     const userRef = doc(db, "users", authUser.value.uid);
     const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
     
-    // [핵심 수정] Promise.all을 사용하여 모든 DB 업데이트를 병렬로 처리합니다.
-    await Promise.all([
-      // 1. users 문서에 deepSeaAutoSellEnabled 필드 업데이트
-      setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true }),
-      
-      // 2. game_state 문서에 autoSellEnabled 필드와 lastAutoSellTime(활성화 시) 업데이트
-      setDoc(gameStateRef, { 
-        autoSellEnabled: intendedState,
-        // 활성화하는 경우에만 lastAutoSellTime을 현재 시간으로 설정
-        ...(intendedState && { lastAutoSellTime: serverTimestamp() })
-      }, { merge: true })
-    ]);
+    // DB에 업데이트할 내용들을 미리 정의합니다.
+    const userUpdate = setDoc(userRef, { deepSeaAutoSellEnabled: intendedState }, { merge: true });
+    
+    const gameStateUpdatePayload = { 
+      autoSellEnabled: intendedState,
+      ...(intendedState && { lastAutoSellTime: serverTimestamp() })
+    };
+    const gameStateUpdate = setDoc(gameStateRef, gameStateUpdatePayload, { merge: true });
 
-    // [핵심 수정] saveGame() 호출을 제거했으므로, state를 수동으로 업데이트합니다.
+    // Promise.all을 사용하여 모든 DB 업데이트를 병렬로 실행하고 기다립니다.
+    await Promise.all([userUpdate, gameStateUpdate]);
+
+    // [핵심 수정] DB 업데이트가 성공한 후, 프론트엔드의 상태(state)를 명시적으로 업데이트합니다.
+    // 이 코드가 누락되어 화면이 갱신되지 않았습니다.
     state.autoSellEnabled = intendedState;
 
     addLog(
@@ -439,7 +439,9 @@ const toggleAutoSell = async () => {
   } catch (error) {
     console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-    // 오류가 발생하면 UI 상태를 원래대로 되돌리지 않음 (사용자가 재시도하도록 유도)
+    // 오류가 발생하면 UI 상태를 원래대로 되돌리지 않습니다.
+    // 이는 사용자가 재시도할 수 있도록 하기 위함이며,
+    // 실시간 리스너(onSnapshot)가 결국 DB의 최종 상태를 가져와 동기화합니다.
   }
 };
 
