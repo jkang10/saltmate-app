@@ -43,12 +43,12 @@
           </div>
         </div>
 
-        <div v-if="isAbyssalTrenchUnlocked" class="card auto-sell-feature">
-          <h3><i class="fas fa-robot"></i> 심해 해구 자동 판매</h3>
-          <p>
-            심해 해구 특전: 자원을 10분마다 자동으로 판매하여 자금을 획득합니다.
-          </p>
-          <div class="toggle-switch">
+	<div v-if="isAbyssalTrenchUnlocked" class="card auto-sell-feature">
+	  <h3><i class="fas fa-robot"></i> 심해 해구 자동 판매</h3>
+	  <p>
+	    심해 해구 특전: 자원을 {{ gameSettings.autoSellIntervalMinutes }}분마다 자동으로 판매하여 자금을 획득합니다.
+	  </p>
+	  <div class="toggle-switch">
             <label class="switch">
               <input
                 type="checkbox"
@@ -295,7 +295,14 @@ const DEFAULT_STATE = {
   lastUpdated: null,
 };
 
+// [신규 추가] 관리자 설정값을 저장할 반응형 객체
+const gameSettings = reactive({ 
+  deepSeaRate: 100000,
+  autoSellIntervalMinutes: 10, // 기본값 10분
+});
+
 const state = reactive(clone(DEFAULT_STATE));
+let settingsUnsubscribe = null; // [신규 추가] 설정 리스너 구독 해제 함수
 const logs = ref([]);
 const showTutorial = ref(false);
 const logBox = ref(null);
@@ -715,21 +722,20 @@ onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
-      // 로그인이 감지되면 데이터를 불러옵니다.
       loadGame(user);
+      
+      // [신규 추가] configuration/gameSettings 문서 실시간 감지
       const configRef = doc(db, "configuration", "gameSettings");
-  // [수정] onSnapshot 리스너에 autoSellIntervalMinutes 값도 가져오도록 추가
-  settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      gameSettings.deepSeaRate = data.deepSeaRate || 100000;
-      gameSettings.autoSellIntervalMinutes = data.autoSellIntervalMinutes || 10;
-    }
-  });
+      settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+          gameSettings.autoSellIntervalMinutes = data.autoSellIntervalMinutes || 10;
+        }
+      });
+
     } else {
-      // 로그아웃 상태일 때, 기존 데이터를 초기화하지 않고 리스너만 정리합니다.
-      if (settingsUnsubscribe) settingsUnsubscribe();
-      // Object.assign(state, clone(DEFAULT_STATE)); // 이 줄을 삭제하거나 주석 처리합니다.
+      if (settingsUnsubscribe) settingsUnsubscribe(); // 로그아웃 시 리스너 정리
       addLog("로그인이 필요합니다.");
     }
   });
@@ -765,7 +771,7 @@ onUnmounted(() => {
   clearInterval(autosaveTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
-  if (settingsUnsubscribe) settingsUnsubscribe();
+  if (settingsUnsubscribe) settingsUnsubscribe(); // 컴포넌트 파괴 시 리스너 정리
   saveGame();
 });
 </script>
