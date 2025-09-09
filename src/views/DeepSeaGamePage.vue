@@ -599,6 +599,7 @@ function closeTutorial() {
   }
 }
 
+// 기존 onMounted 함수와 그 뒤에 붙어있던 중복 코드를 모두 지우고 아래 코드로 교체해주세요.
 onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
@@ -631,46 +632,20 @@ onMounted(() => {
     }
   }, 1000);
   
-  // [핵심 수정] 클라이언트에서 자체적으로 자원을 생산하던 tickTimer 로직을 제거합니다.
-  // clearInterval(tickTimer); // 이 줄도 필요 없으므로 제거하거나 주석 처리합니다.
-  
+  // 클라이언트 자체 생산 로직(tickTimer)은 제거된 상태를 유지합니다.
   eventTimer = setInterval(runEvent, 25000);
 });
 
-  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
-  goldenTimeInterval = setInterval(() => {
-    if (isGoldenTimeActive.value) {
-      const remaining = state.goldenTimeUntil.toDate().getTime() - new Date().getTime();
-      if (remaining <= 0) return;
-      const minutes = Math.floor((remaining / 1000 / 60) % 60);
-      const seconds = Math.floor((remaining / 1000) % 60);
-      goldenTimeRemaining.value = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-    }
-  }, 1000);
-
-  lastTick = Date.now();
-  tickTimer = setInterval(() => {
-    const delta = (Date.now() - lastTick) / 1000;
-    lastTick = Date.now();
-    const production = derived.value.perSecond * delta;
-    if (production > 0 && state.water < derived.value.capacity) {
-        state.water = Math.min(derived.value.capacity, state.water + production);
-    }
-    checkAchievements();
-  }, 1000);
-  
-  eventTimer = setInterval(runEvent, 25000);
-});
-
+// 기존 onUnmounted 함수를 아래 코드로 교체해주세요.
 onUnmounted(() => {
-  clearInterval(tickTimer);
+  // [핵심 수정] 제거된 tickTimer를 참조하는 코드를 삭제합니다.
   clearInterval(eventTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-  // [핵심 수정] 페이지를 나갈 때 저장하는 로직을 제거합니다.
 });
+
 </script>
 
 <style scoped>
