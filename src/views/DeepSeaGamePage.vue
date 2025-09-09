@@ -271,7 +271,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
 const toggleAutoSell = async () => {
   if (!authUser.value) {
@@ -482,16 +482,16 @@ const sellResources = async () => {
   if (state.water <= 0 && state.plankton <= 0) return alert("판매할 자원이 없습니다.");
   try {
     const revenue = Math.floor(state.water * 5 * derived.value.marketMultiplier) + Math.floor(state.plankton * 15 * derived.value.marketMultiplier);
-    // [핵심 수정] DB 업데이트를 직접 수행하도록 변경
+    
     if (DB_SAVE_REF) {
+      // [핵심 수정] admin.firestore.FieldValue.increment -> increment 로 변경
       await setDoc(DB_SAVE_REF, {
-        funds: admin.firestore.FieldValue.increment(revenue), // 'admin' 대신 'firebase/firestore'의 increment 사용 필요. 여기서는 예시로 표현
+        funds: increment(revenue),
         water: 0,
         plankton: 0,
       }, { merge: true });
     }
     addLog(`자원 판매: +${revenue.toLocaleString()} 자금`);
-    // await saveGame(); // 이 라인 삭제
   } catch (error) {
     console.error("자원 판매 오류:", error);
     alert(`자원 판매 실패: ${error.message}`);
