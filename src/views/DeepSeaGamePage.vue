@@ -347,6 +347,8 @@ const isUnlocking = ref(false);
 let authUnsubscribe = null;
 let settingsUnsubscribe = null;
 let gameStateUnsubscribe = null;
+let eventTimer, goldenTimeInterval, tickTimer;
+let lastTick = Date.now();
 
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
 
@@ -567,14 +569,21 @@ const listenToGame = (user) => {
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
         const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
-        const capacity = 19700 + (dbState.shop?.tank || 0) * 300;
+        
+        // [핵심 수정] capacity 계산식을 서버 로직과 동일하게 수정합니다.
+        const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
+        
         const offlineProduction = Math.floor(secondsDiff * perSecondProd);
         
         if (offlineProduction > 0) {
           const currentWater = dbState.water || 0;
           const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
-          addLog(`오프라인 동안 ${fmt(waterAfterOffline - currentWater)} L의 심층수를 채집했습니다.`);
-          dbState.water = waterAfterOffline;
+          const producedAmount = waterAfterOffline - currentWater;
+
+          if (producedAmount > 0) {
+            addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
+            dbState.water = waterAfterOffline;
+          }
         }
         addLog("서버와 데이터 동기화 완료.", 'sync');
       }
@@ -631,14 +640,24 @@ onMounted(() => {
       goldenTimeRemaining.value = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
   }, 1000);
+
+  // [핵심 추가] 화면 표시용 tickTimer 로직을 다시 추가합니다.
+  lastTick = Date.now();
+  tickTimer = setInterval(() => {
+    const delta = (Date.now() - lastTick) / 1000;
+    lastTick = Date.now();
+    const production = derived.value.perSecond * delta;
+    if (production > 0 && state.water < derived.value.capacity) {
+        state.water = Math.min(derived.value.capacity, state.water + production);
+    }
+  }, 1000);
   
-  // 클라이언트 자체 생산 로직(tickTimer)은 제거된 상태를 유지합니다.
   eventTimer = setInterval(runEvent, 25000);
 });
 
-// 기존 onUnmounted 함수를 아래 코드로 교체해주세요.
 onUnmounted(() => {
-  // [핵심 수정] 제거된 tickTimer를 참조하는 코드를 삭제합니다.
+  // [핵심 추가] tickTimer를 정리하는 코드를 추가합니다.
+  clearInterval(tickTimer);
   clearInterval(eventTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
