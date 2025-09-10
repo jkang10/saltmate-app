@@ -235,7 +235,8 @@ const currentEntryFee = computed(() => {
   if (gameMode.value === 'timeAttack') { 
     return "400 ~";
   }
-  if (gameMode.value === 'infinite') return 200;
+  // [핵심 수정] 무한 모드 입장료를 200에서 300으로 변경합니다.
+  if (gameMode.value === 'infinite') return 300;
   if (gameMode.value === 'ranked') return 500;
   return 100;
 });
