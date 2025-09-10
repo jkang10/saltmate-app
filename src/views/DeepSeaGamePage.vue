@@ -301,6 +301,9 @@ let authUnsubscribe = null;
 let settingsUnsubscribe = null;
 let gameStateUnsubscribe = null;
 let goldenTimeInterval = null;
+let tickTimer = null;
+let lastTick = Date.now();
+let eventTimer = null;
 
 // --- 헬퍼 함수 ---
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -322,16 +325,13 @@ async function callFunction(name, data) {
   return result;
 }
 
-// --- 계산된 속성 ---
-const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
-const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
-
+// --- 상수 정의 (중복 제거된 최종 버전) ---
 const ICONS = {
-  rov: `data:image/svg+xml;utf8,...`, // (이하 아이콘 SVG 데이터는 기존과 동일하여 생략)
-  harvester: `data:image/svg+xml;utf8,...`,
-  tank: `data:image/svg+xml;utf8,...`,
-  lab: `data:image/svg+xml;utf8,...`,
-  market: `data:image/svg+xml;utf8,...`,
+  rov: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='4' y='8' width='16' height='8' rx='2' fill='%239fb3c8'/><rect x='2' y='10' width='2' height='4' fill='%239fb3c8'/><rect x='20' y='10' width='2' height='4' fill='%239fb3c8'/><circle cx='12' cy='12' r='2' fill='%23041522'/></svg>`,
+  harvester: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M3 10h18v4H3z' fill='%2300b4d8'/><path d='M5 14h2v4H5zM11 14h2v4h-2zM17 14h2v4h-2z' fill='%23008fbd'/></svg>`,
+  tank: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='5' y='6' width='14' height='12' rx='2' fill='%23008fbd'/><rect x='7' y='8' width='10' height='8' fill='rgba(255,255,255,0.2)'/></svg>`,
+  lab: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M7 21h10v-2H7zM9 19V5l-2-2v16zM15 19V5l2-2v16z' fill='%2368d391'/></svg>`,
+  market: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M4 18h16v-2H4zM12 2l-4 6h8zM10 10h4v6h-4z' fill='%23ffd166'/></svg>`,
 };
 
 const SHOP_DEFS = [
@@ -346,7 +346,7 @@ const ZONE_DEFS = {
   default: { name: "기본 해역", icon: "fas fa-water" },
   coral_reef: { name: "산호초 군락", icon: "fas fa-fish", requirements: { research: 5000 } },
   hydrothermal_vent: { name: "열수 분출구", icon: "fas fa-fire", requirements: { research: 50000, minerals: 30000 } },
-  abyssal_trench: { name: "심해 해구", icon: "fas fa-skull-crossbones", requirements: { research: 200000, allUpgradesLevel: 35 } },
+  abyssal_trench: { name: "심해 해구", icon: "fas fa-skull-crossbones", requirements: { research: 150000, minerals: 50000 } },
 };
 
 const ACH_DEFS = [
@@ -355,6 +355,7 @@ const ACH_DEFS = [
   { id: "research_100", name: "연구 시작", condition: () => state.research >= 100 },
 ];
 
+// --- 계산된 속성 ---
 const derived = computed(() => {
   const shop = state.shop;
   const capacity = (state.capacity || 200) + (shop.tank || 0) * 300; 
@@ -390,10 +391,10 @@ const zones = computed(() => {
 
 const activeZone = computed(() => ZONE_DEFS[state.activeZoneId] || ZONE_DEFS.default);
 const achievements = computed(() => ACH_DEFS.map((ach) => ({ ...ach, unlocked: state.achievements[ach.id] })));
+const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
+const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
-
-// --- 핵심 기능 함수 (모두 서버 호출 방식으로 변경) ---
-
+// --- 핵심 기능 함수 ---
 const collectClick = () => {
   callFunction("collectDeepSeaResources").catch(err => {
       addLog(`채집 오류: ${err.message}`);
@@ -413,7 +414,6 @@ const sellResources = async () => {
 const buy = (id) => {
   const item = shopItems.value.find((i) => i.id === id);
   if (!item.canAfford) return alert("자금이 부족합니다.");
-
   if (DB_SAVE_REF) {
     const newLevel = (state.shop[id] || 0) + 1;
     setDoc(DB_SAVE_REF, {
@@ -424,11 +424,7 @@ const buy = (id) => {
 };
 
 const toggleAutoSell = async () => {
-  if (!authUser.value) {
-    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
-    return;
-  }
-  // v-model이 이미 state.autoSellEnabled 값을 변경했으므로, 그대로 사용
+  if (!authUser.value) return;
   const newEnabledState = state.autoSellEnabled;
   try {
     await setDoc(DB_SAVE_REF, {
@@ -437,9 +433,8 @@ const toggleAutoSell = async () => {
     }, { merge: true });
     addLog(`자동 판매 기능이 ${newEnabledState ? "활성화" : "비활성화"}되었습니다.`);
   } catch (error) {
-    console.error("자동 판매 상태 변경 실패:", error);
     addLog("자동 판매 상태 변경에 실패했습니다.");
-    state.autoSellEnabled = !newEnabledState; // 실패 시 UI 원상 복구
+    state.autoSellEnabled = !newEnabledState;
   }
 };
 
@@ -449,7 +444,6 @@ const sellFundsForPoints = async () => {
     const result = await callFunction("sellDeepSeaFunds");
     alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
   } catch (error) {
-    console.error("자금 판매 오류:", error);
     alert(`오류: ${error.message}`);
   } finally {
     isSellingFunds.value = false;
@@ -462,7 +456,6 @@ const activateGoldenTime = async () => {
     const result = await callFunction("startGoldenTime");
     alert(result.data.message);
   } catch (error) {
-    console.error("골든타임 활성화 오류:", error);
     alert(`오류: ${error.message}`);
   } finally {
     isActivatingGoldenTime.value = false;
@@ -475,7 +468,6 @@ const unlockZone = async (zoneId) => {
     const result = await callFunction("unlockExplorationZone", { zoneId });
     alert(result.data.message);
   } catch (error) {
-    console.error("지역 해금 오류:", error);
     alert(`오류: ${error.message}`);
   } finally {
     isUnlocking.value = false;
@@ -500,27 +492,36 @@ function closeTutorial() {
   }
 }
 
-// --- 데이터 동기화 및 생명주기 훅 ---
+function runEvent() {
+  if (Math.random() < 0.2) {
+    const eventType = Math.random();
+    let msg = "";
+    if (eventType < 0.5) {
+      msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
+    } else {
+      msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
+    }
+    // 이벤트 로직은 서버에서 처리하므로 클라이언트는 로그만 남깁니다.
+    addLog(msg);
+  }
+}
 
+// --- 데이터 동기화 및 생명주기 훅 ---
 const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
       const isFirstLoad = !state.lastUpdated;
-      
       if (isFirstLoad) {
-        // 첫 로딩 시 오프라인 생산량 계산
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
         const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
         const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
         const offlineProduction = Math.floor(secondsDiff * perSecondProd);
-
         if (offlineProduction > 0) {
           const currentWater = dbState.water || 0;
           const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
@@ -539,7 +540,6 @@ const listenToGame = (user) => {
     if (!state.seenTutorial) showTutorial.value = true;
   }, (e) => {
     console.error("Firestore listen error", e);
-    addLog("서버 데이터 동기화 실패.");
   });
 };
 
@@ -562,7 +562,6 @@ onMounted(() => {
     }
   });
 
-  if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   goldenTimeInterval = setInterval(() => {
     if (isGoldenTimeActive.value) {
       const remaining = state.goldenTimeUntil.toDate().getTime() - new Date().getTime();
@@ -571,15 +570,28 @@ onMounted(() => {
       goldenTimeRemaining.value = remaining > 0 ? `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}` : "00:00";
     }
   }, 1000);
+
+  lastTick = Date.now();
+  tickTimer = setInterval(() => {
+    const delta = (Date.now() - lastTick) / 1000;
+    lastTick = Date.now();
+    const production = derived.value.perSecond * delta;
+    if (production > 0 && state.water < derived.value.capacity) {
+        state.water = Math.min(derived.value.capacity, state.water + production);
+    }
+  }, 1000);
+  
+  eventTimer = setInterval(runEvent, 25000);
 });
 
 onUnmounted(() => {
+  clearInterval(tickTimer);
+  clearInterval(eventTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
 });
-
 </script>
 
 <style scoped>
