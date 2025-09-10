@@ -113,7 +113,27 @@
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import ChangePasswordModal from "@/components/ChangePasswordModal.vue";
-import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue";
+// [추가] NotificationSettingsModal import 경로를 확인하고, 없다면 추가합니다.
+import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue"; 
+// [추가] Firebase Messaging 관련 import
+import { getMessaging, getToken } from "firebase/messaging";
+
+// [핵심 추가] 서비스 워커를 등록하는 헬퍼 함수
+async function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    try {
+      // public 폴더에 있는 파일을 정확히 지정합니다.
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      console.log('Service Worker 등록 성공:', registration);
+      return registration;
+    } catch (error) {
+      console.error('Service Worker 등록 실패:', error);
+      throw error;
+    }
+  }
+  throw new Error('Service workers are not supported in this browser.');
+}
+
 
 export default {
   name: "UserProfilePage",
@@ -167,8 +187,15 @@ export default {
     openChangePasswordModal() {
       this.isPasswordModalVisible = true;
     },
-    openNotificationSettingsModal() {
-      this.isNotificationSettingsModalVisible = true;
+    // [핵심 수정] openNotificationSettingsModal 함수를 아래 코드로 교체합니다.
+    async openNotificationSettingsModal() {
+      try {
+        // 모달을 열기 전에 서비스 워커를 먼저 등록합니다.
+        await registerServiceWorker();
+        this.isNotificationSettingsModalVisible = true;
+      } catch (error) {
+        alert("알림 서비스를 초기화하는 데 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요.");
+      }
     },
   },
 };
