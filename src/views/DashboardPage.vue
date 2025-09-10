@@ -17,266 +17,242 @@
         </ul>
       </section>
 
-    <main class="dashboard-content">
-      <section class="performance-card card">
-        <div class="card-header">
-          <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
-          <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{
-            userProfile?.tier
-          }}</span>
-        </div>
-        <div class="investment-info">
-          <span>나의 구독 원금</span>
-          <strong
-            >{{
-              (userProfile?.investmentAmount || 0).toLocaleString()
-            }}
-            원</strong
-          >
-        </div>
-        <div class="performance-body">
-          <h4>
-            수익 사이클 ({{ cycleProgress.toFixed(1) }}% /
-            {{ (marketingPlan?.cycleCapMultiplier || 3) * 100 }}%)
-          </h4>
-          <div class="progress-bar-container">
-            <div
-              class="progress-bar-fill"
-              :style="{ width: cycleProgress + '%' }"
-            >
-              <i class="fas fa-running running-man"></i>
+      <main class="dashboard-content">
+        <section class="performance-card card">
+          <div class="card-header">
+            <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
+            <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{ userProfile?.tier }}</span>
+          </div>
+          <div class="investment-info">
+            <span>나의 구독 원금</span>
+            <strong>{{ (userProfile?.investmentAmount || 0).toLocaleString() }} 원</strong>
+          </div>
+          <div class="performance-body">
+            <h4>
+              수익 사이클 ({{ cycleProgress.toFixed(1) }}% / {{ (marketingPlan?.cycleCapMultiplier || 3) * 100 }}%)
+            </h4>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" :style="{ width: cycleProgress + '%' }">
+                <i class="fas fa-running running-man"></i>
+              </div>
+            </div>
+            <div class="progress-labels">
+              <span class="current-earnings clickable" @click="openCycleEarningsModal">
+                {{ (userProfile?.currentCycleEarnings || 0).toLocaleString() }} 원
+              </span>
+              <span class="cycle-cap">
+                달성 목표: {{ (userProfile?.cycleCap || 0).toLocaleString() }} 원
+              </span>
             </div>
           </div>
-          <div class="progress-labels">
-            <span
-              class="current-earnings clickable"
-              @click="openCycleEarningsModal"
-            >
-              {{ (userProfile?.currentCycleEarnings || 0).toLocaleString() }} 원
-            </span>
-            <span class="cycle-cap">
-              달성 목표: {{ (userProfile?.cycleCap || 0).toLocaleString() }} 원
-            </span>
+          <div class="balances">
+            <div class="balance-item cash" @click="openHistoryModal('CASH')">
+              <label><i class="fas fa-wallet"></i> 현금성 수익</label>
+              <span>{{ (userProfile?.cashBalance || 0).toLocaleString() }}</span>
+              <small>원</small>
+              <div class="withdrawal-action">
+                <button class="withdrawal-button" :disabled="!isWithdrawalEnabled" @click.stop="openWithdrawalModal">
+                  출금 신청하기
+                </button>
+                <small v-if="!isWithdrawalEnabled" class="withdrawal-notice">
+                  신청 가능 시간: 매주 화 09:00-17:00
+                </small>
+              </div>
+            </div>
+            <div class="balance-item saltmate" @click="openHistoryModal('SALTMATE')">
+              <div class="balance-content">
+                <div class="balance-label">
+                  <i class="fas fa-gifts"></i> 솔트메이트
+                </div>
+                <div class="balance-value">
+                  {{ (userProfile?.saltmatePoints || 0).toLocaleString() }}
+                </div>
+                <div class="balance-unit">SaltMate</div>
+              </div>
+              <div class="shimmer-effect"></div>
+            </div>
           </div>
-        </div>
-        <div class="balances">
-          <div class="balance-item cash" @click="openHistoryModal('CASH')">
-            <label><i class="fas fa-wallet"></i> 현금성 수익</label>
-            <span>{{ (userProfile?.cashBalance || 0).toLocaleString() }}</span>
-            <small>원</small>
-            <div class="withdrawal-action">
-              <button
-                class="withdrawal-button"
-                :disabled="!isWithdrawalEnabled"
-                @click.stop="openWithdrawalModal"
-              >
-                출금 신청하기
+
+          <div class="subscription-status-card" :class="subscriptionStatusClass">
+            <div class="status-header">
+              <i class="fas fa-calendar-alt"></i>
+              <h4>월간 구독 현황</h4>
+            </div>
+            <div v-if="!userProfile?.nextPaymentDueDate">
+              <p>구독 정보 로딩 중...</p>
+            </div>
+            <div v-else-if="userProfile?.subscriptionStatus === 'active'">
+              <p>
+                다음 결제일까지 <strong>{{ daysUntilPayment }}일</strong> 남았습니다.
+              </p>
+              <button @click="requestPayment" class="btn-pay" :disabled="isRequestingPayment">
+                <span v-if="isRequestingPayment" class="spinner-small"></span>
+                <span v-else>월간 구독 미리 결제하기</span>
               </button>
-              <small v-if="!isWithdrawalEnabled" class="withdrawal-notice">
-                신청 가능 시간: 매주 화 09:00-17:00
-              </small>
+            </div>
+            <div v-else-if="userProfile?.subscriptionStatus === 'overdue'">
+              <p><strong>결제일이 지났습니다.</strong></p>
+              <p class="warning-text">
+                일부 기능이 제한됩니다. 지금 바로 결제해주세요.
+              </p>
+              <button @click="requestPayment" class="btn-pay urgent" :disabled="isRequestingPayment">
+                <span v-if="isRequestingPayment" class="spinner-small"></span>
+                <span v-else>지금 결제하기</span>
+              </button>
             </div>
           </div>
-          <div
-            class="balance-item saltmate"
-            @click="openHistoryModal('SALTMATE')"
-          >
-            <div class="balance-content">
-              <div class="balance-label">
-                <i class="fas fa-gifts"></i> 솔트메이트
-              </div>
-              <div class="balance-value">
-                {{ (userProfile?.saltmatePoints || 0).toLocaleString() }}
-              </div>
-              <div class="balance-unit">SaltMate</div>
-            </div>
-            <div class="shimmer-effect"></div>
-          </div>
-        </div>
-
-        <div class="subscription-status-card" :class="subscriptionStatusClass">
-          <div class="status-header">
-            <i class="fas fa-calendar-alt"></i>
-            <h4>월간 구독 현황</h4>
-          </div>
-          <div v-if="!userProfile?.nextPaymentDueDate">
-            <p>구독 정보 로딩 중...</p>
-          </div>
-          <div v-else-if="userProfile?.subscriptionStatus === 'active'">
-            <p>
-              다음 결제일까지
-              <strong>{{ daysUntilPayment }}일</strong> 남았습니다.
-            </p>
-            <button
-              @click="requestPayment"
-              class="btn-pay"
-              :disabled="isRequestingPayment"
-            >
-              <span v-if="isRequestingPayment" class="spinner-small"></span>
-              <span v-else>월간 구독 미리 결제하기</span>
+          <div class="upgrade-action">
+            <button @click="openUpgradeModal" class="upgrade-button" :disabled="userProfile?.tier === '승인대기중'">
+              <i class="fas fa-arrow-up"></i> 등급 추가 구매
             </button>
           </div>
-          <div v-else-if="userProfile?.subscriptionStatus === 'overdue'">
-            <p><strong>결제일이 지났습니다.</strong></p>
-            <p class="warning-text">
-              일부 기능이 제한됩니다. 지금 바로 결제해주세요.
-            </p>
-            <button
-              @click="requestPayment"
-              class="btn-pay urgent"
-              :disabled="isRequestingPayment"
-            >
-              <span v-if="isRequestingPayment" class="spinner-small"></span>
-              <span v-else>지금 결제하기</span>
-            </button>
-          </div>
-        </div>
-        <div class="upgrade-action">
-          <button
-            @click="openUpgradeModal"
-            class="upgrade-button"
-            :disabled="userProfile?.tier === '승인대기중'"
-          >
-            <i class="fas fa-arrow-up"></i> 등급 추가 구매
-          </button>
-        </div>
-      </section>
+        </section>
 
-      <div class="dashboard-grid">
-        <LiveGameFeed />
-        <LeaderboardWidget />
-        <WeeklyLeaderboardWidget />
-	<SaltPangHallOfFame />
-	<ChallengeRankingsWidget />
-	<SaltPangRankedWidget />
-	<router-link to="/attendance" class="feature-card events">
-	  <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
-	  <h3>매일매일 출석체크</h3>
-	  <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
-	  <span class="card-enter">참여하기 &rarr;</span>
-	</router-link>
-        <router-link to="/my-tokens" class="feature-card tokens">
-          <div class="card-icon"><i class="fas fa-coins"></i></div>
-          <h3>보유 토큰 현황</h3>
-          <p>COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.</p>
-          <div class="token-glance">
-            <div class="token-item">
-              <img src="@/assets/COBS.png" alt="COBS" />
-              <span>{{
-                (userProfile?.tokens?.cobs || 0).toLocaleString()
-              }}</span>
+        <div class="dashboard-grid">
+          <LiveGameFeed />
+          <LeaderboardWidget />
+          <WeeklyLeaderboardWidget />
+          <SaltPangHallOfFame />
+          <ChallengeRankingsWidget />
+          <SaltPangRankedWidget />
+          <router-link to="/attendance" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
+            <h3>매일매일 출석체크</h3>
+            <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-tokens" class="feature-card tokens">
+            <div class="card-icon"><i class="fas fa-coins"></i></div>
+            <h3>보유 토큰 현황</h3>
+            <p>COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.</p>
+            <div class="token-glance">
+              <div class="token-item">
+                <img src="@/assets/COBS.png" alt="COBS" />
+                <span>{{ (userProfile?.tokens?.cobs || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/BND_LOGO.png" alt="BND" />
+                <span>{{ (userProfile?.tokens?.bnd || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/SSC_LOGO.png" alt="SSC" />
+                <span>{{ (userProfile?.tokens?.ssc || 0).toLocaleString() }}</span>
+              </div>
             </div>
-            <div class="token-item">
-              <img src="@/assets/BND_LOGO.png" alt="BND" />
-              <span>{{
-                (userProfile?.tokens?.bnd || 0).toLocaleString()
-              }}</span>
+            <span class="card-enter">자세히 보기 &rarr;</span>
+          </router-link>
+          <router-link to="/nft-marketplace" class="feature-card nft">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>NFT 마켓플레이스</h3>
+            <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/network-tree" class="feature-card">
+            <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+            <h3>나의 추천 네트워크</h3>
+            <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-equity" class="feature-card equity">
+            <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3>지분 정보</h3>
+            <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-events" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+            <h3>이벤트 공간</h3>
+            <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/mall" class="feature-card mall">
+            <div class="card-icon"><i class="fas fa-store"></i></div>
+            <h3>솔트메이트 몰</h3>
+            <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+            <span class="card-enter">둘러보기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-investments" class="feature-card revenue">
+            <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+            <h3>내 수익 현황</h3>
+            <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
+            <span class="card-enter">분석하기 &rarr;</span>
+          </router-link>
+          <router-link to="/game-zone" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-gamepad"></i></div>
+            <h3>럭키 룰렛</h3>
+            <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/treasure-box" class="feature-card treasure">
+            <div class="card-icon"><i class="fas fa-box"></i></div>
+            <h3>보물상자 열기</h3>
+            <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/high-low-game" class="feature-card game">
+            <div class="card-icon">
+              <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
             </div>
-            <div class="token-item">
-              <img src="@/assets/SSC_LOGO.png" alt="SSC" />
-              <span>{{
-                (userProfile?.tokens?.ssc || 0).toLocaleString()
-              }}</span>
-            </div>
-          </div>
-          <span class="card-enter">자세히 보기 &rarr;</span>
-        </router-link>
-        <router-link to="/nft-marketplace" class="feature-card nft">
-          <div class="card-icon"><i class="fas fa-gem"></i></div>
-          <h3>NFT 마켓플레이스</h3>
-          <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
-          <span class="card-enter">입장하기 &rarr;</span>
-        </router-link>
-        <router-link to="/network-tree" class="feature-card">
-          <div class="card-icon"><i class="fas fa-sitemap"></i></div>
-          <h3>나의 추천 네트워크</h3>
-          <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
-          <span class="card-enter">확인하기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-equity" class="feature-card equity">
-          <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
-          <h3>지분 정보</h3>
-          <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
-          <span class="card-enter">확인하기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-events" class="feature-card events">
-          <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
-          <h3>이벤트 공간</h3>
-          <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
-          <span class="card-enter">참여하기 &rarr;</span>
-        </router-link>
-        <router-link to="/mall" class="feature-card mall">
-          <div class="card-icon"><i class="fas fa-store"></i></div>
-          <h3>솔트메이트 몰</h3>
-          <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
-          <span class="card-enter">둘러보기 &rarr;</span>
-        </router-link>
-        <router-link to="/my-investments" class="feature-card revenue">
-          <div class="card-icon"><i class="fas fa-chart-line"></i></div>
-          <h3>내 수익 현황</h3>
-          <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
-          <span class="card-enter">분석하기 &rarr;</span>
-        </router-link>
-        <router-link to="/game-zone" class="feature-card game">
-          <div class="card-icon"><i class="fas fa-gamepad"></i></div>
-          <h3>럭키 룰렛</h3>
-          <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
-          <span class="card-enter">게임 시작 &rarr;</span>
-        </router-link>
-        <router-link to="/treasure-box" class="feature-card treasure">
-          <div class="card-icon"><i class="fas fa-box"></i></div>
-          <h3>보물상자 열기</h3>
-          <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
-          <span class="card-enter">참여하기 &rarr;</span>
-        </router-link>
-        <router-link to="/high-low-game" class="feature-card game">
-          <div class="card-icon">
-            <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
-          </div>
-          <h3>하이로우</h3>
-          <p>다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!</p>
-          <span class="card-enter">도전하기 &rarr;</span>
-        </router-link>
-        <router-link to="/rps-game" class="feature-card game">
-          <div class="card-icon"><i class="fas fa-hand-scissors"></i></div>
-          <h3>가위바위보</h3>
-          <p>컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!</p>
-          <span class="card-enter">게임 시작 &rarr;</span>
-        </router-link>
-        <router-link to="/salt-game" class="feature-card salt-game">
-          <div class="card-icon"><i class="fas fa-gem"></i></div>
-          <h3>소금 결정 키우기</h3>
-          <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
-          <span class="card-enter">플레이 &rarr;</span>
-        </router-link>
-        <router-link to="/salt-mine-game" class="feature-card salt-mine-game">
-          <div class="card-icon"><i class="fas fa-gem"></i></div>
-          <h3>소금 광산</h3>
-          <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
-          <span class="card-enter">입장하기 &rarr;</span>
-        </router-link>
-        <router-link to="/deep-sea-game" class="feature-card deep-sea-game">
-          <div class="card-icon"><i class="fas fa-water"></i></div>
-          <h3>해양심층수 탐험</h3>
-          <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
-          <span class="card-enter">탐험 시작 &rarr;</span>
-        </router-link>
-        <router-link to="/salt-pang" class="feature-card game">
-          <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
-          <h3>솔트팡</h3>
-          <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
-          <span class="card-enter">게임 시작 &rarr;</span>
-        </router-link>
-      </div>
- <TransactionHistoryModal
+            <h3>하이로우</h3>
+            <p>다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">도전하기 &rarr;</span>
+          </router-link>
+          <router-link to="/rps-game" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-hand-scissors"></i></div>
+            <h3>가위바위보</h3>
+            <p>컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-game" class="feature-card salt-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 결정 키우기</h3>
+            <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
+            <span class="card-enter">플레이 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-mine-game" class="feature-card salt-mine-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 광산</h3>
+            <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/deep-sea-game" class="feature-card deep-sea-game">
+            <div class="card-icon"><i class="fas fa-water"></i></div>
+            <h3>해양심층수 탐험</h3>
+            <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
+            <span class="card-enter">탐험 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-pang" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
+            <h3>솔트팡</h3>
+            <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+        </div>
+      </main>
+
+      <TransactionHistoryModal
         v-if="historyModal.visible"
         :balanceType="historyModal.type"
-        :currentBalance="historyModal.type === 'CASH' ? userProfile.cashBalance : userProfile.saltmatePoints"
+        :currentBalance="
+          historyModal.type === 'CASH'
+            ? userProfile.cashBalance
+            : userProfile.saltmatePoints
+        "
         @close="historyModal.visible = false"
       />
-      <UpgradeTierModal v-if="upgradeModalVisible" @close="upgradeModalVisible = false" />
-      <WithdrawalRequestModal v-if="isWithdrawalModalVisible" :userProfile="userProfile" @close="isWithdrawalModalVisible = false" />
-      <CycleEarningsModal v-if="isCycleModalVisible" @close="isCycleModalVisible = false" />
+      <UpgradeTierModal
+        v-if="upgradeModalVisible"
+        @close="upgradeModalVisible = false"
+      />
+      <WithdrawalRequestModal
+        v-if="isWithdrawalModalVisible"
+        :userProfile="userProfile"
+        @close="isWithdrawalModalVisible = false"
+      />
+      <CycleEarningsModal
+        v-if="isCycleModalVisible"
+        @close="isCycleModalVisible = false"
+      />
     </div>
   </div>
 </template>
