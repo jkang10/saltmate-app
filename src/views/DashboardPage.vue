@@ -5,11 +5,8 @@
       <section v-if="notices.length > 0" class="notice-section card">
         <div class="notice-header">
           <h3><i class="fas fa-bullhorn"></i> 공지사항</h3>
-          <router-link to="/community/notices" class="more-link">
-            더보기
-          </router-link>
-        </div> 
-        <!-- [수정] 잘못 닫혔던 div 태그를 제거하고 ul 태그 바로 위로 이동합니다. -->
+          <router-link to="/community/notices" class="more-link">더보기</router-link>
+        </div>
         <ul class="notice-list">
           <li v-for="notice in notices" :key="notice.id">
             <router-link :to="`/community/post/${notice.id}`" class="notice-link">
@@ -271,30 +268,16 @@
           <span class="card-enter">게임 시작 &rarr;</span>
         </router-link>
       </div>
-    </main>
-    <TransactionHistoryModal
-      v-if="historyModal.visible"
-      :balanceType="historyModal.type"
-      :currentBalance="
-        historyModal.type === 'CASH'
-          ? userProfile.cashBalance
-          : userProfile.saltmatePoints
-      "
-      @close="historyModal.visible = false"
-    />
-    <UpgradeTierModal
-      v-if="upgradeModalVisible"
-      @close="upgradeModalVisible = false"
-    />
-    <WithdrawalRequestModal
-      v-if="isWithdrawalModalVisible"
-      :userProfile="userProfile"
-      @close="isWithdrawalModalVisible = false"
-    />
-    <CycleEarningsModal
-      v-if="isCycleModalVisible"
-      @close="isCycleModalVisible = false"
-    />
+ <TransactionHistoryModal
+        v-if="historyModal.visible"
+        :balanceType="historyModal.type"
+        :currentBalance="historyModal.type === 'CASH' ? userProfile.cashBalance : userProfile.saltmatePoints"
+        @close="historyModal.visible = false"
+      />
+      <UpgradeTierModal v-if="upgradeModalVisible" @close="upgradeModalVisible = false" />
+      <WithdrawalRequestModal v-if="isWithdrawalModalVisible" :userProfile="userProfile" @close="isWithdrawalModalVisible = false" />
+      <CycleEarningsModal v-if="isCycleModalVisible" @close="isCycleModalVisible = false" />
+    </div>
   </div>
 </template>
 

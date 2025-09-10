@@ -291,7 +291,8 @@ const routes = [
 	{
 	  path: '/admin/announcements',
 	  name: 'AnnouncementManagement',
-	  component: () => import('@/views/admin/AnnouncementManagement.vue'),
+	  // [핵심 수정] component 경로를 'components' 폴더로 변경합니다.
+	  component: () => import('@/components/admin/AnnouncementManagement.vue'),
 	  meta: { requiresAdmin: true }
 	},
     ],
