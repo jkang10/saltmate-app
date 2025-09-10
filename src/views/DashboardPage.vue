@@ -1,4 +1,6 @@
 <template>
+  <div>
+<AnnouncementTicker />
   <div class="dashboard-container">
     <section v-if="notices.length > 0" class="notice-section card">
       <div class="notice-header">
@@ -6,6 +8,7 @@
         <router-link to="/community/notices" class="more-link"
           >더보기</router-link
         >
+	</div>
       </div>
       <ul class="notice-list">
         <li v-for="notice in notices" :key="notice.id">
@@ -320,6 +323,7 @@ import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
 import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue"; // [신규 추가]
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue"; // [신규 추가]
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue"; // [신규 추가]
+import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
 
 export default {
   name: "DashboardPage",
@@ -334,6 +338,7 @@ export default {
     SaltPangHallOfFame, // [신규 추가]
     ChallengeRankingsWidget, // [신규 추가]
     SaltPangRankedWidget, // [신규 추가]
+    AnnouncementTicker, // 여기에 추가
   },
   data() {
     return {

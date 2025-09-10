@@ -288,6 +288,12 @@ const routes = [
         name: "DatabaseBackup",
         component: () => import("@/components/admin/DatabaseBackup.vue"),
       },
+	{
+	  path: '/admin/announcements',
+	  name: 'AnnouncementManagement',
+	  component: () => import('@/views/admin/AnnouncementManagement.vue'),
+	  meta: { requiresAdmin: true }
+	},
     ],
   },
   {
