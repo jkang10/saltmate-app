@@ -3,10 +3,16 @@
   publish = "dist"
 
 [build.environment]
-  # NPM 캐시를 사용하지 않도록 설정
   NPM_FLAGS = "--no-cache"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# --- [추가] 아래 헤더 블록 전체를 파일 맨 아래에 추가해주세요 ---
+[[headers]]
+  for = "/firebase-messaging-sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/javascript"
