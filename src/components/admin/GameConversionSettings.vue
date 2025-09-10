@@ -34,6 +34,22 @@
         <small>1단계 횟수를 초과하면 2단계 입장료가 적용됩니다.</small>
       </div>
 
+      <!-- [핵심 추가] 아래 블록을 '재화 전환 비율 설정' 섹션 위에 추가합니다. -->
+      <h3 class="section-title">해양심층수 탐험: 자원 가격 설정</h3>
+      <div class="form-group">
+        <label for="deep-sea-water-price"><i class="fas fa-tint"></i> 심층수 기본 가격</label>
+        <div class="input-group">
+          <input type="number" step="1" v-model.number="settings.deepSeaWaterPrice" />
+          <span> 자금 / L</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="deep-sea-plankton-price"><i class="fas fa-bacterium"></i> 플랑크톤 기본 가격</label>
+        <div class="input-group">
+          <input type="number" step="1" v-model.number="settings.deepSeaPlanktonPrice" />
+          <span> 자금 / 개</span>
+        </div>
+      </div>
 
       <h3 class="section-title">재화 전환 비율 설정</h3>
       <div class="form-group">
@@ -122,10 +138,13 @@ export default {
       rpsMultiplier: 1.2,
       highLowMultiplier: 1.2,
       autoSellIntervalMinutes: 10,
-      // [신규 추가] 타임 어택 설정값
       timeAttackTier1Count: 10,
       timeAttackTier1Fee: 400,
       timeAttackTier2Fee: 800,
+      
+      // [핵심 추가] 아래 두 라인을 추가합니다.
+      deepSeaWaterPrice: 5,
+      deepSeaPlanktonPrice: 15,
     });
 
     const fetchSettings = async () => {
