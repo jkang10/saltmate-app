@@ -279,9 +279,9 @@ import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
 import LiveGameFeed from "@/components/LiveGameFeed.vue";
 import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
 import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
-import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue"; // [신규 추가]
-import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue"; // [신규 추가]
-import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue"; // [신규 추가]
+import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
+import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
+import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
 import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
 
 export default {
@@ -293,11 +293,11 @@ export default {
     CycleEarningsModal,
     LiveGameFeed,
     LeaderboardWidget,
-    WeeklyLeaderboardWidget, // [수정] 컴포넌트 등록
-    SaltPangHallOfFame, // [신규 추가]
-    ChallengeRankingsWidget, // [신규 추가]
-    SaltPangRankedWidget, // [신규 추가]
-    AnnouncementTicker, // 여기에 추가
+    WeeklyLeaderboardWidget,
+    SaltPangHallOfFame,
+    ChallengeRankingsWidget,
+    SaltPangRankedWidget,
+    AnnouncementTicker,
   },
   data() {
     return {
