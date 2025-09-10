@@ -77,6 +77,14 @@
           </li>
           <li>
             <router-link
+              to="/admin/announcements"
+              class="nav-item"
+              active-class="active-link"
+              ><i class="fas fa-satellite-dish"></i> 실시간 공지 관리</router-link
+            >
+          </li>
+          <li>
+            <router-link
               to="/admin-dashboard/events"
               class="nav-item"
               active-class="active-link"
