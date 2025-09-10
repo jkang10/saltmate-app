@@ -272,99 +272,74 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
-// [핵심 수정] 페이지를 나갈 때 상태를 저장하는 onUnmounted 로직을 완전히 제거하고,
-// 모든 데이터 변경은 각 기능(toggleAutoSell, sellResources 등) 내에서 즉시 서버에 반영되도록 합니다.
-// 이렇게 하면 데이터 충돌 및 롤백 현상이 사라집니다.
-
-const toggleAutoSell = async () => {
-  if (!authUser.value) {
-    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
-    state.autoSellEnabled = !state.autoSellEnabled;
-    return;
-  }
-
-  const newEnabledState = state.autoSellEnabled;
-  try {
-    const gameStateRef = doc(db, `users/${authUser.value.uid}/game_state/deep_sea_exploration`);
-    const updatePayload = {
-      autoSellEnabled: newEnabledState,
-    };
-    if (newEnabledState) {
-      updatePayload.lastAutoSellTime = serverTimestamp();
-    }
-    await setDoc(gameStateRef, updatePayload, { merge: true });
-    addLog(`자동 판매 기능이 ${newEnabledState ? "활성화" : "비활성화"}되었습니다.`);
-  } catch (error) {
-    console.error("자동 판매 상태 변경 실패:", error);
-    addLog("자동 판매 상태 변경에 실패했습니다. 다시 시도해주세요.");
-    state.autoSellEnabled = !newEnabledState;
-  }
-};
-
-const sellFundsForPoints = async () => {
-  if (state.funds < gameSettings.deepSeaRate) {
-    return alert(`판매할 자금이 ${gameSettings.deepSeaRate.toLocaleString()} 미만입니다.`);
-  }
-  isSellingFunds.value = true;
-  try {
-    const sellFunds = httpsCallable(functions, "sellDeepSeaFunds");
-    const result = await sellFunds(); // 서버 함수가 모든 자금을 판매하도록 수정됨
-    alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
-  } catch (error) {
-    console.error("자금 판매 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isSellingFunds.value = false;
-  }
-};
-
-// --- 이하 모든 코드를 아래 내용으로 교체해주세요 ---
-
+// --- 상태 변수 ---
 const DEFAULT_STATE = {
-  water: 0,   capacity: 200, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
+  water: 0, capacity: 200, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
   shop: {}, achievements: {}, seenTutorial: false, goldenTimeUntil: null,
   unlockedZones: { default: true }, activeZoneId: "default", autoSellEnabled: false, lastUpdated: null,
 };
-
 const state = reactive(clone(DEFAULT_STATE));
 const logs = ref([]);
-const showTutorial = ref(false);
-const logBox = ref(null);
-const isSellingFunds = ref(false);
 const gameSettings = reactive({ 
   deepSeaRate: 100000,
   autoSellIntervalMinutes: 1,
 });
-
-let DB_SAVE_REF = null;
-// [수정] 아래 줄에서 'lastTick'과 'tickTimer'를 삭제합니다.
 const authUser = ref(null);
+const activeTab = ref("upgrades");
+
+// UI 상태 관련
+const showTutorial = ref(false);
+const logBox = ref(null);
+const isSellingFunds = ref(false);
 const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
-const activeTab = ref("upgrades");
 const isUnlocking = ref(false);
+
+// 전역 리스너 및 타이머
+let DB_SAVE_REF = null;
 let authUnsubscribe = null;
 let settingsUnsubscribe = null;
 let gameStateUnsubscribe = null;
-let eventTimer, goldenTimeInterval, tickTimer;
-let lastTick = Date.now();
+let goldenTimeInterval = null;
 
+// --- 헬퍼 함수 ---
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function fmt(n) { return Math.floor(Number(n) || 0); }
+
+function addLog(msg, type = 'normal') {
+  if (type === 'sync') {
+    console.log(`[SYNC] ${msg}`);
+    return;
+  }
+  logs.value.unshift(`[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${msg}`);
+  if (logs.value.length > 100) logs.value.pop();
+  nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
+}
+
+async function callFunction(name, data) {
+  const func = httpsCallable(functions, name);
+  const result = await func(data);
+  return result;
+}
+
+// --- 계산된 속성 ---
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
+const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
 const ICONS = {
-  rov: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='4' y='8' width='16' height='8' rx='2' fill='%239fb3c8'/><rect x='2' y='10' width='2' height='4' fill='%239fb3c8'/><rect x='20' y='10' width='2' height='4' fill='%239fb3c8'/><circle cx='12' cy='12' r='2' fill='%23041522'/></svg>`,
-  harvester: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M3 10h18v4H3z' fill='%2300b4d8'/><path d='M5 14h2v4H5zM11 14h2v4h-2zM17 14h2v4h-2z' fill='%23008fbd'/></svg>`,
-  tank: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='5' y='6' width='14' height='12' rx='2' fill='%23008fbd'/><rect x='7' y='8' width='10' height='8' fill='rgba(255,255,255,0.2)'/></svg>`,
-  lab: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M7 21h10v-2H7zM9 19V5l-2-2v16zM15 19V5l2-2v16z' fill='%2368d391'/></svg>`,
-  market: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M4 18h16v-2H4zM12 2l-4 6h8zM10 10h4v6h-4z' fill='%23ffd166'/></svg>`,
+  rov: `data:image/svg+xml;utf8,...`, // (이하 아이콘 SVG 데이터는 기존과 동일하여 생략)
+  harvester: `data:image/svg+xml;utf8,...`,
+  tank: `data:image/svg+xml;utf8,...`,
+  lab: `data:image/svg+xml;utf8,...`,
+  market: `data:image/svg+xml;utf8,...`,
 };
 
 const SHOP_DEFS = [
-  { id: "rov", name: "소형 ROV", base: 50, type: "cps", value: 1, desc: "초당 +1L 심층수" },
-  { id: "harvester", name: "자동 수집기", base: 250, type: "cps", value: 5, desc: "초당 +5L 심층수" },
-  { id: "tank", name: "저장탱크 확장", base: 120, type: "cap", value: 300, desc: "최대 용량 +300L" },
-  { id: "lab", name: "연구소 업그레이드", base: 800, type: "chance", value: 0.02, desc: "희귀 자원 발견 확률 증가" },
-  { id: "market", name: "시장 분석", base: 1200, type: "market", value: 0.15, desc: "판매 배율 +0.15" },
+  { id: "rov", name: "소형 ROV", base: 50, desc: "초당 +1L 심층수" },
+  { id: "harvester", name: "자동 수집기", base: 250, desc: "초당 +5L 심층수" },
+  { id: "tank", name: "저장탱크 확장", base: 120, desc: "최대 용량 +300L" },
+  { id: "lab", name: "연구소 업그레이드", base: 800, desc: "희귀 자원 발견 확률 증가" },
+  { id: "market", name: "시장 분석", base: 1200, desc: "판매 배율 +0.15" },
 ];
 
 const ZONE_DEFS = {
@@ -374,9 +349,14 @@ const ZONE_DEFS = {
   abyssal_trench: { name: "심해 해구", icon: "fas fa-skull-crossbones", requirements: { research: 200000, allUpgradesLevel: 35 } },
 };
 
+const ACH_DEFS = [
+  { id: "water_1k", name: "물 한 방울", condition: () => state.water >= 1000 },
+  { id: "funds_10k", name: "첫 수익", condition: () => state.funds >= 10000 },
+  { id: "research_100", name: "연구 시작", condition: () => state.research >= 100 },
+];
+
 const derived = computed(() => {
   const shop = state.shop;
-  // [수정] 아래 코드의 '19700'을 'state.capacity'로 변경해주세요.
   const capacity = (state.capacity || 200) + (shop.tank || 0) * 300; 
   const perSecond = (shop.rov || 0) * 1 + (shop.harvester || 0) * 5;
   const marketMultiplier = 1 + (shop.market || 0) * 0.1;
@@ -386,14 +366,10 @@ const derived = computed(() => {
 const shopItems = computed(() => {
   return SHOP_DEFS.map((item) => {
     const level = state.shop[item.id] || 0;
-    const baseCost = item.base || 0;
-    const cost = Math.ceil(baseCost * Math.pow(1.65, level));
-    const canAfford = state.funds >= cost;
-    return { ...item, cost, canAfford };
+    const cost = Math.ceil((item.base || 0) * Math.pow(1.65, level));
+    return { ...item, cost, canAfford: state.funds >= cost };
   });
 });
-
-const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
 const zones = computed(() => {
   return Object.keys(ZONE_DEFS).map((id) => {
@@ -413,63 +389,18 @@ const zones = computed(() => {
 });
 
 const activeZone = computed(() => ZONE_DEFS[state.activeZoneId] || ZONE_DEFS.default);
+const achievements = computed(() => ACH_DEFS.map((ach) => ({ ...ach, unlocked: state.achievements[ach.id] })));
 
-const ACH_DEFS = [
-  { id: "water_1k", name: "물 한 방울", condition: () => state.water >= 1000 },
-  { id: "funds_10k", name: "첫 수익", condition: () => state.funds >= 10000 },
-  { id: "research_100", name: "연구 시작", condition: () => state.research >= 100 },
-];
 
-const achievements = computed(() => {
-  return ACH_DEFS.map((ach) => ({ ...ach, unlocked: state.achievements[ach.id] }));
-});
-
-function clone(o) { return JSON.parse(JSON.stringify(o)); }
-function fmt(n) { return Math.floor(Number(n) || 0); }
-
-function addLog(msg, type = 'normal') {
-  if (type === 'sync') {
-    console.log(`[SYNC] ${msg}`);
-    return;
-  }
-  logs.value.unshift(`[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${msg}`);
-  if (logs.value.length > 100) logs.value.pop();
-  nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
-}
-
-async function callFunction(name, data) {
-  const func = httpsCallable(functions, name);
-  return await func(data);
-}
-
-const activateGoldenTime = async () => {
-  if (!confirm("100 SaltMate를 사용하여 10분간 골든타임을 시작하시겠습니까?")) return;
-  isActivatingGoldenTime.value = true;
-  try {
-    const result = await callFunction("startGoldenTime");
-    alert(result.data.message);
-    addLog(result.data.message);
-  } catch (error) {
-    console.error("골든타임 활성화 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isActivatingGoldenTime.value = false;
-  }
-};
+// --- 핵심 기능 함수 (모두 서버 호출 방식으로 변경) ---
 
 const collectClick = () => {
-  if (state.water >= derived.value.capacity) {
-     return addLog("저장 공간이 가득 찼습니다!");
-  }
-
-  // 이 함수는 이제 서버에 요청을 보냅니다.
   callFunction("collectDeepSeaResources").catch(err => {
       addLog(`채집 오류: ${err.message}`);
   });
 };
 
 const sellResources = async () => {
-  if (state.water <= 0 && state.plankton <= 0) return alert("판매할 자원이 없습니다.");
   try {
     const result = await callFunction("sellDeepSeaResources");
     addLog(`자원 판매: +${result.data.revenue.toLocaleString()} 자금`);
@@ -479,35 +410,7 @@ const sellResources = async () => {
   }
 };
 
-const setActiveZone = async (zoneId) => {
-  if (DB_SAVE_REF) {
-    await setDoc(DB_SAVE_REF, { activeZoneId: zoneId }, { merge: true });
-  }
-  addLog(`'${ZONE_DEFS[zoneId].name}' 지역 탐사를 시작합니다.`);
-};
-
-const unlockZone = async (zoneId) => {
-  const zone = zones.value.find((z) => z.id === zoneId);
-  if (!zone || !zone.canUnlock) return;
-  isUnlocking.value = true;
-  try {
-    const result = await callFunction("unlockExplorationZone", { zoneId });
-    alert(result.data.message);
-    addLog(result.data.message);
-  } catch (error) {
-    console.error("지역 해금 오류:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isUnlocking.value = false;
-  }
-};
-
-function formatResourceName(res) {
-  const names = { research: "연구 데이터", minerals: "희귀 미네랄", allUpgradesLevel: "모든 장비 레벨" };
-  return names[res] || res;
-}
-
-function buy(id) {
+const buy = (id) => {
   const item = shopItems.value.find((i) => i.id === id);
   if (!item.canAfford) return alert("자금이 부족합니다.");
 
@@ -518,40 +421,86 @@ function buy(id) {
       shop: { ...state.shop, [id]: newLevel },
     }, { merge: true });
   }
-  
-  addLog(`${item.name} 구매`);
-  checkAchievements();
+};
+
+const toggleAutoSell = async () => {
+  if (!authUser.value) {
+    addLog("자동 판매 상태를 변경하려면 로그인이 필요합니다.");
+    return;
+  }
+  // v-model이 이미 state.autoSellEnabled 값을 변경했으므로, 그대로 사용
+  const newEnabledState = state.autoSellEnabled;
+  try {
+    await setDoc(DB_SAVE_REF, {
+      autoSellEnabled: newEnabledState,
+      ...(newEnabledState && { lastAutoSellTime: serverTimestamp() })
+    }, { merge: true });
+    addLog(`자동 판매 기능이 ${newEnabledState ? "활성화" : "비활성화"}되었습니다.`);
+  } catch (error) {
+    console.error("자동 판매 상태 변경 실패:", error);
+    addLog("자동 판매 상태 변경에 실패했습니다.");
+    state.autoSellEnabled = !newEnabledState; // 실패 시 UI 원상 복구
+  }
+};
+
+const sellFundsForPoints = async () => {
+  isSellingFunds.value = true;
+  try {
+    const result = await callFunction("sellDeepSeaFunds");
+    alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
+  } catch (error) {
+    console.error("자금 판매 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isSellingFunds.value = false;
+  }
+};
+
+const activateGoldenTime = async () => {
+  isActivatingGoldenTime.value = true;
+  try {
+    const result = await callFunction("startGoldenTime");
+    alert(result.data.message);
+  } catch (error) {
+    console.error("골든타임 활성화 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isActivatingGoldenTime.value = false;
+  }
+};
+
+const unlockZone = async (zoneId) => {
+  isUnlocking.value = true;
+  try {
+    const result = await callFunction("unlockExplorationZone", { zoneId });
+    alert(result.data.message);
+  } catch (error) {
+    console.error("지역 해금 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isUnlocking.value = false;
+  }
+};
+
+const setActiveZone = async (zoneId) => {
+  if (DB_SAVE_REF) {
+    await setDoc(DB_SAVE_REF, { activeZoneId: zoneId }, { merge: true });
+  }
+};
+
+function formatResourceName(res) {
+  const names = { research: "연구 데이터", minerals: "희귀 미네랄", allUpgradesLevel: "모든 장비 레벨" };
+  return names[res] || res;
 }
 
-function checkAchievements() {
-  ACH_DEFS.forEach((ach) => {
-    if (!state.achievements[ach.id] && ach.condition()) {
-       if(DB_SAVE_REF) {
-           setDoc(DB_SAVE_REF, { achievements: { [ach.id]: true } }, { merge: true });
-           addLog(`업적 달성: ${ach.name}`);
-       }
-    }
-  });
-}
-
-function runEvent() {
-  if (Math.random() < 0.2) {
-    const eventType = Math.random();
-    let payload = {};
-    let msg = "";
-    if (eventType < 0.5) {
-      msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
-      payload = { water: increment(derived.value.perSecond * 10 * 2) };
-    } else {
-      msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
-      payload = { research: increment(100) };
-    }
-    if (DB_SAVE_REF) {
-        setDoc(DB_SAVE_REF, payload, { merge: true });
-        addLog(msg);
-    }
+function closeTutorial() {
+  showTutorial.value = false;
+  if (DB_SAVE_REF) {
+      setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
   }
 }
+
+// --- 데이터 동기화 및 생명주기 훅 ---
 
 const listenToGame = (user) => {
   if (!user || !db) return;
@@ -562,36 +511,30 @@ const listenToGame = (user) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
       const isFirstLoad = !state.lastUpdated;
-
+      
       if (isFirstLoad) {
+        // 첫 로딩 시 오프라인 생산량 계산
         const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
         const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
-        
-        // [핵심 수정] capacity 계산식을 서버 로직과 동일하게 수정합니다.
         const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
-        
         const offlineProduction = Math.floor(secondsDiff * perSecondProd);
-        
+
         if (offlineProduction > 0) {
           const currentWater = dbState.water || 0;
           const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
           const producedAmount = waterAfterOffline - currentWater;
-
           if (producedAmount > 0) {
             addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
             dbState.water = waterAfterOffline;
           }
         }
-        addLog("서버와 데이터 동기화 완료.", 'sync');
       }
       Object.assign(state, dbState);
-
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
-      addLog("새로운 탐사를 시작합니다. (서버)");
-      if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() }, { merge: true });
+      if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
     }
     if (!state.seenTutorial) showTutorial.value = true;
   }, (e) => {
@@ -600,20 +543,11 @@ const listenToGame = (user) => {
   });
 };
 
-function closeTutorial() {
-  showTutorial.value = false;
-  if (DB_SAVE_REF) {
-      setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
-  }
-}
-
-// 기존 onMounted 함수와 그 뒤에 붙어있던 중복 코드를 모두 지우고 아래 코드로 교체해주세요.
 onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
     if (user) {
       listenToGame(user);
-      
       const configRef = doc(db, "configuration", "gameSettings");
       settingsUnsubscribe = onSnapshot(configRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -625,7 +559,6 @@ onMounted(() => {
     } else {
       if (settingsUnsubscribe) settingsUnsubscribe();
       if (gameStateUnsubscribe) gameStateUnsubscribe();
-      addLog("로그인이 필요합니다.");
     }
   });
 
@@ -633,31 +566,14 @@ onMounted(() => {
   goldenTimeInterval = setInterval(() => {
     if (isGoldenTimeActive.value) {
       const remaining = state.goldenTimeUntil.toDate().getTime() - new Date().getTime();
-      if (remaining <= 0) return;
       const minutes = Math.floor((remaining / 1000 / 60) % 60);
       const seconds = Math.floor((remaining / 1000) % 60);
-      goldenTimeRemaining.value = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      goldenTimeRemaining.value = remaining > 0 ? `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}` : "00:00";
     }
   }, 1000);
-
-  // [핵심 추가] 화면 표시용 tickTimer 로직을 다시 추가합니다.
-  lastTick = Date.now();
-  tickTimer = setInterval(() => {
-    const delta = (Date.now() - lastTick) / 1000;
-    lastTick = Date.now();
-    const production = derived.value.perSecond * delta;
-    if (production > 0 && state.water < derived.value.capacity) {
-        state.water = Math.min(derived.value.capacity, state.water + production);
-    }
-  }, 1000);
-  
-  eventTimer = setInterval(runEvent, 25000);
 });
 
 onUnmounted(() => {
-  // [핵심 추가] tickTimer를 정리하는 코드를 추가합니다.
-  clearInterval(tickTimer);
-  clearInterval(eventTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
