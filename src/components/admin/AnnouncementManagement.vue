@@ -70,7 +70,6 @@ import {
   serverTimestamp,
   orderBy,
   query,
-  updateDoc,
   writeBatch
 } from "firebase/firestore";
 
