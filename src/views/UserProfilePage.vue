@@ -116,7 +116,7 @@ import ChangePasswordModal from "@/components/ChangePasswordModal.vue";
 // [추가] NotificationSettingsModal import 경로를 확인하고, 없다면 추가합니다.
 import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue"; 
 // [추가] Firebase Messaging 관련 import
-import { getMessaging, getToken } from "firebase/messaging";
+
 
 // [핵심 추가] 서비스 워커를 등록하는 헬퍼 함수
 async function registerServiceWorker() {
