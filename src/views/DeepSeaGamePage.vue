@@ -506,33 +506,43 @@ function runEvent() {
   }
 }
 
-// --- 데이터 동기화 및 생명주기 훅 ---
+// DeepSeaGamePage.vue
+
 const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
   if (gameStateUnsubscribe) gameStateUnsubscribe();
+
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
       const isFirstLoad = !state.lastUpdated;
-      if (isFirstLoad) {
-        const lastUpdate = dbState.lastUpdated?.toDate() || new Date();
+
+      if (isFirstLoad && dbState.lastUpdated) { // lastUpdated가 있을 때만 오프라인 계산
+        const lastUpdate = dbState.lastUpdated.toDate();
         const now = new Date();
         const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-        const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
-        const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
-        const offlineProduction = Math.floor(secondsDiff * perSecondProd);
-        if (offlineProduction > 0) {
-          const currentWater = dbState.water || 0;
-          const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
-          const producedAmount = waterAfterOffline - currentWater;
-          if (producedAmount > 0) {
-            addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
-            dbState.water = waterAfterOffline;
-          }
+        
+        if (secondsDiff > 0) {
+            const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
+            // [핵심 수정] capacity 계산식을 서버 로직과 동일하게 수정합니다.
+            const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
+            const offlineProduction = Math.floor(secondsDiff * perSecondProd);
+            
+            if (offlineProduction > 0) {
+              const currentWater = dbState.water || 0;
+              const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
+              const producedAmount = waterAfterOffline - currentWater;
+
+              if (producedAmount > 0) {
+                addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
+                dbState.water = waterAfterOffline;
+              }
+            }
         }
       }
       Object.assign(state, dbState);
+
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
