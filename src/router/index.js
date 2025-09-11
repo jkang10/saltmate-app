@@ -200,8 +200,7 @@ const routes = [
       {
         path: "game-conversion-settings",
         name: "GameConversionSettings",
-        component: () =>
-          import("@/components/admin/GameConversionSettings.vue"),
+        component: () => import("@/components/admin/GameConversionSettings.vue"),
       },
       {
         path: "payments",
