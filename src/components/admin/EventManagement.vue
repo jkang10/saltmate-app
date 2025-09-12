@@ -100,23 +100,22 @@
         <div v-else class="no-data"><p>챌린지 결과 기록이 없습니다.</p></div>
       </div>
       
-      <div v-show="['dailyTop7', 'weeklyTop7', 'saltPangRanked'].includes(activeTab)" class="card">
-        <div v-if="isLoadingRankings" class="loading-spinner"></div>
-        <div v-else-if="currentRankings.length > 0">
-           <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
-	<table class="event-table">
-             <thead><tr><th>주차/일자</th><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
-             <tbody>
-               <tr v-for="item in currentRankings" :key="item.id">
-                 <td>{{ item.weekId || item.date }}</td>
-                 <td>{{ item.rank }} 위</td>
-                 <td>{{ item.userName }}</td>
-                 <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
-                 <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
-                 <td>{{ formatDate(item.awardedAt) }}</td>
-               </tr>
-             </tbody>
-           </table>
+	<div v-else-if="currentRankings.length > 0">
+	   <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
+	   <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
+	     <h5>{{ group.date }}</h5>
+	     <table class="event-table">
+	       <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
+	       <tbody>
+		 <tr v-for="item in group.items" :key="item.id">
+		   <td>{{ item.rank }} 위</td>
+		   <td>{{ item.userName }}</td>
+		   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
+		   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
+		   <td>{{ formatDate(item.awardedAt) }}</td>
+		 </tr>
+	       </tbody>
+	     </table>
         </div>
         <div v-else class="no-data"><p>보상 지급 내역이 없습니다.</p></div>
       </div>
@@ -161,13 +160,40 @@ const groupedChallenges = computed(() => {
   }));
 });
 
+// [핵심 수정] currentRankings를 그룹화하고 정렬하는 로직으로 변경
 const currentRankings = computed(() => {
+  let sourceData;
+  let dateKey;
+
   switch(activeTab.value) {
-    case 'dailyTop7': return rankings.dailyTop7;
-    case 'weeklyTop7': return rankings.weeklyTop7;
-    case 'saltPangRanked': return rankings.saltPangRanked;
+    case 'dailyTop7': 
+      sourceData = rankings.dailyTop7;
+      dateKey = 'date';
+      break;
+    case 'weeklyTop7': 
+      sourceData = rankings.weeklyTop7;
+      dateKey = 'weekId';
+      break;
+    case 'saltPangRanked': 
+      sourceData = rankings.saltPangRanked;
+      dateKey = 'weekId';
+      break;
     default: return [];
   }
+  
+  if (!sourceData || sourceData.length === 0) return [];
+
+  const groups = sourceData.reduce((acc, curr) => {
+    const key = curr[dateKey];
+    (acc[key] = acc[key] || []).push(curr);
+    return acc;
+  }, {});
+
+  return Object.keys(groups).sort().reverse().map(key => ({
+    id: key,
+    date: key,
+    items: groups[key].sort((a, b) => a.rank - b.rank)
+  }));
 });
 
 const currentTabTitle = computed(() => {
@@ -220,9 +246,8 @@ const fetchAllRankings = async () => {
         const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
         const result = await getAdminRankings();
         
-        // [핵심 수정] 날짜와 순위 기준으로 데이터를 정렬합니다.
-        rankings.dailyTop7 = result.data.dailyTop7.sort((a, b) => b.date.localeCompare(a.date) || a.rank - b.rank);
-        rankings.weeklyTop7 = result.data.weeklyTop7.sort((a, b) => b.weekId.localeCompare(a.weekId) || a.rank - b.rank);
+        rankings.dailyTop7 = result.data.dailyTop7;
+        rankings.weeklyTop7 = result.data.weeklyTop7;
         challengeResults.value = result.data.challenges;
         rankings.saltPangRanked = result.data.saltPangRanked;
 
