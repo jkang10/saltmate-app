@@ -185,11 +185,16 @@ const currentRankings = computed(() => {
   
   if (!sourceData || sourceData.length === 0) return [];
 
+  // [핵심 수정] 그룹화 키(key)가 유효한 경우에만 그룹에 포함시키도록 수정
   const groups = sourceData.reduce((acc, curr) => {
     const key = curr[dateKey];
-    (acc[key] = acc[key] || []).push(curr);
+    if (key) { // key가 undefined나 null이 아닐 때만 실행
+      (acc[key] = acc[key] || []).push(curr);
+    }
     return acc;
   }, {});
+  
+  if (Object.keys(groups).length === 0) return [];
 
   return Object.keys(groups).sort().reverse().map(key => ({
     id: key,
