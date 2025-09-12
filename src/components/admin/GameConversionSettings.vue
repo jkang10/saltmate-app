@@ -83,6 +83,22 @@
         </div>
       </div>
       
+      <h3 class="section-title">베팅 상한선 설정</h3>
+      <div class="form-group">
+        <label for="rps-bet-max"><i class="fas fa-hand-scissors"></i> 가위바위보 최대 베팅액</label>
+        <div class="input-group">
+          <input type="number" step="100" v-model.number="settings.rpsBetMax" />
+          <span> SaltMate</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="high-low-bet-max"><i class="fas fa-arrows-alt-v"></i> 하이로우 최대 베팅액</label>
+        <div class="input-group">
+          <input type="number" step="100" v-model.number="settings.highLowBetMax" />
+          <span> SaltMate</span>
+        </div>
+      </div>
+
       <h3 class="section-title">게임 시스템 설정</h3>
       <div class="form-group">
         <label for="auto-sell-interval"><i class="fas fa-history"></i> 심해 해구 자동 판매 간격</label>
@@ -145,6 +161,10 @@ export default {
       // [핵심 추가] 아래 두 라인을 추가합니다.
       deepSeaWaterPrice: 5,
       deepSeaPlanktonPrice: 15,
+
+      // [핵심 추가] 아래 두 라인을 추가합니다.
+      rpsBetMax: 2000,
+      highLowBetMax: 2000,
     });
 
     const fetchSettings = async () => {

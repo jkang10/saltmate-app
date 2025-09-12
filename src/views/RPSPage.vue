@@ -8,6 +8,9 @@
       <p class="description">
         SaltMate를 걸고 컴퓨터와 가위바위보 대결을 펼치세요!
       </p>
+      <p class="bet-range">
+        베팅 범위: 1 ~ {{ (gameSettings.rpsBetMax || 2000).toLocaleString() }} SaltMate
+      </p>
     </header>
 
     <div class="game-card card">
@@ -246,6 +249,16 @@ const play = async (choice) => {
   font-size: 1.2em;
   color: #333;
   font-weight: bold;
+}
+.bet-range {
+  margin-top: 10px;
+  font-size: 1em;
+  font-weight: 500;
+  color: #007bff;
+  background-color: #e7f1ff;
+  padding: 8px 15px;
+  border-radius: 20px;
+  display: inline-block;
 }
 @keyframes spin {
   to {

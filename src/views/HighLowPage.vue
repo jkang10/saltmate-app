@@ -8,6 +8,9 @@
       <p class="description">
         제시된 숫자보다 다음 숫자가 높을지 낮을지 예측하세요!
       </p>
+      <p class="bet-range">
+        베팅 범위: 1 ~ {{ (gameSettings.highLowBetMax || 2000).toLocaleString() }} SaltMate
+      </p>
     </header>
 
     <div class="game-card card">
@@ -246,6 +249,16 @@ const play = async (playerChoice) => {
   width: 24px;
   height: 24px;
   animation: spin 1s linear infinite;
+  display: inline-block;
+}
+.bet-range {
+  margin-top: 10px;
+  font-size: 1em;
+  font-weight: 500;
+  color: #007bff;
+  background-color: #e7f1ff;
+  padding: 8px 15px;
+  border-radius: 20px;
   display: inline-block;
 }
 @keyframes spin {
