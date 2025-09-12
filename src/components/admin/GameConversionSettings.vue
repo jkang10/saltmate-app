@@ -126,6 +126,34 @@
         </div>
       </div>
 
+      <h3 class="section-title">랭킹 보상 설정 (SaltMate)</h3>
+      <p class="description">각 랭킹의 1위부터 7위까지 지급될 보상을 순서대로 입력합니다.</p>
+      
+      <div class="form-group">
+        <label><i class="fas fa-sun"></i> 오늘의 SaltMate TOP 7</label>
+        <div class="reward-inputs">
+          <input v-for="i in 7" :key="i" type="number" v-model.number="settings.rewards.dailyTop7[i-1]" :placeholder="`${i}위`" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-calendar-week"></i> 주간 SaltMate TOP 7</label>
+        <div class="reward-inputs">
+          <input v-for="i in 7" :key="i" type="number" v-model.number="settings.rewards.weeklyTop7[i-1]" :placeholder="`${i}위`" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-chess-king"></i> 명예의 전당 (소금왕 & 해양탐험)</label>
+        <div class="reward-inputs">
+          <input v-for="i in 3" :key="i" type="number" v-model.number="settings.rewards.hallOfFame[i-1]" :placeholder="`${i}위`" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-puzzle-piece"></i> 솔트팡 주간 랭킹전</label>
+        <div class="reward-inputs">
+          <input v-for="i in 3" :key="i" type="number" v-model.number="settings.rewards.saltPangRanked[i-1]" :placeholder="`${i}위`" />
+        </div>
+      </div>
+
       <div class="actions">
         <button class="btn-save" @click="saveSettings" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
@@ -165,6 +193,14 @@ export default {
       // [핵심 추가] 아래 두 라인을 추가합니다.
       rpsBetMax: 2000,
       highLowBetMax: 2000,
+
+      // [핵심 추가] rewards 객체를 추가합니다.
+      rewards: {
+        dailyTop7: [1000, 500, 300, 100, 100, 100, 100],
+        weeklyTop7: [15000, 10000, 7000, 5000, 3000, 2000, 1000],
+        hallOfFame: [5000, 3000, 1500],
+        saltPangRanked: [20000, 10000, 5000],
+      }
     });
 
     const fetchSettings = async () => {
@@ -293,6 +329,15 @@ export default {
   height: 18px;
   animation: spin 1s linear infinite;
   display: inline-block;
+}
+/* [추가] 보상 입력 필드 스타일 */
+.reward-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 10px;
+}
+.reward-inputs input {
+  width: 100%;
 }
 @keyframes spin {
   to {
