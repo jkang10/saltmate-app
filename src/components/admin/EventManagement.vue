@@ -279,30 +279,38 @@ input[disabled] { background-color: #f8f9fa; }
   display: flex;
   flex-direction: column;
 }
+
+/* [핵심 수정] 아래 .user-row 관련 스타일을 수정된 코드로 교체합니다. */
 .user-row {
   padding: 10px 15px;
   border-bottom: 1px solid #eee;
-  display: flex;
-  align-items: center;
+  display: flex; /* Flexbox 레이아웃 사용 */
+  align-items: center; /* 세로 중앙 정렬 */
+  gap: 15px; /* 항목 사이 간격 */
 }
+
 .user-row:last-child {
   border-bottom: none;
 }
+
 .user-row input {
   flex-shrink: 0;
-  margin-right: 15px; /* 체크박스와 이름 사이 간격 */
+  flex-basis: 20px; /* 체크박스 열의 너비를 지정 */
 }
+
 .user-name {
   font-weight: 500;
-  flex-shrink: 0; /* 이름 너비 고정 */
-  width: 120px; /* 이름 너비 지정 */
+  flex-shrink: 0; 
+  width: 120px; /* 이름 열의 너비를 지정 */
 }
+
 .user-email {
   color: #6c757d;
   font-size: 0.9em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-grow: 1; /* 이메일이 남은 공간을 모두 차지하도록 함 */
 }
 .event-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 .event-table th, .event-table td { border-bottom: 1px solid #eee; padding: 12px 15px; text-align: left; }
