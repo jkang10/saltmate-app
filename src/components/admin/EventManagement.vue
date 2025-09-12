@@ -102,22 +102,22 @@
       
       <div v-show="['dailyTop7', 'weeklyTop7', 'saltPangRanked'].includes(activeTab)" class="card">
         <div v-if="isLoadingRankings" class="loading-spinner"></div>
-        <div v-else-if="currentRankings.length > 0">
-           <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
-           <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
-             <h5>{{ group.date }}</h5>
-             <table class="event-table">
-               <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
-               <tbody>
-                 <tr v-for="item in group.items" :key="item.id">
-                   <td>{{ item.rank }} 위</td>
-                   <td>{{ item.userName }}</td>
-                   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
-                   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
-                   <td>{{ formatDate(item.awardedAt) }}</td>
-                 </tr>
-               </tbody>
-             </table>
+	<div v-else-if="currentRankings.length > 0">
+	   <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
+	   <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
+	     <h5>{{ group.date }}</h5>
+	     <table class="event-table">
+	       <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
+	       <tbody>
+		 <tr v-for="item in group.items" :key="item.id">
+		   <td>{{ item.rank }} 위</td>
+		   <td>{{ item.userName }}</td>
+		   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
+		   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
+		   <td>{{ formatDate(item.awardedAt) }}</td>
+		 </tr>
+	       </tbody>
+	     </table>
            </div>
         </div>
         <div v-else class="no-data"><p>보상 지급 내역이 없습니다.</p></div>
@@ -163,6 +163,7 @@ const groupedChallenges = computed(() => {
   }));
 });
 
+// [핵심 수정] currentRankings를 그룹화하고 정렬하는 로직으로 변경
 const currentRankings = computed(() => {
   let sourceData;
   let dateKey;
@@ -185,7 +186,6 @@ const currentRankings = computed(() => {
   
   if (!sourceData || sourceData.length === 0) return [];
 
-  // [핵심 수정] 그룹화 키(key)가 유효한 경우에만 그룹에 포함시키도록 수정
   const groups = sourceData.reduce((acc, curr) => {
     const key = curr[dateKey];
     if (key) { // key가 undefined나 null이 아닐 때만 실행
