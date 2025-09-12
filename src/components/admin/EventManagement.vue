@@ -5,10 +5,10 @@
     
     <div class="tabs">
       <button class="tab-button" :class="{active: activeTab === 'coupons'}" @click="activeTab = 'coupons'">쿠폰 발급</button>
-      <button class="tab-button" :class="{active: activeTab === 'challenges'}" @click="activeTab = 'challenges'">주간 명예의 전당 (소금왕 & 해양탐험)</button>
-      <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 SaltMate TOP 7</button>
-      <button class="tab-button" :class="{active: activeTab === 'weeklyTop7'}" @click="activeTab = 'weeklyTop7'">주간 SaltMate TOP 7</button>
-      <button class="tab-button" :class="{active: activeTab === 'saltPangRanked'}" @click="activeTab = 'saltPangRanked'">솔트팡 주간 랭킹전</button>
+      <button class="tab-button" :class="{active: activeTab === 'challenges'}" @click="activeTab = 'challenges'">주간 명예의 전당</button>
+      <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 TOP 7</button>
+      <button class="tab-button" :class="{active: activeTab === 'weeklyTop7'}" @click="activeTab = 'weeklyTop7'">주간 TOP 7</button>
+      <button class="tab-button" :class="{active: activeTab === 'saltPangRanked'}" @click="activeTab = 'saltPangRanked'">솔트팡 랭킹전</button>
     </div>
 
     <div class="tab-content">
@@ -126,7 +126,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
-import { db, functions } from "@/firebaseConfig";
+import { db, functions, auth } from "@/firebaseConfig";
 import { collection, getDocs, query, orderBy, collectionGroup, limit } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
@@ -217,18 +217,19 @@ const fetchIssuedCoupons = async () => {
 const fetchAllRankings = async () => {
     isLoadingRankings.value = true;
     try {
-        const dailySnapshot = await getDocs(query(collectionGroup(db, 'daily_winners'), orderBy('awardedAt', 'desc'), limit(50)));
-        rankings.dailyTop7 = dailySnapshot.docs.map(doc => ({ id: doc.id, date: doc.ref.parent.parent.id, ...doc.data() }));
-
-        const weeklySnapshot = await getDocs(query(collectionGroup(db, 'weekly_winners'), orderBy('awardedAt', 'desc'), limit(50)));
-        rankings.weeklyTop7 = weeklySnapshot.docs.map(doc => ({ id: doc.id, weekId: doc.ref.parent.parent.id, ...doc.data() }));
-
-        const challengesSnapshot = await getDocs(query(collection(db, 'challenges'), orderBy('awardedAt', 'desc'), limit(30)));
-        challengeResults.value = challengesSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        // [핵심 수정] collectionGroup 쿼리를 서버 함수로 이전합니다.
+        const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
+        const result = await getAdminRankings();
         
-        // 솔트팡 랭킹전 데이터는 별도의 구조를 가질 수 있으므로, 해당 구조에 맞게 쿼리 및 매핑 필요
-        // 예시: rankings.saltPangRanked = ...;
-    } catch (error) { console.error("랭킹 데이터 로딩 실패:", error); } 
+        rankings.dailyTop7 = result.data.dailyTop7;
+        rankings.weeklyTop7 = result.data.weeklyTop7;
+        challengeResults.value = result.data.challenges;
+        rankings.saltPangRanked = result.data.saltPangRanked;
+
+    } catch (error) { 
+        console.error("랭킹 데이터 로딩 실패:", error); 
+        alert(`랭킹 데이터를 불러오는 데 실패했습니다. Firestore 보안 규칙을 확인해주세요. (${error.message})`);
+    } 
     finally { isLoadingRankings.value = false; }
 };
 
@@ -278,32 +279,30 @@ input[disabled] { background-color: #f8f9fa; }
   display: flex;
   flex-direction: column;
 }
-
-/* [핵심 수정] 아래 .user-row 관련 스타일을 수정하거나 새로 추가합니다. */
 .user-row {
   padding: 10px 15px;
   border-bottom: 1px solid #eee;
-  display: flex; /* Flexbox 레이아웃 사용 */
-  align-items: center; /* 세로 중앙 정렬 */
-  gap: 15px; /* 항목 사이 간격 */
+  display: flex;
+  align-items: center;
 }
 .user-row:last-child {
   border-bottom: none;
 }
 .user-row input {
-  flex-shrink: 0; /* 체크박스는 줄어들지 않음 */
+  flex-shrink: 0;
+  margin-right: 15px; /* 체크박스와 이름 사이 간격 */
 }
 .user-name {
   font-weight: 500;
-  flex-basis: 120px; /* 이름 항목의 기본 너비 */
-  flex-shrink: 0; /* 이름은 줄어들지 않음 */
+  flex-shrink: 0; /* 이름 너비 고정 */
+  width: 120px; /* 이름 너비 지정 */
 }
 .user-email {
   color: #6c757d;
   font-size: 0.9em;
-  white-space: nowrap; /* 이메일은 한 줄로 표시 */
-  overflow: hidden; /* 영역을 벗어나면 숨김 */
-  text-overflow: ellipsis; /* ...으로 생략 표시 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .event-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 .event-table th, .event-table td { border-bottom: 1px solid #eee; padding: 12px 15px; text-align: left; }
