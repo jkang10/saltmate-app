@@ -5,10 +5,10 @@
     
     <div class="tabs">
       <button class="tab-button" :class="{active: activeTab === 'coupons'}" @click="activeTab = 'coupons'">쿠폰 발급</button>
-      <button class="tab-button" :class="{active: activeTab === 'challenges'}" @click="activeTab = 'challenges'">주간 챌린지</button>
-      <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 TOP 7</button>
-      <button class="tab-button" :class="{active: activeTab === 'weeklyTop7'}" @click="activeTab = 'weeklyTop7'">주간 TOP 7</button>
-      <button class="tab-button" :class="{active: activeTab === 'saltPangRanked'}" @click="activeTab = 'saltPangRanked'">솔트팡 랭킹전</button>
+      <button class="tab-button" :class="{active: activeTab === 'challenges'}" @click="activeTab = 'challenges'">주간 명예의 전당 (소금왕 & 해양탐험)</button>
+      <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 SaltMate TOP 7</button>
+      <button class="tab-button" :class="{active: activeTab === 'weeklyTop7'}" @click="activeTab = 'weeklyTop7'">주간 SaltMate TOP 7</button>
+      <button class="tab-button" :class="{active: activeTab === 'saltPangRanked'}" @click="activeTab = 'saltPangRanked'">솔트팡 주간 랭킹전</button>
     </div>
 
     <div class="tab-content">
@@ -272,13 +272,14 @@ input[disabled] { background-color: #f8f9fa; }
 .btn { border: none; border-radius: 5px; padding: 10px 20px; cursor: pointer; font-weight: bold; }
 .btn-primary { background-color: #007bff; color: white; }
 .user-selection-table { border: 1px solid #ddd; border-radius: 8px; max-height: 250px; overflow-y: auto; }
-.table-header { background-color: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; }
-.table-header input, .user-row input { margin-right: 10px; }
+.table-header { background-color: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; display: flex; align-items: center; }
+.table-header input { margin-right: 10px; }
 .user-list { display: flex; flex-direction: column; }
 .user-row { padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; align-items: center;}
 .user-row:last-child { border-bottom: none; }
-.user-name { font-weight: 500; }
-.user-email { color: #6c757d; margin-left: 10px; font-size: 0.9em; }
+.user-row input { flex-shrink: 0; margin-right: 15px; }
+.user-name { font-weight: 500; flex-basis: 120px; margin-right: 15px; }
+.user-email { color: #6c757d; font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 .event-table th, .event-table td { border-bottom: 1px solid #eee; padding: 12px 15px; text-align: left; }
 .status-badge { padding: 5px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; }
