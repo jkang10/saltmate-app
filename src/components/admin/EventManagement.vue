@@ -100,22 +100,25 @@
         <div v-else class="no-data"><p>챌린지 결과 기록이 없습니다.</p></div>
       </div>
       
-	<div v-else-if="currentRankings.length > 0">
-	   <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
-	   <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
-	     <h5>{{ group.date }}</h5>
-	     <table class="event-table">
-	       <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
-	       <tbody>
-		 <tr v-for="item in group.items" :key="item.id">
-		   <td>{{ item.rank }} 위</td>
-		   <td>{{ item.userName }}</td>
-		   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
-		   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
-		   <td>{{ formatDate(item.awardedAt) }}</td>
-		 </tr>
-	       </tbody>
-	     </table>
+      <div v-show="['dailyTop7', 'weeklyTop7', 'saltPangRanked'].includes(activeTab)" class="card">
+        <div v-if="isLoadingRankings" class="loading-spinner"></div>
+        <div v-else-if="currentRankings.length > 0">
+           <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
+           <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
+             <h5>{{ group.date }}</h5>
+             <table class="event-table">
+               <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
+               <tbody>
+                 <tr v-for="item in group.items" :key="item.id">
+                   <td>{{ item.rank }} 위</td>
+                   <td>{{ item.userName }}</td>
+                   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
+                   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
+                   <td>{{ formatDate(item.awardedAt) }}</td>
+                 </tr>
+               </tbody>
+             </table>
+           </div>
         </div>
         <div v-else class="no-data"><p>보상 지급 내역이 없습니다.</p></div>
       </div>
@@ -160,7 +163,6 @@ const groupedChallenges = computed(() => {
   }));
 });
 
-// [핵심 수정] currentRankings를 그룹화하고 정렬하는 로직으로 변경
 const currentRankings = computed(() => {
   let sourceData;
   let dateKey;
@@ -299,44 +301,13 @@ input[disabled] { background-color: #f8f9fa; }
 .btn-primary { background-color: #007bff; color: white; }
 .user-selection-table { border: 1px solid #ddd; border-radius: 8px; max-height: 250px; overflow-y: auto; }
 .table-header { background-color: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; display: flex; align-items: center; }
-.table-header input { margin-right: 10px; }
-.user-list { 
-  display: flex;
-  flex-direction: column;
-}
-
-/* [핵심 수정] 아래 .user-row 관련 스타일을 수정된 코드로 교체합니다. */
-.user-row {
-  padding: 10px 15px;
-  border-bottom: 1px solid #eee;
-  display: flex; /* Flexbox 레이아웃 사용 */
-  align-items: center; /* 세로 중앙 정렬 */
-  gap: 15px; /* 항목 사이 간격 */
-}
-
-.user-row:last-child {
-  border-bottom: none;
-}
-
-.user-row input {
-  flex-shrink: 0;
-  flex-basis: 20px; /* 체크박스 열의 너비를 지정 */
-}
-
-.user-name {
-  font-weight: 500;
-  flex-shrink: 0; 
-  width: 120px; /* 이름 열의 너비를 지정 */
-}
-
-.user-email {
-  color: #6c757d;
-  font-size: 0.9em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1; /* 이메일이 남은 공간을 모두 차지하도록 함 */
-}
+.table-header input { margin-right: 10px; flex-shrink: 0; }
+.user-list { display: flex; flex-direction: column; }
+.user-row { padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px; }
+.user-row:last-child { border-bottom: none; }
+.user-row input { flex-shrink: 0; flex-basis: 20px; }
+.user-name { font-weight: 500; flex-shrink: 0; width: 120px; }
+.user-email { color: #6c757d; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-grow: 1; }
 .event-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 .event-table th, .event-table td { border-bottom: 1px solid #eee; padding: 12px 15px; text-align: left; }
 .status-badge { padding: 5px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; }
