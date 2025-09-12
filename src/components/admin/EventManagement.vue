@@ -104,7 +104,7 @@
         <div v-if="isLoadingRankings" class="loading-spinner"></div>
         <div v-else-if="currentRankings.length > 0">
            <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
-           <table class="event-table">
+	<table class="event-table">
              <thead><tr><th>주차/일자</th><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
              <tbody>
                <tr v-for="item in currentRankings" :key="item.id">
@@ -217,12 +217,12 @@ const fetchIssuedCoupons = async () => {
 const fetchAllRankings = async () => {
     isLoadingRankings.value = true;
     try {
-        // [핵심 수정] collectionGroup 쿼리를 서버 함수로 이전합니다.
         const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
         const result = await getAdminRankings();
         
-        rankings.dailyTop7 = result.data.dailyTop7;
-        rankings.weeklyTop7 = result.data.weeklyTop7;
+        // [핵심 수정] 날짜와 순위 기준으로 데이터를 정렬합니다.
+        rankings.dailyTop7 = result.data.dailyTop7.sort((a, b) => b.date.localeCompare(a.date) || a.rank - b.rank);
+        rankings.weeklyTop7 = result.data.weeklyTop7.sort((a, b) => b.weekId.localeCompare(a.weekId) || a.rank - b.rank);
         challengeResults.value = result.data.challenges;
         rankings.saltPangRanked = result.data.saltPangRanked;
 
