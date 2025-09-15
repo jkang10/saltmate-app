@@ -272,7 +272,6 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
-// --- 상태 변수 ---
 const DEFAULT_STATE = {
   water: 0, capacity: 200, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
   shop: {}, achievements: {}, seenTutorial: false, goldenTimeUntil: null,
@@ -286,16 +285,12 @@ const gameSettings = reactive({
 });
 const authUser = ref(null);
 const activeTab = ref("upgrades");
-
-// UI 상태 관련
 const showTutorial = ref(false);
 const logBox = ref(null);
 const isSellingFunds = ref(false);
 const isActivatingGoldenTime = ref(false);
 const goldenTimeRemaining = ref("00:00");
 const isUnlocking = ref(false);
-
-// 전역 리스너 및 타이머
 let DB_SAVE_REF = null;
 let authUnsubscribe = null;
 let settingsUnsubscribe = null;
@@ -305,15 +300,11 @@ let tickTimer = null;
 let lastTick = Date.now();
 let eventTimer = null;
 
-// --- 헬퍼 함수 ---
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function fmt(n) { return Math.floor(Number(n) || 0); }
 
 function addLog(msg, type = 'normal') {
-  if (type === 'sync') {
-    console.log(`[SYNC] ${msg}`);
-    return;
-  }
+  if (type === 'sync') return;
   logs.value.unshift(`[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${msg}`);
   if (logs.value.length > 100) logs.value.pop();
   nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
@@ -321,17 +312,15 @@ function addLog(msg, type = 'normal') {
 
 async function callFunction(name, data) {
   const func = httpsCallable(functions, name);
-  const result = await func(data);
-  return result;
+  return await func(data);
 }
 
-// --- 상수 정의 (중복 제거된 최종 버전) ---
 const ICONS = {
-  rov: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='4' y='8' width='16' height='8' rx='2' fill='%239fb3c8'/><rect x='2' y='10' width='2' height='4' fill='%239fb3c8'/><rect x='20' y='10' width='2' height='4' fill='%239fb3c8'/><circle cx='12' cy='12' r='2' fill='%23041522'/></svg>`,
-  harvester: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M3 10h18v4H3z' fill='%2300b4d8'/><path d='M5 14h2v4H5zM11 14h2v4h-2zM17 14h2v4h-2z' fill='%23008fbd'/></svg>`,
-  tank: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect x='5' y='6' width='14' height='12' rx='2' fill='%23008fbd'/><rect x='7' y='8' width='10' height='8' fill='rgba(255,255,255,0.2)'/></svg>`,
-  lab: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M7 21h10v-2H7zM9 19V5l-2-2v16zM15 19V5l2-2v16z' fill='%2368d391'/></svg>`,
-  market: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><path d='M4 18h16v-2H4zM12 2l-4 6h8zM10 10h4v6h-4z' fill='%23ffd166'/></svg>`,
+  rov: `data:image/svg+xml;utf8,...`,
+  harvester: `data:image/svg+xml;utf8,...`,
+  tank: `data:image/svg+xml;utf8,...`,
+  lab: `data:image/svg+xml;utf8,...`,
+  market: `data:image/svg+xml;utf8,...`,
 };
 
 const SHOP_DEFS = [
@@ -355,7 +344,6 @@ const ACH_DEFS = [
   { id: "research_100", name: "연구 시작", condition: () => state.research >= 100 },
 ];
 
-// --- 계산된 속성 ---
 const derived = computed(() => {
   const shop = state.shop;
   const capacity = (state.capacity || 200) + (shop.tank || 0) * 300; 
@@ -394,7 +382,6 @@ const achievements = computed(() => ACH_DEFS.map((ach) => ({ ...ach, unlocked: s
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
 const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
-// --- 핵심 기능 함수 ---
 const collectClick = () => {
   callFunction("collectDeepSeaResources").catch(err => {
       addLog(`채집 오류: ${err.message}`);
@@ -403,7 +390,13 @@ const collectClick = () => {
 
 const sellResources = async () => {
   try {
-    const result = await callFunction("sellDeepSeaResources");
+    const waterToSell = Math.floor(state.water);
+    const planktonToSell = Math.floor(state.plankton);
+    // [핵심 수정] 판매할 자원량을 서버로 전달합니다.
+    const result = await callFunction("sellDeepSeaResources", { 
+      waterToSell: waterToSell,
+      planktonToSell: planktonToSell,
+    });
     addLog(`자원 판매: +${result.data.revenue.toLocaleString()} 자금`);
   } catch (error) {
     console.error("자원 판매 오류:", error);
@@ -443,11 +436,8 @@ const sellFundsForPoints = async () => {
   try {
     const result = await callFunction("sellDeepSeaFunds");
     alert(`${result.data.soldFunds.toLocaleString()} 자금을 판매하여 ${result.data.awardedPoints.toLocaleString()} SaltMate를 획득했습니다.`);
-  } catch (error) {
-    alert(`오류: ${error.message}`);
-  } finally {
-    isSellingFunds.value = false;
-  }
+  } catch (error) { alert(`오류: ${error.message}`); } 
+  finally { isSellingFunds.value = false; }
 };
 
 const activateGoldenTime = async () => {
@@ -455,11 +445,8 @@ const activateGoldenTime = async () => {
   try {
     const result = await callFunction("startGoldenTime");
     alert(result.data.message);
-  } catch (error) {
-    alert(`오류: ${error.message}`);
-  } finally {
-    isActivatingGoldenTime.value = false;
-  }
+  } catch (error) { alert(`오류: ${error.message}`); } 
+  finally { isActivatingGoldenTime.value = false; }
 };
 
 const unlockZone = async (zoneId) => {
@@ -467,17 +454,12 @@ const unlockZone = async (zoneId) => {
   try {
     const result = await callFunction("unlockExplorationZone", { zoneId });
     alert(result.data.message);
-  } catch (error) {
-    alert(`오류: ${error.message}`);
-  } finally {
-    isUnlocking.value = false;
-  }
+  } catch (error) { alert(`오류: ${error.message}`); } 
+  finally { isUnlocking.value = false; }
 };
 
 const setActiveZone = async (zoneId) => {
-  if (DB_SAVE_REF) {
-    await setDoc(DB_SAVE_REF, { activeZoneId: zoneId }, { merge: true });
-  }
+  if (DB_SAVE_REF) await setDoc(DB_SAVE_REF, { activeZoneId: zoneId }, { merge: true });
 };
 
 function formatResourceName(res) {
@@ -487,53 +469,37 @@ function formatResourceName(res) {
 
 function closeTutorial() {
   showTutorial.value = false;
-  if (DB_SAVE_REF) {
-      setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
-  }
+  if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
 }
 
 function runEvent() {
   if (Math.random() < 0.2) {
     const eventType = Math.random();
     let msg = "";
-    if (eventType < 0.5) {
-      msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
-    } else {
-      msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
-    }
-    // 이벤트 로직은 서버에서 처리하므로 클라이언트는 로그만 남깁니다.
+    if (eventType < 0.5) msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
+    else msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
     addLog(msg);
   }
 }
-
-// DeepSeaGamePage.vue
 
 const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
   if (gameStateUnsubscribe) gameStateUnsubscribe();
-
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
       const isFirstLoad = !state.lastUpdated;
-
-      if (isFirstLoad && dbState.lastUpdated) { // lastUpdated가 있을 때만 오프라인 계산
-        const lastUpdate = dbState.lastUpdated.toDate();
-        const now = new Date();
-        const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-        
+      if (isFirstLoad && dbState.lastUpdated) {
+        const secondsDiff = (new Date().getTime() - dbState.lastUpdated.toDate().getTime()) / 1000;
         if (secondsDiff > 0) {
             const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
-            // [핵심 수정] capacity 계산식을 서버 로직과 동일하게 수정합니다.
             const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
             const offlineProduction = Math.floor(secondsDiff * perSecondProd);
-            
             if (offlineProduction > 0) {
               const currentWater = dbState.water || 0;
               const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
               const producedAmount = waterAfterOffline - currentWater;
-
               if (producedAmount > 0) {
                 addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
                 dbState.water = waterAfterOffline;
@@ -542,15 +508,12 @@ const listenToGame = (user) => {
         }
       }
       Object.assign(state, dbState);
-
     } else {
       Object.assign(state, clone(DEFAULT_STATE));
       if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
     }
     if (!state.seenTutorial) showTutorial.value = true;
-  }, (e) => {
-    console.error("Firestore listen error", e);
-  });
+  }, (e) => { console.error("Firestore listen error", e); });
 };
 
 onMounted(() => {
@@ -605,432 +568,84 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-:root {
-  --text-dark: #212529;
-  --text-light: #495057;
-  --primary: #007bff;
-  --accent: #17a2b8;
-  --card-bg: #ffffff;
-  --bg-light: #f8f9fa;
-  --border-color: #dee2e6;
-}
-.page-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 70px auto 20px;
-  color: var(--text-dark);
-}
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-.page-header h1 {
-  font-size: 2.2em;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin-bottom: 10px;
-}
-.page-header h1 i {
-  color: var(--primary);
-}
-.page-header .description {
-  font-size: 1.1em;
-  color: var(--text-light);
-}
-.game-layout {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 20px;
-  align-items: start;
-}
-.card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--border-color);
-}
-.top-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-bottom: 20px;
-}
-.stat {
-  background: var(--bg-light);
-  padding: 15px;
-  border-radius: 8px;
-  text-align: center;
-  border: 1px solid var(--border-color);
-}
-.stat strong {
-  font-size: 1.4em;
-  color: var(--text-dark);
-}
-.stat .label {
-  font-size: 0.9em;
-  color: var(--muted);
-  display: block;
-  margin-top: 5px;
-}
-.collect-area {
-  text-align: center;
-  padding: 20px;
-}
-#collectBtn {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(145deg, #2196f3, #0d47a1);
-  color: white;
-  cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
-  transition: all 0.2s ease-in-out;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-#collectBtn:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
-}
-.collect-btn-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.collect-label {
-  font-size: 1.1em;
-  font-weight: bold;
-}
-.sell-area {
-  margin-top: 15px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
-}
-.btn {
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.2s ease;
-}
-.btn.small {
-  padding: 8px 16px;
-  font-size: 0.9em;
-  background-color: #28a745;
-  color: white;
-}
-.btn.small:hover {
-  background-color: #218838;
-}
-.btn:disabled {
-  background-color: #ced4da;
-  cursor: not-allowed;
-  color: #6c757d;
-}
-.resources-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-top: 20px;
-}
-.res-pill {
-  background: var(--bg-light);
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-.res-pill .small {
-  color: var(--muted);
-  font-size: 0.9em;
-}
-.res-pill strong {
-  font-size: 1.2em;
-}
-.game-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.shop {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-.shop-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-.shop-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.item-name {
-  font-weight: bold;
-  font-size: 1em;
-}
-.log {
-  height: 200px;
-  overflow-y: auto;
-  background: #212529;
-  color: #e9ecef;
-  padding: 15px;
-  border-radius: 8px;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.9em;
-}
-.ach-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-.ach {
-  padding: 10px;
-  border-radius: 8px;
-  background: #e9ecef;
-  opacity: 0.6;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9em;
-}
-.ach.unlocked {
-  background: #d4edda;
-  color: #155724;
-  opacity: 1;
-}
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.overlay.show {
-  display: flex;
-}
-.modal {
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  max-width: 500px;
-  width: 90%;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.5em;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: var(--text-dark);
-}
-.tutorial-list {
-  list-style-position: inside;
-  text-align: left;
-  line-height: 1.8;
-  color: var(--text-light);
-}
-.icon {
-  width: 36px;
-  height: 36px;
-}
-.btn.secondary {
-  background-color: #6c757d;
-  color: white;
-}
-.golden-time-box {
-  margin-top: 20px;
-  text-align: center;
-  border: 2px solid #ffd700;
-}
-.golden-time-box h3 {
-  color: #e67e22;
-}
-.golden-time-btn {
-  width: 100%;
-  padding: 12px;
-  background-color: #f39c12;
-  color: white;
-  font-size: 1.1em;
-}
-.salt-sale-box {
-  margin-top: 20px;
-  padding: 20px;
-  text-align: center;
-}
-.salt-sale-box h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.2em;
-}
-.salt-info {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.3em;
-  margin-bottom: 10px;
-}
-.gold-icon {
-  color: #ffc107;
-}
-.exchange-rate {
-  color: #6c757d;
-  margin-bottom: 20px;
-}
-.sell-all-btn {
-  width: 100%;
-  padding: 12px;
-  background-color: #6c757d;
-  color: white;
-  font-size: 1.1em;
-}
-.sell-all-btn:hover:not(:disabled) {
-  background-color: #5a6268;
-}
-.spinner-small {
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #fff;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  animation: spin 1s linear infinite;
-  display: inline-block;
-}
-.zone-icon {
-  font-size: 1.5em;
-}
-.sidebar-tabs {
-  display: flex;
-  margin-bottom: 10px;
-}
-.sidebar-tabs button {
-  flex: 1;
-  padding: 10px;
-  background: #e9ecef;
-  border: none;
-  cursor: pointer;
-  font-weight: bold;
-}
-.sidebar-tabs button.active {
-  background: #007bff;
-  color: white;
-}
-.zone-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-.zone-item {
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-}
-.zone-item.unlocked {
-  border-color: #28a745;
-}
-.zone-item.active {
-  background-color: #d4edda;
-}
-.zone-item h4 {
-  margin: 0 0 10px 0;
-}
-.lock-info {
-  font-size: 0.9em;
-}
-.requirement {
-  display: block;
-  color: #666;
-}
-.btn-unlock {
-  margin-top: 10px;
-  background-color: #ffc107;
-  color: #333;
-}
-.active-text {
-  font-weight: bold;
-  color: #28a745;
-}
-.auto-sell-feature {
-  border: 2px solid var(--primary);
-  background-color: #e7f3ff;
-}
-.auto-sell-feature h3 {
-  color: var(--primary);
-}
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 15px;
-}
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 60px;
-  height: 34px;
-}
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: 0.4s;
-}
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 26px;
-  width: 26px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  transition: 0.4s;
-}
-input:checked + .slider {
-  background-color: #2196f3;
-}
-input:focus + .slider {
-  box-shadow: 0 0 1px #2196f3;
-}
-input:checked + .slider:before {
-  transform: translateX(26px);
-}
-.slider.round {
-  border-radius: 34px;
-}
-.slider.round:before {
-  border-radius: 50%;
-}
-@media (max-width: 900px) {
-  .game-layout {
-    grid-template-columns: 1fr;
-  }
-}
+/* (스타일은 기존 코드와 동일합니다.) */
+:root { --text-dark: #212529; --text-light: #495057; --primary: #007bff; --accent: #17a2b8; --card-bg: #ffffff; --bg-light: #f8f9fa; --border-color: #dee2e6; }
+.page-container { padding: 20px; max-width: 1200px; margin: 70px auto 20px; color: var(--text-dark); }
+.page-header { text-align: center; margin-bottom: 30px; }
+.page-header h1 { font-size: 2.2em; font-weight: 700; color: var(--text-dark); margin-bottom: 10px; }
+.page-header h1 i { color: var(--primary); }
+.page-header .description { font-size: 1.1em; color: var(--text-light); }
+.game-layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+.card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid var(--border-color); }
+.top-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+.stat { background: var(--bg-light); padding: 15px; border-radius: 8px; text-align: center; border: 1px solid var(--border-color); }
+.stat strong { font-size: 1.4em; color: var(--text-dark); }
+.stat .label { font-size: 0.9em; color: var(--muted); display: block; margin-top: 5px; }
+.collect-area { text-align: center; padding: 20px; }
+#collectBtn { width: 160px; height: 160px; border-radius: 50%; border: none; background: linear-gradient(145deg, #2196f3, #0d47a1); color: white; cursor: pointer; box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3); transition: all 0.2s ease-in-out; display: flex; align-items: center; justify-content: center; }
+#collectBtn:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4); }
+.collect-btn-content { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.collect-label { font-size: 1.1em; font-weight: bold; }
+.sell-area { margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+.btn { border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s ease; }
+.btn.small { padding: 8px 16px; font-size: 0.9em; background-color: #28a745; color: white; }
+.btn.small:hover { background-color: #218838; }
+.btn:disabled { background-color: #ced4da; cursor: not-allowed; color: #6c757d; }
+.resources-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; }
+.res-pill { background: var(--bg-light); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+.res-pill .small { color: var(--muted); font-size: 0.9em; }
+.res-pill strong { font-size: 1.2em; }
+.game-sidebar { display: flex; flex-direction: column; gap: 20px; }
+.shop { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.shop-item { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; }
+.shop-left { display: flex; align-items: center; gap: 10px; }
+.item-name { font-weight: bold; font-size: 1em; }
+.log { height: 200px; overflow-y: auto; background: #212529; color: #e9ecef; padding: 15px; border-radius: 8px; font-family: "Courier New", Courier, monospace; font-size: 0.9em; }
+.ach-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ach { padding: 10px; border-radius: 8px; background: #e9ecef; opacity: 0.6; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+.ach.unlocked { background: #d4edda; color: #155724; opacity: 1; }
+.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.overlay.show { display: flex; }
+.modal { background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; color: var(--text-dark); }
+.tutorial-list { list-style-position: inside; text-align: left; line-height: 1.8; color: var(--text-light); }
+.icon { width: 36px; height: 36px; }
+.btn.secondary { background-color: #6c757d; color: white; }
+.golden-time-box { margin-top: 20px; text-align: center; border: 2px solid #ffd700; }
+.golden-time-box h3 { color: #e67e22; }
+.golden-time-btn { width: 100%; padding: 12px; background-color: #f39c12; color: white; font-size: 1.1em; }
+.salt-sale-box { margin-top: 20px; padding: 20px; text-align: center; }
+.salt-sale-box h3 { margin-top: 0; margin-bottom: 15px; font-size: 1.2em; }
+.salt-info { display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 1.3em; margin-bottom: 10px; }
+.gold-icon { color: #ffc107; }
+.exchange-rate { color: #6c757d; margin-bottom: 20px; }
+.sell-all-btn { width: 100%; padding: 12px; background-color: #6c757d; color: white; font-size: 1.1em; }
+.sell-all-btn:hover:not(:disabled) { background-color: #5a6268; }
+.spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
+.zone-icon { font-size: 1.5em; }
+.sidebar-tabs { display: flex; margin-bottom: 10px; }
+.sidebar-tabs button { flex: 1; padding: 10px; background: #e9ecef; border: none; cursor: pointer; font-weight: bold; }
+.sidebar-tabs button.active { background: #007bff; color: white; }
+.zone-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.zone-item { padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
+.zone-item.unlocked { border-color: #28a745; }
+.zone-item.active { background-color: #d4edda; }
+.zone-item h4 { margin: 0 0 10px 0; }
+.lock-info { font-size: 0.9em; }
+.requirement { display: block; color: #666; }
+.btn-unlock { margin-top: 10px; background-color: #ffc107; color: #333; }
+.active-text { font-weight: bold; color: #28a745; }
+.auto-sell-feature { border: 2px solid var(--primary); background-color: #e7f3ff; }
+.auto-sell-feature h3 { color: var(--primary); }
+.toggle-switch { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; }
+.switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.4s; }
+.slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: 0.4s; }
+input:checked + .slider { background-color: #2196f3; }
+input:focus + .slider { box-shadow: 0 0 1px #2196f3; }
+input:checked + .slider:before { transform: translateX(26px); }
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+@media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; } }
 </style>

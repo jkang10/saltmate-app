@@ -153,67 +153,32 @@ export default {
   name: "SaltMineGamePage",
   data() {
     return {
-      salt: 0,
-      gold: 0,
-      perClick: 1,
-      perSecond: 0,
-      upgrades: {},
-      isSelling: false,
-      isExchanging: false,
-      logs: [],
-      currentUser: null,
-      gameStateRef: null,
-      isLoading: true,
+      salt: 0, gold: 0, perClick: 1, perSecond: 0,
+      upgrades: {}, isSelling: false, isExchanging: false,
+      logs: [], currentUser: null, gameStateRef: null, isLoading: true,
       authUnsubscribe: null,
-      gameSettings: {
-        saltMineRate: 1000,
-        deepSeaRate: 100000,
-        goldenSaltExchangeRate: 1,
-      },
-      gameInterval: null,
-      saveInterval: null,
-      activeBoost: null, // [신규] 활성화된 부스트 정보
-      boostTimeRemaining: "00:00", // [신규] 부스트 남은 시간
+      gameSettings: { saltMineRate: 1000, deepSeaRate: 100000, goldenSaltExchangeRate: 1 },
+      gameInterval: null, saveInterval: null,
+      activeBoost: null, boostTimeRemaining: "00:00",
     };
   },
   computed: {
-    isBoostActive() {
-      return this.activeBoost && this.activeBoost.expiresAt.toDate() > new Date();
+    isBoostActive() { return this.activeBoost && this.activeBoost.expiresAt.toDate() > new Date(); },
+    boostedPerClick() { return this.isBoostActive ? this.perClick * (1 + this.activeBoost.percentage / 100) : this.perClick; },
+    boostedPerSecond() { return this.isBoostActive ? this.perSecond * (1 + this.activeBoost.percentage / 100) : this.perSecond; },
+    shopItems() {
+      const SHOP_DEFS = [
+        { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
+        { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
+        { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
+        { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
+        { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
+      ];
+      return SHOP_DEFS.map((item) => ({
+        ...item,
+        cost: Math.ceil(item.baseCost * Math.pow(item.id.startsWith("offline") ? 2.5 : 1.6, this.upgrades[item.id] || 0)),
+      }));
     },
-    boostedPerClick() {
-      if (this.isBoostActive) {
-        return this.perClick * (1 + this.activeBoost.percentage / 100);
-      }
-      return this.perClick;
-    },
-    boostedPerSecond() {
-      if (this.isBoostActive) {
-        return this.perSecond * (1 + this.activeBoost.percentage / 100);
-      }
-      return this.perSecond;
-    },
-
-shopItems() {
-  const SHOP_DEFS = [
-    { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
-    { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
-    { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
-    { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
-    // [핵심 수정] 설명을 '오프라인 채굴 효율'로 변경하고, type과 duration을 제거했습니다.
-    { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
-  ];
-  return SHOP_DEFS.map((item) => ({
-    ...item,
-    cost: Math.ceil(
-      item.baseCost *
-        Math.pow(
-          item.id.startsWith("offline") ? 2.5 : 1.6,
-          this.upgrades[item.id] || 0,
-        ),
-    ),
-  }));
-},
-
     currentPickaxeIcon() {
       if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
       if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
@@ -251,96 +216,50 @@ shopItems() {
     clearInterval(this.gameInterval);
     clearInterval(this.saveInterval);
     this.saveGame();
-    if (this.authUnsubscribe) {
-      this.authUnsubscribe();
-    }
+    if (this.authUnsubscribe) this.authUnsubscribe();
   },
   methods: {
     resetGameState() {
-      this.salt = 0;
-      this.gold = 0;
-      this.perClick = 1;
-      this.perSecond = 0;
-      this.upgrades = {};
-      this.logs = [];
-      this.isLoading = true;
-      this.activeBoost = null;
+      this.salt = 0; this.gold = 0; this.perClick = 1; this.perSecond = 0;
+      this.upgrades = {}; this.logs = []; this.isLoading = true; this.activeBoost = null;
       this.logEvent("게임에 오신 것을 환영합니다!");
     },
-
-async loadGame() {
-  if (!this.gameStateRef) return;
-  this.isLoading = true;
-  try {
-    const docSnap = await getDoc(this.gameStateRef);
-    if (docSnap.exists()) {
-      const state = docSnap.data();
-      const upgrades = state.upgrades || {};
-      
-      // --- [핵심 수정] ---
-      // 1. '기본 자동 채굴' 레벨을 가져옵니다.
-      const offlineMinerLevel = upgrades.offline_miner_1 || 0;
-      let offlineRate = 0;
-      if (offlineMinerLevel > 0) {
-        // 2. 레벨당 10%의 효율을 계산하되, 최대 100%(1.0)를 넘지 않도록 합니다.
-        offlineRate = Math.min(offlineMinerLevel * 0.1, 1.0);
-      }
-
-      const lastUpdate = state.lastUpdated?.toDate() || new Date();
-      const now = new Date();
-      const secondsDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
-
-      // 3. 무한정 쌓이는 것을 방지하기 위해 오프라인 보상 시간을 최대 24시간으로 제한합니다.
-      const maxOfflineSeconds = 24 * 3600; 
-      const effectiveSeconds = Math.min(secondsDiff, maxOfflineSeconds);
-
-      // 4. 최종 오프라인 채굴량을 '효율'을 곱하여 계산합니다.
-      const offlineSalt = Math.floor(
-        effectiveSeconds * (state.perSecond || 0) * offlineRate,
-      );
-      // --- 수정 끝 ---
-
-      if (offlineSalt > 0) {
-        this.logEvent(
-          `오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`,
-        );
-      }
-
-      this.salt = (state.salt || 0) + offlineSalt;
-      this.gold = state.gold || 0;
-      this.perClick = state.perClick || 1;
-      this.perSecond = state.perSecond || 0;
-      this.upgrades = state.upgrades || {};
-      this.activeBoost = state.activeBoost || null;
-    } else {
-      this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
-    }
-  } catch (error) {
-    console.error("게임 데이터 로딩 오류:", error);
-  } finally {
-    this.isLoading = false;
-  }
-},
-
-    async saveGame() {
-      if (!this.currentUser || !this.gameStateRef || this.isLoading) {
-        return;
-      }
-      const state = {
-        salt: this.salt,
-        gold: this.gold,
-        perClick: this.perClick,
-        perSecond: this.perSecond,
-        upgrades: this.upgrades,
-        activeBoost: this.activeBoost,
-        lastUpdated: serverTimestamp(),
-      };
+    async loadGame() {
+      if (!this.gameStateRef) return;
+      this.isLoading = true;
       try {
-        await setDoc(this.gameStateRef, state, { merge: true });
-        console.log("게임 진행 상황이 저장되었습니다.");
-      } catch (error) {
-        console.error("게임 데이터 저장 오류:", error);
-      }
+        const docSnap = await getDoc(this.gameStateRef);
+        if (docSnap.exists()) {
+          const state = docSnap.data();
+          const upgrades = state.upgrades || {};
+          const offlineMinerLevel = upgrades.offline_miner_1 || 0;
+          let offlineRate = Math.min(offlineMinerLevel * 0.1, 1.0);
+          const lastUpdate = state.lastUpdated?.toDate() || new Date();
+          const secondsDiff = (new Date().getTime() - lastUpdate.getTime()) / 1000;
+          const effectiveSeconds = Math.min(secondsDiff, 24 * 3600);
+          const offlineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
+          if (offlineSalt > 0) this.logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`);
+          this.salt = (state.salt || 0) + offlineSalt;
+          this.gold = state.gold || 0;
+          this.perClick = state.perClick || 1;
+          this.perSecond = state.perSecond || 0;
+          this.upgrades = upgrades;
+          this.activeBoost = state.activeBoost || null;
+        } else {
+          this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
+        }
+      } catch (error) { console.error("게임 데이터 로딩 오류:", error); } 
+      finally { this.isLoading = false; }
+    },
+    async saveGame() {
+      if (!this.currentUser || !this.gameStateRef || this.isLoading) return;
+      const state = {
+        salt: this.salt, gold: this.gold, perClick: this.perClick,
+        perSecond: this.perSecond, upgrades: this.upgrades,
+        activeBoost: this.activeBoost, lastUpdated: serverTimestamp(),
+      };
+      try { await setDoc(this.gameStateRef, state, { merge: true }); }
+      catch (error) { console.error("게임 데이터 저장 오류:", error); }
     },
     listenToGameSettings() {
       const configRef = doc(db, "configuration", "gameSettings");
@@ -372,7 +291,6 @@ async loadGame() {
       if (Math.random() < 0.01) {
         this.gold += 1;
         this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
-        this.saveGame();
       }
     },
     buyUpgrade(itemId) {
@@ -383,62 +301,45 @@ async loadGame() {
       if (item.gps) this.perSecond += item.gps;
       if (item.type === "click") this.perClick += item.add;
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
-      this.saveGame();
     },
+    async sellSalt() {
+      if (!this.currentUser || this.isSelling) return;
 
-async sellSalt() {
-  if (!this.currentUser) return alert("로그인이 필요합니다.");
-  if (this.isSelling) return;
+      const saltToSell = Math.floor(this.salt);
+      if (saltToSell < this.gameSettings.saltMineRate) {
+        return alert(`${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
+      }
 
-  // [핵심 수정] 판매 시도 직전에 현재 로컬 상태를 DB에 강제로 저장합니다.
-  await this.saveGame();
-  
-  // 잠시 기다린 후 DB에서 최신 정보를 다시 가져와서 판매를 시도합니다.
-  // 이는 saveGame이 완료된 후 DB에서 데이터를 읽도록 보장합니다.
-  this.$nextTick(async () => {
-    const currentDoc = await getDoc(this.gameStateRef);
-    if (!currentDoc.exists()) {
-      return alert("게임 데이터를 찾을 수 없습니다.");
-    }
-
-    const currentSaltInDb = Math.floor(currentDoc.data().salt || 0);
-
-    if (currentSaltInDb < this.gameSettings.saltMineRate) {
-      return alert(`${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
-    }
-
-    this.isSelling = true;
-
-    try {
-      // 이제 백엔드는 동기화된 최신 소금량으로 판매를 처리하게 됩니다.
-      const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-      const result = await sellSaltForPoints({ amountToSell: currentSaltInDb });
-      const { awardedPoints, soldSalt } = result.data;
-
-      // 판매 성공 후, 화면의 소금량을 0에 가깝게 업데이트합니다.
-      this.salt = currentSaltInDb - soldSalt;
-
-      this.logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
-      alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
-    } catch (error) {
-      console.error("소금 판매 오류:", error);
-      alert(`오류: ${error.message}`);
-    } finally {
-      this.isSelling = false;
-    }
-  });
-},
+      this.isSelling = true;
+      try {
+        const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
+        // [핵심 수정] 현재 화면에 보이는 소금량을 서버로 전달합니다.
+        const result = await sellSaltForPoints({ amountToSell: saltToSell });
+        const { awardedPoints, soldSalt } = result.data;
+        
+        // 판매 성공 후, 화면의 소금량을 판매한 만큼 차감합니다.
+        this.salt -= soldSalt;
+        
+        this.logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
+        alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
+      } catch (error) {
+        console.error("소금 판매 오류:", error);
+        alert(`오류: ${error.message}`);
+      } finally {
+        this.isSelling = false;
+      }
+    },
     async exchangeGold() {
-      if (!this.currentUser || this.gold < 1) return;
+      if (!this.currentUser || this.gold < 1 || this.isExchanging) return;
       if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
       this.isExchanging = true;
       try {
         const exchangeGoldenSalt = httpsCallable(functions, "exchangeGoldenSalt");
         const result = await exchangeGoldenSalt();
+        this.gold -= 1; // 화면 즉시 반영
         const { awardedPoints } = result.data;
         this.logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
         alert(`황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`);
-        await this.loadGame();
       } catch (error) {
         console.error("황금 소금 교환 오류:", error);
         alert(`오류: ${error.message}`);
@@ -449,299 +350,63 @@ async sellSalt() {
     logEvent(message) {
       const time = new Date().toLocaleTimeString();
       this.logs.unshift(`[${time}] ${message}`);
-      if (this.logs.length > 50) {
-        this.logs.pop();
-      }
-      this.$nextTick(() => {
-        const logBox = this.$el.querySelector("#logBox");
-        if (logBox) logBox.scrollTop = 0;
-      });
+      if (this.logs.length > 50) this.logs.pop();
     },
   },
 };
 </script>
 
 <style scoped>
-.boost-active-banner {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
-  background-color: #d1fae5;
-  color: #065f46;
-  border: 1px solid #6ee7b7;
-}
-.boost-active-banner i {
-  font-size: 1.8em;
-}
-.boost-info {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-.boost-info span {
-  font-weight: bold;
-}
-.boosted-text {
-  color: #28a745;
-  font-weight: bold;
-}
-.page-container {
-  max-width: 1100px;
-  margin: 70px auto 20px;
-  padding: 20px;
-  background-color: #f0f2f5;
-  border-radius: 15px;
-}
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-.page-header h1 {
-  color: #1e293b;
-}
-.page-header p {
-  color: #475569;
-}
-.page-header h1 i {
-  color: #ffd166;
-}
-.game-layout {
-  display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 20px;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .game-layout {
-    grid-template-columns: 1fr;
-  }
-}
-.game-main {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.top-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-}
-.stat {
-  background-color: #ffffff;
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
-}
-.stat span {
-  font-size: 1.5em;
-  font-weight: bold;
-  color: #1e293b;
-}
-.stat small {
-  display: block;
-  color: #64748b;
-  font-size: 0.9em;
-  margin-top: 5px;
-}
-.mine-area {
-  text-align: center;
-  padding: 40px;
-}
-.mine-visual {
-  font-size: 4em;
-  margin-bottom: 15px;
-  animation: bounce 2s infinite;
-  color: #1e293b;
-}
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-20px);
-  }
-  60% {
-    transform: translateY(-10px);
-  }
-}
-.mine-button {
-  padding: 15px 30px;
-  font-size: 1.2em;
-  font-weight: bold;
-  background-color: #ffd166;
-  color: #1e293b;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-.mine-button:hover {
-  transform: scale(1.05);
-}
-.log-card {
-  padding: 20px;
-}
-.log-card h3 {
-  margin-top: 0;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 10px;
-  color: #1e293b;
-}
-.log-box {
-  height: 150px;
-  overflow-y: auto;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px;
-  text-align: left;
-  font-size: 0.9em;
-  color: #334155;
-}
-.game-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.shop-card,
-.sell-card,
-.achievement-card {
-  padding: 20px;
-}
-.shop-card h3,
-.sell-card h3,
-.achievement-card h3 {
-  margin-top: 0;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 10px;
-  color: #1e293b;
-}
-.shop-items {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 250px;
-  overflow-y: auto;
-  padding-right: 10px;
-}
-.shop-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  background-color: #f8fafc;
-  padding: 10px;
-  border-radius: 8px;
-}
-.item-icon {
-  font-size: 1.8em;
-  color: #ffd166;
-  width: 40px;
-  text-align: center;
-}
-.item-info {
-  flex-grow: 1;
-}
-.item-info strong {
-  color: #1e293b;
-}
-.item-info small {
-  color: #64748b;
-}
-.buy-upgrade-button {
-  background-color: #475569;
-  color: #e2e8f0;
-  border: 1px solid #64748b;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.buy-upgrade-button:disabled {
-  background-color: #e2e8f0;
-  color: #94a3b8;
-  cursor: not-allowed;
-}
-.sell-card {
-  text-align: center;
-}
-.gold-salt-display {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.1em;
-  margin-bottom: 10px;
-}
-.gold-salt-display i {
-  color: #f1c40f;
-}
-.sell-card p {
-  font-size: 1.1em;
-  color: #334155;
-}
-.sell-button,
-.boost-button {
-  width: 100%;
-  padding: 12px;
-  font-size: 1em;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.sell-button {
-  background-color: #22c55e;
-  color: white;
-}
-.sell-button:disabled,
-.boost-button:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
-}
-.achievement-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.achievement-item {
-  background-color: #e2e8f0;
-  padding: 8px 12px;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.5;
-  transition: all 0.3s;
-}
-.achievement-item.unlocked {
-  background-color: #d1fae5;
-  color: #065f46;
-  opacity: 1;
-}
-.ach-icon {
-  font-size: 1.2em;
-}
-.card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-}
-.gold-feature {
-  background-color: #fffbeb;
-  border: 1px solid #fde68a;
-}
-.feature-desc {
-  font-size: 0.9em;
-  color: #78350f;
-  margin-bottom: 15px;
-}
-.boost-button {
-  background-color: #f59e0b;
-  color: white;
-}
+/* (스타일은 기존 코드와 동일합니다.) */
+.boost-active-banner { display: flex; align-items: center; gap: 15px; padding: 15px; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.boost-active-banner i { font-size: 1.8em; }
+.boost-info { display: flex; flex-direction: column; text-align: left; }
+.boost-info span { font-weight: bold; }
+.boosted-text { color: #28a745; font-weight: bold; }
+.page-container { max-width: 1100px; margin: 70px auto 20px; padding: 20px; background-color: #f0f2f5; border-radius: 15px; }
+.page-header { text-align: center; margin-bottom: 30px; }
+.page-header h1 { color: #1e293b; }
+.page-header p { color: #475569; }
+.page-header h1 i { color: #ffd166; }
+.game-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; } }
+.game-main { display: flex; flex-direction: column; gap: 20px; }
+.top-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+.stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
+.stat span { font-size: 1.5em; font-weight: bold; color: #1e293b; }
+.stat small { display: block; color: #64748b; font-size: 0.9em; margin-top: 5px; }
+.mine-area { text-align: center; padding: 40px; }
+.mine-visual { font-size: 4em; margin-bottom: 15px; animation: bounce 2s infinite; color: #1e293b; }
+@keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
+.mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
+.mine-button:hover { transform: scale(1.05); }
+.log-card { padding: 20px; }
+.log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
+.log-box { height: 150px; overflow-y: auto; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 0.9em; color: #334155; }
+.game-sidebar { display: flex; flex-direction: column; gap: 20px; }
+.shop-card, .sell-card, .achievement-card { padding: 20px; }
+.shop-card h3, .sell-card h3, .achievement-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
+.shop-items { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 10px; }
+.shop-item { display: flex; align-items: center; gap: 15px; background-color: #f8fafc; padding: 10px; border-radius: 8px; }
+.item-icon { font-size: 1.8em; color: #ffd166; width: 40px; text-align: center; }
+.item-info { flex-grow: 1; }
+.item-info strong { color: #1e293b; }
+.item-info small { color: #64748b; }
+.buy-upgrade-button { background-color: #475569; color: #e2e8f0; border: 1px solid #64748b; padding: 8px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.buy-upgrade-button:disabled { background-color: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+.sell-card { text-align: center; }
+.gold-salt-display { display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 1.1em; margin-bottom: 10px; }
+.gold-salt-display i { color: #f1c40f; }
+.sell-card p { font-size: 1.1em; color: #334155; }
+.sell-button, .boost-button { width: 100%; padding: 12px; font-size: 1em; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+.sell-button { background-color: #22c55e; color: white; }
+.sell-button:disabled, .boost-button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+.achievement-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.achievement-item { background-color: #e2e8f0; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; opacity: 0.5; transition: all 0.3s; }
+.achievement-item.unlocked { background-color: #d1fae5; color: #065f46; opacity: 1; }
+.ach-icon { font-size: 1.2em; }
+.card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.gold-feature { background-color: #fffbeb; border: 1px solid #fde68a; }
+.feature-desc { font-size: 0.9em; color: #78350f; margin-bottom: 15px; }
+.boost-button { background-color: #f59e0b; color: white; }
 </style>
