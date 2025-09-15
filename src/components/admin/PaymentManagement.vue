@@ -34,6 +34,9 @@
               <button @click="approvePayment(req.id)" class="btn-approve">
                 승인
               </button>
+              <button @click="deletePayment(req.id)" class="btn-delete">
+                삭제
+              </button>
             </td>
           </tr>
         </tbody>
@@ -52,6 +55,7 @@ import {
   updateDoc,
   doc,
   orderBy,
+  deleteDoc, // [핵심 추가] deleteDoc 함수를 import 합니다.
 } from "firebase/firestore";
 
 export default {
@@ -139,7 +143,23 @@ export default {
         console.error("결제 승인 오류:", error);
         alert("처리 중 오류가 발생했습니다.");
       }
+    },	
+
+    async deletePayment(requestId) {
+      if (!confirm("이 결제 요청을 정말로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) return;
+      
+      const reqRef = doc(db, "monthly_payments", requestId);
+      try {
+        await deleteDoc(reqRef);
+        alert("결제 요청이 삭제되었습니다.");
+        // 목록을 다시 불러와 화면을 갱신합니다.
+        await this.fetchRequests(); 
+      } catch (error) {
+        console.error("결제 요청 삭제 오류:", error);
+        alert("삭제 처리 중 오류가 발생했습니다.");
+      }
     },
+
     formatDate(timestamp) {
       if (!timestamp?.toDate) return "N/A";
       return timestamp.toDate().toLocaleString("ko-KR");
@@ -149,6 +169,22 @@ export default {
 </script>
 
 <style scoped>
+.actions button {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+  margin: 0 4px; /* [추가] 버튼 사이 간격 */
+}
+.btn-approve {
+  background-color: #007bff;
+}
+/* [핵심 추가] 삭제 버튼의 스타일을 정의합니다. */
+.btn-delete {
+  background-color: #dc3545;
+}
 .payment-manager h2 {
   font-size: 1.8em;
   margin-bottom: 20px;
