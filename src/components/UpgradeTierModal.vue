@@ -14,12 +14,11 @@
 
         <div class="form-group">
           <label for="upgrade-amount">추가 구독 금액:</label>
-          <select id="upgrade-amount" v-model="selectedAmount" required>
-            <option value="" disabled>금액을 선택하세요</option>
-            <option value="100000">10만원</option>
-            <option value="300000">30만원</option>
-            <option value="500000">50만원</option>
-            <option value="1000000">100만원</option>
+          <select id="upgrade-amount" v-model="selectedTier" required>
+            <option :value="null" disabled>금액을 선택하세요</option>
+            <option v-for="tier in tiers" :key="tier.amount" :value="tier">
+              {{ tier.name }}
+            </option>
           </select>
         </div>
 
@@ -49,39 +48,50 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default {
   name: "UpgradeTierModal",
-  emits: ["close"], // 부모 컴포넌트에 close 이벤트를 보냄
+  emits: ["close"],
   data() {
     return {
-      selectedAmount: "",
+      // [핵심 수정] 선택된 금액만 저장하는 대신, 등급 객체 전체를 저장합니다.
+      selectedTier: null,
       isLoading: false,
       error: null,
+      // [핵심 추가] 선택 가능한 등급 목록을 정의합니다.
+      tiers: [
+        { name: "10만원", amount: 100000 },
+        { name: "30만원", amount: 300000 },
+        { name: "50만원", amount: 500000 },
+        { name: "100만원", amount: 1000000 },
+      ],
     };
   },
   methods: {
     async handleUpgradeRequest() {
-      if (!this.selectedAmount) {
-        this.error = "구매할 금액을 선택해주세요.";
+      // [핵심 수정] 선택된 등급이 있는지 확인합니다.
+      if (!this.selectedTier) {
+        this.error = "구매할 등급을 선택해주세요.";
         return;
       }
       this.isLoading = true;
       this.error = null;
 
       try {
-        // 백엔드의 requestSubscriptionUpgrade 함수를 호출
-        const functions = getFunctions();
+        // [핵심 수정] Cloud Function 초기화 시 리전을 명시합니다.
+        const functions = getFunctions(undefined, "asia-northeast3");
         const requestSubscriptionUpgrade = httpsCallable(
           functions,
           "requestSubscriptionUpgrade",
         );
 
+        // [핵심 수정] 서버에 금액과 함께 등급 이름(tierName)도 전달합니다.
         await requestSubscriptionUpgrade({
-          investmentAmount: Number(this.selectedAmount),
+          investmentAmount: Number(this.selectedTier.amount),
+          tierName: this.selectedTier.name,
         });
 
         alert(
           "등급 추가 구매 요청이 성공적으로 접수되었습니다. 관리자 승인을 기다려주세요.",
         );
-        this.$emit("close"); // 성공 시 모달 닫기
+        this.$emit("close");
       } catch (e) {
         console.error("등급 추가 구매 요청 오류:", e);
         this.error = `요청 중 오류가 발생했습니다: ${e.message}`;
@@ -94,6 +104,7 @@ export default {
 </script>
 
 <style scoped>
+/* (스타일은 기존 코드와 동일하며, 변경사항 없습니다.) */
 .modal-overlay {
   position: fixed;
   top: 0;
