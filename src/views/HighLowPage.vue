@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue"; // [수정] onUnmounted 추가
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -93,15 +93,28 @@ const result = ref(null);
 const choice = ref("");
 const gameSettings = reactive({
   highLowMultiplier: 1.2,
+  highLowBetMax: 2000, // [추가] highLowBetMax 필드 추가
 });
+
+let unsubscribeSettings = null; // [추가] 리스너 해제를 위한 변수
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  onSnapshot(configRef, (docSnap) => {
+  // [핵심 수정] getDoc 대신 onSnapshot을 사용하여 실시간으로 변경사항을 감지합니다.
+  unsubscribeSettings = onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
-      gameSettings.highLowMultiplier = docSnap.data().highLowMultiplier || 1.2;
+      const data = docSnap.data();
+      gameSettings.highLowMultiplier = data.highLowMultiplier || 1.2;
+      gameSettings.highLowBetMax = data.highLowBetMax || 2000;
     }
   });
+});
+
+// [핵심 추가] 컴포넌트가 사라질 때 리스너를 정리하여 메모리 누수를 방지합니다.
+onUnmounted(() => {
+  if (unsubscribeSettings) {
+    unsubscribeSettings();
+  }
 });
 
 const play = async (playerChoice) => {

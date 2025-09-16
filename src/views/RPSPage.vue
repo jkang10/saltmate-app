@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue"; // [수정] onUnmounted 추가
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -73,13 +73,19 @@ const isLoading = ref(false);
 const result = ref(null);
 const gameSettings = reactive({
   rpsMultiplier: 1.2,
+  rpsBetMax: 2000, // [추가] rpsBetMax 필드 추가
 });
+
+let unsubscribeSettings = null; // [추가] 리스너 해제를 위한 변수
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
-  onSnapshot(configRef, (docSnap) => {
+  // [핵심 수정] getDoc 대신 onSnapshot을 사용하여 실시간으로 변경사항을 감지합니다.
+  unsubscribeSettings = onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
-      gameSettings.rpsMultiplier = docSnap.data().rpsMultiplier || 1.2;
+      const data = docSnap.data();
+      gameSettings.rpsMultiplier = data.rpsMultiplier || 1.2;
+      gameSettings.rpsBetMax = data.rpsBetMax || 2000;
     }
   });
 });
@@ -95,6 +101,13 @@ const resultText = computed(() => {
       return "무승부! 베팅 금액을 돌려받습니다.";
     default:
       return "";
+  }
+});
+
+// [핵심 추가] 컴포넌트가 사라질 때 리스너를 정리하여 메모리 누수를 방지합니다.
+onUnmounted(() => {
+  if (unsubscribeSettings) {
+    unsubscribeSettings();
   }
 });
 
