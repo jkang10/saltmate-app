@@ -46,7 +46,9 @@
 </template>
 
 <script>
-import { db } from "@/firebaseConfig";
+// [핵심 수정] functions와 httpsCallable을 firebaseConfig와 firebase/functions에서 가져옵니다.
+import { db, functions } from "@/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   query,
