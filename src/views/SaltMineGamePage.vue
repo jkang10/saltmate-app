@@ -302,6 +302,7 @@ export default {
       if (item.type === "click") this.perClick += item.add;
       this.logEvent(`'${item.name}' 업그레이드 구매!`);
     },
+
     async sellSalt() {
       if (!this.currentUser || this.isSelling) return;
 
@@ -312,8 +313,10 @@ export default {
 
       this.isSelling = true;
       try {
+        // [핵심 추가] 판매 요청 전에 현재 게임 상태를 서버에 먼저 저장합니다.
+        await this.saveGame(); 
+
         const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        // [핵심 수정] 현재 화면에 보이는 소금량을 서버로 전달합니다.
         const result = await sellSaltForPoints({ amountToSell: saltToSell });
         const { awardedPoints, soldSalt } = result.data;
         
@@ -329,6 +332,7 @@ export default {
         this.isSelling = false;
       }
     },
+
     async exchangeGold() {
       if (!this.currentUser || this.gold < 1 || this.isExchanging) return;
       if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
