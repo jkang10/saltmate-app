@@ -148,15 +148,25 @@ export default {
     async deletePayment(requestId) {
       if (!confirm("이 결제 요청을 정말로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) return;
       
-      const reqRef = doc(db, "monthly_payments", requestId);
       try {
+        // 1. 화면에서 먼저 해당 항목을 제거하여 즉각적으로 반응하게 합니다.
+        const index = this.requests.findIndex(req => req.id === requestId);
+        if (index > -1) {
+          this.requests.splice(index, 1);
+        }
+
+        // 2. 서버에 문서 삭제를 요청합니다.
+        const reqRef = doc(db, "monthly_payments", requestId);
         await deleteDoc(reqRef);
-        alert("결제 요청이 삭제되었습니다.");
-        // 목록을 다시 불러와 화면을 갱신합니다.
-        await this.fetchRequests(); 
+        
+        // 3. 목록을 다시 불러올 필요 없이 성공 메시지를 표시합니다.
+        // alert("결제 요청이 삭제되었습니다."); // 사용자 경험을 위해 alert는 생략 가능
+
       } catch (error) {
         console.error("결제 요청 삭제 오류:", error);
-        alert("삭제 처리 중 오류가 발생했습니다.");
+        alert("삭제 처리 중 오류가 발생했습니다. 페이지를 새로고침하여 최신 목록을 확인해주세요.");
+        // 오류 발생 시 목록을 다시 불러와 데이터 일관성을 맞춥니다.
+        await this.fetchRequests(); 
       }
     },
 
