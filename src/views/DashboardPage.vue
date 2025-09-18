@@ -268,7 +268,18 @@
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
+// [핵심 수정] 필요한 모든 Firestore 함수를 import합니다.
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+} from "firebase/firestore";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
