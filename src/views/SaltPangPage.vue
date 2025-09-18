@@ -624,28 +624,45 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* [핵심 추가] 잭팟 UI 스타일 */
+/* [핵심 수정] 잭팟 UI 관련 스타일을 아래 코드로 교체합니다. */
 .jackpot-section {
   text-align: center;
   background: linear-gradient(135deg, #1e3c72, #2a5298);
   color: white;
   padding: 25px;
+  border-radius: 12px; /* [추가] 모서리를 둥글게 처리 */
 }
+
 .jackpot-icon {
   color: #ffd700;
   animation: pulse 1.5s infinite;
 }
+
 @keyframes pulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
+
 .jackpot-amount {
-  font-size: 2.5em;
+  font-size: 2.8em; /* [수정] 글씨 크기를 약간 키움 */
   font-weight: bold;
   text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  
+  /* [핵심 추가] 황금색 그라데이션 및 반짝임 효과 */
+  background: linear-gradient(45deg, #ffd700, #fca5f1, #b3c7f0, #ffd700);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-animation 4s ease infinite;
 }
-.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
+
+@keyframes gradient-animation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
 .page-header { text-align: center; margin-bottom: 20px; color: #333; }
 .page-header h1 { font-size: 2.5em; font-weight: 900; }
 .page-header p { font-size: 1.1em; color: #666; }
