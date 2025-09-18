@@ -7,6 +7,13 @@
 
     <main class="game-container card">
       <div v-if="gameState === 'ready'" class="game-intro">
+        <div class="intro-section jackpot-section">
+          <h3 class="section-title"><i class="fas fa-gem jackpot-icon"></i> 현재 잭팟 금액</h3>
+          <div class="jackpot-amount">
+            {{ jackpotAmount.toLocaleString() }} SaltMate
+          </div>
+        </div>
+
         <h2 class="main-title">게임 설정</h2>
         
         <div class="intro-section mission-section">
@@ -153,7 +160,7 @@
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
@@ -165,6 +172,7 @@ const TIME_ATTACK_DURATION = 30;
 const INFINITE_MODE_MOVES = 30;
 
 // --- 상태 변수 (Refs) ---
+const jackpotAmount = ref(0); // [추가] 잭팟 금액을 저장할 변수
 const gameState = ref('ready');
 const gameMode = ref('classic');
 const board = ref([]);
@@ -591,9 +599,20 @@ const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
 
+// [추가] 잭팟 금액을 실시간으로 가져오는 함수
+const listenToJackpot = () => {
+  const jackpotRef = doc(db, "configuration", "saltPangJackpot");
+  onSnapshot(jackpotRef, (docSnap) => {
+    if (docSnap.exists()) {
+      jackpotAmount.value = docSnap.data().amount || 0;
+    }
+  });
+};
+
 onMounted(() => {
   fetchPlayCount();
   fetchMissions();
+  listenToJackpot(); // [추가] onMounted에서 함수 호출
 });
 
 onUnmounted(() => {
@@ -601,9 +620,31 @@ onUnmounted(() => {
   if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
   sounds.background.pause();
 });
+
 </script>
 
 <style scoped>
+/* [핵심 추가] 잭팟 UI 스타일 */
+.jackpot-section {
+  text-align: center;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: white;
+  padding: 25px;
+}
+.jackpot-icon {
+  color: #ffd700;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.jackpot-amount {
+  font-size: 2.5em;
+  font-weight: bold;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
 .salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
 .page-header { text-align: center; margin-bottom: 20px; color: #333; }
 .page-header h1 { font-size: 2.5em; font-weight: 900; }

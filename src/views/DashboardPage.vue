@@ -2,6 +2,13 @@
   <div>
     <AnnouncementTicker />
     <div class="dashboard-container">
+      <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
+        <p>
+          <i class="fas fa-trophy"></i>
+          축하합니다! <strong>{{ latestJackpotWinner.userName }}</strong> 님께서 솔트팡 잭팟
+          <strong>{{ latestJackpotWinner.amount.toLocaleString() }} SaltMate</strong>에 당첨되셨습니다!
+        </p>
+      </section>
       <section v-if="notices.length > 0" class="notice-section card">
         <div class="notice-header">
           <h3><i class="fas fa-bullhorn"></i> 공지사항</h3>
@@ -261,17 +268,7 @@
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  doc,
-  getDoc,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -312,6 +309,8 @@ export default {
       marketingPlan: null,
       unsubscribe: null,
       isRequestingPayment: false,
+      latestJackpotWinner: null, // [추가] 잭팟 당첨자 정보
+      unsubscribeJackpot: null, // [추가] 리스너 해제용
     };
   },
   computed: {
@@ -359,17 +358,31 @@ export default {
         this.listenToUserProfile(user.uid);
         this.fetchMarketingPlan();
         this.fetchNotices();
+        this.listenToLatestJackpot(); // [추가] 잭팟 리스너 호출
       } else {
         this.loadingUser = false;
       }
     });
   },
   unmounted() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-    }
+    if (this.unsubscribe) this.unsubscribe();
+    if (this.unsubscribeJackpot) this.unsubscribeJackpot(); // [추가] 리스너 해제
   },
   methods: {
+      // [추가] 잭팟 당첨 정보를 가져오는 함수
+    listenToLatestJackpot() {
+      const q = query(
+        collection(db, "saltPangJackpotWins"),
+        orderBy("wonAt", "desc"),
+        limit(1)
+      );
+      this.unsubscribeJackpot = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          this.latestJackpotWinner = snapshot.docs[0].data();
+        }
+      });
+    },
+
     async requestPayment() {
       if (
         !confirm(
@@ -465,7 +478,24 @@ export default {
 </script>
 
 <style scoped>
-/* (스타일은 기존 코드와 동일합니다. 변경사항 없습니다.) */
+/* [핵심 추가] 잭팟 당첨 전광판 스타일 */
+.jackpot-winner-card {
+  padding: 20px 25px;
+  margin-bottom: 30px;
+  text-align: center;
+  background: linear-gradient(90deg, #f7971e, #ffd200);
+  color: #333;
+  font-size: 1.2em;
+  font-weight: 500;
+  animation: glow 2s infinite alternate;
+}
+.jackpot-winner-card p {
+  margin: 0;
+}
+@keyframes glow {
+  from { box-shadow: 0 0 10px #f7971e; }
+  to { box-shadow: 0 0 25px #ffd200; }
+}
 .subscription-status-card {
   margin-top: 25px;
   padding: 20px;
