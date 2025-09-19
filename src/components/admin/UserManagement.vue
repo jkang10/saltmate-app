@@ -4,151 +4,59 @@
     <p>회원 목록을 조회하고 사용자 잔액, 토큰 및 권한을 관리합니다.</p>
 
     <div class="user-summary-container">
-      <div class="summary-card total">
-        <div class="card-icon"><i class="fas fa-users"></i></div>
-        <div class="card-content">
-          <span class="card-title">총 회원수</span>
-          <span class="card-value">{{ totalUserCount }} 명</span>
-        </div>
-      </div>
-      <div class="summary-card active">
-        <div class="card-icon"><i class="fas fa-user-check"></i></div>
-        <div class="card-content">
-          <span class="card-title">승인 완료 회원</span>
-          <span class="card-value">{{ activeUserCount }} 명</span>
-        </div>
-      </div>
-      <div class="summary-card pending">
-        <div class="card-icon"><i class="fas fa-user-clock"></i></div>
-        <div class="card-content">
-          <span class="card-title">처리할 승인 요청</span>
-          <span class="card-value">{{ pendingRequestCount }} 건</span>
-        </div>
-      </div>
+      <div class="summary-card total"><div class="card-icon"><i class="fas fa-users"></i></div><div class="card-content"><span class="card-title">총 회원수</span><span class="card-value">{{ totalUserCount }} 명</span></div></div>
+      <div class="summary-card active"><div class="card-icon"><i class="fas fa-user-check"></i></div><div class="card-content"><span class="card-title">승인 완료 회원</span><span class="card-value">{{ activeUserCount }} 명</span></div></div>
+      <div class="summary-card pending"><div class="card-icon"><i class="fas fa-user-clock"></i></div><div class="card-content"><span class="card-title">처리할 승인 요청</span><span class="card-value">{{ pendingRequestCount }} 건</span></div></div>
     </div>
 
     <div class="filter-controls">
-      <input
-        type="text"
-        v-model="searchTerm"
-        placeholder="이름 또는 이메일로 검색..."
-        class="search-input"
-      />
+      <input type="text" v-model="searchTerm" placeholder="이름 또는 이메일로 검색..." class="search-input" />
       <select v-model="itemsPerPage" class="items-per-page-select">
-        <option value="10">10개씩 보기</option>
-        <option value="20">20개씩 보기</option>
-        <option value="30">30개씩 보기</option>
-        <option value="40">40개씩 보기</option>
-        <option value="50">50개씩 보기</option>
+        <option value="10">10개씩 보기</option><option value="20">20개씩 보기</option><option value="30">30개씩 보기</option>
+        <option value="40">40개씩 보기</option><option value="50">50개씩 보기</option>
       </select>
     </div>
 
     <div v-if="loading" class="loading-spinner"></div>
-    <div v-if="error" class="error-state">
-      <p>{{ error }}</p>
-    </div>
+    <div v-if="error" class="error-state"><p>{{ error }}</p></div>
     <div v-if="!loading && paginatedUsers.length > 0" class="table-container">
       <table class="user-table">
         <thead>
           <tr>
-            <th>이름</th>
-            <th>이메일</th>
-            <th>센터</th>
-            <th>추천인</th>
-            <th>가입일</th>
-            <th>다음 결제일</th>
-            <th>최종 정산일</th>
-            <th>구독 상태</th>
-            <th>솔트메이트</th>
-            <th>관리자</th>
-            <th>관리</th>
+            <th>이름</th><th>이메일</th><th>센터</th><th>추천인</th><th>역할</th>
+            <th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="user in paginatedUsers"
-            :key="user.id"
-            :class="{
-              'not-approved-row': user.subscriptionStatus !== 'active',
-            }"
-          >
+          <tr v-for="user in paginatedUsers" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.centerName || "N/A" }}</td>
             <td>{{ user.referrerName || "없음" }}</td>
+            <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
-            <td>{{ user.lastPayoutDate || "내역 없음" }}</td>
-            <td>
-              <span :class="['status-badge', user.subscriptionStatus]">{{
-                formatSubscriptionStatus(user.subscriptionStatus)
-              }}</span>
-            </td>
+            <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
             <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
-            <td>
-              <span :class="user.isAdmin ? 'admin-badge' : 'user-badge'">
-                {{ user.isAdmin ? "Admin" : "User" }}
-              </span>
-            </td>
             <td class="actions">
-              <button
-                @click="openEditModal(user)"
-                class="btn btn-sm btn-primary"
-              >
-                수정
-              </button>
-              <button
-                @click="openBalanceModal(user)"
-                class="btn btn-sm btn-success"
-              >
-                잔액 조정
-              </button>
-              <button @click="openTokenModal(user)" class="btn btn-sm btn-info">
-                토큰 관리
-              </button>
-              <button
-                @click="toggleAdmin(user)"
-                class="btn btn-sm btn-secondary"
-              >
-                권한 변경
-              </button>
-              <button @click="deleteUser(user)" class="btn btn-sm btn-danger">
-                삭제
-              </button>
+              <button @click="openEditModal(user)" class="btn btn-sm btn-primary">수정</button>
+              <button @click="openBalanceModal(user)" class="btn btn-sm btn-success">잔액 조정</button>
+              <button @click="openTokenModal(user)" class="btn btn-sm btn-info">토큰 관리</button>
+              <button @click="deleteUser(user)" class="btn btn-sm btn-danger">삭제</button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div v-if="!loading && filteredUsers.length === 0" class="no-data">
-      <p>표시할 사용자가 없습니다.</p>
-    </div>
+    <div v-if="!loading && filteredUsers.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
     <div v-if="totalPages > 1" class="pagination">
       <button @click="currentPage--" :disabled="currentPage === 1">이전</button>
       <span>{{ currentPage }} / {{ totalPages }}</span>
-      <button @click="currentPage++" :disabled="currentPage === totalPages">
-        다음
-      </button>
+      <button @click="currentPage++" :disabled="currentPage === totalPages">다음</button>
     </div>
-    <TokenTransferModal
-      v-if="isTokenModalVisible"
-      :user="selectedUser"
-      @close="isTokenModalVisible = false"
-      @token-updated="fetchUsers"
-    />
-    <BalanceAdjustmentModal
-      v-if="isBalanceModalVisible"
-      :user="selectedUser"
-      @close="isBalanceModalVisible = false"
-      @balance-updated="fetchUsers"
-    />
-    <UserEditModal
-      v-if="isEditModalVisible"
-      :user="selectedUser"
-      :allUsers="users.filter((u) => u.id !== selectedUser.id)"
-      @close="isEditModalVisible = false"
-      @user-updated="fetchUsers"
-    />
+    <TokenTransferModal v-if="isTokenModalVisible" :user="selectedUser" @close="isTokenModalVisible = false" @token-updated="fetchUsers" />
+    <BalanceAdjustmentModal v-if="isBalanceModalVisible" :user="selectedUser" @close="isBalanceModalVisible = false" @balance-updated="fetchUsers" />
+    <UserEditModal v-if="isEditModalVisible" :user="selectedUser" :allUsers="users" @close="isEditModalVisible = false" @user-updated="fetchUsers" />
   </div>
 </template>
 
@@ -173,36 +81,18 @@ const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
 const pendingRequestCount = ref(0);
 
-watch(itemsPerPage, () => {
-  currentPage.value = 1;
-});
+watch(itemsPerPage, () => { currentPage.value = 1; });
 
 const totalUserCount = computed(() => users.value.length);
-const activeUserCount = computed(
-  () =>
-    users.value.filter(
-      (u) =>
-        u.subscriptionStatus === "active" || u.subscriptionStatus === "overdue",
-    ).length,
-);
-
+const activeUserCount = computed(() => users.value.filter(u => u.subscriptionStatus === "active" || u.subscriptionStatus === "overdue").length);
 const filteredUsers = computed(() => {
-  if (!searchTerm.value) {
-    return users.value;
-  }
-  return users.value.filter(
-    (user) =>
-      (user.name &&
-        user.name.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
-      (user.email &&
-        user.email.toLowerCase().includes(searchTerm.value.toLowerCase())),
+  if (!searchTerm.value) return users.value;
+  return users.value.filter(user =>
+      (user.name && user.name.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(searchTerm.value.toLowerCase()))
   );
 });
-
-const totalPages = computed(() =>
-  Math.ceil(filteredUsers.value.length / itemsPerPage.value),
-);
-
+const totalPages = computed(() => Math.ceil(filteredUsers.value.length / itemsPerPage.value));
 const paginatedUsers = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
   const end = start + itemsPerPage.value;
@@ -215,73 +105,42 @@ const formatDate = (timestamp) => {
 };
 
 const formatSubscriptionStatus = (status) => {
-  switch (status) {
-    case "active":
-      return "승인 완료";
-    case "pending":
-      return "승인 대기";
-    case "overdue":
-      return "연체";
-    default:
-      return "미승인";
-  }
+  const statuses = { active: "승인 완료", pending: "승인 대기", overdue: "연체" };
+  return statuses[status] || "미승인";
+};
+
+const formatRole = (role) => {
+    const roles = {
+        superAdmin: '최고 관리자',
+        centerManager: '센터 관리자',
+        user: '일반 사용자'
+    };
+    return roles[role] || role || '일반 사용자';
 };
 
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    const usersQuery = query(
-      collection(db, "users"),
-      orderBy("createdAt", "desc"),
-    );
+    const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const centersQuery = query(collection(db, "centers"));
-    const payoutsQuery = query(
-      collection(db, "weekly_payout_requests"),
-      where("status", "in", ["approved", "approved_manual"]),
-    );
-    const pendingRequestsQuery = query(
-      collection(db, "subscription_requests"),
-      where("status", "==", "pending"),
-    );
+    const pendingRequestsQuery = query(collection(db, "subscription_requests"), where("status", "==", "pending"));
 
-    const [
-      userSnapshot,
-      centerSnapshot,
-      payoutSnapshot,
-      pendingRequestsSnapshot,
-    ] = await Promise.all([
+    const [userSnapshot, centerSnapshot, pendingRequestsSnapshot] = await Promise.all([
       getDocs(usersQuery),
       getDocs(centersQuery),
-      getDocs(payoutsQuery),
       getDocs(pendingRequestsQuery),
     ]);
 
     pendingRequestCount.value = pendingRequestsSnapshot.size;
+    const centerMap = new Map(centerSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+    const userMap = new Map(userSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
-    const lastPayoutMap = new Map();
-    payoutSnapshot.forEach((doc) => {
-      const payout = doc.data();
-      const existingDate = lastPayoutMap.get(payout.userId);
-      if (!existingDate || payout.weekId > existingDate) {
-        lastPayoutMap.set(payout.userId, payout.weekId);
-      }
-    });
-
-    const centerMap = new Map(
-      centerSnapshot.docs.map((doc) => [doc.id, doc.data().name]),
-    );
-    const userMap = new Map(
-      userSnapshot.docs.map((doc) => [doc.id, doc.data().name]),
-    );
-
-    users.value = userSnapshot.docs.map((doc) => {
+    users.value = userSnapshot.docs.map(doc => {
       const userData = doc.data();
       return {
-        id: doc.id,
-        ...userData,
+        id: doc.id, ...userData,
         centerName: centerMap.get(userData.centerId) || "N/A",
         referrerName: userMap.get(userData.uplineReferrer) || "없음",
-        lastPayoutDate: lastPayoutMap.get(doc.id) || null,
       };
     });
   } catch (err) {
@@ -292,37 +151,8 @@ const fetchUsers = async () => {
   }
 };
 
-const toggleAdmin = async (user) => {
-  const newStatus = !user.isAdmin;
-  if (
-    !confirm(
-      `'${user.name}' 사용자를 '${
-        newStatus ? "관리자" : "일반 사용자"
-      }' (으)로 지정하시겠습니까?`,
-    )
-  )
-    return;
-  try {
-    const functions = getFunctions();
-    const setUserAdminClaim = httpsCallable(functions, "setUserAdminClaim");
-    await setUserAdminClaim({ email: user.email });
-    alert(
-      "사용자 권한이 성공적으로 변경되었습니다. \n해당 사용자는 로그아웃 후 다시 로그인해야 권한이 적용됩니다.",
-    );
-    await fetchUsers();
-  } catch (error) {
-    console.error("권한 변경 중 오류 발생:", error);
-    alert(`권한 변경에 실패했습니다: ${error.message}`);
-  }
-};
-
 const deleteUser = async (user) => {
-  if (
-    !confirm(
-      `정말로 '${user.name}' 사용자를 삭제하시겠습니까? 이 작업은 복구할 수 없습니다.`,
-    )
-  )
-    return;
+  if (!confirm(`정말로 '${user.name}' 사용자를 삭제하시겠습니까? 이 작업은 복구할 수 없습니다.`)) return;
   try {
     const functions = getFunctions();
     const deleteUserFunc = httpsCallable(functions, "deleteUser");
@@ -335,23 +165,18 @@ const deleteUser = async (user) => {
   }
 };
 
-const openTokenModal = (user) => {
-  selectedUser.value = user;
-  isTokenModalVisible.value = true;
-};
-const openBalanceModal = (user) => {
-  selectedUser.value = user;
-  isBalanceModalVisible.value = true;
-};
-const openEditModal = (user) => {
-  selectedUser.value = user;
-  isEditModalVisible.value = true;
-};
+const openTokenModal = (user) => { selectedUser.value = user; isTokenModalVisible.value = true; };
+const openBalanceModal = (user) => { selectedUser.value = user; isBalanceModalVisible.value = true; };
+const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.value = true; };
 
 onMounted(fetchUsers);
 </script>
 
 <style scoped>
+.role-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; display: inline-block; }
+.role-badge.superAdmin { background-color: #dc3545; }
+.role-badge.centerManager { background-color: #17a2b8; }
+.role-badge.user, .role-badge.undefined { background-color: #6c757d; }
 .user-summary-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
