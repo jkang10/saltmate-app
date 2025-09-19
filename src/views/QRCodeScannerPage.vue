@@ -78,8 +78,17 @@ const onDecode = (decodedString) => {
 };
 
 const onInit = async (promise) => {
+  // 10초 후에 카메라가 준비되지 않으면 타임아웃 오류를 표시합니다.
+  const timeout = setTimeout(() => {
+    if (!cameraReady.value) {
+      error.value = '카메라를 불러오는 데 시간이 너무 오래 걸립니다. 페이지를 새로고침하거나 브라우저의 카메라 권한을 확인해주세요.';
+    }
+  }, 10000); // 10초 타임아웃
+
   try {
+    // 카메라 스트림을 성공적으로 가져올 때까지 기다립니다.
     await promise;
+    // 성공 시, 카메라 준비 상태를 true로 변경합니다.
     cameraReady.value = true;
   } catch (err) {
     console.error("카메라 초기화 오류:", err);
@@ -90,6 +99,9 @@ const onInit = async (promise) => {
     } else {
       error.value = '카메라를 시작하는 중 오류가 발생했습니다.';
     }
+  } finally {
+    // 성공하든 실패하든, 설정해둔 타임아웃은 반드시 제거합니다.
+    clearTimeout(timeout);
   }
 };
 
