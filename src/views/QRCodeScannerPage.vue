@@ -20,7 +20,7 @@
             <p class="loading-message">카메라를 불러오는 중...</p>
           </div>
         </div>
-        <p v-if="error" class="error-message">{{ error }}</p>
+        <p v-if="error && !isLoading" class="error-message">{{ error }}</p>
       </div>
     </div>
   </div>
@@ -64,7 +64,6 @@ const processQRCode = async (qrId) => {
 };
 
 const onDecode = (decodedString) => {
-  // QR 코드가 URL 형태일 경우 ID만 추출
   try {
     const url = new URL(decodedString);
     const qrId = url.searchParams.get('qrId');
@@ -74,7 +73,6 @@ const onDecode = (decodedString) => {
       throw new Error("URL에 qrId가 없습니다.");
     }
   } catch (e) {
-    // URL 형태가 아닐 경우, 문자열 그대로 사용
     processQRCode(decodedString);
   }
 };
@@ -118,7 +116,6 @@ onMounted(() => {
   overflow: hidden;
   background: #000;
   position: relative;
-  /* 가로 세로 비율을 1:1로 유지 */
   width: 100%;
   padding-top: 100%; 
 }
