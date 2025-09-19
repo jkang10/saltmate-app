@@ -38,10 +38,10 @@
         </header>
         <div class="modal-body">
           <p v-if="qrModal.isLoading">QR코드를 생성 중입니다...</p>
-          <div v-else-if="qrModal.qrId" class="qr-code-container">
-            <qrcode-vue :value="qrModal.qrId" :size="250" level="H" />
-            <p class="qr-info">이 QR코드는 5분간 유효하며, 1회만 사용할 수 있습니다.</p>
-          </div>
+	<div v-else-if="qrModal.qrValue" class="qr-code-container">
+	  <qrcode-vue :value="qrModal.qrValue" :size="250" level="H" />
+	  <p class="qr-info">이 QR코드는 5분간 유효하며, 1회만 사용할 수 있습니다.</p>
+	</div>
            <p v-else class="qr-error">{{ qrModal.error }}</p>
         </div>
       </div>
@@ -61,16 +61,16 @@ export default {
   components: {
     QrcodeVue, // 컴포넌트 등록
   },
-  setup() {
-    const centers = ref([]);
-    const newCenterName = ref("");
-    const loading = ref(true);
-    const qrModal = reactive({
-      visible: false,
-      isLoading: false,
-      qrId: null,
-      error: null,
-    });
+	setup() {
+	  const centers = ref([]);
+	  const newCenterName = ref("");
+	  const loading = ref(true);
+	  const qrModal = reactive({
+	    visible: false,
+	    isLoading: false,
+	    qrValue: null, // [수정] qrId -> qrValue 로 이름 변경
+	    error: null,
+	  });
 
     const fetchCenters = async () => {
       loading.value = true;
@@ -99,36 +99,37 @@ export default {
       } catch (error) { console.error("센터 삭제 오류:", error); }
     };
 
-    const generateQR = async (centerId) => {
-      qrModal.visible = true;
-      qrModal.isLoading = true;
-      qrModal.qrId = null;
-      qrModal.error = null;
-      try {
-        const generateFunc = httpsCallable(functions, "generateCenterQRCode");
-        const result = await generateFunc({ centerId });
-        if (result.data.success) {
-          qrModal.qrId = result.data.qrId;
-        } else {
-          throw new Error("QR코드 생성에 실패했습니다.");
-        }
-      } catch (error) {
-        console.error("QR코드 생성 오류:", error);
-        qrModal.error = error.message;
-      } finally {
-        qrModal.isLoading = false;
+     const generateQR = async (centerId) => {
+    qrModal.visible = true;
+    qrModal.isLoading = true;
+    qrModal.qrValue = null;
+    qrModal.error = null;
+    try {
+      const generateFunc = httpsCallable(functions, "generateCenterQRCode");
+      const result = await generateFunc({ centerId });
+      if (result.data.success) {
+        // [핵심 수정] 단순 ID가 아닌, 전체 URL을 QR코드 값으로 생성합니다.
+        const baseUrl = window.location.origin; // https://saltmate-app.netlify.app
+        qrModal.qrValue = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
+      } else {
+        throw new Error("QR코드 생성에 실패했습니다.");
       }
-    };
-    
-    const closeQrModal = () => {
-      qrModal.visible = false;
-    };
+    } catch (error) {
+      console.error("QR코드 생성 오류:", error);
+      qrModal.error = error.message;
+    } finally {
+      qrModal.isLoading = false;
+    }
+  };
+  
+  const closeQrModal = () => {
+    qrModal.visible = false;
+  };
 
-    onMounted(fetchCenters);
+  onMounted(fetchCenters);
 
-    return { centers, newCenterName, loading, addCenter, deleteCenter, qrModal, generateQR, closeQrModal };
-  },
-};
+  return { centers, newCenterName, loading, addCenter, deleteCenter, qrModal, generateQR, closeQrModal };
+},
 </script>
 
 <style scoped>
