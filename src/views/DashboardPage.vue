@@ -128,6 +128,12 @@
             <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
             <span class="card-enter">참여하기 &rarr;</span>
           </router-link>
+          <router-link to="/qr-scanner" class="feature-card qr-scanner">
+            <div class="card-icon"><i class="fas fa-qrcode"></i></div>
+            <h3>센터 방문 QR 인증</h3>
+            <p>센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!</p>
+            <span class="card-enter">인증하기 &rarr;</span>
+          </router-link>
           <router-link to="/my-tokens" class="feature-card tokens">
             <div class="card-icon"><i class="fas fa-coins"></i></div>
             <h3>보유 토큰 현황</h3>
@@ -489,6 +495,19 @@ export default {
 </script>
 
 <style scoped>
+.feature-card.revenue .card-icon {
+  color: #dc3545;
+}
+.feature-card.tokens .card-icon {
+  color: #ffc107;
+}
+
+/* [핵심 추가] QR 스캐너 카드 아이콘 색상 스타일 */
+.feature-card.qr-scanner .card-icon {
+  color: #007bff; /* 파란색 계열 아이콘 */
+}
+
+.token-glance {
 /* [핵심 추가] 잭팟 당첨 전광판 스타일 */
 .jackpot-winner-card {
   padding: 20px 25px;
