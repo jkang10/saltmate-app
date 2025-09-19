@@ -117,6 +117,12 @@ const routes = [
     component: () => import("@/views/MyEventsPage.vue"),
     meta: { requiresAuth: true },
   },
+{
+  path: '/qr-scanner',
+  name: 'QRCodeScanner',
+  component: () => import('@/views/QRCodeScannerPage.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: "/about",
     name: "AboutView",
