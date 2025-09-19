@@ -15,10 +15,10 @@
       <div v-else class="scanner-container">
         <div class="scanner-viewport">
           <qrcode-stream @decode="onDecode" @init="onInit" />
-        </div>
-        <div v-if="!cameraReady && !error" class="loading-overlay">
-          <div class="spinner-small"></div>
-          <p class="loading-message">카메라를 불러오는 중...</p>
+          <div v-if="!cameraReady && !error" class="loading-overlay">
+            <div class="spinner-small"></div>
+            <p class="loading-message">카메라를 불러오는 중...</p>
+          </div>
         </div>
         <p v-if="error" class="error-message">{{ error }}</p>
       </div>
@@ -64,7 +64,19 @@ const processQRCode = async (qrId) => {
 };
 
 const onDecode = (decodedString) => {
-  processQRCode(decodedString);
+  // QR 코드가 URL 형태일 경우 ID만 추출
+  try {
+    const url = new URL(decodedString);
+    const qrId = url.searchParams.get('qrId');
+    if (qrId) {
+      processQRCode(qrId);
+    } else {
+      throw new Error("URL에 qrId가 없습니다.");
+    }
+  } catch (e) {
+    // URL 형태가 아닐 경우, 문자열 그대로 사용
+    processQRCode(decodedString);
+  }
 };
 
 const onInit = async (promise) => {
