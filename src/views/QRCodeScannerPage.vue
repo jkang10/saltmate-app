@@ -6,15 +6,20 @@
     </header>
 
     <div class="scanner-card card">
-      <div v-if="route.query.qrId">
+      <div v-if="route.query.qrId" class="status-display">
         <p v-if="isLoading" class="loading-message">인증 처리 중...</p>
         <p v-if="error" class="error-message">{{ error }}</p>
       </div>
-      <div v-else class="scanner-viewport">
-        <qrcode-stream @decode="onDecode" @init="onInit" />
-        <p v-if="!cameraReady && !error" class="loading-message">카메라를 불러오는 중...</p>
+      
+      <div v-else class="scanner-container">
+        <div class="scanner-viewport">
+          <qrcode-stream @decode="onDecode" @init="onInit" />
+        </div>
+        <div v-if="!cameraReady && !error" class="loading-overlay">
+          <p class="loading-message">카메라를 불러오는 중...</p>
+        </div>
+        <p v-if="error" class="error-message">{{ error }}</p>
       </div>
-      <p v-if="error && !isLoading" class="error-message">{{ error }}</p>
     </div>
   </div>
 </template>
@@ -99,7 +104,30 @@ onMounted(() => {
 .page-container { max-width: 600px; margin: 70px auto 20px; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 20px; }
 .scanner-card { padding: 30px; }
-.scanner-viewport { max-width: 400px; margin: 0 auto; border: 5px solid #007bff; border-radius: 12px; overflow: hidden; }
+.scanner-container {
+  position: relative;
+}
+.scanner-viewport { 
+  max-width: 400px; 
+  margin: 0 auto; 
+  border: 5px solid #007bff; 
+  border-radius: 12px; 
+  overflow: hidden;
+  /* [추가] 로딩 메시지가 뷰포트 기준으로 표시되도록 */
+  position: relative;
+  background: #000; /* 카메라 로딩 중 배경색 */
+}
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  border-radius: 7px; /* 부모-5px, 보더-5px 고려 */
+}
 .error-message, .loading-message { text-align: center; margin-top: 20px; font-weight: bold; }
 .error-message { color: #dc3545; }
+.status-display { padding: 40px 0; }
 </style>
