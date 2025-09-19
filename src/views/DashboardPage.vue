@@ -506,8 +506,6 @@ export default {
 .feature-card.qr-scanner .card-icon {
   color: #007bff; /* 파란색 계열 아이콘 */
 }
-
-.token-glance {
 /* [핵심 추가] 잭팟 당첨 전광판 스타일 */
 .jackpot-winner-card {
   padding: 20px 25px;
