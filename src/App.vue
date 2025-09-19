@@ -8,13 +8,9 @@
         </router-link>
         <nav class="navbar-nav" :class="{ 'is-active': isNavActive }">
           <router-link to="/shop" class="nav-link">등급 선택</router-link>
-          <router-link to="/my-investments" class="nav-link"
-            >내 수익 현황</router-link
-          >
+          <router-link to="/my-investments" class="nav-link">내 수익 현황</router-link>
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
-          <router-link to="/about" class="nav-link"
-            >솔트메이트 소개</router-link
-          >
+          <router-link to="/about" class="nav-link">솔트메이트 소개</router-link>
         </nav>
         <div class="navbar-actions">
           <div v-if="isLoggedIn" class="user-actions">
@@ -39,49 +35,75 @@
     <main class="main-content">
       <router-view />
     </main>
+
+    <!-- [핵심 추가] 센터 관리자에게만 보이는 QR 생성 버튼 (Floating Action Button) -->
+    <button v-if="userRole === 'centerManager'" @click="generateQR" class="fab-qr-button" title="방문 인증 QR코드 생성">
+      <i class="fas fa-qrcode"></i>
+    </button>
+
+    <!-- [핵심 추가] QR코드 표시 모달 -->
+    <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3>방문 인증 QR코드</h3>
+          <button @click="closeQrModal" class="close-button">&times;</button>
+        </header>
+        <div class="modal-body">
+          <div v-if="qrModal.isLoading" class="loading-spinner"></div>
+          <div v-else-if="qrModal.qrId" class="qr-code-container">
+            <qrcode-vue :value="qrModal.qrId" :size="250" level="H" />
+            <p class="qr-info">이 QR코드는 5분간 유효하며, 1회만 사용할 수 있습니다.</p>
+          </div>
+          <p v-else class="qr-error">{{ qrModal.error }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, watch } from "vue";
-import { auth, db, rtdb } from "@/firebaseConfig";
+import { ref, onMounted, onUnmounted, watch, reactive } from "vue";
+import { auth, db, functions, rtdb } from "@/firebaseConfig"; // functions 추가
+import { httpsCallable } from "firebase/functions"; // httpsCallable 추가
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import {
-  ref as dbRef,
-  onValue,
-  set,
-  onDisconnect,
-  remove,
-} from "firebase/database";
+import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
 import { useRouter } from "vue-router";
+import QrcodeVue from 'qrcode.vue'; // QR코드 생성 라이브러리
 
 export default {
+  components: {
+    QrcodeVue, // 컴포넌트 등록
+  },
   setup() {
     const isLoggedIn = ref(false);
     const userName = ref("");
     const isNavActive = ref(false);
     const router = useRouter();
 
+    // [핵심 추가] 사용자 역할 및 QR 모달 상태 관리
+    const userRole = ref(null);
+    const qrModal = reactive({
+      visible: false,
+      isLoading: false,
+      qrId: null,
+      error: null,
+    });
+
     let authUnsubscribe = null;
     let presenceRef = null;
 
     const managePresence = (user) => {
       if (user) {
-        // 사용자가 로그인하면, presence 경로에 자신의 UID를 키로 하여 true 값을 씁니다.
         presenceRef = dbRef(rtdb, `presence/${user.uid}`);
         const connectedRef = dbRef(rtdb, ".info/connected");
-
         onValue(connectedRef, (snap) => {
           if (snap.val() === true) {
-            // 사용자의 인터넷 연결이 끊어지면(onDisconnect), 자동으로 자신의 기록을 삭제하도록 설정합니다.
             onDisconnect(presenceRef).remove();
-            // 현재 접속 상태임을 기록합니다.
             set(presenceRef, true);
           }
         });
       } else {
-        // 사용자가 로그아웃하면, 자신의 기록을 즉시 삭제합니다.
         if (presenceRef) {
           remove(presenceRef);
           presenceRef = null;
@@ -91,35 +113,62 @@ export default {
 
     const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        managePresence(user); // 로그인/로그아웃 시 접속 상태 관리 함수 호출
-
+        managePresence(user);
         if (user) {
           isLoggedIn.value = true;
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
             if (userSnap.exists()) {
-              userName.value = userSnap.data().name || "사용자";
+              const userData = userSnap.data();
+              userName.value = userData.name || "사용자";
+              userRole.value = userData.role || 'user'; // 사용자의 역할을 가져와서 저장
             }
           } catch (error) {
-            console.error("사용자 이름을 가져오는 중 오류 발생:", error);
+            console.error("사용자 정보를 가져오는 중 오류 발생:", error);
             userName.value = "사용자";
+            userRole.value = 'user';
           }
         } else {
           isLoggedIn.value = false;
           userName.value = "";
+          userRole.value = null; // 로그아웃 시 역할 초기화
         }
       });
     };
+    
+    // [핵심 추가] QR코드 생성 함수
+    const generateQR = async () => {
+      qrModal.visible = true;
+      qrModal.isLoading = true;
+      qrModal.qrId = null;
+      qrModal.error = null;
+      try {
+        const generateFunc = httpsCallable(functions, "generateCenterQRCode");
+        const result = await generateFunc(); // 센터 관리자는 centerId를 보낼 필요 없음
+        if (result.data.success) {
+          qrModal.qrId = result.data.qrId;
+        } else {
+          throw new Error("QR코드 생성에 실패했습니다.");
+        }
+      } catch (error) {
+        console.error("QR코드 생성 오류:", error);
+        qrModal.error = error.message;
+      } finally {
+        qrModal.isLoading = false;
+      }
+    };
+
+    // [핵심 추가] QR 모달 닫기 함수
+    const closeQrModal = () => {
+      qrModal.visible = false;
+    };
+
 
     const logout = async () => {
       try {
-        // 로그아웃 시에도 접속 기록을 확실히 제거합니다.
         if (auth.currentUser) {
-          const userPresenceRef = dbRef(
-            rtdb,
-            `presence/${auth.currentUser.uid}`,
-          );
+          const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
           await remove(userPresenceRef);
         }
         await signOut(auth);
@@ -142,26 +191,19 @@ export default {
       if (authUnsubscribe) {
         authUnsubscribe();
       }
-      // 페이지를 떠날 때도 접속 기록을 제거합니다.
       if (auth.currentUser) {
         const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
         remove(userPresenceRef);
       }
     });
 
-    watch(
-      () => router.currentRoute.value,
-      () => {
-        isNavActive.value = false;
-      },
-    );
+    watch(() => router.currentRoute.value, () => {
+      isNavActive.value = false;
+    });
 
     return {
-      isLoggedIn,
-      userName,
-      logout,
-      isNavActive,
-      toggleNav,
+      isLoggedIn, userName, logout, isNavActive, toggleNav,
+      userRole, qrModal, generateQR, closeQrModal,
     };
   },
 };
@@ -174,7 +216,6 @@ export default {
   min-height: 100vh;
   background-color: #f8f9fa;
 }
-
 .navbar {
   position: fixed;
   top: 0;
@@ -188,7 +229,6 @@ export default {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
-
 .navbar-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -196,7 +236,6 @@ export default {
   justify-content: space-between;
   align-items: center;
 }
-
 .navbar-brand {
   display: flex;
   align-items: center;
@@ -205,17 +244,14 @@ export default {
   font-size: 1.5em;
   font-weight: bold;
 }
-
 .navbar-brand img {
   height: 40px;
   margin-right: 10px;
 }
-
 .navbar-nav {
   display: flex;
   gap: 25px;
 }
-
 .nav-link {
   text-decoration: none;
   color: #555;
@@ -224,7 +260,6 @@ export default {
   position: relative;
   transition: color 0.3s;
 }
-
 .nav-link::after {
   content: "";
   position: absolute;
@@ -235,29 +270,24 @@ export default {
   background-color: #007bff;
   transition: width 0.3s;
 }
-
 .nav-link:hover,
 .nav-link.router-link-exact-active {
   color: #007bff;
 }
-
 .nav-link:hover::after,
 .nav-link.router-link-exact-active::after {
   width: 100%;
 }
-
 .navbar-actions {
   display: flex;
   align-items: center;
   gap: 15px;
 }
-
 .user-actions {
   display: flex;
   align-items: center;
   gap: 15px;
 }
-
 .user-profile-link {
   display: flex;
   align-items: center;
@@ -266,7 +296,6 @@ export default {
   color: #333;
   font-weight: 500;
 }
-
 .logout-button,
 .login-button {
   padding: 8px 15px;
@@ -278,28 +307,23 @@ export default {
     background-color 0.3s,
     color 0.3s;
 }
-
 .logout-button {
   background-color: #f8f9fa;
   color: #dc3545;
   border: 1px solid #dc3545;
 }
-
 .logout-button:hover {
   background-color: #dc3545;
   color: white;
 }
-
 .login-button {
   background-color: #007bff;
   color: white;
   text-decoration: none;
 }
-
 .login-button:hover {
   background-color: #0056b3;
 }
-
 .navbar-toggler {
   display: none;
   background: none;
@@ -307,11 +331,52 @@ export default {
   font-size: 1.5em;
   cursor: pointer;
 }
-
 .main-content {
   flex: 1;
-  margin-top: 70px; /* Navbar height */
+  margin-top: 70px;
 }
+.fab-qr-button {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.8em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 998;
+  transition: all 0.3s ease;
+}
+.fab-qr-button:hover {
+  background-color: #0056b3;
+  transform: scale(1.1);
+}
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+.modal-header h3 { margin: 0; }
+.close-button { background: none; border: none; font-size: 1.5em; cursor: pointer; }
+.modal-body { text-align: center; }
+.qr-code-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+.qr-info { font-size: 0.9em; color: #555; }
+.qr-error { color: #dc3545; }
+.loading-spinner {
+  display: inline-block;
+  border: 4px solid rgba(0,0,0,0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 992px) {
   .navbar-nav {
