@@ -294,10 +294,14 @@ const claimReward = async (mission) => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
     await claimRewardFunc({ missionId: mission.missionId });
-    mission.claimed = true;
+    mission.claimed = true; // 우선 화면에 즉시 반영
+    alert("보상이 지급되었습니다!");
+    // [핵심 추가] 미션 목록을 다시 불러와서 다른 미션들의 진행도를 갱신합니다.
+    await fetchMissions();
   } catch(err) {
     console.error("미션 보상 수령 오류:", err);
     error.value = `보상 수령 실패: ${err.message}`;
+    mission.claimed = false; // 실패 시 원상 복구
   }
 };
 
