@@ -13,14 +13,15 @@
       </div>
       
       <div v-else class="scanner-container">
-        <div class="scanner-viewport">
-          <qrcode-stream @decode="onDecode" @init="onInit" />
-          <div v-if="!cameraReady && !error" class="loading-overlay">
-            <div class="spinner-small"></div>
-            <p class="loading-message">카메라를 불러오는 중...</p>
-          </div>
+        <div v-if="!cameraReady && !error" class="loading-overlay">
+          <div class="spinner-small"></div>
+          <p class="loading-message">카메라를 불러오는 중...</p>
         </div>
-        <p v-if="error && !isLoading" class="error-message">{{ error }}</p>
+        <div v-else class="scanner-viewport">
+          <qrcode-stream @decode="onDecode" @init="onInit" />
+        </div>
+        
+        <p v-if="error" class="error-message">{{ error }}</p>
       </div>
     </div>
   </div>
@@ -56,7 +57,7 @@ const processQRCode = async (qrId) => {
     setTimeout(() => {
       isLoading.value = false;
       error.value = '';
-      if (route.query.qrId) { // URL로 접근했다 실패하면 대시보드로 보냄
+      if (route.query.qrId) {
         router.push('/dashboard');
       }
     }, 3000);
@@ -127,8 +128,6 @@ onMounted(() => {
   height: 100%;
 }
 .loading-overlay {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -136,11 +135,11 @@ onMounted(() => {
   background: #000;
   color: white;
   border-radius: 7px;
-  z-index: 10;
+  height: 400px; /* 고정 높이 부여 */
 }
 .error-message, .loading-message { text-align: center; margin-top: 20px; font-weight: bold; }
 .error-message { color: #dc3545; }
-.status-display, .loading-overlay { padding: 40px 0; }
+.status-display { padding: 40px 0; text-align: center; }
 .loading-spinner, .spinner-small {
   border: 4px solid rgba(255, 255, 255, 0.2);
   border-top-color: #fff;
