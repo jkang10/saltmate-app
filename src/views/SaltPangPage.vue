@@ -429,6 +429,8 @@ const startGame = async () => {
   }
 };
 
+// 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
+
 const endGame = async () => {
   if (timerInterval) clearInterval(timerInterval);
   if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
@@ -441,6 +443,7 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
+    // [핵심 수정] gameStats 객체를 서버로 함께 전송합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
@@ -558,7 +561,9 @@ const processBoard = async () => {
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
+  // 가로 매치 확인
   for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
+  // 세로 매치 확인
   for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+BOARD_SIZE]&&board.value[i]===board.value[i+2*BOARD_SIZE]) for(let k=r;k<BOARD_SIZE;k++){ i=k*BOARD_SIZE+c; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
   
   if (matches.size > 0) {
@@ -567,11 +572,13 @@ const checkAndClearMatches = async () => {
     currentCombo++;
     if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
     
+    // [핵심 수정] 매치된 보석 정보를 gameStats에 정확히 기록합니다.
     matches.forEach(index => {
       explodingGems.value.add(index);
       const gemType = board.value[index];
       if (gemType) {
         if(gemType === 6) gameStats.jackpotGemsMatched++;
+        // gemType을 키로 사용하여 맞춘 개수를 누적합니다.
         gameStats.gemsMatched[gemType] = (gameStats.gemsMatched[gemType] || 0) + 1;
       }
     });
