@@ -147,7 +147,9 @@ export default {
         const generateFunc = httpsCallable(functions, "generateCenterQRCode");
         const result = await generateFunc(); // 센터 관리자는 centerId를 보낼 필요 없음
         if (result.data.success) {
-          qrModal.qrId = result.data.qrId;
+          // [핵심 수정] 단순 ID가 아닌, 전체 URL을 QR코드 값으로 생성합니다.
+          const baseUrl = window.location.origin; // https://saltmate-app.netlify.app
+          qrModal.qrId = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
         } else {
           throw new Error("QR코드 생성에 실패했습니다.");
         }

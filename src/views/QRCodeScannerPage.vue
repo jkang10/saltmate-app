@@ -60,27 +60,28 @@ const onDecode = (decodedString) => {
   processQRCode(decodedString);
 };
 
-// 카메라 초기화 시 호출되는 함수
+// onInit 함수 수정 제안
 const onInit = async (promise) => {
+  // 10초 타임아웃 설정
+  const timeout = setTimeout(() => {
+    if (!cameraReady.value) {
+      error.value = '카메라를 불러오는 데 시간이 너무 오래 걸립니다. 페이지를 새로고침하거나 브라우저의 카메라 권한을 확인해주세요.';
+    }
+  }, 10000);
+
   try {
-    // 카메라 스트림을 성공적으로 가져올 때까지 기다립니다.
     await promise;
-    // 카메라가 준비되었음을 상태 변수에 저장합니다.
     cameraReady.value = true;
   } catch (err) {
-    // 카메라 초기화 중 발생할 수 있는 다양한 오류를 처리합니다.
     console.error("카메라 초기화 오류:", err);
     if (err.name === 'NotAllowedError') {
       error.value = '카메라 접근 권한이 필요합니다. 브라우저 설정을 확인해주세요.';
-    } else if (err.name === 'NotFoundError') {
-      error.value = '사용 가능한 카메라를 찾을 수 없습니다.';
-    } else if (err.name === 'NotReadableError') {
-      error.value = '카메라를 사용할 수 없습니다. 다른 프로그램이 사용 중일 수 있습니다.';
-    } else if (err.name === 'OverconstrainedError') {
-      error.value = '사용 가능한 카메라가 요구사항을 충족하지 못합니다.';
     } else {
       error.value = '카메라를 시작하는 중 오류가 발생했습니다.';
     }
+  } finally {
+    // 성공하든 실패하든 타임아웃은 제거
+    clearTimeout(timeout);
   }
 };
 
