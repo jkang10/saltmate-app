@@ -1,23 +1,37 @@
+// 파일 경로: vue.config.js
+
 const { defineConfig } = require('@vue/cli-service');
 
 module.exports = defineConfig({
   transpileDependencies: true,
   
+  // 개발 서버 설정 (기존과 동일)
+  devServer: {
+    historyApiFallback: {
+      rewrites: [
+        { from: /^\/firebase-messaging-sw\.js$/, to: '/firebase-messaging-sw.js' }
+      ]
+    }
+  },
+
   // PWA 플러그인 설정
   pwa: {
-    name: 'Saltmate',
+    name: 'Saltmate App',
     themeColor: '#007bff',
     msTileColor: '#000000',
     appleMobileWebAppCapable: 'yes',
     appleMobileWebAppStatusBarStyle: 'black',
-
-    // [핵심 수정] InjectManifest 모드를 사용하여 우리 고유의 서비스 워커 파일에 PWA 기능을 주입합니다.
-    workboxPluginMode: 'InjectManifest',
+    
+    workboxPluginMode: 'GenerateSW', 
     workboxOptions: {
-      // PWA 플러그인이 사용할 원본 서비스 워커 파일 경로를 src 폴더로 지정합니다.
-      swSrc: 'src/service-worker.js',
-      // 최종적으로 생성될 서비스 워커 파일 이름
-      swDest: 'service-worker.js',
+      importScripts: ['firebase-messaging-sw.js'],
+      
+      // [핵심 추가] 아래 3줄의 코드를 추가합니다.
+      // Firebase와 관련된 경로는 서비스 워커가 캐싱하지 않고,
+      // 네트워크 요청을 그대로 통과시키도록 예외 처리하여 카메라 충돌을 방지합니다.
+      navigateFallbackDenylist: [
+        /^\/firebase-cloud-messaging-push-scope/
+      ]
     }
   }
 });
