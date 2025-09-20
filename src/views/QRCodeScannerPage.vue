@@ -1,150 +1,291 @@
 <template>
-  <div class="page-container">
-    <header class="page-header">
-      <h1><i class="fas fa-qrcode"></i> 센터 방문 인증</h1>
-      <p v-if="!route.query.qrId" class="description">센터에 비치된 QR코드를 스캔하여 방문을 인증하세요.</p>
-    </header>
-
-    <div class="scanner-card card">
-      <div v-if="route.query.qrId" class="status-display">
-        <div v-if="isLoading" class="loading-spinner"></div>
-        <p v-if="isLoading" class="loading-message">인증 처리 중...</p>
-        <p v-if="error" class="error-message">{{ error }}</p>
+  <div class="qr-scanner-page">
+    <div class="scanner-container">
+      <div v-if="!isScanning" class="status-overlay">
+        <div v-if="isLoading" class="status-content">
+          <div class="spinner"></div>
+          <p>QR 코드를 확인 중입니다...</p>
+        </div>
+        <div v-if="successMessage" class="status-content success">
+          <i class="fas fa-check-circle"></i>
+          <p>{{ successMessage }}</p>
+          <button @click="goBack" class="btn-back">대시보드로 돌아가기</button>
+        </div>
       </div>
       
-      <div v-else class="scanner-container">
-        <div v-if="!cameraReady && !error" class="loading-overlay">
-          <div class="spinner-small"></div>
-          <p class="loading-message">카메라를 불러오는 중...</p>
-        </div>
-        <div class="scanner-viewport" :class="{ ready: cameraReady }">
-          <qrcode-stream @decode="onDecode" @init="onInit" />
-        </div>
-        <p v-if="error" class="error-message">{{ error }}</p>
+      <video ref="video" :class="{ 'hidden': !isScanning }" autoplay playsinline></video>
+      <canvas ref="canvas" style="display: none;"></canvas>
+      
+      <div class="scanner-guide">
+        <div class="qr-frame"></div>
+        <p class="guide-text">센터에 비치된 QR코드를 화면에 맞춰주세요.</p>
       </div>
+
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
-import { QrcodeStream } from 'vue-qrcode-reader';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useRouter, useRoute } from 'vue-router';
+<script>
+import jsQR from "jsqr";
+import { functions } from "@/firebaseConfig"; // Firebase 설정 import
+import { httpsCallable } from "firebase/functions"; // httpsCallable import
 
-const error = ref('');
-const isLoading = ref(false);
-const cameraReady = ref(false);
-const router = useRouter();
-const route = useRoute();
+export default {
+  data() {
+    return {
+      errorMessage: "",
+      successMessage: "",
+      stream: null,
+      scanRequest: null,
+      isLoading: false,
+      isScanning: true, // 스캔 활성화 상태
+    };
+  },
+  mounted() {
+    this.initCamera();
+  },
+  beforeUnmount() {
+    this.stopScannerAndCamera();
+  },
+  methods: {
+    // 카메라와 스캐너를 정지하는 함수
+    stopScannerAndCamera() {
+      if (this.scanRequest) {
+        cancelAnimationFrame(this.scanRequest);
+        this.scanRequest = null;
+      }
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => track.stop());
+        this.stream = null;
+      }
+      this.isScanning = false;
+    },
 
-// [핵심] QR 코드 인증을 처리하는 공통 함수
-const processQRCode = async (qrId) => {
-  if (isLoading.value) return;
-  isLoading.value = true;
-  error.value = '';
+    async initCamera() {
+      this.errorMessage = "";
+      this.successMessage = "";
+      this.isScanning = true;
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          this.errorMessage = "이 브라우저에서는 카메라를 지원하지 않습니다.";
+          return;
+        }
 
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const claimReward = httpsCallable(functions, "claimCenterVisitReward");
-    const result = await claimReward({ qrId });
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
 
-    alert(result.data.message);
-    router.push('/dashboard'); // 성공 시 대시보드로 이동
-  } catch (err) {
-    console.error("QR코드 인증 오류:", err);
-    error.value = `인증 실패: ${err.message}`;
-    // 오류 발생 후 3초 뒤에 다시 스캔할 수 있도록 초기화
-    setTimeout(() => {
-      isLoading.value = false;
-      error.value = '';
-      if (route.query.qrId) router.push('/dashboard');
-    }, 3000);
-  }
-};
+        const video = this.$refs.video;
+        if (video) {
+          video.srcObject = this.stream;
+          video.onloadedmetadata = () => {
+            this.scanQRCode();
+          };
+        }
+      } catch (err) {
+        console.error("카메라 접근 실패:", err);
+        if (err.name === "NotAllowedError") {
+          this.errorMessage = "카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.";
+        } else {
+          this.errorMessage = "카메라를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.";
+        }
+      }
+    },
+    
+    // QR 코드 스캔 루프
+    scanQRCode() {
+      if (!this.isScanning) return;
 
-// [핵심] 카메라로 QR 코드를 스캔했을 때 호출되는 함수
-const onDecode = (decodedString) => {
-  // 스캔한 내용이 전체 URL이어도 ID만 추출하여 처리
-  try {
-    const url = new URL(decodedString);
-    const qrId = url.searchParams.get('qrId');
-    if (qrId) {
-      processQRCode(qrId);
-    } else {
-      throw new Error("URL에 qrId가 없습니다.");
+      const video = this.$refs.video;
+      const canvas = this.$refs.canvas;
+      if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        this.scanRequest = requestAnimationFrame(this.scanQRCode);
+        return;
+      }
+      
+      const ctx = canvas.getContext("2d");
+      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+
+      if (code && code.data) {
+        // QR 코드를 찾으면 스캔을 중지하고 처리 함수 호출
+        this.stopScannerAndCamera();
+        this.processQRCode(code.data);
+      } else {
+        // 못 찾으면 다음 프레임에서 계속 스캔
+        this.scanRequest = requestAnimationFrame(this.scanQRCode);
+      }
+    },
+
+    // 스캔된 QR 코드를 백엔드로 보내 처리하는 함수
+    async processQRCode(qrId) {
+      this.isLoading = true;
+      this.errorMessage = "";
+      
+      try {
+        const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
+        const result = await claimReward({ qrId: qrId });
+
+        if (result.data.success) {
+          this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
+        } else {
+          // 성공은 했지만 비즈니스 로직 상 실패 메시지가 온 경우
+          this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
+          this.initCamera(); // 스캐너 다시 시작
+        }
+      } catch (error) {
+        console.error("QR 코드 처리 오류:", error);
+        // 백엔드에서 보낸 구체적인 오류 메시지를 표시
+        this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
+        this.initCamera(); // 에러 발생 시, 스캐너 다시 시작
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    
+    goBack() {
+      this.$router.push('/dashboard');
     }
-  } catch (e) {
-    // URL이 아닌 단순 텍스트(ID)여도 처리
-    processQRCode(decodedString);
   }
 };
-
-const onInit = async (promise) => {
-  try {
-    await promise;
-    cameraReady.value = true;
-  } catch (err) {
-    console.error("카메라 초기화 오류:", err);
-    if (err.name === 'NotAllowedError') error.value = '카메라 접근 권한이 필요합니다. 브라우저 설정을 확인해주세요.';
-    else if (err.name === 'NotFoundError') error.value = '사용 가능한 카메라를 찾을 수 없습니다.';
-    else error.value = '카메라를 시작하는 중 오류가 발생했습니다.';
-  }
-};
-
-onMounted(() => {
-  const qrIdFromUrl = route.query.qrId;
-  if (qrIdFromUrl) {
-    processQRCode(qrIdFromUrl);
-  }
-});
 </script>
 
 <style scoped>
-.page-container { max-width: 600px; margin: 70px auto 20px; padding: 20px; }
-.page-header { text-align: center; margin-bottom: 20px; }
-.scanner-card { padding: 30px; }
-.scanner-container { position: relative; max-width: 400px; margin: 0 auto; }
-.scanner-viewport {
-  border: 5px solid #007bff; 
-  border-radius: 12px; 
-  overflow: hidden;
-  background: #000;
+.qr-scanner-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  background-color: #f4f7f6;
+  padding: 20px;
+}
+
+.scanner-container {
   position: relative;
   width: 100%;
-  padding-top: 100%;
-  transition: opacity 0.5s ease-in-out;
-  opacity: 0;
+  max-width: 450px;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  background: #333;
 }
-.scanner-viewport.ready {
-  opacity: 1;
+
+video {
+  width: 100%;
+  display: block;
 }
-.scanner-viewport > :first-child {
+
+video.hidden {
+  visibility: hidden;
+}
+
+.scanner-guide {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-}
-.loading-overlay {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  color: #555;
-  height: 400px;
+  pointer-events: none;
 }
-.error-message, .loading-message { text-align: center; margin-top: 20px; font-weight: bold; }
-.error-message { color: #dc3545; }
-.status-display { padding: 40px 0; text-align: center; }
-.loading-spinner, .spinner-small {
-  border: 4px solid rgba(0,0,0,0.1);
-  border-top-color: #007bff;
+
+.qr-frame {
+  width: 70%;
+  padding-bottom: 70%; /* 정사각형 비율 */
+  border: 4px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+}
+
+.guide-text {
+  margin-top: 24px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.status-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  color: white;
+  text-align: center;
+}
+
+.status-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-content.success i {
+  font-size: 4rem;
+  color: #4caf50;
+}
+
+.status-content p {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.error-message {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(220, 53, 69, 0.9);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  z-index: 20;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.btn-back {
+  margin-top: 20px;
+  padding: 12px 24px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.spinner {
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top: 5px solid #fff;
   border-radius: 50%;
+  width: 50px;
+  height: 50px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 15px;
 }
-.loading-spinner { width: 40px; height: 40px; }
-.spinner-small { width: 24px; height: 24px; border-width: 3px; }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 </style>
