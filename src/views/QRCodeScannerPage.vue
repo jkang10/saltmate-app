@@ -35,6 +35,7 @@ import { functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 
 export default {
+  // data(), mounted(), beforeUnmount(), stopScannerAndCamera(), initCamera(), scanQRCode() 메서드는 변경할 필요 없습니다.
   data() {
     return {
       errorMessage: "",
@@ -42,7 +43,7 @@ export default {
       stream: null,
       scanRequest: null,
       isLoading: false,
-      isScanning: false, // 초기 상태를 false로 변경
+      isScanning: false, 
     };
   },
   mounted() {
@@ -65,7 +66,6 @@ export default {
     },
 
     async initCamera() {
-      // 모든 상태 초기화
       this.errorMessage = "";
       this.successMessage = "";
       this.isLoading = false;
@@ -127,8 +127,16 @@ export default {
         this.scanRequest = requestAnimationFrame(this.scanQRCode);
       }
     },
-
+    
+    // 이 메서드만 수정하면 됩니다.
     async processQRCode(qrId) {
+      // [핵심 수정] qrId가 비어있는지 먼저 확인
+      if (!qrId || qrId.trim() === '') {
+        this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
+        this.isScanning = false; // 오버레이를 확실히 보여주기 위해 스캔 상태 끄기
+        return; // 함수 종료
+      }
+
       this.isLoading = true;
       this.errorMessage = "";
       
@@ -139,12 +147,10 @@ export default {
         if (result.data.success) {
           this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
         } else {
-          // [핵심 수정] 에러 발생 시 initCamera() 호출 제거
           this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
         }
       } catch (error) {
         console.error("QR 코드 처리 오류:", error);
-        // [핵심 수정] 에러 발생 시 initCamera() 호출 제거
         this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
       } finally {
         this.isLoading = false;
@@ -159,7 +165,7 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일 유지, 일부 수정 및 추가 */
+/* style 부분은 변경할 필요 없습니다. */
 .qr-scanner-page { display: flex; justify-content: center; align-items: center; min-height: 80vh; background-color: #f4f7f6; padding: 20px; }
 .scanner-container { position: relative; width: 100%; max-width: 450px; overflow: hidden; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); background: #333; }
 video { width: 100%; display: block; }
