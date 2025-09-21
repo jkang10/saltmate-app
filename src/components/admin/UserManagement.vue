@@ -81,7 +81,7 @@ const searchTerm = ref("");
 const searchCriteria = ref("name");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const pageTokens = ref(['']);
+const pageTokens = ref(['']); // 첫 페이지 토큰은 빈 문자열로 유지
 const totalPages = ref(1);
 
 const isTokenModalVisible = ref(false);
@@ -118,13 +118,9 @@ const fetchUsers = async () => {
 
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     
+    // [최종 핵심 코드] 페이지 토큰이 비어있으면(falsy) undefined로 보내도록 수정
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
 
-    // --- [최종 디버깅 코드] ---
-    // 이 alert이 뜨는지 확인하는 것이 가장 중요합니다.
-    alert('현재 실행 중인 코드는 2025-09-21 최종 수정 버전입니다. 페이지 토큰: ' + tokenToSend);
-    console.log('백엔드로 보내는 최종 페이지 토큰:', tokenToSend);
-    
     const result = await listUsersFunc({
       pageToken: tokenToSend,
       usersPerPage: parseInt(itemsPerPage.value),
@@ -161,8 +157,11 @@ const fetchUsers = async () => {
     if (nextPageToken && pageTokens.value.length === currentPage.value) {
       pageTokens.value.push(nextPageToken);
     }
-    if (!nextPageToken) { totalPages.value = currentPage.value; } 
-    else { totalPages.value = currentPage.value + 1; }
+    if (!nextPageToken) {
+      totalPages.value = currentPage.value;
+    } else {
+      totalPages.value = currentPage.value + 1;
+    }
 
   } catch (err) {
     console.error("사용자 정보 로딩 오류:", err);
@@ -207,35 +206,22 @@ const goToPage = (page) => {
   fetchUsers();
 }
 
-// [핵심 수정] Invalid Date 오류를 해결한 최종 강화 버전 함수
 const formatDate = (timestamp) => {
-  // 디버깅을 위해 전달받은 값을 콘솔에 출력합니다.
-  // console.log("formatDate가 받은 timestamp:", timestamp);
-
   if (!timestamp) return "정보 없음";
-
-  // 케이스 1: Firestore의 Timestamp 객체 (client-side)
-  if (typeof timestamp.toDate === 'function') {
-    return timestamp.toDate().toLocaleDateString("ko-KR");
-  }
-
-  // 케이스 2: Cloud Function에서 변환된 Timestamp 객체 (standard)
+  
   if (timestamp && typeof timestamp.seconds === 'number') {
     return new Date(timestamp.seconds * 1000).toLocaleDateString("ko-KR");
   }
-  
-  // 케이스 3: Cloud Function에서 변환된 Timestamp 객체 (legacy)
-  if (timestamp && typeof timestamp._seconds === 'number') {
-    return new Date(timestamp._seconds * 1000).toLocaleDateString("ko-KR");
+
+  if (timestamp.toDate) {
+    return timestamp.toDate().toLocaleDateString("ko-KR");
   }
   
-  // 케이스 4: ISO 8601 문자열 또는 new Date()로 변환 가능한 형식
   const date = new Date(timestamp);
   if (date instanceof Date && !isNaN(date.valueOf())) {
     return date.toLocaleDateString("ko-KR");
   }
   
-  // 모든 케이스 실패 시
   return "날짜 형식 오류";
 };
 
