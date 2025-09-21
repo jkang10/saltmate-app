@@ -62,6 +62,8 @@
   </div>
 </template>
 
+// 파일 경로: src/components/admin/UserManagement.vue
+
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { db, functions, auth } from "@/firebaseConfig";
@@ -79,7 +81,7 @@ const searchTerm = ref("");
 const searchCriteria = ref("name");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const pageTokens = ref(['']); // 첫 페이지 토큰은 빈 문자열로 유지
+const pageTokens = ref(['']);
 const totalPages = ref(1);
 
 const isTokenModalVisible = ref(false);
@@ -116,10 +118,8 @@ const fetchUsers = async () => {
 
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     
+    // [최종 핵심 코드] 페이지 토큰이 비어있으면(첫 페이지) undefined로 보내도록 수정
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
-
-    // [디버깅 코드 추가] 이 console.log 한 줄을 추가해주세요.
-    console.log("백엔드로 보내는 페이지 토큰:", tokenToSend);
 
     const result = await listUsersFunc({
       pageToken: tokenToSend,
