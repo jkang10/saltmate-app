@@ -61,7 +61,7 @@
   </div>
 </template>
 
-// 파일 경로: src/components/admin/UserManagement.vue
+<script setup>
 
 import { ref, onMounted, computed, watch } from "vue";
 import { db, functions } from "@/firebaseConfig"; // functions import 확인
