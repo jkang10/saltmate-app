@@ -24,7 +24,7 @@
         <thead>
           <tr>
             <th>이름</th><th>이메일</th><th>소속 센터</th>
-            <th>내가 추천</th>
+            <th>추천인</th>
             <th>역할</th><th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
           </tr>
         </thead>
@@ -33,7 +33,7 @@
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.centerName || "N/A" }}</td>
-            <td>{{ user.referralCount || 0 }} 명</td>
+            <td>{{ user.referrerName || "없음" }}</td>
             <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
@@ -114,7 +114,6 @@ const fetchUsers = async () => {
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
-
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
 
@@ -129,29 +128,35 @@ const fetchUsers = async () => {
 
     const { users: fetchedUsers, nextPageToken } = result.data;
     
+    // [핵심 수정] referrerName을 가져오는 로직을 다시 추가합니다.
     const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
+    const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
     
     const centerMap = new Map();
     if (centerIds.length > 0) {
         const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
         centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
     }
+    
+    const userMap = new Map();
+    if (referrerIds.length > 0) {
+        if (allUsersForModal.value.length === 0) await fetchAllUsersForModal();
+        allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
+    }
 
     users.value = fetchedUsers.map(user => ({
         ...user,
         id: user.uid,
         centerName: centerMap.get(user.centerId) || "N/A",
+        // [핵심 수정] referrerName을 다시 추가합니다.
+        referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
 
     if (nextPageToken && pageTokens.value.length === currentPage.value) {
       pageTokens.value.push(nextPageToken);
     }
-    if (!nextPageToken) {
-      totalPages.value = currentPage.value;
-    } else {
-      totalPages.value = currentPage.value + 1;
-    }
-
+    if (!nextPageToken) { totalPages.value = currentPage.value; } 
+    else { totalPages.value = currentPage.value + 1; }
   } catch (err) {
     console.error("사용자 정보 로딩 오류:", err);
     error.value = `사용자 정보를 불러오는 데 실패했습니다: ${err.message}`;
@@ -195,24 +200,27 @@ const goToPage = (page) => {
   fetchUsers();
 }
 
-// [수정] Invalid Date 오류를 해결한 최종 버전 함수
+// [핵심 수정] Invalid Date 오류를 해결한 최종 강화 버전 함수
 const formatDate = (timestamp) => {
   if (!timestamp) return "정보 없음";
   
+  // 1. 서버에서 온 serialized timestamp 객체 (e.g., {_seconds: ..., _nanoseconds: ...}) 처리
   if (timestamp && typeof timestamp.seconds === 'number') {
     return new Date(timestamp.seconds * 1000).toLocaleDateString("ko-KR");
   }
 
+  // 2. Firestore의 Timestamp 객체 처리 (프론트엔드에서 직접 읽을 때)
   if (timestamp.toDate) {
     return timestamp.toDate().toLocaleDateString("ko-KR");
   }
   
+  // 3. ISO 문자열 등 new Date()가 해석할 수 있는 형식 처리 (Auth에서 오는 가입일 등)
   const date = new Date(timestamp);
-  if (!isNaN(date.valueOf())) {
+  if (date instanceof Date && !isNaN(date.valueOf())) {
     return date.toLocaleDateString("ko-KR");
   }
   
-  return "Invalid Date";
+  return "날짜 정보 없음"; // 어떤 형식에도 해당하지 않을 경우
 };
 
 const formatSubscriptionStatus = (status) => {
