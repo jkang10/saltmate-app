@@ -64,7 +64,6 @@
 
 <script setup>
 import { ref, onMounted, watch } from "vue";
-// [핵심] auth를 import하여 현재 사용자 정보를 가져올 수 있도록 합니다.
 import { db, functions, auth } from "@/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -80,7 +79,7 @@ const searchTerm = ref("");
 const searchCriteria = ref("name");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const pageTokens = ref(['']);
+const pageTokens = ref(['']); // 첫 페이지 토큰은 빈 문자열로 유지
 const totalPages = ref(1);
 
 const isTokenModalVisible = ref(false);
@@ -111,14 +110,17 @@ const fetchUsers = async () => {
   loading.value = true;
   error.value = null;
   try {
-    // [최종] Cloud Function 호출 전, 현재 사용자의 ID 토큰을 강제로 갱신합니다.
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
 
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
+    
+    // [핵심 수정] 페이지 토큰이 비어있으면(첫 페이지) undefined로 보내도록 수정
+    const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
+
     const result = await listUsersFunc({
-      pageToken: pageTokens.value[currentPage.value - 1],
+      pageToken: tokenToSend,
       usersPerPage: parseInt(itemsPerPage.value),
       ...(searchTerm.value.trim() && { 
           searchCriteria: searchCriteria.value, 
