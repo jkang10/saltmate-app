@@ -179,10 +179,11 @@ const fetchAllUsersForModal = async () => {
 const fetchSummaryCounts = async () => {
     try {
         const usersQuery = query(collection(db, "users"));
-        const pendingRequestsQuery = query(collection(db, "subscription_requests"), where("status", "==", "pending"));
+
+        // [핵심 수정] pendingRequestsQuery 변수를 선언하는 대신, query를 Promise.all 내부에 직접 작성합니다.
         const [userSnapshot, pendingRequestsSnapshot] = await Promise.all([
             getDocs(usersQuery),
-            getDocs(pendingRequestsSnapshot),
+            getDocs(query(collection(db, "subscription_requests"), where("status", "==", "pending")))
         ]);
         
         totalUserCount.value = userSnapshot.size;
