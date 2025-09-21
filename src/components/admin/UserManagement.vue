@@ -115,9 +115,16 @@ const fetchUsers = async () => {
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
+
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
+    
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
 
+    // --- [최종 디버깅 코드] ---
+    // 이 alert이 뜨는지 확인하는 것이 가장 중요합니다.
+    alert('현재 실행 중인 코드는 2025-09-21 최종 수정 버전입니다. 페이지 토큰: ' + tokenToSend);
+    console.log('백엔드로 보내는 최종 페이지 토큰:', tokenToSend);
+    
     const result = await listUsersFunc({
       pageToken: tokenToSend,
       usersPerPage: parseInt(itemsPerPage.value),
@@ -156,6 +163,7 @@ const fetchUsers = async () => {
     }
     if (!nextPageToken) { totalPages.value = currentPage.value; } 
     else { totalPages.value = currentPage.value + 1; }
+
   } catch (err) {
     console.error("사용자 정보 로딩 오류:", err);
     error.value = `사용자 정보를 불러오는 데 실패했습니다: ${err.message}`;
