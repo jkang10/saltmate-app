@@ -129,12 +129,28 @@ export default {
     },
     
     // 이 메서드만 수정하면 됩니다.
-async processQRCode(qrId) {
-  // [가장 중요한 수정] qrId가 비어있는지 먼저 확인하는 로직
+async processQRCode(scannedData) {
+  let qrId = scannedData;
+
+  // [핵심 수정] 스캔한 데이터가 URL 형식인지 확인하고, 맞다면 qrId 파라미터만 추출합니다.
+  try {
+    // scannedData를 URL로 변환 시도
+    const url = new URL(scannedData);
+    // URL에 'qrId'라는 파라미터가 있는지 확인
+    if (url.searchParams.has('qrId')) {
+      // 'qrId' 파라미터의 값을 최종 qrId로 사용
+      qrId = url.searchParams.get('qrId');
+    }
+  } catch (e) {
+    // URL 변환에 실패하면, 스캔한 데이터가 순수 ID라고 간주하고 그대로 사용합니다.
+    // 이 코드를 통해 기존 방식(ID만 있는 QR)과 새로운 방식(URL이 있는 QR) 모두 호환됩니다.
+  }
+
+  // 기존의 유효성 검사 로직 (비어있는 값인지 확인)
   if (!qrId || qrId.trim() === '') {
     this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
-    this.isScanning = false; // 오버레이를 확실히 보여주기 위해 스캔 상태 끄기
-    return; // 함수를 즉시 종료하여 서버로 요청을 보내지 않음
+    this.isScanning = false;
+    return;
   }
 
   this.isLoading = true;
@@ -142,6 +158,7 @@ async processQRCode(qrId) {
   
   try {
     const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
+    // [핵심 수정] 최종적으로 추출된 순수 qrId 값을 서버로 보냅니다.
     const result = await claimReward({ qrId: qrId });
 
     if (result.data.success) {
