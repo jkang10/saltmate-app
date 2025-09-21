@@ -325,28 +325,30 @@ router.beforeEach(async (to, from, next) => {
         try {
           const idTokenResult = await currentUser.getIdTokenResult(true);
           
-          // [임시 수정] 'superAdmin' 역할이 있거나, 기존 admin 플래그가 true인 경우 모두 허용
-          if (idTokenResult.claims.role === requiredRole || idTokenResult.claims.admin === true) {
-            next(); // 역할 일치, 페이지 접근 허용
+          // [최종 복원] 'superAdmin' 역할만 있는지 엄격하게 확인합니다.
+          if (idTokenResult.claims.role === requiredRole) {
+            next(); // 역할 일치 -> 페이지 접근 허용
           } else {
             alert("이 페이지에 접근할 권한이 없습니다.");
-            next('/dashboard'); // 권한 없음, 대시보드로 리디렉션
+            next('/dashboard'); // 역할 불일치 -> 접근 거부
           }
         } catch (error) {
           console.error("권한 확인 중 오류:", error);
-          next('/login'); // 토큰 확인 중 오류 발생 시 로그인 페이지로
+          next('/login');
         }
       } else {
-        next(); // 역할은 필요 없고 로그인만 필요한 페이지, 접근 허용
+        next(); // 역할은 필요 없고 로그인만 필요한 페이지 -> 접근 허용
       }
     } else {
+      // 로그인 안 됨 -> 로그인 페이지로 이동
       next({
         path: "/login",
         query: { redirectReason: "로그인이 필요한 서비스입니다." },
       });
     }
   } else {
-    next(); // 인증이 필요 없는 페이지, 접근 허용
+    // 인증이 필요 없는 페이지 -> 항상 접근 허용
+    next();
   }
 });
 
