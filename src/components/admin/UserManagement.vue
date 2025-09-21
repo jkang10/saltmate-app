@@ -19,7 +19,7 @@
 
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state"><p>{{ error }}</p></div>
-    <div v-if="!loading && paginatedUsers.length > 0" class="table-container">
+    <div v-if="!loading && users.length > 0" class="table-container">
       <table class="user-table">
         <thead>
           <tr>
@@ -28,7 +28,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in paginatedUsers" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
+          <tr v-for="user in users" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.centerName || "N/A" }}</td>
@@ -48,23 +48,25 @@
         </tbody>
       </table>
     </div>
-<div v-if="!loading && users.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
+    <div v-if="!loading && users.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
 
-<div v-if="!loading && (currentPage > 1 || totalPages > currentPage)" class="pagination">
-  <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">이전</button>
-  <span>{{ currentPage }} / {{ totalPages > currentPage ? '...' : totalPages }}</span>
-  <button @click="goToPage(currentPage + 1)" :disabled="totalPages <= currentPage">다음</button>
-</div>
+    <div v-if="!loading && (currentPage > 1 || totalPages > currentPage)" class="pagination">
+      <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">이전</button>
+      <span>{{ currentPage }} / {{ totalPages > currentPage ? '...' : totalPages }}</span>
+      <button @click="goToPage(currentPage + 1)" :disabled="totalPages <= currentPage">다음</button>
+    </div>
+
     <TokenTransferModal v-if="isTokenModalVisible" :user="selectedUser" @close="isTokenModalVisible = false" @token-updated="fetchUsers" />
     <BalanceAdjustmentModal v-if="isBalanceModalVisible" :user="selectedUser" @close="isBalanceModalVisible = false" @balance-updated="fetchUsers" />
-    <UserEditModal v-if="isEditModalVisible" :user="selectedUser" :allUsers="users" @close="isEditModalVisible = false" @user-updated="fetchUsers" />
+    <UserEditModal v-if="isEditModalVisible" :user="selectedUser" :allUsers="allUsersForModal" @close="isEditModalVisible = false" @user-updated="fetchUsers" />
   </div>
 </template>
 
 <script setup>
+// 파일 경로: src/components/admin/UserManagement.vue
 
-import { ref, onMounted, computed, watch } from "vue";
-import { db, functions } from "@/firebaseConfig"; // functions import 확인
+import { ref, onMounted, watch } from "vue";
+import { db, functions } from "@/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
@@ -72,14 +74,15 @@ import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
 import UserEditModal from "./UserEditModal.vue";
 
 const users = ref([]);
+const allUsersForModal = ref([]); // 수정 모달용 전체 사용자 목록
 const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
-const searchCriteria = ref("name"); // 기본 검색 기준
+const searchCriteria = ref("name");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const pageTokens = ref(['']); // 페이지 토큰 저장 배열, 첫 페이지는 빈 토큰
-const totalPages = ref(1); // 총 페이지 수 (더 이상 사용하지 않지만 UI 호환성을 위해 유지)
+const pageTokens = ref(['']);
+const totalPages = ref(1);
 
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
@@ -89,7 +92,6 @@ const pendingRequestCount = ref(0);
 const totalUserCount = ref(0);
 const activeUserCount = ref(0);
 
-// 검색어가 변경되면 첫 페이지로 리셋
 let searchTimeout = null;
 watch(searchTerm, () => {
   clearTimeout(searchTimeout);
@@ -97,17 +99,15 @@ watch(searchTerm, () => {
     currentPage.value = 1;
     pageTokens.value = [''];
     fetchUsers();
-  }, 500); // 0.5초 디바운스
+  }, 500);
 });
 
-// 페이지당 항목 수가 변경되면 첫 페이지로 리셋
 watch(itemsPerPage, () => {
   currentPage.value = 1;
   pageTokens.value = [''];
   fetchUsers();
 });
 
-// [핵심 수정] 서버에서 데이터를 가져오는 새로운 fetchUsers 함수
 const fetchUsers = async () => {
   loading.value = true;
   error.value = null;
@@ -116,7 +116,6 @@ const fetchUsers = async () => {
     const result = await listUsersFunc({
       pageToken: pageTokens.value[currentPage.value - 1],
       usersPerPage: parseInt(itemsPerPage.value),
-      // 검색어가 있을 때만 검색 조건을 보냄
       ...(searchTerm.value.trim() && { 
           searchCriteria: searchCriteria.value, 
           filterValue: searchTerm.value.trim() 
@@ -125,11 +124,9 @@ const fetchUsers = async () => {
 
     const { users: fetchedUsers, nextPageToken } = result.data;
     
-    // 센터 및 추천인 이름 정보 추가
     const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
     const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
-    const allIds = [...new Set([...centerIds, ...referrerIds])];
-
+    
     const centerMap = new Map();
     if (centerIds.length > 0) {
         const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
@@ -138,26 +135,25 @@ const fetchUsers = async () => {
     
     const userMap = new Map();
     if (referrerIds.length > 0) {
-        const usersSnapshot = await getDocs(query(collection(db, "users"), where('__name__', 'in', referrerIds)));
-        usersSnapshot.forEach(doc => userMap.set(doc.id, doc.data().name));
+        // 추천인 이름 조회를 위해 전체 사용자 목록을 사용 (allUsersForModal 활용)
+        // 만약 allUsersForModal이 비어있다면, 여기서 한 번 더 조회할 수 있음
+        if (allUsersForModal.value.length === 0) await fetchAllUsersForModal();
+        allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
     }
 
     users.value = fetchedUsers.map(user => ({
         ...user,
-        id: user.uid, // id 필드를 uid로 통일
+        id: user.uid,
         centerName: centerMap.get(user.centerId) || "N/A",
         referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
 
-    // 다음 페이지 토큰 저장
     if (nextPageToken && pageTokens.value.length === currentPage.value) {
       pageTokens.value.push(nextPageToken);
     }
-    // 더 이상 다음 페이지가 없으면 마지막 페이지로 설정
     if (!nextPageToken) {
       totalPages.value = currentPage.value;
     } else {
-      // 다음 페이지가 있을 수 있으므로 현재 페이지 +1로 설정 (추정치)
       totalPages.value = currentPage.value + 1;
     }
 
@@ -170,8 +166,17 @@ const fetchUsers = async () => {
   }
 };
 
+const fetchAllUsersForModal = async () => {
+    // 이 함수는 UserEditModal에 추천인 목록을 전달하기 위해 모든 사용자를 조회합니다.
+    try {
+        const usersSnapshot = await getDocs(query(collection(db, "users")));
+        allUsersForModal.value = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch(err) {
+        console.error("전체 사용자 목록(모달용) 로딩 오류:", err);
+    }
+};
+
 const fetchSummaryCounts = async () => {
-    // 요약 정보는 전체 데이터를 가져와야 하므로 별도로 처리
     try {
         const usersQuery = query(collection(db, "users"));
         const pendingRequestsQuery = query(collection(db, "subscription_requests"), where("status", "==", "pending"));
@@ -197,10 +202,8 @@ const goToPage = (page) => {
   fetchUsers();
 }
 
-// 기존 헬퍼 함수들은 그대로 유지
 const formatDate = (timestamp) => {
   if (!timestamp) return "정보 없음";
-  // 백엔드에서 오는 포맷(ISO String)과 Firestore 포맷(Timestamp) 모두 처리
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   return date.toLocaleDateString("ko-KR");
 };
@@ -225,7 +228,6 @@ const deleteUser = async (user) => {
     const deleteUserFunc = httpsCallable(functions, "deleteUser");
     await deleteUserFunc({ uid: user.id });
     alert("사용자가 성공적으로 삭제되었습니다.");
-    // 목록 즉시 갱신
     fetchUsers();
     fetchSummaryCounts();
   } catch (error) {
@@ -240,12 +242,12 @@ const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.
 
 onMounted(() => {
     fetchUsers();
-    fetchSummaryCounts(); // 요약 정보는 페이지 로드 시 한 번만 가져옴
+    fetchSummaryCounts();
+    fetchAllUsersForModal(); // 수정 모달의 추천인 목록을 위해 미리 로드
 });
-
 </script>
-
 <style scoped>
+/* style 부분은 변경할 필요 없습니다. */
 .role-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; display: inline-block; }
 .role-badge.superAdmin { background-color: #dc3545; }
 .role-badge.centerManager { background-color: #17a2b8; }
