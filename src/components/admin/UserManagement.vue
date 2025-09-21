@@ -62,8 +62,6 @@
   </div>
 </template>
 
-// 파일 경로: src/components/admin/UserManagement.vue
-
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { db, functions, auth } from "@/firebaseConfig";
@@ -115,10 +113,9 @@ const fetchUsers = async () => {
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
-
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     
-    // [최종 핵심 코드] 페이지 토큰이 비어있으면(첫 페이지) undefined로 보내도록 수정
+    // [최종 핵심] 페이지 토큰이 비어있으면(falsy) undefined로 보내도록 수정
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
 
     const result = await listUsersFunc({
@@ -131,25 +128,20 @@ const fetchUsers = async () => {
     });
 
     const { users: fetchedUsers, nextPageToken } = result.data;
-    
     const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
     const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
-    
     const centerMap = new Map();
     if (centerIds.length > 0) {
         const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
         centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
     }
-    
     const userMap = new Map();
     if (referrerIds.length > 0) {
         if (allUsersForModal.value.length === 0) await fetchAllUsersForModal();
         allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
     }
-
     users.value = fetchedUsers.map(user => ({
-        ...user,
-        id: user.uid,
+        ...user, id: user.uid,
         centerName: centerMap.get(user.centerId) || "N/A",
         referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
@@ -162,7 +154,6 @@ const fetchUsers = async () => {
     } else {
       totalPages.value = currentPage.value + 1;
     }
-
   } catch (err) {
     console.error("사용자 정보 로딩 오류:", err);
     error.value = `사용자 정보를 불러오는 데 실패했습니다: ${err.message}`;
