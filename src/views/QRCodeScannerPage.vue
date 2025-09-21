@@ -1,5 +1,13 @@
 <template>
   <div class="qr-scanner-page">
+    <header class="page-header">
+      <h1>센터 방문 QR 인증</h1>
+      <p class="subtitle">센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!</p>
+      <div class="instructions">
+        센터장에게 인증 QR 확인 &rarr; QR 인식 &rarr; 1,000 SaltMate 적립
+      </div>
+    </header>
+
     <div class="scanner-container">
       <div v-if="isLoading || successMessage || errorMessage" class="status-overlay">
         <div v-if="isLoading" class="status-content">

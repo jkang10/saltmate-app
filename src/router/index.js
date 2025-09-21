@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "@/firebaseConfig";
-import { onAuthStateChanged } from "firebase/auth";
 
 const routes = [
   {
@@ -117,12 +116,12 @@ const routes = [
     component: () => import("@/views/MyEventsPage.vue"),
     meta: { requiresAuth: true },
   },
-{
-  path: '/qr-scanner',
-  name: 'QRCodeScanner',
-  component: () => import('@/views/QRCodeScannerPage.vue'),
-  meta: { requiresAuth: true }
-},
+  {
+    path: '/qr-scanner',
+    name: 'QRCodeScanner',
+    component: () => import('@/views/QRCodeScannerPage.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: "/about",
     name: "AboutView",
@@ -187,7 +186,8 @@ const routes = [
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
     component: () => import("@/views/AdminDashboardPage.vue"),
-    meta: { requiresAuth: true, isAdmin: true },
+    // [핵심 수정] meta 규칙을 'superAdmin' 역할만 접근 가능하도록 변경
+    meta: { requiresAuth: true, requiresRole: 'superAdmin' },
     children: [
       {
         path: "",
@@ -246,7 +246,6 @@ const routes = [
         name: "AdminEventManagement",
         component: () => import("@/components/admin/EventManagement.vue"),
       },
-      // [신규 추가] 출석 관리 페이지 라우트
       {
         path: "attendance",
         name: "AdminAttendance",
@@ -293,13 +292,12 @@ const routes = [
         name: "DatabaseBackup",
         component: () => import("@/components/admin/DatabaseBackup.vue"),
       },
-	{
-	  path: '/admin/announcements',
-	  name: 'AnnouncementManagement',
-	  // [핵심 수정] component 경로를 'components' 폴더로 변경합니다.
-	  component: () => import('@/components/admin/AnnouncementManagement.vue'),
-	  meta: { requiresAdmin: true }
-	},
+      {
+        path: '/admin/announcements',
+        name: 'AnnouncementManagement',
+        component: () => import('@/components/admin/AnnouncementManagement.vue'),
+        // [핵심 수정] 부모 라우트의 meta 규칙을 상속받으므로, 여기는 별도 수정 필요 없음
+      },
     ],
   },
   {
@@ -314,53 +312,46 @@ const router = createRouter({
   routes,
 });
 
-const getCurrentUser = () => {
-  return new Promise((resolve, reject) => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        unsubscribe();
-        resolve(user);
-      },
-      reject,
-    );
-  });
-};
-
+// [핵심 수정] 내비게이션 가드 로직을 역할 기반으로 전체 변경
 router.beforeEach(async (to, from, next) => {
-  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
-  const requiresAdmin = to.matched.some((record) => record.meta.isAdmin);
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+  const requiredRole = to.meta.requiresRole;
+  
+  // onAuthStateChanged를 사용하지 않고 직접 현재 사용자를 가져옵니다.
+  const currentUser = auth.currentUser;
 
-  const currentUser = await getCurrentUser();
-
-  if (requiresAuth && !currentUser) {
-    // [수정] alert 대신 쿼리 파라미터로 메시지를 전달합니다.
-    next({
-      path: "/login",
-      query: { redirectReason: "로그인이 필요한 서비스입니다." },
-    });
-  } else if (currentUser) {
-    const idTokenResult = await currentUser.getIdTokenResult(true);
-    const isAdmin = idTokenResult.claims.admin === true;
-
-    if (to.name === "LoginPage" || to.name === "SignupPage") {
-      if (isAdmin) {
-        next("/admin-dashboard");
+  // 인증이 필요한 페이지인지 확인
+  if (requiresAuth) {
+    // 1. 로그인이 되어있는가?
+    if (currentUser) {
+      // 2. 특정 역할이 필요한 페이지인가?
+      if (requiredRole) {
+        try {
+          // 3. 최신 사용자 역할 정보를 강제로 가져와서 확인
+          const idTokenResult = await currentUser.getIdTokenResult(true);
+          if (idTokenResult.claims.role === requiredRole) {
+            next(); // 역할 일치 -> 페이지 접근 허용
+          } else {
+            // 역할 불일치 -> 접근 거부 및 알림
+            alert("이 페이지에 접근할 권한이 없습니다.");
+            next('/dashboard');
+          }
+        } catch (error) {
+          console.error("권한 확인 중 오류:", error);
+          next('/login'); // 토큰 확인 중 오류 발생 시 로그인 페이지로
+        }
       } else {
-        next("/dashboard");
+        next(); // 역할은 필요 없고 로그인만 필요한 페이지 -> 접근 허용
       }
-    } else if (requiresAdmin && !isAdmin) {
-      // [수정] alert 대신 쿼리 파라미터로 메시지를 전달합니다.
-      next({
-        path: "/dashboard",
-        query: {
-          errorReason: "관리자만 접근 가능한 페이지입니다.",
-        },
-      });
     } else {
-      next();
+      // 로그인 안 됨 -> 로그인 페이지로 이동
+      next({
+        path: "/login",
+        query: { redirectReason: "로그인이 필요한 서비스입니다." },
+      });
     }
   } else {
+    // 인증이 필요 없는 페이지 (e.g. 로그인 페이지) -> 항상 접근 허용
     next();
   }
 });
