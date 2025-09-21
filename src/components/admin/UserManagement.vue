@@ -111,8 +111,7 @@ const fetchUsers = async () => {
   loading.value = true;
   error.value = null;
   try {
-    // [핵심 수정] Cloud Function 호출 전에 현재 사용자의 ID 토큰을 강제로 갱신합니다.
-    // 이렇게 하면 방금 'superAdmin' 역할을 부여받았더라도 최신 권한이 즉시 적용됩니다.
+    // [최종] Cloud Function 호출 전, 현재 사용자의 ID 토큰을 강제로 갱신합니다.
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
