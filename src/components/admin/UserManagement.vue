@@ -20,26 +20,27 @@
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state"><p>{{ error }}</p></div>
     <div v-if="!loading && users.length > 0" class="table-container">
-      <table class="user-table">
-        <thead>
-          <tr>
-            <th>이름</th><th>이메일</th><th>소속 센터</th>
-            <th>추천인</th>
-            <th>역할</th><th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
-            <td>{{ user.name }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.centerName || "N/A" }}</td>
-            <td>{{ user.referrerName || "없음" }}</td>
-            <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
-            <td>{{ formatDate(user.createdAt) }}</td>
-            <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
-            <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
-            <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
-            <td class="actions">
+<table class="user-table">
+  <thead>
+    <tr>
+      <th>이름</th><th>UID</th><th>이메일</th><th>소속 센터</th>
+      <th>추천인</th>
+      <th>역할</th><th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr v-for="user in users" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
+      <td>{{ user.name }}</td>
+      <td class="uid-cell">{{ user.uid }}</td>
+      <td>{{ user.email }}</td>
+      <td>{{ user.centerName || "N/A" }}</td>
+      <td>{{ user.referrerName || "없음" }}</td>
+      <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
+      <td>{{ formatDate(user.createdAt) }}</td>
+      <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
+      <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
+      <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
+      <td class="actions">
               <button @click="openEditModal(user)" class="btn btn-sm btn-primary">수정</button>
               <button @click="openBalanceModal(user)" class="btn btn-sm btn-success">잔액 조정</button>
               <button @click="openTokenModal(user)" class="btn btn-sm btn-info">토큰 관리</button>
@@ -263,6 +264,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.uid-cell {
+  font-size: 0.8em;
+  color: #6c757d;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .role-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; display: inline-block; }
 .role-badge.superAdmin { background-color: #dc3545; }
 .role-badge.centerManager { background-color: #17a2b8; }
