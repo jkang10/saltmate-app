@@ -48,23 +48,25 @@
         </tbody>
       </table>
     </div>
-    <div v-if="!loading && filteredUsers.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
-    <div v-if="totalPages > 1" class="pagination">
-      <button @click="currentPage--" :disabled="currentPage === 1">이전</button>
-      <span>{{ currentPage }} / {{ totalPages }}</span>
-      <button @click="currentPage++" :disabled="currentPage === totalPages">다음</button>
-    </div>
+<div v-if="!loading && users.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
+
+<div v-if="!loading && (currentPage > 1 || totalPages > currentPage)" class="pagination">
+  <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">이전</button>
+  <span>{{ currentPage }} / {{ totalPages > currentPage ? '...' : totalPages }}</span>
+  <button @click="goToPage(currentPage + 1)" :disabled="totalPages <= currentPage">다음</button>
+</div>
     <TokenTransferModal v-if="isTokenModalVisible" :user="selectedUser" @close="isTokenModalVisible = false" @token-updated="fetchUsers" />
     <BalanceAdjustmentModal v-if="isBalanceModalVisible" :user="selectedUser" @close="isBalanceModalVisible = false" @balance-updated="fetchUsers" />
     <UserEditModal v-if="isEditModalVisible" :user="selectedUser" :allUsers="users" @close="isEditModalVisible = false" @user-updated="fetchUsers" />
   </div>
 </template>
 
-<script setup>
+// 파일 경로: src/components/admin/UserManagement.vue
+
 import { ref, onMounted, computed, watch } from "vue";
-import { db } from "@/firebaseConfig";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { db, functions } from "@/firebaseConfig"; // functions import 확인
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
 import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
 import UserEditModal from "./UserEditModal.vue";
@@ -73,35 +75,134 @@ const users = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
+const searchCriteria = ref("name"); // 기본 검색 기준
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
+const pageTokens = ref(['']); // 페이지 토큰 저장 배열, 첫 페이지는 빈 토큰
+const totalPages = ref(1); // 총 페이지 수 (더 이상 사용하지 않지만 UI 호환성을 위해 유지)
+
 const isTokenModalVisible = ref(false);
 const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
 const pendingRequestCount = ref(0);
+const totalUserCount = ref(0);
+const activeUserCount = ref(0);
 
-watch(itemsPerPage, () => { currentPage.value = 1; });
-
-const totalUserCount = computed(() => users.value.length);
-const activeUserCount = computed(() => users.value.filter(u => u.subscriptionStatus === "active" || u.subscriptionStatus === "overdue").length);
-const filteredUsers = computed(() => {
-  if (!searchTerm.value) return users.value;
-  return users.value.filter(user =>
-      (user.name && user.name.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
-      (user.email && user.email.toLowerCase().includes(searchTerm.value.toLowerCase()))
-  );
-});
-const totalPages = computed(() => Math.ceil(filteredUsers.value.length / itemsPerPage.value));
-const paginatedUsers = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  const end = start + itemsPerPage.value;
-  return filteredUsers.value.slice(start, end);
+// 검색어가 변경되면 첫 페이지로 리셋
+let searchTimeout = null;
+watch(searchTerm, () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    pageTokens.value = [''];
+    fetchUsers();
+  }, 500); // 0.5초 디바운스
 });
 
+// 페이지당 항목 수가 변경되면 첫 페이지로 리셋
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+  pageTokens.value = [''];
+  fetchUsers();
+});
+
+// [핵심 수정] 서버에서 데이터를 가져오는 새로운 fetchUsers 함수
+const fetchUsers = async () => {
+  loading.value = true;
+  error.value = null;
+  try {
+    const listUsersFunc = httpsCallable(functions, "listAllUsers");
+    const result = await listUsersFunc({
+      pageToken: pageTokens.value[currentPage.value - 1],
+      usersPerPage: parseInt(itemsPerPage.value),
+      // 검색어가 있을 때만 검색 조건을 보냄
+      ...(searchTerm.value.trim() && { 
+          searchCriteria: searchCriteria.value, 
+          filterValue: searchTerm.value.trim() 
+      })
+    });
+
+    const { users: fetchedUsers, nextPageToken } = result.data;
+    
+    // 센터 및 추천인 이름 정보 추가
+    const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
+    const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
+    const allIds = [...new Set([...centerIds, ...referrerIds])];
+
+    const centerMap = new Map();
+    if (centerIds.length > 0) {
+        const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
+        centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
+    }
+    
+    const userMap = new Map();
+    if (referrerIds.length > 0) {
+        const usersSnapshot = await getDocs(query(collection(db, "users"), where('__name__', 'in', referrerIds)));
+        usersSnapshot.forEach(doc => userMap.set(doc.id, doc.data().name));
+    }
+
+    users.value = fetchedUsers.map(user => ({
+        ...user,
+        id: user.uid, // id 필드를 uid로 통일
+        centerName: centerMap.get(user.centerId) || "N/A",
+        referrerName: userMap.get(user.uplineReferrer) || "없음",
+    }));
+
+    // 다음 페이지 토큰 저장
+    if (nextPageToken && pageTokens.value.length === currentPage.value) {
+      pageTokens.value.push(nextPageToken);
+    }
+    // 더 이상 다음 페이지가 없으면 마지막 페이지로 설정
+    if (!nextPageToken) {
+      totalPages.value = currentPage.value;
+    } else {
+      // 다음 페이지가 있을 수 있으므로 현재 페이지 +1로 설정 (추정치)
+      totalPages.value = currentPage.value + 1;
+    }
+
+  } catch (err) {
+    console.error("사용자 정보 로딩 오류:", err);
+    error.value = `사용자 정보를 불러오는 데 실패했습니다: ${err.message}`;
+    users.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
+
+const fetchSummaryCounts = async () => {
+    // 요약 정보는 전체 데이터를 가져와야 하므로 별도로 처리
+    try {
+        const usersQuery = query(collection(db, "users"));
+        const pendingRequestsQuery = query(collection(db, "subscription_requests"), where("status", "==", "pending"));
+        const [userSnapshot, pendingRequestsSnapshot] = await Promise.all([
+            getDocs(usersQuery),
+            getDocs(pendingRequestsSnapshot),
+        ]);
+        
+        totalUserCount.value = userSnapshot.size;
+        activeUserCount.value = userSnapshot.docs.filter(doc => {
+            const status = doc.data().subscriptionStatus;
+            return status === "active" || status === "overdue";
+        }).length;
+        pendingRequestCount.value = pendingRequestsSnapshot.size;
+    } catch(err) {
+        console.error("요약 정보 로딩 오류:", err);
+    }
+};
+
+const goToPage = (page) => {
+  if (page < 1 || (page > currentPage.value && page > totalPages.value)) return;
+  currentPage.value = page;
+  fetchUsers();
+}
+
+// 기존 헬퍼 함수들은 그대로 유지
 const formatDate = (timestamp) => {
-  if (!timestamp || !timestamp.toDate) return "정보 없음";
-  return timestamp.toDate().toLocaleDateString("ko-KR");
+  if (!timestamp) return "정보 없음";
+  // 백엔드에서 오는 포맷(ISO String)과 Firestore 포맷(Timestamp) 모두 처리
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleDateString("ko-KR");
 };
 
 const formatSubscriptionStatus = (status) => {
@@ -118,47 +219,15 @@ const formatRole = (role) => {
     return roles[role] || role || '일반 사용자';
 };
 
-const fetchUsers = async () => {
-  loading.value = true;
-  try {
-    const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
-    const centersQuery = query(collection(db, "centers"));
-    const pendingRequestsQuery = query(collection(db, "subscription_requests"), where("status", "==", "pending"));
-
-    const [userSnapshot, centerSnapshot, pendingRequestsSnapshot] = await Promise.all([
-      getDocs(usersQuery),
-      getDocs(centersQuery),
-      getDocs(pendingRequestsQuery),
-    ]);
-
-    pendingRequestCount.value = pendingRequestsSnapshot.size;
-    const centerMap = new Map(centerSnapshot.docs.map(doc => [doc.id, doc.data().name]));
-    const userMap = new Map(userSnapshot.docs.map(doc => [doc.id, doc.data().name]));
-
-    users.value = userSnapshot.docs.map(doc => {
-      const userData = doc.data();
-      return {
-        id: doc.id, ...userData,
-        centerName: centerMap.get(userData.centerId) || "N/A",
-        referrerName: userMap.get(userData.uplineReferrer) || "없음",
-      };
-    });
-  } catch (err) {
-    console.error("사용자 정보 로딩 오류:", err);
-    error.value = "사용자 정보를 불러오는 데 실패했습니다.";
-  } finally {
-    loading.value = false;
-  }
-};
-
 const deleteUser = async (user) => {
   if (!confirm(`정말로 '${user.name}' 사용자를 삭제하시겠습니까? 이 작업은 복구할 수 없습니다.`)) return;
   try {
-    const functions = getFunctions();
     const deleteUserFunc = httpsCallable(functions, "deleteUser");
     await deleteUserFunc({ uid: user.id });
     alert("사용자가 성공적으로 삭제되었습니다.");
-    await fetchUsers();
+    // 목록 즉시 갱신
+    fetchUsers();
+    fetchSummaryCounts();
   } catch (error) {
     console.error("사용자 삭제 중 오류 발생:", error);
     alert(`사용자 삭제에 실패했습니다: ${error.message}`);
@@ -169,7 +238,11 @@ const openTokenModal = (user) => { selectedUser.value = user; isTokenModalVisibl
 const openBalanceModal = (user) => { selectedUser.value = user; isBalanceModalVisible.value = true; };
 const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.value = true; };
 
-onMounted(fetchUsers);
+onMounted(() => {
+    fetchUsers();
+    fetchSummaryCounts(); // 요약 정보는 페이지 로드 시 한 번만 가져옴
+});
+
 </script>
 
 <style scoped>
