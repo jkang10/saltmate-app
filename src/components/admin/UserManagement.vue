@@ -23,8 +23,9 @@
       <table class="user-table">
         <thead>
           <tr>
-            <th>이름</th><th>이메일</th><th>센터</th><th>추천인</th><th>역할</th>
-            <th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
+            <th>이름</th><th>이메일</th><th>소속 센터</th>
+            <th>내가 추천</th>
+            <th>역할</th><th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
           </tr>
         </thead>
         <tbody>
@@ -32,7 +33,7 @@
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.centerName || "N/A" }}</td>
-            <td>{{ user.referrerName || "없음" }}</td>
+            <td>{{ user.referralCount || 0 }} 명</td>
             <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
@@ -113,9 +114,8 @@ const fetchUsers = async () => {
     if (auth.currentUser) {
       await auth.currentUser.getIdTokenResult(true);
     }
+
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
-    
-    // [최종 핵심] 페이지 토큰이 비어있으면(falsy) undefined로 보내도록 수정
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
 
     const result = await listUsersFunc({
@@ -128,22 +128,19 @@ const fetchUsers = async () => {
     });
 
     const { users: fetchedUsers, nextPageToken } = result.data;
+    
     const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
-    const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
+    
     const centerMap = new Map();
     if (centerIds.length > 0) {
         const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
         centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
     }
-    const userMap = new Map();
-    if (referrerIds.length > 0) {
-        if (allUsersForModal.value.length === 0) await fetchAllUsersForModal();
-        allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
-    }
+
     users.value = fetchedUsers.map(user => ({
-        ...user, id: user.uid,
+        ...user,
+        id: user.uid,
         centerName: centerMap.get(user.centerId) || "N/A",
-        referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
 
     if (nextPageToken && pageTokens.value.length === currentPage.value) {
@@ -154,6 +151,7 @@ const fetchUsers = async () => {
     } else {
       totalPages.value = currentPage.value + 1;
     }
+
   } catch (err) {
     console.error("사용자 정보 로딩 오류:", err);
     error.value = `사용자 정보를 불러오는 데 실패했습니다: ${err.message}`;
@@ -197,10 +195,24 @@ const goToPage = (page) => {
   fetchUsers();
 }
 
+// [수정] Invalid Date 오류를 해결한 최종 버전 함수
 const formatDate = (timestamp) => {
   if (!timestamp) return "정보 없음";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleDateString("ko-KR");
+  
+  if (timestamp && typeof timestamp.seconds === 'number') {
+    return new Date(timestamp.seconds * 1000).toLocaleDateString("ko-KR");
+  }
+
+  if (timestamp.toDate) {
+    return timestamp.toDate().toLocaleDateString("ko-KR");
+  }
+  
+  const date = new Date(timestamp);
+  if (!isNaN(date.valueOf())) {
+    return date.toLocaleDateString("ko-KR");
+  }
+  
+  return "Invalid Date";
 };
 
 const formatSubscriptionStatus = (status) => {
