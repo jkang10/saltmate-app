@@ -116,8 +116,10 @@ const fetchUsers = async () => {
 
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     
-    // [핵심 수정] 페이지 토큰이 비어있으면(첫 페이지) undefined로 보내도록 수정
     const tokenToSend = pageTokens.value[currentPage.value - 1] || undefined;
+
+    // [디버깅 코드 추가] 이 console.log 한 줄을 추가해주세요.
+    console.log("백엔드로 보내는 페이지 토큰:", tokenToSend);
 
     const result = await listUsersFunc({
       pageToken: tokenToSend,
