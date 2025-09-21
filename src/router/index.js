@@ -317,42 +317,36 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiredRole = to.meta.requiresRole;
   
-  // onAuthStateChanged를 사용하지 않고 직접 현재 사용자를 가져옵니다.
   const currentUser = auth.currentUser;
 
-  // 인증이 필요한 페이지인지 확인
   if (requiresAuth) {
-    // 1. 로그인이 되어있는가?
     if (currentUser) {
-      // 2. 특정 역할이 필요한 페이지인가?
       if (requiredRole) {
         try {
-          // 3. 최신 사용자 역할 정보를 강제로 가져와서 확인
           const idTokenResult = await currentUser.getIdTokenResult(true);
-          if (idTokenResult.claims.role === requiredRole) {
-            next(); // 역할 일치 -> 페이지 접근 허용
+          
+          // [임시 수정] 'superAdmin' 역할이 있거나, 기존 admin 플래그가 true인 경우 모두 허용
+          if (idTokenResult.claims.role === requiredRole || idTokenResult.claims.admin === true) {
+            next(); // 역할 일치, 페이지 접근 허용
           } else {
-            // 역할 불일치 -> 접근 거부 및 알림
             alert("이 페이지에 접근할 권한이 없습니다.");
-            next('/dashboard');
+            next('/dashboard'); // 권한 없음, 대시보드로 리디렉션
           }
         } catch (error) {
           console.error("권한 확인 중 오류:", error);
           next('/login'); // 토큰 확인 중 오류 발생 시 로그인 페이지로
         }
       } else {
-        next(); // 역할은 필요 없고 로그인만 필요한 페이지 -> 접근 허용
+        next(); // 역할은 필요 없고 로그인만 필요한 페이지, 접근 허용
       }
     } else {
-      // 로그인 안 됨 -> 로그인 페이지로 이동
       next({
         path: "/login",
         query: { redirectReason: "로그인이 필요한 서비스입니다." },
       });
     }
   } else {
-    // 인증이 필요 없는 페이지 (e.g. 로그인 페이지) -> 항상 접근 허용
-    next();
+    next(); // 인증이 필요 없는 페이지, 접근 허용
   }
 });
 
