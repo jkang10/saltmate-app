@@ -63,10 +63,9 @@
 </template>
 
 <script setup>
-// 파일 경로: src/components/admin/UserManagement.vue
-
 import { ref, onMounted, watch } from "vue";
-import { db, functions } from "@/firebaseConfig";
+// [핵심] auth를 import하여 현재 사용자 정보를 가져올 수 있도록 합니다.
+import { db, functions, auth } from "@/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import TokenTransferModal from "./TokenTransferModal.vue";
@@ -74,7 +73,7 @@ import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
 import UserEditModal from "./UserEditModal.vue";
 
 const users = ref([]);
-const allUsersForModal = ref([]); // 수정 모달용 전체 사용자 목록
+const allUsersForModal = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
@@ -112,6 +111,12 @@ const fetchUsers = async () => {
   loading.value = true;
   error.value = null;
   try {
+    // [핵심 수정] Cloud Function 호출 전에 현재 사용자의 ID 토큰을 강제로 갱신합니다.
+    // 이렇게 하면 방금 'superAdmin' 역할을 부여받았더라도 최신 권한이 즉시 적용됩니다.
+    if (auth.currentUser) {
+      await auth.currentUser.getIdTokenResult(true);
+    }
+
     const listUsersFunc = httpsCallable(functions, "listAllUsers");
     const result = await listUsersFunc({
       pageToken: pageTokens.value[currentPage.value - 1],
@@ -135,8 +140,6 @@ const fetchUsers = async () => {
     
     const userMap = new Map();
     if (referrerIds.length > 0) {
-        // 추천인 이름 조회를 위해 전체 사용자 목록을 사용 (allUsersForModal 활용)
-        // 만약 allUsersForModal이 비어있다면, 여기서 한 번 더 조회할 수 있음
         if (allUsersForModal.value.length === 0) await fetchAllUsersForModal();
         allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
     }
@@ -167,7 +170,6 @@ const fetchUsers = async () => {
 };
 
 const fetchAllUsersForModal = async () => {
-    // 이 함수는 UserEditModal에 추천인 목록을 전달하기 위해 모든 사용자를 조회합니다.
     try {
         const usersSnapshot = await getDocs(query(collection(db, "users")));
         allUsersForModal.value = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -179,8 +181,6 @@ const fetchAllUsersForModal = async () => {
 const fetchSummaryCounts = async () => {
     try {
         const usersQuery = query(collection(db, "users"));
-
-        // [핵심 수정] pendingRequestsQuery 변수를 선언하는 대신, query를 Promise.all 내부에 직접 작성합니다.
         const [userSnapshot, pendingRequestsSnapshot] = await Promise.all([
             getDocs(usersQuery),
             getDocs(query(collection(db, "subscription_requests"), where("status", "==", "pending")))
@@ -244,11 +244,11 @@ const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.
 onMounted(() => {
     fetchUsers();
     fetchSummaryCounts();
-    fetchAllUsersForModal(); // 수정 모달의 추천인 목록을 위해 미리 로드
+    fetchAllUsersForModal();
 });
 </script>
+
 <style scoped>
-/* style 부분은 변경할 필요 없습니다. */
 .role-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; display: inline-block; }
 .role-badge.superAdmin { background-color: #dc3545; }
 .role-badge.centerManager { background-color: #17a2b8; }
