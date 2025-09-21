@@ -129,7 +129,6 @@ const fetchUsers = async () => {
 
     const { users: fetchedUsers, nextPageToken } = result.data;
     
-    // [핵심 수정] referrerName을 가져오는 로직을 다시 추가합니다.
     const centerIds = [...new Set(fetchedUsers.map(u => u.centerId).filter(Boolean))];
     const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
     
@@ -149,7 +148,6 @@ const fetchUsers = async () => {
         ...user,
         id: user.uid,
         centerName: centerMap.get(user.centerId) || "N/A",
-        // [핵심 수정] referrerName을 다시 추가합니다.
         referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
 
@@ -203,25 +201,34 @@ const goToPage = (page) => {
 
 // [핵심 수정] Invalid Date 오류를 해결한 최종 강화 버전 함수
 const formatDate = (timestamp) => {
+  // 디버깅을 위해 전달받은 값을 콘솔에 출력합니다.
+  // console.log("formatDate가 받은 timestamp:", timestamp);
+
   if (!timestamp) return "정보 없음";
-  
-  // 1. 서버에서 온 serialized timestamp 객체 (e.g., {_seconds: ..., _nanoseconds: ...}) 처리
+
+  // 케이스 1: Firestore의 Timestamp 객체 (client-side)
+  if (typeof timestamp.toDate === 'function') {
+    return timestamp.toDate().toLocaleDateString("ko-KR");
+  }
+
+  // 케이스 2: Cloud Function에서 변환된 Timestamp 객체 (standard)
   if (timestamp && typeof timestamp.seconds === 'number') {
     return new Date(timestamp.seconds * 1000).toLocaleDateString("ko-KR");
   }
-
-  // 2. Firestore의 Timestamp 객체 처리 (프론트엔드에서 직접 읽을 때)
-  if (timestamp.toDate) {
-    return timestamp.toDate().toLocaleDateString("ko-KR");
+  
+  // 케이스 3: Cloud Function에서 변환된 Timestamp 객체 (legacy)
+  if (timestamp && typeof timestamp._seconds === 'number') {
+    return new Date(timestamp._seconds * 1000).toLocaleDateString("ko-KR");
   }
   
-  // 3. ISO 문자열 등 new Date()가 해석할 수 있는 형식 처리 (Auth에서 오는 가입일 등)
+  // 케이스 4: ISO 8601 문자열 또는 new Date()로 변환 가능한 형식
   const date = new Date(timestamp);
   if (date instanceof Date && !isNaN(date.valueOf())) {
     return date.toLocaleDateString("ko-KR");
   }
   
-  return "날짜 정보 없음"; // 어떤 형식에도 해당하지 않을 경우
+  // 모든 케이스 실패 시
+  return "날짜 형식 오류";
 };
 
 const formatSubscriptionStatus = (status) => {
