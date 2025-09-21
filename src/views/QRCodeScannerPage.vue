@@ -129,33 +129,33 @@ export default {
     },
     
     // 이 메서드만 수정하면 됩니다.
-    async processQRCode(qrId) {
-      // [핵심 수정] qrId가 비어있는지 먼저 확인
-      if (!qrId || qrId.trim() === '') {
-        this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
-        this.isScanning = false; // 오버레이를 확실히 보여주기 위해 스캔 상태 끄기
-        return; // 함수 종료
-      }
+async processQRCode(qrId) {
+  // [가장 중요한 수정] qrId가 비어있는지 먼저 확인하는 로직
+  if (!qrId || qrId.trim() === '') {
+    this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
+    this.isScanning = false; // 오버레이를 확실히 보여주기 위해 스캔 상태 끄기
+    return; // 함수를 즉시 종료하여 서버로 요청을 보내지 않음
+  }
 
-      this.isLoading = true;
-      this.errorMessage = "";
-      
-      try {
-        const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
-        const result = await claimReward({ qrId: qrId });
+  this.isLoading = true;
+  this.errorMessage = "";
+  
+  try {
+    const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
+    const result = await claimReward({ qrId: qrId });
 
-        if (result.data.success) {
-          this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
-        } else {
-          this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
-        }
-      } catch (error) {
-        console.error("QR 코드 처리 오류:", error);
-        this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
-      } finally {
-        this.isLoading = false;
-      }
-    },
+    if (result.data.success) {
+      this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
+    } else {
+      this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
+    }
+  } catch (error) {
+    console.error("QR 코드 처리 오류:", error);
+    this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
+  } finally {
+    this.isLoading = false;
+  }
+},
     
     goBack() {
       this.$router.push('/dashboard');
