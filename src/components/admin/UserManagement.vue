@@ -136,10 +136,10 @@ const fetchUsers = async () => {
     const referrerIds = [...new Set(fetchedUsers.map(u => u.uplineReferrer).filter(Boolean))];
     
     const centerMap = new Map();
-    if (centerIds.length > 0) {
-        const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
-        centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
-    }
+	if (centerIds.length > 0) {
+	    const centersSnapshot = await getDocs(query(collection(db, "centers"), where('__name__', 'in', centerIds)));
+	    centersSnapshot.forEach(doc => centerMap.set(doc.id, doc.data().name));
+	}
     
     const userMap = new Map();
     if (referrerIds.length > 0) {
@@ -147,10 +147,9 @@ const fetchUsers = async () => {
         allUsersForModal.value.forEach(user => userMap.set(user.id, user.name));
     }
 
-    users.value = fetchedUsers.map(user => ({
-        ...user,
-        id: user.uid,
-        centerName: centerMap.get(user.centerId) || "N/A",
+users.value = fetchedUsers.map(user => ({
+    ...user,
+    centerName: centerMap.get(user.centerId) || "N/A",
         referrerName: userMap.get(user.uplineReferrer) || "없음",
     }));
 
