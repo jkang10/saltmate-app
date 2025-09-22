@@ -1,5 +1,8 @@
 <template>
   <div class="user-management">
+      <button @click="runBackfill" style="background-color: #dc3545; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px;">
+      [임시] 지난 주 데이터 복구 실행
+    </button>
     <h3><i class="fas fa-users-cog"></i> 회원 관리</h3>
     <p>회원 목록을 조회하고 사용자 잔액, 토큰 및 권한을 관리합니다.</p>
 
@@ -107,6 +110,22 @@ watch(itemsPerPage, () => {
   pageTokens.value = [''];
   fetchUsers();
 });
+
+const runBackfill = async () => {
+  if (!confirm('지난 주 활동 데이터에 weekId를 채우는 작업을 실행합니다. 이 작업은 딱 한 번만 실행해야 합니다. 계속하시겠습니까?')) return;
+  
+  try {
+    const backfillFunc = httpsCallable(functions, "backfillWeekIdForActivities");
+    alert("데이터 복구를 시작합니다. 서버에서 작업이 진행되며, 완료되면 알림이 뜹니다.");
+    
+    const result = await backfillFunc(); // 데이터 없이 호출
+    
+    alert(`작업 완료: ${result.data.message}`);
+  } catch (error) {
+    console.error("데이터 복구 함수 실행 실패:", error);
+    alert(`오류 발생: ${error.message}`);
+  }
+};
 
 const fetchUsers = async () => {
   loading.value = true;
