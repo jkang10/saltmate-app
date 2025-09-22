@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue'; // watch 추가
 import { db } from '@/firebaseConfig';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 
@@ -35,6 +35,7 @@ const rankings = ref({
   seaExplorer: [],
 });
 
+// 기존 computed 속성은 그대로 사용합니다.
 const currentRankings = computed(() => {
   return rankings.value[activeTab.value];
 });
@@ -49,32 +50,38 @@ const getRankClass = (index) => {
 const fetchRankings = async () => {
   isLoading.value = true;
   try {
+    // [핵심 수정] 서버의 날짜 계산 로직과 100% 동일하게 수정합니다.
     const today = new Date();
+    const dayOfWeek = today.getDay();
     const lastSunday = new Date(today);
-    lastSunday.setDate(today.getDate() - today.getDay());
+    lastSunday.setDate(today.getDate() - dayOfWeek);
     const lastMonday = new Date(lastSunday);
     lastMonday.setDate(lastSunday.getDate() - 6);
     const lastWeekId = lastMonday.toISOString().slice(0, 10);
 
-    const challenges = ['saltKing', 'seaExplorer'];
-    for (const challengeId of challenges) {
-      const q = query(
-        collection(db, 'challenges'),
-        where('weekId', '==', lastWeekId),
-        where('challengeId', '==', challengeId),
-        orderBy('rank', 'asc'),
-        limit(3)
-      );
-      const snapshot = await getDocs(q);
-      rankings.value[challengeId] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }
+    const challengeId = activeTab.value; // 현재 활성화된 탭의 랭킹을 가져옵니다.
+
+    const q = query(
+      collection(db, 'challenges'),
+      where('weekId', '==', lastWeekId),
+      where('challengeId', '==', challengeId),
+      orderBy('rank', 'asc'),
+      limit(3)
+    );
+    const snapshot = await getDocs(q);
+    rankings.value[challengeId] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
   } catch (error) {
-    console.error("주간 챌린지 랭킹 로딩 실패:", error);
+    console.error(`주간 챌린지(${activeTab.value}) 랭킹 로딩 실패:`, error);
   } finally {
     isLoading.value = false;
   }
 };
 
+// [핵심 추가] 탭이 변경될 때마다 fetchRankings 함수를 다시 호출합니다.
+watch(activeTab, fetchRankings);
+
+// 컴포넌트가 처음 로드될 때 '소금왕' 랭킹을 가져옵니다.
 onMounted(fetchRankings);
 </script>
 
@@ -117,6 +124,12 @@ onMounted(fetchRankings);
   background-color: #3498db;
   color: white;
 }
+.widget-body {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 .ranking-list {
   list-style: none;
   padding: 0;
@@ -140,6 +153,9 @@ onMounted(fetchRankings);
 }
 .name {
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .score {
   font-family: monospace;
@@ -152,4 +168,14 @@ onMounted(fetchRankings);
 .rank-3 { background-color: rgba(205, 127, 50, 0.2); }
 .rank-3 .rank { color: #cd7f32; }
 .loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
+.loading-spinner {
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
