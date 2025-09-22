@@ -1,37 +1,34 @@
 <template>
   <div class="qr-scanner-page">
-    <header class="page-header">
-      <h1>센터 방문 QR 인증</h1>
-      <p class="subtitle">센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!</p>
-      <div class="instructions">
-        센터장에게 인증 QR 확인 &rarr; QR 인식 &rarr; 1,000 SaltMate 적립
-      </div>
-    </header>
-
     <div class="scanner-container">
-      <div v-if="isLoading || successMessage || errorMessage" class="status-overlay">
-        <div v-if="isLoading" class="status-content">
-          <div class="spinner"></div>
-          <p>QR 코드를 확인 중입니다...</p>
-        </div>
-        <div v-if="successMessage" class="status-content success">
-          <i class="fas fa-check-circle"></i>
-          <p>{{ successMessage }}</p>
-          <button @click="goBack" class="btn-action">대시보드로 돌아가기</button>
-        </div>
-        <div v-if="errorMessage && !isLoading" class="status-content error">
-            <i class="fas fa-times-circle"></i>
-            <p class="error-text">{{ errorMessage }}</p>
-            <button @click="initCamera" class="btn-action retry">다시 시도하기</button>
-        </div>
-      </div>
-      
       <video ref="video" autoplay playsinline></video>
       <canvas ref="canvas" style="display: none;"></canvas>
       
       <div v-if="isScanning" class="scanner-guide">
         <div class="qr-frame"></div>
         <p class="guide-text">센터에 비치된 QR코드를 화면에 맞춰주세요.</p>
+      </div>
+
+      <header class="page-header">
+        <h1>센터 방문 QR 인증</h1>
+        <p class="subtitle">센터에 방문하여 QR코드를 스캔하고<br>1,000 SaltMate를 획득하세요!</p>
+      </header>
+    </div>
+
+    <div v-if="isLoading || successMessage || errorMessage" class="status-overlay">
+      <div v-if="isLoading" class="status-content">
+        <div class="spinner"></div>
+        <p>QR 코드를 확인 중입니다...</p>
+      </div>
+      <div v-if="successMessage" class="status-content success">
+        <i class="fas fa-check-circle"></i>
+        <p>{{ successMessage }}</p>
+        <button @click="goBack" class="btn-action">대시보드로 돌아가기</button>
+      </div>
+      <div v-if="errorMessage && !isLoading" class="status-content error">
+          <i class="fas fa-times-circle"></i>
+          <p class="error-text">{{ errorMessage }}</p>
+          <button @click="initCamera" class="btn-action retry">다시 시도하기</button>
       </div>
     </div>
   </div>
@@ -43,7 +40,7 @@ import { functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 
 export default {
-  // data(), mounted(), beforeUnmount(), stopScannerAndCamera(), initCamera(), scanQRCode() 메서드는 변경할 필요 없습니다.
+  // 스크립트(script) 부분은 기존 기능 그대로 유지되므로 변경할 필요 없습니다.
   data() {
     return {
       errorMessage: "",
@@ -136,51 +133,43 @@ export default {
       }
     },
     
-    // 이 메서드만 수정하면 됩니다.
-async processQRCode(scannedData) {
-  let qrId = scannedData;
+    async processQRCode(scannedData) {
+      let qrId = scannedData;
 
-  // [핵심 수정] 스캔한 데이터가 URL 형식인지 확인하고, 맞다면 qrId 파라미터만 추출합니다.
-  try {
-    // scannedData를 URL로 변환 시도
-    const url = new URL(scannedData);
-    // URL에 'qrId'라는 파라미터가 있는지 확인
-    if (url.searchParams.has('qrId')) {
-      // 'qrId' 파라미터의 값을 최종 qrId로 사용
-      qrId = url.searchParams.get('qrId');
-    }
-  } catch (e) {
-    // URL 변환에 실패하면, 스캔한 데이터가 순수 ID라고 간주하고 그대로 사용합니다.
-    // 이 코드를 통해 기존 방식(ID만 있는 QR)과 새로운 방식(URL이 있는 QR) 모두 호환됩니다.
-  }
+      try {
+        const url = new URL(scannedData);
+        if (url.searchParams.has('qrId')) {
+          qrId = url.searchParams.get('qrId');
+        }
+      } catch (e) {
+        // URL 변환 실패 시 scannedData를 그대로 사용
+      }
 
-  // 기존의 유효성 검사 로직 (비어있는 값인지 확인)
-  if (!qrId || qrId.trim() === '') {
-    this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
-    this.isScanning = false;
-    return;
-  }
+      if (!qrId || qrId.trim() === '') {
+        this.errorMessage = "QR 코드의 내용이 비어있습니다. 다른 코드를 스캔해주세요.";
+        this.isScanning = false;
+        return;
+      }
 
-  this.isLoading = true;
-  this.errorMessage = "";
-  
-  try {
-    const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
-    // [핵심 수정] 최종적으로 추출된 순수 qrId 값을 서버로 보냅니다.
-    const result = await claimReward({ qrId: qrId });
+      this.isLoading = true;
+      this.errorMessage = "";
+      
+      try {
+        const claimReward = httpsCallable(functions, 'claimCenterVisitReward');
+        const result = await claimReward({ qrId: qrId });
 
-    if (result.data.success) {
-      this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
-    } else {
-      this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
-    }
-  } catch (error) {
-    console.error("QR 코드 처리 오류:", error);
-    this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
-  } finally {
-    this.isLoading = false;
-  }
-},
+        if (result.data.success) {
+          this.successMessage = result.data.message || "방문 인증이 완료되었습니다!";
+        } else {
+          this.errorMessage = result.data.message || "알 수 없는 오류가 발생했습니다.";
+        }
+      } catch (error) {
+        console.error("QR 코드 처리 오류:", error);
+        this.errorMessage = error.message || "인증에 실패했습니다. QR코드를 다시 확인해주세요.";
+      } finally {
+        this.isLoading = false;
+      }
+    },
     
     goBack() {
       this.$router.push('/dashboard');
@@ -190,14 +179,115 @@ async processQRCode(scannedData) {
 </script>
 
 <style scoped>
-/* style 부분은 변경할 필요 없습니다. */
-.qr-scanner-page { display: flex; justify-content: center; align-items: center; min-height: 80vh; background-color: #f4f7f6; padding: 20px; }
-.scanner-container { position: relative; width: 100%; max-width: 450px; overflow: hidden; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); background: #333; }
-video { width: 100%; display: block; }
-.scanner-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-.qr-frame { width: 70%; padding-bottom: 70%; border: 4px solid rgba(255, 255, 255, 0.8); border-radius: 12px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); }
-.guide-text { margin-top: 24px; color: white; font-size: 1rem; font-weight: 500; background-color: rgba(0, 0, 0, 0.6); padding: 8px 16px; border-radius: 8px; }
-.status-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 10; color: white; text-align: center; padding: 20px; }
+/* [디자인 수정] 전체 스타일링 개선 */
+.qr-scanner-page {
+  /* 전체 화면을 사용하도록 설정 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* 스크롤 방지 */
+}
+
+.scanner-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* 화면을 가득 채우도록 설정 */
+}
+
+.scanner-guide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.qr-frame {
+  width: 70%;
+  max-width: 300px;
+  padding-bottom: 70%; /* 정사각형 비율 유지 */
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  /* 스캐너 영역만 밝게 보이게 하는 효과 */
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6); 
+  position: relative;
+
+  /* 애니메이션 효과를 위한 가상 요소 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #3498db, transparent);
+    animation: scan-line 3s infinite ease-in-out;
+  }
+}
+
+@keyframes scan-line {
+  0% { top: 0; }
+  50% { top: calc(100% - 3px); }
+  100% { top: 0; }
+}
+
+/* 상단 설명 텍스트 */
+.page-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: white;
+  z-index: 5;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+}
+.page-header h1 {
+  font-size: 2em;
+  margin: 0 0 10px 0;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+}
+.page-header .subtitle {
+  font-size: 1.1em;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+/* 상태 오버레이 (기존 스타일과 거의 동일) */
+.status-overlay {
+  position: fixed; /* 전체 화면을 덮도록 fixed로 변경 */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  color: white;
+  text-align: center;
+  padding: 20px;
+  backdrop-filter: blur(5px);
+}
 .status-content { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .status-content.success i { font-size: 4rem; color: #4caf50; }
 .status-content.error i { font-size: 4rem; color: #dc3545; }
