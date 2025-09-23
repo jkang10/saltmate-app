@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "@/firebaseConfig";
+import LadderGamePage from "../views/LadderGamePage.vue"; // [이 줄 추가]
+import SaltPotGachaPage from "../views/SaltPotGachaPage.vue"; // [이 줄 추가]
 
 const routes = [
   {
@@ -140,6 +142,18 @@ const routes = [
     component: () => import('@/views/SaltPangPage.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: "/ladder-game",
+    name: "LadderGame",
+    component: LadderGamePage,
+    meta: { requiresAuth: true },
+  }, // [이 블록 추가]
+  {
+    path: "/salt-pot-gacha",
+    name: "SaltPotGacha",
+    component: SaltPotGachaPage,
+    meta: { requiresAuth: true },
+  }, // [이 블록 추가]  
   {
     path: "/treasure-box",
     name: "TreasureBoxPage",

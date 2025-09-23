@@ -202,6 +202,19 @@
             <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
             <span class="card-enter">참여하기 &rarr;</span>
           </router-link>
+	  <router-link to="/ladder-game" class="feature-card game">
+	    <div class="card-icon"><i class="fas fa-stream"></i></div>
+	    <h3>사다리타기</h3>
+	    <p>운명의 사다리를 타고 행운의 SaltMate를 획득하세요!</p>
+	    <span class="card-enter">도전하기 &rarr;</span>
+	  </router-link>
+	  <router-link to="/salt-pot-gacha" class="feature-card treasure">
+	    <div class="card-icon"><i class="fas fa-wine-bottle"></i></div>
+	    <h3>소금 항아리</h3>
+	    <p>매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!</p>
+	    <span class="card-enter">열어보기 &rarr;</span>
+	  </router-link>
+
           <router-link to="/high-low-game" class="feature-card game">
             <div class="card-icon">
               <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
