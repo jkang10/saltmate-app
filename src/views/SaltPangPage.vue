@@ -143,6 +143,7 @@
           <h2>게임 종료!</h2>
           <p>최종 점수: <strong>{{ score.toLocaleString() }}</strong></p>
           <p>획득 보상: <strong>{{ awardedPoints.toLocaleString() }} SaltMate</strong></p>
+          <p v-if="endGameError" class="end-game-error-message">{{ endGameError }}</p>
           <button @click="resetGame" class="game-button">다시하기</button>
         </div>
       </div>
@@ -160,7 +161,7 @@
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
@@ -172,7 +173,7 @@ const TIME_ATTACK_DURATION = 30;
 const INFINITE_MODE_MOVES = 30;
 
 // --- 상태 변수 (Refs) ---
-const jackpotAmount = ref(0); // [추가] 잭팟 금액을 저장할 변수
+const jackpotAmount = ref(0);
 const gameState = ref('ready');
 const gameMode = ref('classic');
 const board = ref([]);
@@ -187,6 +188,10 @@ const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
 const playCount = reactive({ classic: 0, timeAttack: 0 });
+
+// [핵심 수정] 오류의 원인이었던 누락된 변수들을 선언합니다.
+const isEnding = ref(false);
+const endGameError = ref('');
 
 // --- 아이템 관련 상태 ---
 const items = ref([
@@ -226,6 +231,8 @@ sounds.background.volume = 0.3;
 let timerInterval = null;
 let sessionId = null;
 let scoreBoostTimeout = null;
+// Firebase Functions 인스턴스를 한 번만 생성하여 재사용합니다.
+const functions = getFunctions(undefined, "asia-northeast3");
 
 // --- 계산된 속성 (Computed) ---
 const isRankedPlayable = computed(() => {
@@ -243,7 +250,6 @@ const currentEntryFee = computed(() => {
   if (gameMode.value === 'timeAttack') { 
     return "400 ~";
   }
-  // [핵심 수정] 무한 모드 입장료를 200에서 300으로 변경합니다.
   if (gameMode.value === 'infinite') return 300;
   if (gameMode.value === 'ranked') return 500;
   return 100;
@@ -277,7 +283,6 @@ const fetchPlayCount = async () => {
 const fetchMissions = async () => {
   error.value = '';
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
     const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
     const result = await getMissionsFunc();
     missions.daily = result.data.daily;
@@ -291,17 +296,15 @@ const fetchMissions = async () => {
 const claimReward = async (mission) => {
   error.value = '';
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
     const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
     await claimRewardFunc({ missionId: mission.missionId });
-    mission.claimed = true; // 우선 화면에 즉시 반영
+    mission.claimed = true;
     alert("보상이 지급되었습니다!");
-    // [핵심 추가] 미션 목록을 다시 불러와서 다른 미션들의 진행도를 갱신합니다.
     await fetchMissions();
   } catch(err) {
     console.error("미션 보상 수령 오류:", err);
     error.value = `보상 수령 실패: ${err.message}`;
-    mission.claimed = false; // 실패 시 원상 복구
+    mission.claimed = false;
   }
 };
 
@@ -350,7 +353,6 @@ const buyItem = async (item) => {
   error.value = '';
   isBuyingItem.value = true;
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
     const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
     await purchaseItemFunc({ itemId: item.id });
     purchasedItems.value.add(item.id);
@@ -377,7 +379,6 @@ const startGame = async () => {
   await initAudioContext();
 
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession({ gameMode: gameMode.value });
     sessionId = result.data.sessionId;
@@ -391,6 +392,8 @@ const startGame = async () => {
     gameStats.jackpotGemsMatched = 0;
     gameStats.playCount = 1;
     currentCombo = 0;
+    isEnding.value = false;
+    endGameError.value = '';
 
     if (gameMode.value === 'classic') timer.value = CLASSIC_DURATION;
     else if (gameMode.value === 'timeAttack') timer.value = TIME_ATTACK_DURATION;
@@ -433,33 +436,34 @@ const startGame = async () => {
   }
 };
 
-// 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
-
+// [핵심 수정] 모든 오류를 해결한 최종 endGame 함수
 const endGame = async () => {
-  if (isEnding.value) return; // 중복 실행 방지
+  if (isEnding.value) return;
   isEnding.value = true;
-  gameState.value = "ended";
+  
+  if (timerInterval) clearInterval(timerInterval);
+  sounds.background.pause();
+
   const finalScore = score.value;
   const finalStats = { ...gameStats };
 
+  gameState.value = "ended";
+
   try {
     const endSessionFunc = httpsCallable(functions, "endSaltPangSession");
-    // [핵심 수정] 서버로 보내는 데이터에 gameMode를 추가합니다.
     const result = await endSessionFunc({
       sessionId: sessionId.value,
       score: finalScore,
       gameStats: finalStats,
-      gameMode: selectedGameMode.value, // 현재 선택된 게임 모드 값을 함께 전송
+      gameMode: gameMode.value, // selectedGameMode -> gameMode
     });
     
-    // awardedPoints.value에 직접 할당
     awardedPoints.value = result.data.awardedPoints;
 
   } catch (error) {
     console.error("결과 처리 실패:", error);
-    // [핵심 수정] 더 명확한 오류 메시지를 표시합니다.
     endGameError.value = `결과 처리 실패: ${error.message}`;
-    awardedPoints.value = 0; // 오류 발생 시 획득 포인트를 0으로 설정
+    awardedPoints.value = 0;
   }
 };
 
@@ -562,9 +566,7 @@ const processBoard = async () => {
 
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // 가로 매치 확인
   for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
-  // 세로 매치 확인
   for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+BOARD_SIZE]&&board.value[i]===board.value[i+2*BOARD_SIZE]) for(let k=r;k<BOARD_SIZE;k++){ i=k*BOARD_SIZE+c; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
   
   if (matches.size > 0) {
@@ -573,13 +575,11 @@ const checkAndClearMatches = async () => {
     currentCombo++;
     if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
     
-    // [핵심 수정] 매치된 보석 정보를 gameStats에 정확히 기록합니다.
     matches.forEach(index => {
       explodingGems.value.add(index);
       const gemType = board.value[index];
       if (gemType) {
         if(gemType === 6) gameStats.jackpotGemsMatched++;
-        // gemType을 키로 사용하여 맞춘 개수를 누적합니다.
         gameStats.gemsMatched[gemType] = (gameStats.gemsMatched[gemType] || 0) + 1;
       }
     });
@@ -607,7 +607,6 @@ const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
 
-// [추가] 잭팟 금액을 실시간으로 가져오는 함수
 const listenToJackpot = () => {
   const jackpotRef = doc(db, "configuration", "saltPangJackpot");
   onSnapshot(jackpotRef, (docSnap) => {
@@ -620,7 +619,7 @@ const listenToJackpot = () => {
 onMounted(() => {
   fetchPlayCount();
   fetchMissions();
-  listenToJackpot(); // [추가] onMounted에서 함수 호출
+  listenToJackpot();
 });
 
 onUnmounted(() => {
@@ -632,45 +631,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* [핵심 수정] 잭팟 UI 관련 스타일을 아래 코드로 교체합니다. */
-.jackpot-section {
-  text-align: center;
-  background: linear-gradient(135deg, #1e3c72, #2a5298);
-  color: white;
-  padding: 25px;
-  border-radius: 12px; /* [추가] 모서리를 둥글게 처리 */
-}
-
-.jackpot-icon {
-  color: #ffd700;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-
-.jackpot-amount {
-  font-size: 2.8em; /* [수정] 글씨 크기를 약간 키움 */
-  font-weight: bold;
-  text-shadow: 0 2px 5px rgba(0,0,0,0.3);
-  
-  /* [핵심 추가] 황금색 그라데이션 및 반짝임 효과 */
-  background: linear-gradient(45deg, #ffd700, #fca5f1, #b3c7f0, #ffd700);
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: gradient-animation 4s ease infinite;
-}
-
-@keyframes gradient-animation {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
+.jackpot-section { text-align: center; background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; padding: 25px; border-radius: 12px; }
+.jackpot-icon { color: #ffd700; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.jackpot-amount { font-size: 2.8em; font-weight: bold; text-shadow: 0 2px 5px rgba(0,0,0,0.3); background: linear-gradient(45deg, #ffd700, #fca5f1, #b3c7f0, #ffd700); background-size: 400% 400%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: gradient-animation 4s ease infinite; }
+@keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
 .page-header { text-align: center; margin-bottom: 20px; color: #333; }
 .page-header h1 { font-size: 2.5em; font-weight: 900; }
 .page-header p { font-size: 1.1em; color: #666; }
@@ -680,7 +646,6 @@ onUnmounted(() => {
 .intro-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); }
 .section-title { font-size: 1.3em; font-weight: bold; margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px; color: #007bff; }
 .section-title.weekly { margin-top: 20px; }
-
 .mission-list { display: flex; flex-direction: column; gap: 12px; }
 .mission-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; }
 .mission-desc { font-weight: 500; text-align: left; }
@@ -689,7 +654,6 @@ onUnmounted(() => {
 .mission-status { text-align: right; font-size: 0.9em; }
 .claimed { color: #28a745; font-weight: bold; }
 .claim-button { padding: 5px 10px; font-size: 0.8em; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
-
 .mode-selection { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .mode-card { padding: 15px; border: 2px solid #e9ecef; border-radius: 10px; cursor: pointer; transition: all 0.2s ease-in-out; text-align: center; }
 .mode-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
@@ -700,7 +664,6 @@ onUnmounted(() => {
 .mode-card.ranked.active { border-color: #dc3545; background-color: #ffe8e8; }
 .mode-card:disabled { opacity: 0.6; cursor: not-allowed; background-color: #f8f9fa; }
 .mode-card:disabled:hover { transform: none; box-shadow: none; }
-
 .item-shop { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .item { padding: 15px; border: 2px solid #e9ecef; border-radius: 10px; cursor: pointer; transition: all 0.2s ease-in-out; text-align: center; position: relative; }
 .item:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
@@ -709,7 +672,6 @@ onUnmounted(() => {
 .item-name { font-weight: bold; margin: 5px 0; }
 .item-cost { font-size: 1em; color: #007bff; font-weight: 500; }
 .purchased-badge { position: absolute; top: 5px; right: 5px; background-color: #28a745; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-
 .start-info { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); }
 .entry-fee p { margin: 0; color: #666; }
 .entry-fee strong { font-size: 1.3em; color: #333; }
@@ -717,7 +679,6 @@ onUnmounted(() => {
 .game-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4); }
 .game-button:disabled { background: #a0c9ff; cursor: not-allowed; }
 .item-notice { margin-top: 10px; font-size: 0.9em; color: #007bff; font-weight: 500; text-align: center; }
-
 .game-area { position: relative; }
 .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
 .game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; touch-action: none; }
@@ -731,6 +692,7 @@ onUnmounted(() => {
 @keyframes gem-fall { 0% { transform: translateY(-50px) scale(0.5); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 .game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
 .end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
+.end-modal .end-game-error-message { color: #dc3545; font-weight: bold; margin-top: 10px; }
 .error-message { margin-top: 15px; color: red; text-align: center; cursor: pointer; }
 .mute-button { background: none; border: 1px solid #ccc; width: 40px; height: 40px; border-radius: 50%; font-size: 1em; cursor: pointer; color: #555; }
 .countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10em; font-weight: 900; color: rgba(220, 53, 69, 0.7); text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); animation: countdown-pulse 1s ease-in-out infinite; pointer-events: none; z-index: 10; }
