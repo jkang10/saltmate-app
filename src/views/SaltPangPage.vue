@@ -436,33 +436,30 @@ const startGame = async () => {
 // 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
 
 const endGame = async () => {
-  if (timerInterval) clearInterval(timerInterval);
-  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
-  isScoreBoostActive.value = false;
-  gameState.value = 'ended';
-  sounds.background.pause();
-  sounds.background.currentTime = 0;
+  if (isEnding.value) return; // 중복 실행 방지
+  isEnding.value = true;
+  gameState.value = "ended";
+  const finalScore = score.value;
+  const finalStats = { ...gameStats };
 
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const endSession = httpsCallable(functions, 'endSaltPangSession');
+    const endSessionFunc = httpsCallable(functions, "endSaltPangSession");
+    // [핵심 수정] 서버로 보내는 데이터에 gameMode를 추가합니다.
+    const result = await endSessionFunc({
+      sessionId: sessionId.value,
+      score: finalScore,
+      gameStats: finalStats,
+      gameMode: selectedGameMode.value, // 현재 선택된 게임 모드 값을 함께 전송
+    });
     
-    // [핵심 수정] gameStats 객체를 서버로 함께 전송합니다.
-    const result = await endSession({ 
-      sessionId: sessionId, 
-      score: score.value,
-      gameStats: {
-        gemsMatched: gameStats.gemsMatched,
-        maxCombo: gameStats.maxCombo,
-        jackpotGemsMatched: gameStats.jackpotGemsMatched,
-        playCount: gameStats.playCount,
-      }
-    }); 
-    
+    // awardedPoints.value에 직접 할당
     awardedPoints.value = result.data.awardedPoints;
-  } catch (err) {
-    console.error("게임 종료 오류:", err);
-    error.value = `결과 처리 실패: ${err.message}`;
+
+  } catch (error) {
+    console.error("결과 처리 실패:", error);
+    // [핵심 수정] 더 명확한 오류 메시지를 표시합니다.
+    endGameError.value = `결과 처리 실패: ${error.message}`;
+    awardedPoints.value = 0; // 오류 발생 시 획득 포인트를 0으로 설정
   }
 };
 
