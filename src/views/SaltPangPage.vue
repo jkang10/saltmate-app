@@ -187,6 +187,8 @@ const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
 const playCount = reactive({ classic: 0, timeAttack: 0 });
+const isEnding = ref(false);
+const endGameError = ref('');
 
 // --- 아이템 관련 상태 ---
 const items = ref([
@@ -433,36 +435,38 @@ const startGame = async () => {
   }
 };
 
-// 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
-
+// [최종 수정 코드] 이걸로 교체하세요.
 const endGame = async () => {
+  // [추가] isEnding 변수를 사용하여 중복 실행을 방지합니다.
+  if (isEnding.value) return;
+  isEnding.value = true;
+  
   if (timerInterval) clearInterval(timerInterval);
-  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
-  isScoreBoostActive.value = false;
-  gameState.value = 'ended';
   sounds.background.pause();
-  sounds.background.currentTime = 0;
+
+  const finalScore = score.value;
+  const finalStats = { ...gameStats };
+
+  gameState.value = "ended";
 
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
-    const endSession = httpsCallable(functions, 'endSaltPangSession');
+    const endSessionFunc = httpsCallable(functions, "endSaltPangSession");
     
-    // [핵심 수정] gameStats 객체를 서버로 함께 전송합니다.
-    const result = await endSession({ 
-      sessionId: sessionId, 
-      score: score.value,
-      gameStats: {
-        gemsMatched: gameStats.gemsMatched,
-        maxCombo: gameStats.maxCombo,
-        jackpotGemsMatched: gameStats.jackpotGemsMatched,
-        playCount: gameStats.playCount,
-      }
-    }); 
+    const result = await endSessionFunc({
+      sessionId: sessionId.value,
+      score: finalScore,
+      gameStats: finalStats,
+      gameMode: gameMode.value, // [핵심] 이 한 줄이 추가되었습니다.
+    });
     
     awardedPoints.value = result.data.awardedPoints;
-  } catch (err) {
-    console.error("게임 종료 오류:", err);
-    error.value = `결과 처리 실패: ${err.message}`;
+
+  } catch (error) {
+    console.error("결과 처리 실패:", error);
+    // [추가] endGameError 변수에 오류 메시지를 저장합니다.
+    endGameError.value = `결과 처리 실패: ${error.message}`;
+    awardedPoints.value = 0;
   }
 };
 
