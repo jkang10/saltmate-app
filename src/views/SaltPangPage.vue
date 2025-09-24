@@ -435,9 +435,9 @@ const startGame = async () => {
   }
 };
 
-// [최종 수정 코드] 이걸로 교체하세요.
+// SaltPangPage.vue 파일의 <script setup> 내부
+
 const endGame = async () => {
-  // [추가] isEnding 변수를 사용하여 중복 실행을 방지합니다.
   if (isEnding.value) return;
   isEnding.value = true;
   
@@ -457,14 +457,13 @@ const endGame = async () => {
       sessionId: sessionId.value,
       score: finalScore,
       gameStats: finalStats,
-      gameMode: gameMode.value, // [핵심] 이 한 줄이 추가되었습니다.
+      gameMode: gameMode.value, // [핵심] 이 한 줄을 추가합니다.
     });
     
     awardedPoints.value = result.data.awardedPoints;
 
   } catch (error) {
     console.error("결과 처리 실패:", error);
-    // [추가] endGameError 변수에 오류 메시지를 저장합니다.
     endGameError.value = `결과 처리 실패: ${error.message}`;
     awardedPoints.value = 0;
   }
