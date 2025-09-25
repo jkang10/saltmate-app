@@ -247,6 +247,33 @@
             <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
             <span class="card-enter">탐험 시작 &rarr;</span>
           </router-link>
+	<router-link to="/auction" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-gavel"></i></div>
+	  <h3>주간 경매</h3>
+	  <p>최고가에 도전하여 희귀 아이템을 획득하세요!</p>
+	  <span class="card-enter">입장하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/prediction-betting" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
+	  <h3>랭킹 예측</h3>
+	  <p>솔트팡 랭킹전 우승자를 예측하고 대박을 노리세요!</p>
+	  <span class="card-enter">참여하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/salt-trader" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-exchange-alt"></i></div>
+	  <h3>소금 상인</h3>
+	  <p>변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.</p>
+	  <span class="card-enter">거래하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/enchanting" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-magic"></i></div>
+	  <h3>아이템 강화</h3>
+	  <p>SaltMate를 사용하여 아이템을 강화하고 더 강해지세요!</p>
+	  <span class="card-enter">강화하기 &rarr;</span>
+	</router-link>
           <router-link to="/salt-pang" class="feature-card game">
             <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
             <h3>솔트팡</h3>

@@ -3,6 +3,85 @@
     <h2><i class="fas fa-gamepad"></i> 게임 설정</h2>
 
     <div class="card">
+
+      <h3 class="section-title">주간 경매 설정</h3>
+      <div class="form-group">
+        <label for="auction-prize-name"><i class="fas fa-gift"></i> 주간 경매 상품 이름</label>
+        <div class="input-group">
+          <input type="text" v-model="settings.auctionPrizeName" style="width: 100%;"/>
+        </div>
+      </div>
+       <div class="form-group">
+        <label for="auction-prize-desc"><i class="fas fa-info-circle"></i> 주간 경매 상품 설명</label>
+        <div class="input-group">
+          <textarea v-model="settings.auctionPrizeDesc" style="width: 100%; height: 60px;"></textarea>
+        </div>
+      </div>
+      
+      <h3 class="section-title">랭킹 예측 베팅 설정</h3>
+      <div class="form-group">
+        <label><i class="fas fa-star"></i> 1등 예측 성공 배당률</label>
+        <div class="input-group">
+          <span>베팅금액의 </span>
+          <input type="number" step="0.1" v-model.number="settings.predictionRate1" />
+          <span> 배</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-medal"></i> 2등 예측 성공 배당률</label>
+        <div class="input-group">
+          <span>베팅금액의 </span>
+          <input type="number" step="0.1" v-model.number="settings.predictionRate2" />
+          <span> 배</span>
+        </div>
+      </div>
+       <div class="form-group">
+        <label><i class="fas fa-award"></i> 3등 예측 성공 배당률</label>
+        <div class="input-group">
+          <span>베팅금액의 </span>
+          <input type="number" step="0.1" v-model.number="settings.predictionRate3" />
+          <span> 배</span>
+        </div>
+      </div>
+
+      <h3 class="section-title">소금 상인 설정</h3>
+       <div class="form-group">
+        <label><i class="fas fa-chart-line"></i> 시세 변동 최대폭 (%)</label>
+        <div class="input-group">
+          <span>± </span>
+          <input type="number" step="1" v-model.number="settings.saltPriceVolatility" />
+          <span> %</span>
+        </div>
+        <small>매시간 이 범위 내에서 시세가 랜덤하게 변동합니다.</small>
+      </div>
+
+      <h3 class="section-title">강화/인챈트 설정</h3>
+      <div class="form-group">
+        <label><i class="fas fa-hammer"></i> 기본 강화 비용</label>
+         <div class="input-group">
+          <input type="number" step="10" v-model.number="settings.enchantBaseCost" />
+          <span> SaltMate</span>
+        </div>
+        <small>실제 비용: 기본비용 x (강화레벨+1)</small>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-percentage"></i> 레벨당 성공 확률 감소율 (%)</label>
+         <div class="input-group">
+          <input type="number" step="1" v-model.number="settings.enchantSuccessDecline" />
+          <span> %</span>
+        </div>
+        <small>실제 성공확률: 95% - (강화레벨 x 감소율)</small>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-skull-crossbones"></i> 아이템 파괴 시작 레벨</label>
+         <div class="input-group">
+          <span>+ </span>
+          <input type="number" step="1" v-model.number="settings.enchantDestroyStartLevel" />
+          <span> 강화부터</span>
+        </div>
+        <small>이 레벨부터 강화 실패 시 10% 확률로 아이템이 파괴됩니다.</small>
+      </div>
+
       <h3 class="section-title">솔트팡: 타임 어택 입장료 설정</h3>
       <div class="form-group">
         <label for="time-attack-tier1-count">
@@ -175,6 +254,17 @@ export default {
   setup() {
     const isLoading = ref(false);
     const settings = reactive({
+      // --- [신규 추가] 신규 게임 4종 설정 변수 ---
+      auctionPrizeName: "희귀 소금 결정 x5",
+      auctionPrizeDesc: "소금 결정 키우기 게임에서 즉시 5,000 포인트를 얻습니다.",
+      predictionRate1: 10,
+      predictionRate2: 5,
+      predictionRate3: 2,
+      saltPriceVolatility: 10,
+      enchantBaseCost: 100,
+      enchantSuccessDecline: 5,
+      enchantDestroyStartLevel: 5,
+
       saltMineRate: 1000,
       deepSeaRate: 100000,
       rpsLimit: 10,

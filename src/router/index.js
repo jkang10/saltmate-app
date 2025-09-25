@@ -197,6 +197,30 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/auction',
+    name: 'AuctionPage',
+    component: () => import('@/views/AuctionPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/prediction-betting',
+    name: 'PredictionPage',
+    component: () => import('@/views/PredictionPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/salt-trader',
+    name: 'SaltTraderPage',
+    component: () => import('@/views/SaltTraderPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/enchanting',
+    name: 'EnchantPage',
+    component: () => import('@/views/EnchantPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: "/admin-dashboard",
     name: "AdminDashboardPage",
     component: () => import("@/views/AdminDashboardPage.vue"),
