@@ -16,7 +16,7 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
@@ -45,4 +45,4 @@ const placeBet = async () => {
     isBetting.value = false;
   }
 };
-</script>
+</script>2025-09-25

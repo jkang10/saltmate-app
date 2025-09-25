@@ -13,7 +13,7 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { db, functions } from '@/firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
