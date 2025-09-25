@@ -35,10 +35,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { db, functions, auth } from '@/firebaseConfig';
-import { collection, onSnapshot, doc, setDoc, addDoc } from 'firebase/firestore';
+// [수정] 사용하지 않는 doc, setDoc을 제거하고 addDoc을 추가합니다.
+import { collection, onSnapshot, addDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-const myItems = ref([]);
+// [수정] 사용하지 않는 myItems 변수를 제거합니다.
 const myItem = ref(null); // 한 개의 아이템만 관리
 const isEnchanting = ref(false);
 const resultMessage = ref('');
@@ -50,6 +51,7 @@ const createInitialItem = async () => {
     if (!auth.currentUser) return;
     try {
         const itemsRef = collection(db, `users/${auth.currentUser.uid}/enchantItems`);
+        // [수정] setDoc 대신 addDoc을 사용하여 새 문서를 생성합니다.
         await addDoc(itemsRef, {
             itemName: "미네랄 결정",
             level: 0,
@@ -107,7 +109,10 @@ const enchant = async () => {
 </script>
 
 <style scoped>
+.page-container { max-width: 600px; margin: 90px auto 20px; padding: 20px; }
+.page-header { text-align: center; margin-bottom: 20px; }
 .enchant-page { text-align: center; }
+.card { background: white; border-radius: 16px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
 .enchant-card { max-width: 400px; margin: 0 auto; }
 .item-display { font-size: 6em; margin: 20px 0; position: relative; display: inline-block; }
 .item-level { position: absolute; bottom: -10px; right: -10px; font-size: 0.4em; font-weight: bold; background: #333; color: white; padding: 5px 10px; border-radius: 10px; border: 2px solid white; }
@@ -117,6 +122,8 @@ const enchant = async () => {
 .result-message.failure { color: #dc3545; }
 .btn-enchant { width: 100%; padding: 12px; font-size: 1.2em; }
 .no-item { margin: 30px 0; }
+.btn-primary { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+.spinner-small { border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
 
 /* 애니메이션 */
 .enchanting { animation: enchanting-anim 1.5s ease-in-out; }
@@ -141,4 +148,5 @@ const enchant = async () => {
     75% { transform: translateX(-2px) rotate(-2deg); }
     100% { transform: translateX(0); opacity: 0.7; filter: grayscale(1); }
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
