@@ -122,6 +122,7 @@
           <SaltPangHallOfFame />
           <ChallengeRankingsWidget />
           <SaltPangRankedWidget />
+	  <EnchantRankingsWidget />
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>
@@ -337,6 +338,7 @@ import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
 import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
+import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue'; // [신규] 위젯 import
 
 export default {
   name: "DashboardPage",
@@ -352,6 +354,7 @@ export default {
     ChallengeRankingsWidget,
     SaltPangRankedWidget,
     AnnouncementTicker,
+    EnchantRankingsWidget, // [신규] 컴포넌트 등록
   },
   data() {
     return {
