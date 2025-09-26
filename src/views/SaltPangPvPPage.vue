@@ -65,7 +65,8 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, deleteDoc } from "firebase/firestore";
+// [핵심 추가] onSnapshot과 doc을 import 합니다.
+import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
 // --- (기존 게임 및 대전 모드 상태 변수들은 그대로) ---
@@ -177,28 +178,47 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
+let matchmakingUnsubscribe = null; // [신규] 매칭 상태 리스너 해제용 변수
+
 // --- 대전 모드 전용 함수들 ---
 const joinMatch = async () => {
   matchState.value = 'searching';
   try {
     const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
     const result = await findMatchFunc();
+
     if (result.data.status === 'matched') {
       gameRoomId.value = result.data.gameRoomId;
       listenToGameRoom();
       matchState.value = 'playing';
       startTimer();
+    } else if (result.data.status === 'waiting') {
+      // [핵심 수정] 대기 상태가 되면, 내 매칭 큐 문서를 실시간으로 감시합니다.
+      listenToMatchmakingStatus();
     }
-  } catch (error) { console.error("매칭 오류:", error); }
+  } catch (error) { 
+    console.error("매칭 오류:", error);
+    router.push('/dashboard'); // 오류 발생 시 대시보드로 이동
+  }
 };
 
-const listenToGameRoom = () => {
-    roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
-    roomListener = onValue(roomRef, (snapshot) => {
-        const data = snapshot.val();
-        if(data) {
-            gameState.value = data;
-            if(!board.value.length) board.value = data.board;
+// [핵심 추가] 매칭 큐의 내 상태를 실시간으로 감시하는 함수
+const listenToMatchmakingStatus = () => {
+    if (!auth.currentUser) return;
+    const queueDocRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
+
+    matchmakingUnsubscribe = onSnapshot(queueDocRef, (docSnap) => {
+        // 문서가 삭제되었다는 것은 내가 다른 사람에 의해 매칭되었다는 의미입니다.
+        if (!docSnap.exists()) {
+            // 이 리스너를 즉시 중지합니다.
+            if(matchmakingUnsubscribe) matchmakingUnsubscribe();
+
+            // 매칭이 성사되었을 가능성이 높으므로, 게임 룸 정보를 찾아봅니다.
+            // (실제 구현에서는 이 부분을 더 정교하게 만들 수 있습니다. 
+            //  예: findSaltPangMatch가 리턴값으로 룸 ID를 알려주거나,
+            //  RTDB의 특정 경로를 감시하게 함)
+            // 여기서는 잠시 후 다시 매칭을 시도하여, 생성된 룸에 입장하도록 유도합니다.
+            setTimeout(joinMatch, 1000); 
         }
     });
 };
@@ -285,14 +305,13 @@ onMounted(joinMatch);
 onBeforeRouteLeave(async () => {
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    // [수정] isCancelling 상태가 아닐 때만 자동 취소 로직 실행
+    if(matchmakingUnsubscribe) matchmakingUnsubscribe(); // [신규] 리스너 해제
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
         const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
         await deleteDoc(queueRef);
     }
     if(roomRef) remove(roomRef);
 });
-
 </script>
 
 <style scoped>
