@@ -69,8 +69,6 @@ import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
-// --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
-
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
