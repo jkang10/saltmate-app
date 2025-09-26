@@ -30,9 +30,9 @@
             v-for="(cell, index) in board" :key="index" class="cell"
             @click="selectCell(index)"
             :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
-            @touchstart="handleTouchStart(index, $event)"
-            @touchmove="handleTouchMove($event)"
-            @touchend="handleTouchEnd()"
+            @touchstart.prevent="handleTouchStart(index, $event)"
+            @touchmove.prevent="handleTouchMove($event)"
+            @touchend.prevent="handleTouchEnd()"
           >
             <transition name="gem-fall">
               <img
@@ -107,7 +107,7 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- 게임 로직 함수들 (SaltPangPage.vue에서 가져와 PvP에 맞게 수정) ---
+// --- [핵심 추가] 게임 로직 함수들 ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
@@ -167,7 +167,7 @@ const swapAndCheck = async (index1, index2) => {
     while ((subsequentCheck = await processBoard()).hasMatches) {
         totalScoreGained += subsequentCheck.scoreGained;
     }
-    if (roomRef) {
+    if (roomRef && auth.currentUser) {
         const newScore = (me.value.score || 0) + totalScoreGained;
         update(roomRef, {
             board: board.value,
@@ -187,11 +187,11 @@ const startMatchmaking = async () => {
         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
             const activePvpGameId = docSnap.data()?.activePvpGameId;
             if (activePvpGameId && matchState.value !== 'playing') {
+                if(userProfileUnsubscribe) userProfileUnsubscribe();
                 gameRoomId.value = activePvpGameId;
                 listenToGameRoom();
                 matchState.value = 'playing';
                 startTimer();
-                if(userProfileUnsubscribe) userProfileUnsubscribe();
             }
         });
     }
@@ -234,7 +234,7 @@ const cancelMatchmaking = async () => {
     if (!auth.currentUser || isCancelling.value) return;
     isCancelling.value = true;
     try {
-        const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
+        const queueRef = doc(db, 'matchMatchmakingQueue', auth.currentUser.uid);
         await deleteDoc(queueRef);
         alert('매칭이 취소되었습니다.');
         router.push('/dashboard');
@@ -306,7 +306,6 @@ onBeforeRouteLeave(async () => {
     }
     if(roomRef) remove(roomRef);
 });
-
 </script>
 
 <style scoped>
@@ -330,8 +329,8 @@ onBeforeRouteLeave(async () => {
 .player-info.me { background: #eafaf1; color: #155724; }
 .game-board-container { padding: 5px; background-color: #495057; border-radius: 8px; }
 .game-board { display: grid; gap: 4px; touch-action: none; }
-.cell { width: 100%; aspect-ratio: 1 / 1; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
-.cell.selected { background-color: #e0e0e0; transform: scale(0.95); }
+.cell { width: 100%; aspect-ratio: 1 / 1; display: flex; justify-content: center; align-items: center; background-color: rgba(255,255,255,0.1); border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
+.cell.selected { background-color: rgba(255,255,255,0.3); transform: scale(0.95); }
 .cell.not-my-turn { cursor: not-allowed; filter: brightness(0.7); }
 .gem-image { width: 90%; height: 90%; object-fit: contain; user-select: none; position: absolute; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .gem-image.clearing { animation: gem-clear 0.3s ease-out forwards; }
