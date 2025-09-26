@@ -180,6 +180,7 @@ const swapAndCheck = async (index1, index2) => {
 };
 
 // --- 대전 모드 전용 함수들 ---
+// [핵심 수정] startMatchmaking 함수에서 타이머 시작 로직을 제거합니다.
 const startMatchmaking = async () => {
     matchState.value = 'searching';
     if(auth.currentUser && !userProfileUnsubscribe) {
@@ -187,11 +188,13 @@ const startMatchmaking = async () => {
         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
             const activePvpGameId = docSnap.data()?.activePvpGameId;
             if (activePvpGameId && matchState.value !== 'playing') {
-                if(userProfileUnsubscribe) userProfileUnsubscribe();
+                if(userProfileUnsubscribe) {
+                    userProfileUnsubscribe();
+                    userProfileUnsubscribe = null;
+                }
                 gameRoomId.value = activePvpGameId;
-                listenToGameRoom();
-                matchState.value = 'playing';
-                startTimer();
+                listenToGameRoom(); 
+                // matchState, startTimer 호출은 listenToGameRoom 내부에서 처리
             }
         });
     }
@@ -201,6 +204,7 @@ const startMatchmaking = async () => {
         await findMatchFunc();
     } catch(e) {
         console.error("매칭 요청 오류:", e);
+        if (userProfileUnsubscribe) userProfileUnsubscribe();
         router.push('/dashboard');
     }
 }
@@ -211,7 +215,12 @@ const listenToGameRoom = () => {
         const data = snapshot.val();
         if(data) {
             gameState.value = data;
-            if(!board.value.length && data.board) board.value = data.board;
+            // 최초 입장 시에만 보드를 설정하고 타이머를 시작합니다.
+            if(!board.value.length && data.board) {
+                board.value = data.board;
+                matchState.value = 'playing';
+                startTimer(); // 여기서 타이머를 시작합니다.
+            }
         }
     });
 };
