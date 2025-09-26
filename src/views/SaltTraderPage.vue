@@ -69,74 +69,6 @@
   </div>
 </template>
 
- context) => {
-  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "로그인이 필요합니다.");
-  const uid = context.auth.uid;
-
-  const { action, quantity } = data;
-  if (!['buy', 'sell'].includes(action) || !quantity || quantity <= 0) {
-    throw new functions.https.HttpsError("invalid-argument", "거래 정보가 올바르지 않습니다.");
-  }
-
-  const userRef = db.collection("users").doc(uid);
-  const marketRef = db.collection("configuration").doc("saltMarket");
-  // [신규] 거래 기록을 저장할 경로
-  const historyRef = userRef.collection("saltTradeHistory").doc(); 
-
-  try {
-    await db.runTransaction(async (transaction) => {
-      const [userDoc, marketDoc] = await Promise.all([
-        transaction.get(userRef),
-        transaction.get(marketRef)
-      ]);
-      if(!userDoc.exists || !marketDoc.exists) throw new functions.https.HttpsError("not-found", "데이터를 찾을 수 없습니다.");
-      
-      const userData = userDoc.data();
-      const marketData = marketDoc.data();
-      const price = marketData.currentPrice;
-
-      // [신규] 거래 기록 데이터 생성
-      const historyData = {
-        action,
-        quantity,
-        price,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
-      };
-
-      if(action === 'buy') {
-        const cost = price * quantity;
-        if((userData.saltmatePoints || 0) < cost) throw new functions.https.HttpsError("failed-precondition", "SaltMate 포인트가 부족합니다.");
-        transaction.update(userRef, {
-          saltmatePoints: admin.firestore.FieldValue.increment(-cost),
-          saltBalance: admin.firestore.FieldValue.increment(quantity)
-        });
-        historyData.totalCost = cost;
-      } else { // sell
-        if((userData.saltBalance || 0) < quantity) throw new functions.https.HttpsError("failed-precondition", "보유한 소금이 부족합니다.");
-        const revenue = price * quantity;
-        transaction.update(userRef, {
-          saltmatePoints: admin.firestore.FieldValue.increment(revenue),
-          saltBalance: admin.firestore.FieldValue.increment(-quantity)
-        });
-        historyData.totalRevenue = revenue;
-      }
-      
-      // [신규] 트랜잭션에 거래 기록 저장 추가
-      transaction.set(historyRef, historyData);
-    });
-
-    return { success: true, message: "거래가 성공적으로 체결되었습니다." };
-  } catch(error) {
-    console.error("소금 거래 오류:", error);
-    if(error.code) throw error;
-    throw new functions.https.HttpsError("internal", "거래 처리 중 오류가 발생했습니다.");
-  }
-});
-2단계: SaltTraderPage.vue에 내역 확인 모달 추가
-백엔드 수정 후, SaltTraderPage.vue에 모달 관련 코드를 추가합니다. 아래 코드로 <script setup> 블록을 전체 교체해주세요. (기존 로직 포함)
-
-JavaScript
-
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { db, functions, auth } from '@/firebaseConfig';
@@ -150,11 +82,9 @@ import VChart from 'vue-echarts';
 
 use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, GridComponent]);
 
-// --- [신규] 모달 관련 상태 변수 추가 ---
 const isHistoryModalVisible = ref(false);
 const tradeHistory = ref([]);
 const isLoadingHistory = ref(false);
-// --- (기존 상태 변수들은 그대로) ---
 const market = ref({ currentPrice: 0, priceHistory: [] });
 const userProfile = ref(null);
 const buyQuantity = ref(1);
@@ -228,7 +158,6 @@ const trade = async (action) => {
   }
 };
 
-// --- [신규] 모달 열기/닫기 및 데이터 조회 함수 ---
 const openHistoryModal = async () => {
   isHistoryModalVisible.value = true;
   isLoadingHistory.value = true;
@@ -247,8 +176,10 @@ const openHistoryModal = async () => {
 </script>
 
 <style scoped>
+.page-container { max-width: 800px; margin: 90px auto 20px; padding: 20px; }
+.page-header { text-align: center; margin-bottom: 20px; }
 .trader-page { text-align: center; }
-.trader-card { max-width: 700px; margin: 0 auto; }
+.trader-card { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
 .current-price { font-size: 2.5em; font-weight: bold; transition: color 0.3s; }
 .current-price.up { color: #28a745; }
 .current-price.down { color: #dc3545; }
@@ -260,13 +191,24 @@ const openHistoryModal = async () => {
 .trade-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .trade-section { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #eee; border-radius: 12px; }
 .trade-summary { font-size: 0.9em; color: #666; }
-.btn-buy { background-color: #007bff; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
-.btn-sell { background-color: #28a745; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+.btn-primary { padding: 10px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
+.btn-buy { background-color: #007bff; color: white; }
+.btn-sell { background-color: #28a745; color: white; }
 .btn-primary:disabled { background-color: #aaa; }
+.error-message { color: #dc3545; margin-top: 15px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 500px; }
+.trade-history-list { list-style: none; padding: 0; max-height: 400px; overflow-y: auto; }
+.trade-history-list li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+.history-action.buy { color: #007bff; font-weight: bold; }
+.history-action.sell { color: #28a745; font-weight: bold; }
+.btn-secondary { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 20px; }
 
-/* [추가] 모바일 화면(768px 이하)에서 세로로 배열되도록 미디어 쿼리 추가 */
 @media (max-width: 768px) {
   .trade-form {
+    grid-template-columns: 1fr;
+  }
+  .my-assets {
     grid-template-columns: 1fr;
   }
 }
