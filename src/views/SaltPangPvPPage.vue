@@ -65,7 +65,8 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, onSnapshot } from "firebase/firestore";
+// [핵심 수정] deleteDoc을 import 구문에 추가합니다.
+import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
 // --- 게임 기본 설정 ---
