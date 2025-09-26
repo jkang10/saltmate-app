@@ -59,7 +59,6 @@
 </template>
 
 <script setup>
-// [수정] 사용하지 않는 onUnmounted를 import에서 제거합니다.
 import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -104,20 +103,14 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- 게임 로직 함수들 (SaltPangPage.vue에서 가져와 수정) ---
+// --- 게임 로직 함수들 ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
   catch (e) { return ''; }
 };
 
-// [수정] 사용하지 않는 createBoard 함수를 제거합니다.
-
-const hasInitialMatches = (b) => {
-  for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+1]&&b[i]===b[i+2]) return true; }
-  for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+BOARD_SIZE]&&b[i]===b[i+2*BOARD_SIZE]) return true; }
-  return false;
-};
+// [수정] 사용하지 않는 hasInitialMatches 함수를 제거합니다.
 
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
