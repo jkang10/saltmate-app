@@ -65,7 +65,7 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
 // --- 게임 기본 설정 ---
@@ -193,8 +193,7 @@ const startMatchmaking = async () => {
                     userProfileUnsubscribe = null;
                 }
                 gameRoomId.value = activePvpGameId;
-                listenToGameRoom(); 
-                // matchState, startTimer 호출은 listenToGameRoom 내부에서 처리
+                listenToGameRoom();
             }
         });
     }
@@ -215,11 +214,10 @@ const listenToGameRoom = () => {
         const data = snapshot.val();
         if(data) {
             gameState.value = data;
-            // 최초 입장 시에만 보드를 설정하고 타이머를 시작합니다.
             if(!board.value.length && data.board) {
                 board.value = data.board;
                 matchState.value = 'playing';
-                startTimer(); // 여기서 타이머를 시작합니다.
+                startTimer();
             }
         }
     });
@@ -243,8 +241,8 @@ const cancelMatchmaking = async () => {
     if (!auth.currentUser || isCancelling.value) return;
     isCancelling.value = true;
     try {
-        const queueRef = doc(db, 'matchMatchmakingQueue', auth.currentUser.uid);
-        await deleteDoc(queueRef);
+        const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
+        await cancelFunc();
         alert('매칭이 취소되었습니다.');
         router.push('/dashboard');
     } catch (error) {
