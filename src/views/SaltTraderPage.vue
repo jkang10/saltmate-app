@@ -50,23 +50,23 @@
       </div>
       <p v-if="error" class="error-message">{{ error }}</p>
     </div>
-  </div>
 
-<div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
-  <div class="modal-content">
-    <h3>소금 거래 내역</h3>
-    <div v-if="isLoadingHistory" class="spinner-small"></div>
-    <ul v-else-if="tradeHistory.length > 0">
-      <li v-for="item in tradeHistory" :key="item.id">
-        <span>{{ new Date(item.timestamp.seconds * 1000).toLocaleString() }}</span>
-        <span :class="item.action">{{ item.action === 'buy' ? '매수' : '매도' }}</span>
-        <span>{{ item.quantity }}개 ({{ item.price }}/개)</span>
-      </li>
-    </ul>
-    <p v-else>거래 내역이 없습니다.</p>
-    <button @click="isHistoryModalVisible = false">닫기</button>
+    <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
+      <div class="modal-content">
+        <h3>소금 거래 내역</h3>
+        <div v-if="isLoadingHistory" class="spinner-small"></div>
+        <ul v-else-if="tradeHistory.length > 0" class="trade-history-list">
+          <li v-for="item in tradeHistory" :key="item.id">
+            <span class="history-date">{{ new Date(item.timestamp.seconds * 1000).toLocaleString('ko-KR') }}</span>
+            <span class="history-action" :class="item.action">{{ item.action === 'buy' ? '매수' : '매도' }}</span>
+            <span class="history-details">{{ item.quantity }}개 ({{ item.price }}/개)</span>
+          </li>
+        </ul>
+        <p v-else>거래 내역이 없습니다.</p>
+        <button @click="isHistoryModalVisible = false" class="btn-secondary">닫기</button>
+      </div>
+    </div>
   </div>
-</div>
 </template>
 
  context) => {
