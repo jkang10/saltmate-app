@@ -61,7 +61,6 @@
 </template>
 
 <script setup>
-// [수정] 사용하지 않는 onUnmounted를 제거합니다.
 import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -92,7 +91,8 @@ const router = useRouter();
 let roomRef = null;
 let roomListener = null;
 let timerInterval = null;
-const isCancelling = ref(false); // 매칭 취소 로딩 상태
+let userProfileUnsubscribe = null;
+const isCancelling = ref(false);
 
 // --- 계산된 속성 ---
 const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
@@ -107,14 +107,12 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- 게임 로직 함수들 ---
+// --- 게임 로직 함수들 (SaltPangPage.vue에서 가져와 PvP에 맞게 수정) ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
   catch (e) { return ''; }
 };
-
-// [수정] 사용하지 않는 hasInitialMatches 함수를 제거합니다.
 
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
@@ -181,47 +179,39 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
-let matchmakingUnsubscribe = null; // [신규] 매칭 상태 리스너 해제용 변수
-
 // --- 대전 모드 전용 함수들 ---
-const joinMatch = async () => {
-  matchState.value = 'searching';
-  try {
-    const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
-    const result = await findMatchFunc();
-
-    if (result.data.status === 'matched') {
-      gameRoomId.value = result.data.gameRoomId;
-      listenToGameRoom();
-      matchState.value = 'playing';
-      startTimer();
-    } else if (result.data.status === 'waiting') {
-      // [핵심 수정] 대기 상태가 되면, 내 매칭 큐 문서를 실시간으로 감시합니다.
-      listenToMatchmakingStatus();
+const startMatchmaking = async () => {
+    matchState.value = 'searching';
+    if(auth.currentUser && !userProfileUnsubscribe) {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            const activePvpGameId = docSnap.data()?.activePvpGameId;
+            if (activePvpGameId && matchState.value !== 'playing') {
+                gameRoomId.value = activePvpGameId;
+                listenToGameRoom();
+                matchState.value = 'playing';
+                startTimer();
+                if(userProfileUnsubscribe) userProfileUnsubscribe();
+            }
+        });
     }
-  } catch (error) { 
-    console.error("매칭 오류:", error);
-    router.push('/dashboard'); // 오류 발생 시 대시보드로 이동
-  }
-};
 
-// [핵심 추가] 매칭 큐의 내 상태를 실시간으로 감시하는 함수
-const listenToMatchmakingStatus = () => {
-    if (!auth.currentUser) return;
-    const queueDocRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
+    try {
+        const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
+        await findMatchFunc();
+    } catch(e) {
+        console.error("매칭 요청 오류:", e);
+        router.push('/dashboard');
+    }
+}
 
-    matchmakingUnsubscribe = onSnapshot(queueDocRef, (docSnap) => {
-        // 문서가 삭제되었다는 것은 내가 다른 사람에 의해 매칭되었다는 의미입니다.
-        if (!docSnap.exists()) {
-            // 이 리스너를 즉시 중지합니다.
-            if(matchmakingUnsubscribe) matchmakingUnsubscribe();
-
-            // 매칭이 성사되었을 가능성이 높으므로, 게임 룸 정보를 찾아봅니다.
-            // (실제 구현에서는 이 부분을 더 정교하게 만들 수 있습니다. 
-            //  예: findSaltPangMatch가 리턴값으로 룸 ID를 알려주거나,
-            //  RTDB의 특정 경로를 감시하게 함)
-            // 여기서는 잠시 후 다시 매칭을 시도하여, 생성된 룸에 입장하도록 유도합니다.
-            setTimeout(joinMatch, 1000); 
+const listenToGameRoom = () => {
+    roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
+    roomListener = onValue(roomRef, (snapshot) => {
+        const data = snapshot.val();
+        if(data) {
+            gameState.value = data;
+            if(!board.value.length && data.board) board.value = data.board;
         }
     });
 };
@@ -303,18 +293,20 @@ const handleTouchMove = (event) => {
 
 const handleTouchEnd = () => { touchStart.index = null; };
 
-onMounted(joinMatch);
+onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    if(matchmakingUnsubscribe) matchmakingUnsubscribe(); // [신규] 리스너 해제
+    if(userProfileUnsubscribe) userProfileUnsubscribe();
+    
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
         const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
         await deleteDoc(queueRef);
     }
     if(roomRef) remove(roomRef);
 });
+
 </script>
 
 <style scoped>
