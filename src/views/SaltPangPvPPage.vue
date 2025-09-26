@@ -302,16 +302,21 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
+    // 모든 리스너와 타이머를 정리합니다.
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
     if(userProfileUnsubscribe) userProfileUnsubscribe();
     
+    // [핵심 수정] 페이지를 떠날 때, 내가 매칭 대기 상태였다면 확실하게 취소 함수를 호출합니다.
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
+        console.log("페이지를 이탈하여 매칭을 자동 취소합니다.");
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
         await cancelFunc();
     }
+    // RTDB 룸 데이터 정리
     if(roomRef) remove(roomRef);
 });
+
 </script>
 
 <style scoped>
