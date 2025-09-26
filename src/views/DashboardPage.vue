@@ -281,6 +281,12 @@
             <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
             <span class="card-enter">게임 시작 &rarr;</span>
           </router-link>
+	<router-link to="/salt-pang-pvp" class="feature-card game pvp">
+	  <div class="card-icon"><i class="fas fa-fist-raised"></i></div>
+	  <h3>솔트팡 1 vs 1 대전</h3>
+	  <p>다른 유저와 실시간으로 솔트팡 대결을 펼치고 승리 보상을 획득하세요!</p>
+	  <span class="card-enter">대전 시작 &rarr;</span>
+	</router-link>
         </div>
       </main>
 
@@ -538,6 +544,9 @@ export default {
 </script>
 
 <style scoped>
+.feature-card.pvp .card-icon {
+  color: #e74c3c;
+}
 .feature-card.revenue .card-icon {
   color: #dc3545;
 }

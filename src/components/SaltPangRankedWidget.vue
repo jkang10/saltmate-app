@@ -27,12 +27,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue'; // onUnmounted 추가
 import { db } from '@/firebaseConfig';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+// [수정] onSnapshot을 추가로 import 합니다.
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 const isLoading = ref(true);
 const rankings = ref([]);
+let unsubscribe = null; // [신규] 실시간 리스너를 해제하기 위한 변수
 
 const getMonday = (d) => {
   d = new Date(d);
@@ -60,25 +62,34 @@ const getRankClass = (index) => {
   return '';
 };
 
-const fetchRankings = async () => {
+// [핵심 수정] fetchRankings 함수를 실시간으로 데이터를 수신하는 로직으로 변경합니다.
+const listenToRankings = () => {
   isLoading.value = true;
-  try {
-    const q = query(
-      collection(db, 'saltPangRanked', weekId.value, 'scores'),
-      orderBy('score', 'desc'),
-      limit(3)
-    );
-    // [수정] getDocs 호출 앞에 await를 명시적으로 추가하여 비동기 작업을 기다립니다.
-    const snapshot = await getDocs(q);
+  
+  const q = query(
+    collection(db, 'saltPangRanked', weekId.value, 'scores'),
+    orderBy('score', 'desc'),
+    limit(3)
+  );
+  
+  // onSnapshot을 사용하여 데이터 변경을 실시간으로 감지합니다.
+  unsubscribe = onSnapshot(q, (snapshot) => {
     rankings.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error("솔트팡 랭킹전 로딩 실패:", error);
-  } finally {
     isLoading.value = false;
-  }
+  }, (error) => {
+    console.error("솔트팡 랭킹전 실시간 로딩 실패:", error);
+    isLoading.value = false;
+  });
 };
 
-onMounted(fetchRankings);
+onMounted(listenToRankings);
+
+// [신규] 컴포넌트가 사라질 때 실시간 리스너를 정리하여 메모리 누수를 방지합니다.
+onUnmounted(() => {
+    if(unsubscribe) {
+        unsubscribe();
+    }
+});
 </script>
 
 <style scoped>

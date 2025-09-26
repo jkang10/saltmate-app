@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "@/firebaseConfig";
 import LadderGamePage from "../views/LadderGamePage.vue"; // [이 줄 추가]
 import SaltPotGachaPage from "../views/SaltPotGachaPage.vue"; // [이 줄 추가]
+import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
 
 const routes = [
   {
@@ -140,6 +141,13 @@ const routes = [
     path: '/salt-pang',
     name: 'SaltPangPage',
     component: () => import('@/views/SaltPangPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // [신규 추가] 솔트팡 PvP 대전 모드 경로
+  {
+    path: '/salt-pang-pvp',
+    name: 'SaltPangPvPPage',
+    component: SaltPangPvPPage,
     meta: { requiresAuth: true }
   },
   {
