@@ -69,6 +69,8 @@ import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
+// --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
+
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
@@ -108,7 +110,7 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- [핵심 추가] 게임 로직 함수들 ---
+// --- 게임 로직 함수들 ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
@@ -181,7 +183,6 @@ const swapAndCheck = async (index1, index2) => {
 };
 
 // --- 대전 모드 전용 함수들 ---
-// [핵심 수정] startMatchmaking 함수에서 타이머 시작 로직을 제거합니다.
 const startMatchmaking = async () => {
     matchState.value = 'searching';
     if(auth.currentUser && !userProfileUnsubscribe) {
@@ -309,8 +310,8 @@ onBeforeRouteLeave(async () => {
     if(userProfileUnsubscribe) userProfileUnsubscribe();
     
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
-        const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
-        await deleteDoc(queueRef);
+        const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
+        await cancelFunc();
     }
     if(roomRef) remove(roomRef);
 });
