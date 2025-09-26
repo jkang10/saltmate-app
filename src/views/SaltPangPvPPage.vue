@@ -1,11 +1,13 @@
 <template>
   <div class="pvp-page">
     <div v-if="matchState !== 'playing'" class="match-overlay">
-      <div v-if="matchState === 'searching'" class="status-box">
-        <h2>상대를 찾고 있습니다...</h2>
-        <div class="spinner-large"></div>
-        <button @click="cancelMatchmaking" class="btn-secondary">매칭 취소</button>
-      </div>
+<div v-if="matchState === 'searching'" class="status-box">
+  <h2>상대를 찾고 있습니다...</h2>
+  <div class="spinner-large"></div>
+  <button @click="cancelMatchmaking" class="btn-secondary" :disabled="isCancelling">
+    {{ isCancelling ? '취소 중...' : '매칭 취소' }}
+  </button>
+</div>
       <div v-if="matchState === 'finished'" class="status-box result-box">
         <h2 class="result-text" :class="gameResult">{{ resultText }}</h2>
         <p class="final-score">나: {{ finalScore.me }} vs 상대: {{ finalScore.opponent }}</p>
@@ -66,11 +68,9 @@ import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, deleteDoc } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
-// --- 게임 기본 설정 ---
+// --- (기존 게임 및 대전 모드 상태 변수들은 그대로) ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
-
-// --- 게임 상태 변수 ---
 const board = ref([]);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
@@ -78,7 +78,6 @@ const explodingGems = ref(new Set());
 const touchStart = { index: null, x: 0, y: 0 };
 let hasSwiped = false;
 
-// --- 대전 모드 상태 변수 ---
 const matchState = ref('searching');
 const gameRoomId = ref(null);
 const gameState = ref(null);
@@ -89,8 +88,9 @@ const router = useRouter();
 let roomRef = null;
 let roomListener = null;
 let timerInterval = null;
+const isCancelling = ref(false); // [신규] 매칭 취소 로딩 상태
 
-// --- 계산된 속성 ---
+// --- (기존 computed 속성들은 그대로) ---
 const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
 const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
 const opponent = computed(() => opponentId.value ? gameState.value.players[opponentId.value] : null);
@@ -218,11 +218,19 @@ const startTimer = () => {
 };
 
 const cancelMatchmaking = async () => {
-    if (auth.currentUser) {
+    if (!auth.currentUser || isCancelling.value) return;
+    isCancelling.value = true;
+    try {
         const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
         await deleteDoc(queueRef);
+        alert('매칭이 취소되었습니다.');
+        router.push('/dashboard');
+    } catch (error) {
+        console.error("매칭 취소 오류:", error);
+        alert('매칭 취소 중 오류가 발생했습니다.');
+    } finally {
+        isCancelling.value = false;
     }
-    router.push('/dashboard');
 };
 
 const selectCell = (index) => {
@@ -277,9 +285,14 @@ onMounted(joinMatch);
 onBeforeRouteLeave(async () => {
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    if(matchState.value === 'searching' && auth.currentUser) await cancelMatchmaking();
+    // [수정] isCancelling 상태가 아닐 때만 자동 취소 로직 실행
+    if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
+        const queueRef = doc(db, 'matchmakingQueue', auth.currentUser.uid);
+        await deleteDoc(queueRef);
+    }
     if(roomRef) remove(roomRef);
 });
+
 </script>
 
 <style scoped>
