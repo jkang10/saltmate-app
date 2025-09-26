@@ -59,7 +59,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+// [수정] 사용하지 않는 onUnmounted를 import에서 제거합니다.
+import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
@@ -110,13 +111,7 @@ const getGemImage = (gemType) => {
   catch (e) { return ''; }
 };
 
-const createBoard = () => {
-  let newBoard;
-  do { 
-    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
-  } while (hasInitialMatches(newBoard)); 
-  return newBoard;
-};
+// [수정] 사용하지 않는 createBoard 함수를 제거합니다.
 
 const hasInitialMatches = (b) => {
   for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+1]&&b[i]===b[i+2]) return true; }
@@ -170,7 +165,7 @@ const swapAndCheck = async (index1, index2) => {
   if (!firstCheck.hasMatches) {
     await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-    if (roomRef) { update(roomRef, { turn: opponentId.value }); } // 매치 없으면 턴만 넘김
+    if (roomRef) { update(roomRef, { turn: opponentId.value }); }
   } else {
     totalScoreGained += firstCheck.scoreGained;
     let subsequentCheck;
@@ -210,7 +205,7 @@ const listenToGameRoom = () => {
         const data = snapshot.val();
         if(data) {
             gameState.value = data;
-            if(!board.value.length) board.value = data.board; // 최초 보드 설정
+            if(!board.value.length) board.value = data.board;
         }
     });
 };
@@ -254,20 +249,27 @@ const handleTouchStart = (index, event) => {
     touchStart.index = index;
     touchStart.x = event.touches[0].clientX;
     touchStart.y = event.touches[0].clientY;
-    hasSwiped = false;
+    hasSwiped.value = false;
 };
 
 const handleTouchMove = (event) => {
-  if (touchStart.index === null || hasSwiped) return;
+  if (touchStart.index === null || hasSwiped.value) return;
   const dx = event.touches[0].clientX - touchStart.x;
   const dy = event.touches[0].clientY - touchStart.y;
-  if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
-    hasSwiped = true;
+  const SWIPE_THRESHOLD = 20;
+
+  if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+    hasSwiped.value = true;
     let targetIndex = -1;
+    const { index } = touchStart;
+    const col = index % BOARD_SIZE;
+    
     if (Math.abs(dx) > Math.abs(dy)) {
-      targetIndex = dx > 0 ? touchStart.index + 1 : touchStart.index - 1;
+      if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
+      else if (dx < 0 && col > 0) targetIndex = index - 1;
     } else {
-      targetIndex = dy > 0 ? touchStart.index + BOARD_SIZE : touchStart.index - BOARD_SIZE;
+      if (dy > 0) targetIndex = index + BOARD_SIZE;
+      else if (dy < 0) targetIndex = index - BOARD_SIZE;
     }
     if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
         swapAndCheck(touchStart.index, targetIndex);
@@ -280,12 +282,11 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(joinMatch);
 
 onBeforeRouteLeave(async () => {
-    if(roomListener) roomListener(); // onValue 리스너 해제
+    if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
     if(matchState.value === 'searching' && auth.currentUser) await cancelMatchmaking();
     if(roomRef) remove(roomRef);
 });
-
 </script>
 
 <style scoped>
