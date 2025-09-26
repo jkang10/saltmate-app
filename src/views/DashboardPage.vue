@@ -79,6 +79,7 @@
               <div class="shimmer-effect"></div>
             </div>
           </div>
+
           <div class="subscription-status-card" :class="subscriptionStatusClass">
             <div class="status-header">
               <i class="fas fa-calendar-alt"></i>
@@ -121,40 +122,191 @@
           <SaltPangHallOfFame />
           <ChallengeRankingsWidget />
           <SaltPangRankedWidget />
-	        <EnchantRankingsWidget />
-          
-          <router-link v-for="card in featureCards" :key="card.to" :to="card.to" class="feature-card" :class="card.className">
-            <button class="favorite-toggle" @click.prevent="toggleFavorite(card.to)" :title="isFavorite(card.to) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
-              <i :class="isFavorite(card.to) ? 'fas fa-heart' : 'far fa-heart'"></i>
-            </button>
-            <div class="card-icon"><i :class="card.icon"></i></div>
-            <h3>{{ card.title }}</h3>
-            <p>{{ card.description }}</p>
-            <span class="card-enter">{{ card.actionText }} &rarr;</span>
+	  <EnchantRankingsWidget />
+          <router-link to="/attendance" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
+            <h3>매일매일 출석체크</h3>
+            <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/qr-scanner" class="feature-card qr-scanner">
+            <div class="card-icon"><i class="fas fa-qrcode"></i></div>
+            <h3>센터 방문 QR 인증</h3>
+            <p>센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!</p>
+            <span class="card-enter">인증하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-tokens" class="feature-card tokens">
+            <div class="card-icon"><i class="fas fa-coins"></i></div>
+            <h3>보유 토큰 현황</h3>
+            <p>COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.</p>
+            <div class="token-glance">
+              <div class="token-item">
+                <img src="@/assets/COBS.png" alt="COBS" />
+                <span>{{ (userProfile?.tokens?.cobs || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/BND_LOGO.png" alt="BND" />
+                <span>{{ (userProfile?.tokens?.bnd || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/SSC_LOGO.png" alt="SSC" />
+                <span>{{ (userProfile?.tokens?.ssc || 0).toLocaleString() }}</span>
+              </div>
+            </div>
+            <span class="card-enter">자세히 보기 &rarr;</span>
+          </router-link>
+          <router-link to="/nft-marketplace" class="feature-card nft">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>NFT 마켓플레이스</h3>
+            <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/network-tree" class="feature-card">
+            <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+            <h3>나의 추천 네트워크</h3>
+            <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-equity" class="feature-card equity">
+            <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3>지분 정보</h3>
+            <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-events" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+            <h3>이벤트 공간</h3>
+            <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/mall" class="feature-card mall">
+            <div class="card-icon"><i class="fas fa-store"></i></div>
+            <h3>솔트메이트 몰</h3>
+            <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+            <span class="card-enter">둘러보기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-investments" class="feature-card revenue">
+            <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+            <h3>내 수익 현황</h3>
+            <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
+            <span class="card-enter">분석하기 &rarr;</span>
+          </router-link>
+          <router-link to="/game-zone" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-gamepad"></i></div>
+            <h3>럭키 룰렛</h3>
+            <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/treasure-box" class="feature-card treasure">
+            <div class="card-icon"><i class="fas fa-box"></i></div>
+            <h3>보물상자 열기</h3>
+            <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+	  <router-link to="/ladder-game" class="feature-card game">
+	    <div class="card-icon"><i class="fas fa-stream"></i></div>
+	    <h3>사다리타기</h3>
+	    <p>운명의 사다리를 타고 행운의 SaltMate를 획득하세요!</p>
+	    <span class="card-enter">도전하기 &rarr;</span>
+	  </router-link>
+	  <router-link to="/salt-pot-gacha" class="feature-card treasure">
+	    <div class="card-icon"><i class="fas fa-wine-bottle"></i></div>
+	    <h3>소금 항아리</h3>
+	    <p>매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!</p>
+	    <span class="card-enter">열어보기 &rarr;</span>
+	  </router-link>
+
+          <router-link to="/high-low-game" class="feature-card game">
+            <div class="card-icon">
+              <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
+            </div>
+            <h3>하이로우</h3>
+            <p>다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">도전하기 &rarr;</span>
+          </router-link>
+          <router-link to="/rps-game" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-hand-scissors"></i></div>
+            <h3>가위바위보</h3>
+            <p>컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-game" class="feature-card salt-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 결정 키우기</h3>
+            <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
+            <span class="card-enter">플레이 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-mine-game" class="feature-card salt-mine-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 광산</h3>
+            <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/deep-sea-game" class="feature-card deep-sea-game">
+            <div class="card-icon"><i class="fas fa-water"></i></div>
+            <h3>해양심층수 탐험</h3>
+            <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
+            <span class="card-enter">탐험 시작 &rarr;</span>
+          </router-link>
+	<router-link to="/auction" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-gavel"></i></div>
+	  <h3>주간 경매</h3>
+	  <p>최고가에 도전하여 희귀 아이템을 획득하세요!</p>
+	  <span class="card-enter">입장하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/prediction-betting" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
+	  <h3>랭킹 예측</h3>
+	  <p>솔트팡 랭킹전 우승자를 예측하고 대박을 노리세요!</p>
+	  <span class="card-enter">참여하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/salt-trader" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-exchange-alt"></i></div>
+	  <h3>소금 상인</h3>
+	  <p>변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.</p>
+	  <span class="card-enter">거래하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/enchanting" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-magic"></i></div>
+	  <h3>아이템 강화</h3>
+	  <p>SaltMate를 사용하여 아이템을 강화하고 더 강해지세요!</p>
+	  <span class="card-enter">강화하기 &rarr;</span>
+	</router-link>
+          <router-link to="/salt-pang" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
+            <h3>솔트팡</h3>
+            <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
           </router-link>
         </div>
       </main>
 
-      <TransactionHistoryModal v-if="historyModal.visible" :balanceType="historyModal.type" :currentBalance=" historyModal.type === 'CASH' ? userProfile.cashBalance : userProfile.saltmatePoints" @close="historyModal.visible = false" />
-      <UpgradeTierModal v-if="upgradeModalVisible" @close="upgradeModalVisible = false" />
-      <WithdrawalRequestModal v-if="isWithdrawalModalVisible" :userProfile="userProfile" @close="isWithdrawalModalVisible = false" />
-      <CycleEarningsModal v-if="isCycleModalVisible" @close="isCycleModalVisible = false" />
-    </div>
-
-    <div v-if="favoriteItems.length > 0" class="favorites-widget">
-      <div class="widget-header" @click="isWidgetExpanded = !isWidgetExpanded">
-        <i class="fas fa-star"></i>
-        <span>즐겨찾기</span>
-        <i class="fas fa-chevron-up" :class="{ 'expanded': isWidgetExpanded }"></i>
-      </div>
-      <transition name="widget-slide">
-        <div v-if="isWidgetExpanded" class="widget-body">
-          <router-link v-for="item in favoriteItems" :key="item.to" :to="item.to" class="widget-item">
-            <i :class="item.icon"></i>
-            <span>{{ item.title }}</span>
-          </router-link>
-        </div>
-      </transition>
+      <TransactionHistoryModal
+        v-if="historyModal.visible"
+        :balanceType="historyModal.type"
+        :currentBalance="
+          historyModal.type === 'CASH'
+            ? userProfile.cashBalance
+            : userProfile.saltmatePoints
+        "
+        @close="historyModal.visible = false"
+      />
+      <UpgradeTierModal
+        v-if="upgradeModalVisible"
+        @close="upgradeModalVisible = false"
+      />
+      <WithdrawalRequestModal
+        v-if="isWithdrawalModalVisible"
+        :userProfile="userProfile"
+        @close="isWithdrawalModalVisible = false"
+      />
+      <CycleEarningsModal
+        v-if="isCycleModalVisible"
+        @close="isCycleModalVisible = false"
+      />
     </div>
   </div>
 </template>
@@ -163,7 +315,18 @@
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, onSnapshot } from "firebase/firestore";
+// [핵심 수정] 필요한 모든 Firestore 함수를 import합니다.
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+} from "firebase/firestore";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -175,39 +338,26 @@ import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
 import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
-import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
+import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue'; // [신규] 위젯 import
 
 export default {
   name: "DashboardPage",
   components: {
-    TransactionHistoryModal, UpgradeTierModal, WithdrawalRequestModal, CycleEarningsModal, LiveGameFeed,
-    LeaderboardWidget, WeeklyLeaderboardWidget, SaltPangHallOfFame, ChallengeRankingsWidget,
-    SaltPangRankedWidget, AnnouncementTicker, EnchantRankingsWidget,
+    TransactionHistoryModal,
+    UpgradeTierModal,
+    WithdrawalRequestModal,
+    CycleEarningsModal,
+    LiveGameFeed,
+    LeaderboardWidget,
+    WeeklyLeaderboardWidget,
+    SaltPangHallOfFame,
+    ChallengeRankingsWidget,
+    SaltPangRankedWidget,
+    AnnouncementTicker,
+    EnchantRankingsWidget, // [신규] 컴포넌트 등록
   },
   data() {
     return {
-      // --- [신규] 카드 데이터 및 즐겨찾기 상태 ---
-      featureCards: [
-        { to: '/attendance', className: 'events', icon: 'fas fa-calendar-check', title: '매일매일 출석체크', description: '매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!', actionText: '참여하기' },
-        { to: '/qr-scanner', className: 'qr-scanner', icon: 'fas fa-qrcode', title: '센터 방문 QR 인증', description: '센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!', actionText: '인증하기' },
-        { to: '/my-tokens', className: 'tokens', icon: 'fas fa-coins', title: '보유 토큰 현황', description: 'COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.', actionText: '자세히 보기' },
-        { to: '/salt-pang', className: 'game', icon: 'fas fa-puzzle-piece', title: '솔트팡', description: '같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!', actionText: '게임 시작' },
-        { to: '/ladder-game', className: 'game', icon: 'fas fa-stream', title: '사다리타기', description: '운명의 사다리를 타고 행운의 SaltMate를 획득하세요!', actionText: '도전하기' },
-        { to: '/salt-pot-gacha', className: 'treasure', icon: 'fas fa-wine-bottle', title: '소금 항아리', description: '매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!', actionText: '열어보기' },
-        { to: '/auction', className: 'game', icon: 'fas fa-gavel', title: '주간 경매', description: '최고가에 도전하여 희귀 아이템을 획득하세요!', actionText: '입장하기' },
-        { to: '/prediction-betting', className: 'game', icon: 'fas fa-chart-bar', title: '랭킹 예측', description: '솔트팡 랭킹전 우승자를 예측하고 대박을 노리세요!', actionText: '참여하기' },
-        { to: '/salt-trader', className: '', icon: 'fas fa-exchange-alt', title: '소금 상인', description: '변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.', actionText: '거래하기' },
-        { to: '/enchanting', className: '', icon: 'fas fa-magic', title: '아이템 강화', description: 'SaltMate를 사용하여 아이템을 강화하고 더 강해지세요!', actionText: '강화하기' },
-        { to: "/high-low-game", className: "game", icon: "fas fa-arrows-alt-v", title: "하이로우", description: "다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!", actionText: "도전하기" },
-        { to: "/rps-game", className: "game", icon: "fas fa-hand-scissors", title: "가위바위보", description: "컴퓨터를 상대로 승리하고 SaltMate를 획득하세요!", actionText: "게임 시작" },
-        { to: "/salt-game", className: "salt-game", icon: "fas fa-gem", title: "소금 결정 키우기", description: "결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!", actionText: "플레이" },
-        { to: "/salt-mine-game", className: "salt-mine-game", icon: "fas fa-gem", title: "소금 광산", description: "소금을 채굴하고 업그레이드하여 포인트를 획득하세요!", actionText: "입장하기" },
-        { to: "/deep-sea-game", className: "deep-sea-game", icon: "fas fa-water", title: "해양심층수 탐험", description: "심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.", actionText: "탐험 시작" },
-      ],
-      favorites: [],
-      isWidgetExpanded: true,
-      
-      // --- 기존 data 속성들은 그대로 유지 ---
       userProfile: null,
       loadingUser: true,
       error: null,
@@ -219,19 +369,24 @@ export default {
       marketingPlan: null,
       unsubscribe: null,
       isRequestingPayment: false,
-      latestJackpotWinner: null,
-      unsubscribeJackpot: null,
+      latestJackpotWinner: null, // [추가] 잭팟 당첨자 정보
+      unsubscribeJackpot: null, // [추가] 리스너 해제용
     };
   },
   computed: {
-    // --- [신규] 즐겨찾기 관련 computed ---
-    favoriteItems() {
-      return this.featureCards.filter(card => this.favorites.includes(card.to));
-    },
-    // --- 기존 computed 속성들은 그대로 유지 ---
     cycleProgress() {
-      if (!this.userProfile || !this.userProfile.cycleCap || this.userProfile.cycleCap === 0) return 0;
-      return Math.min((this.userProfile.currentCycleEarnings / this.userProfile.cycleCap) * 100, 100);
+      if (
+        !this.userProfile ||
+        !this.userProfile.cycleCap ||
+        this.userProfile.cycleCap === 0
+      ) {
+        return 0;
+      }
+      return Math.min(
+        (this.userProfile.currentCycleEarnings / this.userProfile.cycleCap) *
+          100,
+        100,
+      );
     },
     isWithdrawalEnabled() {
       const now = new Date();
@@ -240,13 +395,17 @@ export default {
       return day === 2 && hour >= 9 && hour < 17;
     },
     daysUntilPayment() {
-      if (!this.userProfile?.nextPaymentDueDate) return "N/A";
+      if (!this.userProfile?.nextPaymentDueDate) {
+        return "N/A";
+      }
       const dueDate = this.userProfile.nextPaymentDueDate.toDate();
       const today = new Date();
       dueDate.setHours(0, 0, 0, 0);
       today.setHours(0, 0, 0, 0);
+
       const diffTime = dueDate.getTime() - today.getTime();
-      return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return Math.max(0, diffDays);
     },
     subscriptionStatusClass() {
       if (!this.userProfile?.subscriptionStatus) return "";
@@ -254,13 +413,12 @@ export default {
     },
   },
   created() {
-    this.loadFavorites(); // [신규] 즐겨찾기 불러오기
     onAuthStateChanged(auth, (user) => {
       if (user) {
         this.listenToUserProfile(user.uid);
         this.fetchMarketingPlan();
         this.fetchNotices();
-        this.listenToLatestJackpot();
+        this.listenToLatestJackpot(); // [추가] 잭팟 리스너 호출
       } else {
         this.loadingUser = false;
       }
@@ -268,37 +426,20 @@ export default {
   },
   unmounted() {
     if (this.unsubscribe) this.unsubscribe();
-    if (this.unsubscribeJackpot) this.unsubscribeJackpot();
+    if (this.unsubscribeJackpot) this.unsubscribeJackpot(); // [추가] 리스너 해제
   },
   methods: {
-    // --- [신규] 즐겨찾기 관련 메소드 ---
-    isFavorite(cardTo) {
-      return this.favorites.includes(cardTo);
-    },
-    toggleFavorite(cardTo) {
-      const index = this.favorites.indexOf(cardTo);
-      if (index > -1) {
-        this.favorites.splice(index, 1);
-      } else {
-        if (this.favorites.length >= 5) {
-            alert('즐겨찾기는 최대 5개까지 추가할 수 있습니다.');
-            return;
-        }
-        this.favorites.push(cardTo);
-      }
-      localStorage.setItem('dashboardFavorites', JSON.stringify(this.favorites));
-    },
-    loadFavorites() {
-      const saved = localStorage.getItem('dashboardFavorites');
-      if (saved) {
-        this.favorites = JSON.parse(saved);
-      }
-    },
-    // --- 기존 methods 들은 그대로 유지 ---
+      // [추가] 잭팟 당첨 정보를 가져오는 함수
     listenToLatestJackpot() {
-      const q = query(collection(db, "saltPangJackpotWins"), orderBy("wonAt", "desc"), limit(1));
+      const q = query(
+        collection(db, "saltPangJackpotWins"),
+        orderBy("wonAt", "desc"),
+        limit(1)
+      );
       this.unsubscribeJackpot = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) this.latestJackpotWinner = snapshot.docs[0].data();
+        if (!snapshot.empty) {
+          this.latestJackpotWinner = snapshot.docs[0].data();
+        }
       });
     },
 
@@ -397,85 +538,6 @@ export default {
 </script>
 
 <style scoped>
-/* --- [핵심 추가] 즐겨찾기 버튼 스타일 --- */
-.feature-card {
-  position: relative;
-}
-.favorite-toggle {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background: none;
-  border: none;
-  font-size: 1.5em;
-  color: #ccc;
-  cursor: pointer;
-  z-index: 2;
-  transition: all 0.2s;
-}
-.favorite-toggle:hover {
-  transform: scale(1.2);
-}
-.favorite-toggle .fas.fa-heart { /* 꽉 찬 하트 */
-  color: #e74c3c;
-}
-
-/* --- [핵심 추가] 즐겨찾기 위젯 스타일 --- */
-.favorites-widget {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  z-index: 999;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-  width: 200px;
-  overflow: hidden;
-}
-.widget-header {
-  padding: 10px 15px;
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.widget-header .fa-chevron-up {
-  transition: transform 0.3s;
-}
-.widget-header .fa-chevron-up.expanded {
-  transform: rotate(180deg);
-}
-.widget-body {
-  display: flex;
-  flex-direction: column;
-}
-.widget-item {
-  padding: 12px 15px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: #333;
-  transition: background-color 0.2s;
-}
-.widget-item:hover {
-  background-color: #f1f1f1;
-}
-.widget-item:not(:last-child) {
-  border-bottom: 1px solid #eee;
-}
-.widget-slide-enter-active, .widget-slide-leave-active {
-  transition: all 0.3s ease;
-  max-height: 300px;
-}
-.widget-slide-enter-from, .widget-slide-leave-to {
-  transform: translateY(10px);
-  opacity: 0;
-  max-height: 0;
-}
 .feature-card.revenue .card-icon {
   color: #dc3545;
 }
