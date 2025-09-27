@@ -25,7 +25,7 @@
             <h4>소금 사기 (매수)</h4>
             <div class="input-group">
               <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량">
-              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
+              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading">매수</button>
             </div>
             <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
@@ -33,7 +33,7 @@
             <h4>소금 팔기 (매도)</h4>
             <div class="input-group">
               <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량">
-              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
+              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading">매도</button>
             </div>
             <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
@@ -97,11 +97,8 @@ const tradeHistory = ref([]);
 const isLoadingHistory = ref(false);
 const market = ref({ currentPrice: 0, priceHistory: [] });
 const userProfile = ref(null);
-
-// [핵심 수정] 기본값을 1에서 null로 변경하여 입력 폼을 비웁니다.
 const buyQuantity = ref(null);
 const sellQuantity = ref(null);
-
 const error = ref('');
 const isTrading = ref(false);
 const priceClass = ref('');
@@ -161,11 +158,18 @@ const trade = async (action) => {
   error.value = '';
   isTrading.value = true;
   const quantity = action === 'buy' ? buyQuantity.value : sellQuantity.value;
+  
+  // [참고] 수량이 0이하일 경우 거래를 시도하지 않도록 방어 로직 추가
+  if (!quantity || quantity <= 0) {
+    error.value = '수량을 정확히 입력해주세요.';
+    isTrading.value = false;
+    return;
+  }
+
   try {
     const tradeSalt = httpsCallable(functions, 'tradeSalt');
     await tradeSalt({ action: action, quantity: quantity });
     alert('거래 성공!');
-    // 거래 성공 후 입력 필드 초기화
     if(action === 'buy') buyQuantity.value = null;
     else sellQuantity.value = null;
   } catch(e) {
@@ -220,12 +224,11 @@ const openHistoryModal = async () => {
 .trade-section { padding-top: 20px; }
 .trade-section:not(:first-of-type) { margin-top: 20px; border-top: 1px solid var(--border-color); }
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
-/* [핵심 수정] 입력 폼과 버튼 스타일 추가 */
 .input-group { display: flex; }
-/* [핵심 수정] 입력 폼 스타일 개선 */
+/* [요청 사항] 입력 폼 테두리 두께를 3px로 수정 */
 .input-group input { 
   flex-grow: 1; 
-  border: 2px solid var(--border-color); /* 테두리 두께 추가 */
+  border: 3px solid var(--border-color);
   padding: 10px; 
   border-radius: 6px 0 0 6px; 
   font-size: 1em; 
@@ -251,10 +254,9 @@ const openHistoryModal = async () => {
 .btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
-.btn-primary:disabled { background-color: #aaa; }
+.btn-primary:disabled { background-color: #aaa; cursor: not-allowed; } /* 비활성화 시 커서 모양 변경 */
 @media (max-width: 900px) { .trader-layout { grid-template-columns: 1fr; } }
 
-/* 모달 스타일 (기존과 동일) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 500px; }
 .trade-history-list { list-style: none; padding: 0; max-height: 400px; overflow-y: auto; }
