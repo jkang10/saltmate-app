@@ -65,11 +65,8 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-// [핵심 수정] import 구문의 문법 오류를 수정합니다.
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
-
-// --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
 
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
@@ -182,40 +179,57 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
+let matchInfoUnsubscribe = null; // [신규] 매치 정보 리스너 해제용
+
+const listenToGameRoom = () => {
+    roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
+    roomListener = onValue(roomRef, (snapshot) => {
+        const data = snapshot.val();
+        if(data) {
+            gameState.value = data;
+            // 최초 입장 시에만 보드를 설정하고 타이머를 시작합니다.
+            if(!board.value.length && data.board) {
+                board.value = data.board;
+                if (matchState.value !== 'playing') {
+                    matchState.value = 'playing';
+                    startTimer();
+                }
+            }
+        }
+    });
+};
+
 // --- 대전 모드 전용 함수들 ---
 const startMatchmaking = async () => {
     matchState.value = 'searching';
     
-    // 1. 자신의 유저 문서를 실시간으로 감시하여 매칭 신호를 기다립니다.
-    if(auth.currentUser && !userProfileUnsubscribe) {
-        const userDocRef = doc(db, 'users', auth.currentUser.uid);
-        userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-            const activePvpGameId = docSnap.data()?.activePvpGameId;
-            if (activePvpGameId && matchState.value !== 'playing') {
-                if(userProfileUnsubscribe) {
-                    userProfileUnsubscribe();
-                    userProfileUnsubscribe = null;
+    // [최종 핵심 수정] users 문서 대신, 'matches' 컬렉션의 내 문서를 감시합니다.
+    if(auth.currentUser && !matchInfoUnsubscribe) {
+        const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
+        matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
+            if (docSnap.exists() && matchState.value !== 'playing') {
+                const { gameRoomId } = docSnap.data();
+                if(matchInfoUnsubscribe) {
+                    matchInfoUnsubscribe();
+                    matchInfoUnsubscribe = null;
                 }
-                gameRoomId.value = activePvpGameId;
+                // 매칭 신호를 받으면 해당 문서는 바로 삭제
+                deleteDoc(matchInfoRef);
+
+                // 게임 룸으로 진입
+                this.gameRoomId = gameRoomId;
                 listenToGameRoom();
             }
         });
     }
 
-    // 2. 백엔드에 매칭을 요청합니다.
     try {
         const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
         await findMatchFunc();
-        // 성공적으로 'waiting' 상태가 되면, 함수는 여기서 정상적으로 종료되고 리스너가 계속 감시합니다.
     } catch(e) {
-        // [핵심 수정] catch 블록을 수정하여, 진짜 오류일 때만 처리하도록 합니다.
         console.error("매칭 요청 오류:", e);
-        // 'already-exists' 와 같은 일반적인 오류는 무시하고, 심각한 오류 발생 시에만 알림
-        if (e.code !== 'functions/already-exists') { 
-            alert('매칭 서버에 접속하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-            if (userProfileUnsubscribe) userProfileUnsubscribe();
-            router.push('/dashboard');
-        }
+        if (matchInfoUnsubscribe) matchInfoUnsubscribe();
+        router.push('/dashboard');
     }
 }
 
@@ -299,15 +313,21 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
+    // 모든 리스너와 타이머를 정리합니다.
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
     if(userProfileUnsubscribe) userProfileUnsubscribe();
+    
+    // 페이지를 떠날 때, 내가 매칭 대기 상태였다면 확실하게 취소 함수를 호출합니다.
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
+        console.log("페이지를 이탈하여 매칭을 자동 취소합니다.");
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
         await cancelFunc();
     }
+    // RTDB 룸 데이터 정리
     if(roomRef) remove(roomRef);
 });
+
 </script>
 
 <style scoped>
