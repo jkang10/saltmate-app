@@ -202,34 +202,32 @@ const listenToGameRoom = () => {
 // --- 대전 모드 전용 함수들 ---
 const startMatchmaking = async () => {
     matchState.value = 'searching';
-    
-    // [최종 핵심 수정] users 문서 대신, 'matches' 컬렉션의 내 문서를 감시합니다.
-    if(auth.currentUser && !matchInfoUnsubscribe) {
-        const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
-        matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
-            if (docSnap.exists() && matchState.value !== 'playing') {
-                const { gameRoomId } = docSnap.data();
-                if(matchInfoUnsubscribe) {
-                    matchInfoUnsubscribe();
-                    matchInfoUnsubscribe = null;
+    if(auth.currentUser && !userProfileUnsubscribe) {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            const activePvpGameId = docSnap.data()?.activePvpGameId;
+            if (activePvpGameId && matchState.value !== 'playing') {
+                if(userProfileUnsubscribe) {
+                    userProfileUnsubscribe();
+                    userProfileUnsubscribe = null;
                 }
-                // 매칭 신호를 받으면 해당 문서는 바로 삭제
-                deleteDoc(matchInfoRef);
-
-                // 게임 룸으로 진입
-                this.gameRoomId = gameRoomId;
+                gameRoomId.value = activePvpGameId;
                 listenToGameRoom();
             }
         });
     }
-
     try {
         const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
         await findMatchFunc();
     } catch(e) {
         console.error("매칭 요청 오류:", e);
-        if (matchInfoUnsubscribe) matchInfoUnsubscribe();
-        router.push('/dashboard');
+        if (userProfileUnsubscribe) userProfileUnsubscribe();
+        
+        // [핵심 수정] 심각한 오류가 아닐 경우 대시보드로 보내지 않고 알림만 표시
+        if (e.code !== 'functions/already-exists') { 
+            alert('매칭 서버에 접속하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            router.push('/dashboard');
+        }
     }
 }
 
