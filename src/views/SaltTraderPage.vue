@@ -221,9 +221,11 @@ const openHistoryModal = async () => {
 .trade-section:not(:first-of-type) { margin-top: 20px; border-top: 1px solid var(--border-color); }
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
 .input-group { display: flex; }
-.input-group input { 
+
+/* [핵심 수정] 입력 폼과 버튼 스타일의 우선순위를 높입니다. */
+.order-card .input-group input { 
   flex-grow: 1; 
-  border: 2px solid var(--border-color); /* 테두리 두께 수정 */
+  border: 2px solid var(--border-color) !important; /* 우선순위 강제 */
   padding: 10px; 
   border-radius: 6px 0 0 6px; 
   font-size: 1em; 
@@ -231,11 +233,12 @@ const openHistoryModal = async () => {
   margin: 0;
   transition: border-color 0.2s;
 }
-.input-group input:focus {
+.order-card .input-group input:focus {
   outline: none;
-  border-color: var(--primary-blue);
+  border-color: var(--primary-blue) !important; /* 우선순위 강제 */
 }
-.input-group button { border-radius: 0 6px 6px 0; }
+.order-card .input-group button { border-radius: 0 6px 6px 0; }
+
 .trade-summary { font-size: 0.9em; color: var(--text-light); margin-top: 8px; text-align: right; }
 .market-card { padding: 0; overflow: hidden; }
 .market-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 24px 0; }
@@ -246,13 +249,22 @@ const openHistoryModal = async () => {
 .current-price.up { color: var(--success-green); }
 .current-price.down { color: var(--danger-red); }
 .chart-container { height: 350px; }
-.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
-.btn-buy { background-color: var(--primary-blue); }
-.btn-sell { background-color: var(--success-green); }
 
-/* [핵심 수정] 비활성화된 버튼 스타일을 추가합니다. */
-.btn-primary:disabled { 
-  background-color: #aaa;
+/* [핵심 수정] 버튼 스타일의 우선순위를 높이고, 비활성화 스타일을 명확히 합니다. */
+.order-card .btn-primary { 
+    padding: 10px 15px; 
+    border-radius: 6px; 
+    border: none; 
+    font-weight: bold; 
+    cursor: pointer; 
+    color: white; 
+    transition: background-color 0.2s; 
+}
+.order-card .btn-buy { background-color: var(--primary-blue); }
+.order-card .btn-sell { background-color: var(--success-green); }
+.order-card .btn-primary:disabled { 
+  background-color: #cccccc !important; /* 우선순위 강제 */
+  color: #666666 !important; /* 우선순위 강제 */
   cursor: not-allowed;
 }
 
