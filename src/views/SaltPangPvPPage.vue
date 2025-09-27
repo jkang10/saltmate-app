@@ -65,8 +65,11 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
+// [핵심 수정] 사용하지 않는 deleteDoc을 import 구문에서 제거합니다.
+import { doc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
+
+// --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
 
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
@@ -179,7 +182,7 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
-let matchInfoUnsubscribe = null; // [신규] 매치 정보 리스너 해제용
+// [수정] 사용하지 않는 matchInfoUnsubscribe 변수를 제거합니다.
 
 const listenToGameRoom = () => {
     roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
@@ -187,7 +190,6 @@ const listenToGameRoom = () => {
         const data = snapshot.val();
         if(data) {
             gameState.value = data;
-            // 최초 입장 시에만 보드를 설정하고 타이머를 시작합니다.
             if(!board.value.length && data.board) {
                 board.value = data.board;
                 if (matchState.value !== 'playing') {
@@ -199,7 +201,6 @@ const listenToGameRoom = () => {
     });
 };
 
-// --- 대전 모드 전용 함수들 ---
 const startMatchmaking = async () => {
     matchState.value = 'searching';
     if(auth.currentUser && !userProfileUnsubscribe) {
@@ -222,8 +223,6 @@ const startMatchmaking = async () => {
     } catch(e) {
         console.error("매칭 요청 오류:", e);
         if (userProfileUnsubscribe) userProfileUnsubscribe();
-        
-        // [핵심 수정] 심각한 오류가 아닐 경우 대시보드로 보내지 않고 알림만 표시
         if (e.code !== 'functions/already-exists') { 
             alert('매칭 서버에 접속하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
             router.push('/dashboard');
@@ -232,6 +231,7 @@ const startMatchmaking = async () => {
 }
 
 const startTimer = () => {
+    if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(async () => {
         timer.value--;
         if (timer.value <= 0) {
@@ -311,21 +311,15 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
-    // 모든 리스너와 타이머를 정리합니다.
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
     if(userProfileUnsubscribe) userProfileUnsubscribe();
-    
-    // 페이지를 떠날 때, 내가 매칭 대기 상태였다면 확실하게 취소 함수를 호출합니다.
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
-        console.log("페이지를 이탈하여 매칭을 자동 취소합니다.");
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
         await cancelFunc();
     }
-    // RTDB 룸 데이터 정리
     if(roomRef) remove(roomRef);
 });
-
 </script>
 
 <style scoped>
