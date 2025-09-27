@@ -5,13 +5,33 @@
     </div>
     <div class="widget-body">
       <div v-if="isLoading" class="loading-spinner"></div>
-      <ul v-else-if="rankings.length > 0" class="ranking-list">
-        <li v-for="(player, index) in rankings" :key="player.userId" :class="`rank-${index + 1}`">
-          <span class="rank" v-html="getRankIcon(index)"></span>
-          <span class="name">{{ player.userName }}</span>
-          <span class="score">+{{ player.level }} {{ player.itemName }}</span>
-        </li>
-      </ul>
+      <div v-else-if="rankings.length > 0" class="ranking-container">
+        <div class="podium">
+          <div v-if="rankings[1]" class="podium-item rank-2">
+            <div class="rank-icon"><i class="fas fa-medal"></i></div>
+            <div class="player-name">{{ rankings[1].userName }}</div>
+            <div class="player-score">+{{ rankings[1].level }}</div>
+          </div>
+          <div v-if="rankings[0]" class="podium-item rank-1">
+            <div class="rank-icon"><i class="fas fa-crown"></i></div>
+            <div class="player-name">{{ rankings[0].userName }}</div>
+            <div class="player-score">+{{ rankings[0].level }}</div>
+          </div>
+          <div v-if="rankings[2]" class="podium-item rank-3">
+            <div class="rank-icon"><i class="fas fa-award"></i></div>
+            <div class="player-name">{{ rankings[2].userName }}</div>
+            <div class="player-score">+{{ rankings[2].level }}</div>
+          </div>
+        </div>
+
+        <ul v-if="rankings.length > 3" class="lower-ranks">
+          <li v-for="(player, index) in rankings.slice(3)" :key="player.userId">
+            <span class="rank">{{ index + 4 }}</span>
+            <span class="name">{{ player.userName }}</span>
+            <span class="score">+{{ player.level }} {{ player.itemName }}</span>
+          </li>
+        </ul>
+      </div>
       <div v-else class="no-data">
         <p>랭킹 데이터가 없습니다.</p>
       </div>
@@ -52,71 +72,119 @@ onMounted(fetchRankings);
 </script>
 
 <style scoped>
-.widget-card { background-color: #2c3e50; color: #ecf0f1; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-.widget-header { margin-bottom: 15px; text-align: center; }
-.widget-header h4 { margin: 0; font-size: 1.2em; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-.widget-body { flex-grow: 1; }
-.ranking-list { list-style: none; padding: 0; margin: 0; }
-.ranking-list li { 
-  display: grid; 
-  grid-template-columns: 40px 1fr auto; 
-  gap: 10px; 
-  align-items: center; 
-  padding: 12px 15px; 
-  border-radius: 8px;
+.widget-card {
+  background: linear-gradient(180deg, #2c3e50 0%, #1a2533 100%);
+  color: #ecf0f1;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  border: 1px solid #4a6fa1;
+}
+.widget-header {
+  margin-bottom: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 15px;
+}
+.widget-header h4 {
+  margin: 0;
+  font-size: 1.3em;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.widget-body {
+  flex-grow: 1;
+}
+
+/* 명예의 단상 (Podium) 스타일 */
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  height: 180px;
+  margin-bottom: 20px;
+}
+.podium-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px;
+  border-radius: 10px;
+  width: 30%;
   transition: all 0.3s ease;
-  border-bottom: 1px solid #34495e;
+  border-top-width: 4px;
+  border-top-style: solid;
 }
-.ranking-list li:last-child {
-    border-bottom: none;
-}
-.ranking-list li:hover {
-    transform: translateX(5px);
-    background-color: rgba(255, 255, 255, 0.05);
-}
+.rank-icon { font-size: 2em; margin-bottom: 8px; }
+.player-name { font-weight: bold; font-size: 1.1em; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 100%; }
+.player-score { font-size: 1.3em; font-weight: 700; font-family: monospace; }
 
-.rank { font-weight: bold; font-size: 1.2em; text-align: center; }
-.name { font-weight: 500; font-size: 1.05em; }
-.score { font-family: monospace; font-size: 1.1em; font-weight: bold; color: #ffd700; }
-
-/* --- 1등 스타일 (매우 화려하게) --- */
+/* 1등 스타일 */
 .rank-1 {
-  background-size: 400% 400%;
-  animation: rainbow-glow 4s ease infinite;
-  background-image: linear-gradient(-45deg, #ffdd57, #ff9f43, #ff6b81, #2f3542);
-  color: #1e272e;
-  transform: scale(1.03);
-  box-shadow: 0 0 20px rgba(255, 221, 87, 0.7);
+  height: 100%;
+  order: 2;
+  background: rgba(255, 215, 0, 0.15);
+  border-color: #ffd700;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
+  animation: pulse-gold 2s infinite;
 }
-.rank-1 .name { color: #1e272e; font-weight: 700; }
-.rank-1 .score { color: #d63031; text-shadow: 0 0 5px white; }
-.rank-1 .rank .fa-crown { color: #fbc531; animation: crown-shine 2s infinite; }
+.rank-1 .rank-icon .fa-crown { color: #ffd700; }
+.rank-1 .player-score { color: #ffd700; }
 
-/* --- 2등 스타일 (고급스럽게) --- */
+/* 2등 스타일 */
 .rank-2 {
-  background-color: rgba(236, 240, 241, 0.1);
-  box-shadow: inset 0 0 10px rgba(189, 195, 199, 0.3);
+  height: 80%;
+  order: 1;
+  background: rgba(192, 192, 192, 0.15);
+  border-color: #c0c0c0;
 }
-.rank-2 .rank .fa-medal { color: #c0c0c0; text-shadow: 0 0 5px #fff; }
-.rank-2 .name { color: #ecf0f1; }
+.rank-2 .rank-icon .fa-medal { color: #c0c0c0; }
 
-/* --- 3등 스타일 --- */
-.rank-3 .rank .fa-award { color: #cd7f32; }
+/* 3등 스타일 */
+.rank-3 {
+  height: 60%;
+  order: 3;
+  background: rgba(205, 127, 50, 0.15);
+  border-color: #cd7f32;
+}
+.rank-3 .rank-icon .fa-award { color: #cd7f32; }
+
+/* 나머지 랭킹 리스트 */
+.lower-ranks {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 15px;
+}
+.lower-ranks li {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 5px;
+}
+.lower-ranks .rank {
+  font-weight: bold;
+  text-align: center;
+  color: #95a5a6;
+}
+.lower-ranks .name { font-weight: 500; }
+.lower-ranks .score { font-family: monospace; }
 
 .loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
 .loading-spinner { border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto; }
 
-/* --- 애니메이션 키프레임 --- */
+/* 애니메이션 */
 @keyframes spin { to { transform: rotate(360deg); } }
-
-@keyframes rainbow-glow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes crown-shine {
-  0%, 100% { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fbc531); }
-  50% { filter: drop-shadow(0 0 5px #fff) drop-shadow(0 0 15px #f1c40f); }
+@keyframes pulse-gold {
+  0% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.4); }
+  50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+  100% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.4); }
 }
 </style>

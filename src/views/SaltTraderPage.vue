@@ -1,54 +1,62 @@
 <template>
   <div class="page-container trader-page">
     <header class="page-header">
-      <h1><i class="fas fa-exchange-alt"></i> 소금 상인</h1>
-      <p>변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.</p>
+      <h1><i class="fas fa-chart-line"></i> Salt Trader</h1>
+      <p>실시간 시세를 확인하고 소금을 거래하여 차익을 남기세요.</p>
     </header>
 
-    <div class="card trader-card">
-      <div class="market-info">
-        <h3>현재 소금 시세</h3>
-        <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} SaltMate</p>
-      </div>
-
-      <div class="chart-container">
-        <v-chart class="chart" :option="chartOption" autoresize />
-      </div>
-
-      <div class="my-assets">
-        <div class="asset-item">
-            <i class="fas fa-gifts"></i>
+    <div class="trader-layout">
+      <aside class="left-panel">
+        <div class="card asset-card">
+          <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
+          <div class="asset-item">
             <span>내 SaltMate</span>
             <strong>{{ (userProfile?.saltmatePoints || 0).toLocaleString() }}</strong>
-        </div>
-        <div class="asset-item" @click="openHistoryModal" style="cursor: pointer;" title="클릭하여 구매 내역 확인">
-            <i class="fas fa-gem"></i>
+          </div>
+          <div class="asset-item salt" @click="openHistoryModal" style="cursor: pointer;" title="클릭하여 거래 내역 확인">
             <span>보유 소금</span>
             <strong>{{ (userProfile?.saltBalance || 0).toLocaleString() }}</strong>
+          </div>
         </div>
-      </div>
 
-      <div class="trade-form">
-        <div class="trade-section">
-          <h4>소금 사기</h4>
-          <input type="number" v-model.number="buyQuantity" min="1" placeholder="구매 수량">
-          <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-          <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading">
-            <span v-if="isTrading" class="spinner-small"></span>
-            <span v-else>매수</span>
-          </button>
+        <div class="card order-card">
+          <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
+          <div class="trade-section">
+            <h4>소금 사기 (매수)</h4>
+            <div class="input-group">
+              <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량">
+              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading || buyQuantity <= 0">매수</button>
+            </div>
+            <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+          </div>
+          <div class="trade-section">
+            <h4>소금 팔기 (매도)</h4>
+            <div class="input-group">
+              <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량">
+              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading || sellQuantity <= 0">매도</button>
+            </div>
+            <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+          </div>
+           <p v-if="error" class="error-message">{{ error }}</p>
         </div>
-        <div class="trade-section">
-            <h4>소금 팔기</h4>
-          <input type="number" v-model.number="sellQuantity" min="1" placeholder="판매 수량">
-          <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-          <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading">
-            <span v-if="isTrading" class="spinner-small"></span>
-            <span v-else>매도</span>
-          </button>
+      </aside>
+
+      <main class="right-panel">
+        <div class="card market-card">
+            <div class="market-header">
+                <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
+                <div class="price-change" :class="priceClass">
+                    <i v-if="priceClass === 'up'" class="fas fa-caret-up"></i>
+                    <i v-if="priceClass === 'down'" class="fas fa-caret-down"></i>
+                    {{ priceChange.toFixed(2) }}%
+                </div>
+            </div>
+          <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} SaltMate</p>
+          <div class="chart-container">
+            <v-chart class="chart" :option="chartOption" autoresize />
+          </div>
         </div>
-      </div>
-      <p v-if="error" class="error-message">{{ error }}</p>
+      </main>
     </div>
 
     <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
@@ -176,40 +184,127 @@ const openHistoryModal = async () => {
 </script>
 
 <style scoped>
-.page-container { max-width: 800px; margin: 90px auto 20px; padding: 20px; }
-.page-header { text-align: center; margin-bottom: 20px; }
-.trader-page { text-align: center; }
-.trader-card { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
-.current-price { font-size: 2.5em; font-weight: bold; transition: color 0.3s; }
-.current-price.up { color: #28a745; }
-.current-price.down { color: #dc3545; }
-.chart-container { height: 300px; margin: 20px 0; }
-.my-assets { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-.asset-item { display: flex; flex-direction: column; }
-.asset-item span { color: #555; }
-.asset-item strong { font-size: 1.5em; }
-.trade-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.trade-section { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #eee; border-radius: 12px; }
-.trade-summary { font-size: 0.9em; color: #666; }
-.btn-primary { padding: 10px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
-.btn-buy { background-color: #007bff; color: white; }
-.btn-sell { background-color: #28a745; color: white; }
+:root {
+  --primary-blue: #007bff;
+  --success-green: #28a745;
+  --danger-red: #dc3545;
+  --light-gray: #f8f9fa;
+  --border-color: #dee2e6;
+  --text-dark: #212529;
+  --text-light: #6c757d;
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 90px auto 20px;
+  padding: 20px;
+}
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 { font-size: 2.5em; }
+.page-header p { font-size: 1.1em; color: var(--text-light); }
+
+.trader-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+.left-panel, .right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 자산 카드 */
+.asset-card h3 { margin-top: 0; }
+.asset-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+}
+.asset-item:not(:last-child) { border-bottom: 1px solid var(--border-color); }
+.asset-item span { font-weight: 500; color: var(--text-light); }
+.asset-item strong { font-size: 1.5em; font-weight: 700; }
+.asset-item.salt { cursor: pointer; transition: background-color 0.2s; border-radius: 8px; margin: 5px -15px 0; padding: 10px 15px; }
+.asset-item.salt:hover { background-color: var(--light-gray); }
+
+/* 주문 카드 */
+.order-card h3 { margin-top: 0; margin-bottom: 20px; }
+.trade-section {
+  padding-top: 20px;
+}
+.trade-section:not(:first-of-type) {
+  margin-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+.trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
+.input-group { display: flex; }
+.input-group input {
+  flex-grow: 1;
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 6px 0 0 6px;
+  font-size: 1em;
+}
+.input-group button {
+  border-radius: 0 6px 6px 0;
+}
+.trade-summary { font-size: 0.9em; color: var(--text-light); margin-top: 8px; text-align: right; }
+
+/* 시세 카드 */
+.market-card { padding: 0; overflow: hidden; }
+.market-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 24px 0;
+}
+.price-change {
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+.price-change.up { color: var(--success-green); background-color: #eafaf1; }
+.price-change.down { color: var(--danger-red); background-color: #ffe8e8; }
+.current-price {
+  font-size: 3em;
+  font-weight: 700;
+  padding: 0 24px;
+  transition: color 0.3s;
+}
+.current-price.up { color: var(--success-green); }
+.current-price.down { color: var(--danger-red); }
+.chart-container { height: 350px; }
+
+/* 공용 버튼 스타일 */
+.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
+.btn-buy { background-color: var(--primary-blue); }
+.btn-sell { background-color: var(--success-green); }
 .btn-primary:disabled { background-color: #aaa; }
-.error-message { color: #dc3545; margin-top: 15px; }
+
+/* 모바일 레이아웃 */
+@media (max-width: 900px) {
+  .trader-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 모달 스타일 (기존과 동일) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 500px; }
 .trade-history-list { list-style: none; padding: 0; max-height: 400px; overflow-y: auto; }
 .trade-history-list li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-.history-action.buy { color: #007bff; font-weight: bold; }
-.history-action.sell { color: #28a745; font-weight: bold; }
-.btn-secondary { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 20px; }
-
-@media (max-width: 768px) {
-  .trade-form {
-    grid-template-columns: 1fr;
-  }
-  .my-assets {
-    grid-template-columns: 1fr;
-  }
-}
+.history-action.buy { color: var(--primary-blue); font-weight: bold; }
+.history-action.sell { color: var(--success-green); font-weight: bold; }
+.btn-secondary { background-color: var(--text-light); color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 20px; }
 </style>
