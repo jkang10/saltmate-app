@@ -203,6 +203,7 @@ const listenToGameRoom = () => {
 
 const startMatchmaking = async () => {
     matchState.value = 'searching';
+    
     if(auth.currentUser && !userProfileUnsubscribe) {
         const userDocRef = doc(db, 'users', auth.currentUser.uid);
         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
@@ -217,14 +218,18 @@ const startMatchmaking = async () => {
             }
         });
     }
+
     try {
         const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
         await findMatchFunc();
+        // 성공적으로 'waiting' 상태가 되면, 함수는 여기서 정상적으로 종료되고 리스너가 계속 감시합니다.
     } catch(e) {
+        // [핵심 수정] catch 블록을 수정하여, 진짜 오류일 때만 처리하도록 합니다.
         console.error("매칭 요청 오류:", e);
-        if (userProfileUnsubscribe) userProfileUnsubscribe();
+        // 'already-exists' 와 같은 일반적인 오류는 무시하고, 심각한 오류 발생 시에만 알림
         if (e.code !== 'functions/already-exists') { 
             alert('매칭 서버에 접속하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            if (userProfileUnsubscribe) userProfileUnsubscribe();
             router.push('/dashboard');
         }
     }
