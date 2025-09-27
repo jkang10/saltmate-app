@@ -82,15 +82,13 @@ import QrcodeVue from 'qrcode.vue'; // QR코드 생성 라이브러리
 
 export default {
   components: {
-    QrcodeVue, // 컴포넌트 등록
+    QrcodeVue,
   },
   setup() {
     const isLoggedIn = ref(false);
     const userName = ref("");
     const isNavActive = ref(false);
     const router = useRouter();
-
-    // [핵심 추가] 사용자 역할 및 QR 모달 상태 관리
     const userRole = ref(null);
     const qrModal = reactive({
       visible: false,
@@ -98,6 +96,12 @@ export default {
       qrId: null,
       error: null,
     });
+
+    // [핵심 수정] 소금 시세 관련 변수들을 setup 스코프 최상단에 ref로 선언합니다.
+    const saltPrice = ref(0);
+    const priceChange = ref(0);
+    const priceClass = ref('');
+    let saltPriceUnsubscribe = null; // 이 변수는 ref일 필요가 없습니다.
 
     let authUnsubscribe = null;
     let presenceRef = null;
@@ -120,7 +124,24 @@ export default {
       }
     };
 
-    const checkAuthState = () => {
+    // [핵심 추가] 실시간으로 소금 시세를 가져오는 함수
+    const listenToSaltPrice = () => {
+      const marketRef = doc(db, "configuration", "saltMarket");
+      saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const marketData = docSnap.data();
+          const newPrice = marketData.currentPrice;
+
+          if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
+            priceChange.value = newPrice - saltPrice.value;
+            priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
+          }
+          saltPrice.value = newPrice;
+        }
+      });
+    };
+
+   const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
         managePresence(user);
         if (user) {
@@ -150,23 +171,6 @@ export default {
       });
     };
     
-    // [핵심 추가] 실시간으로 소금 시세를 가져오는 함수
-    const listenToSaltPrice = () => {
-      const marketRef = doc(db, "configuration", "saltMarket");
-      saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const marketData = docSnap.data();
-          const newPrice = marketData.currentPrice;
-
-          if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
-            priceChange.value = newPrice - saltPrice.value;
-            priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
-          }
-          saltPrice.value = newPrice;
-        }
-      });
-    };
-
     // [핵심 추가] QR코드 생성 함수
     const generateQR = async () => {
       qrModal.visible = true;
