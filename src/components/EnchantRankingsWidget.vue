@@ -8,17 +8,17 @@
       <div v-else-if="rankings.length > 0" class="ranking-container">
         <div class="podium">
           <div v-if="rankings[1]" class="podium-item rank-2">
-            <div class="rank-icon"><i class="fas fa-medal"></i></div>
+            <div class="rank-icon" v-html="getRankIcon(1)"></div>
             <div class="player-name">{{ rankings[1].userName }}</div>
             <div class="player-score">+{{ rankings[1].level }}</div>
           </div>
           <div v-if="rankings[0]" class="podium-item rank-1">
-            <div class="rank-icon"><i class="fas fa-crown"></i></div>
+            <div class="rank-icon" v-html="getRankIcon(0)"></div>
             <div class="player-name">{{ rankings[0].userName }}</div>
             <div class="player-score">+{{ rankings[0].level }}</div>
           </div>
           <div v-if="rankings[2]" class="podium-item rank-3">
-            <div class="rank-icon"><i class="fas fa-award"></i></div>
+            <div class="rank-icon" v-html="getRankIcon(2)"></div>
             <div class="player-name">{{ rankings[2].userName }}</div>
             <div class="player-score">+{{ rankings[2].level }}</div>
           </div>
@@ -47,7 +47,6 @@ import { httpsCallable } from 'firebase/functions';
 const isLoading = ref(true);
 const rankings = ref([]);
 
-// 기존 getRankClass 함수를 삭제하고 아래 함수로 교체합니다.
 const getRankIcon = (index) => {
   if (index === 0) return '<i class="fas fa-crown"></i>';
   if (index === 1) return '<i class="fas fa-medal"></i>';
@@ -132,7 +131,7 @@ onMounted(fetchRankings);
   box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
   animation: pulse-gold 2s infinite;
 }
-.rank-1 .rank-icon .fa-crown { color: #ffd700; }
+.rank-1 .rank-icon :deep(.fa-crown) { color: #ffd700; }
 .rank-1 .player-score { color: #ffd700; }
 
 /* 2등 스타일 */
@@ -142,7 +141,7 @@ onMounted(fetchRankings);
   background: rgba(192, 192, 192, 0.15);
   border-color: #c0c0c0;
 }
-.rank-2 .rank-icon .fa-medal { color: #c0c0c0; }
+.rank-2 .rank-icon :deep(.fa-medal) { color: #c0c0c0; }
 
 /* 3등 스타일 */
 .rank-3 {
@@ -151,7 +150,7 @@ onMounted(fetchRankings);
   background: rgba(205, 127, 50, 0.15);
   border-color: #cd7f32;
 }
-.rank-3 .rank-icon .fa-award { color: #cd7f32; }
+.rank-3 .rank-icon :deep(.fa-award) { color: #cd7f32; }
 
 /* 나머지 랭킹 리스트 */
 .lower-ranks {
