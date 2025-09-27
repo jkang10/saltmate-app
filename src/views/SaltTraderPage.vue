@@ -188,9 +188,6 @@ const openHistoryModal = async () => {
 </script>
 
 <style scoped>
-.price-display {
-  text-align: center;
-}
 :root {
   --primary-blue: #007bff;
   --success-green: #28a745;
@@ -218,8 +215,17 @@ const openHistoryModal = async () => {
 .trade-section { padding-top: 20px; }
 .trade-section:not(:first-of-type) { margin-top: 20px; border-top: 1px solid var(--border-color); }
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
+/* [핵심 수정] 입력 폼과 버튼 스타일 추가 */
 .input-group { display: flex; }
-.input-group input { flex-grow: 1; border: 1px solid var(--border-color); padding: 10px; border-radius: 6px 0 0 6px; font-size: 1em; }
+.input-group input { 
+  flex-grow: 1; 
+  border: 1px solid var(--border-color); 
+  padding: 10px; 
+  border-radius: 6px 0 0 6px; 
+  font-size: 1em; 
+  -webkit-appearance: none;
+  margin: 0;
+}
 .input-group button { border-radius: 0 6px 6px 0; }
 .trade-summary { font-size: 0.9em; color: var(--text-light); margin-top: 8px; text-align: right; }
 .market-card { padding: 0; overflow: hidden; }
@@ -227,11 +233,11 @@ const openHistoryModal = async () => {
 .price-change { font-weight: bold; padding: 5px 10px; border-radius: 6px; }
 .price-change.up { color: var(--success-green); background-color: #eafaf1; }
 .price-change.down { color: var(--danger-red); background-color: #ffe8e8; }
-.current-price { font-size: 3em; font-weight: 700; padding: 0 24px; transition: color 0.3s; }
+.current-price { font-size: 3em; font-weight: 700; padding: 0 24px; text-align: center; transition: color 0.3s; }
 .current-price.up { color: var(--success-green); }
 .current-price.down { color: var(--danger-red); }
 .chart-container { height: 350px; }
-.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: black; transition: background-color 0.2s; }
+.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
 .btn-primary:disabled { background-color: #aaa; }
