@@ -8,7 +8,13 @@
     <div class="card betting-card">
       <div v-if="market.status === 'open'">
         <h3>베팅 마감까지: {{ countdown }}</h3>
-        <div v-if="!loadingPlayers" class="betting-form">
+        
+        <div v-if="loadingPlayers" class="loading-state">
+            <div class="spinner-small"></div>
+            <p>지난 주 랭커 정보를 불러오는 중입니다...</p>
+        </div>
+        
+        <div v-else-if="rankedPlayers.length > 0" class="betting-form">
           <div v-for="rank in ['1st', '2nd', '3rd']" :key="rank" class="form-group">
             <label><i :class="getRankIcon(rank)"></i> {{ rank }} Place</label>
             <select v-model="predictions[rank]">
@@ -27,10 +33,12 @@
             <span v-else>베팅하기</span>
           </button>
         </div>
-         <div v-else class="loading-state">
-            <div class="spinner-small"></div>
-            <p>지난 주 랭커 정보를 불러오는 중입니다...</p>
+
+        <div v-else class="no-data">
+          <h4>예측 불가</h4>
+          <p>지난 주 랭킹 데이터가 없어 예측 후보를 불러올 수 없습니다.<br>다음 주에 다시 시도해주세요.</p>
         </div>
+
       </div>
       <div v-else class="betting-closed">
         <h3>이번 주 베팅 마감</h3>
