@@ -97,8 +97,11 @@ const tradeHistory = ref([]);
 const isLoadingHistory = ref(false);
 const market = ref({ currentPrice: 0, priceHistory: [] });
 const userProfile = ref(null);
-const buyQuantity = ref(1);
-const sellQuantity = ref(1);
+
+// [핵심 수정] 기본값을 1에서 null로 변경하여 입력 폼을 비웁니다.
+const buyQuantity = ref(null);
+const sellQuantity = ref(null);
+
 const error = ref('');
 const isTrading = ref(false);
 const priceClass = ref('');
@@ -116,7 +119,6 @@ watch(() => market.value?.currentPrice, (newPrice, oldPrice) => {
 });
 
 const chartOption = computed(() => {
-    // [오류 수정] market.value.priceHistory가 없을 경우를 대비
     const history = market.value?.priceHistory || [];
     return {
         grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -163,6 +165,9 @@ const trade = async (action) => {
     const tradeSalt = httpsCallable(functions, 'tradeSalt');
     await tradeSalt({ action: action, quantity: quantity });
     alert('거래 성공!');
+    // 거래 성공 후 입력 필드 초기화
+    if(action === 'buy') buyQuantity.value = null;
+    else sellQuantity.value = null;
   } catch(e) {
     error.value = e.message;
   } finally {
