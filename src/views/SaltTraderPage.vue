@@ -51,7 +51,9 @@
                     {{ priceChange.toFixed(2) }}%
                 </div>
             </div>
-          <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} SaltMate</p>
+          <div class="price-display">
+            <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} SaltMate</p>
+          </div>
           <div class="chart-container">
             <v-chart class="chart" :option="chartOption" autoresize />
           </div>
@@ -60,20 +62,7 @@
     </div>
 
     <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
-      <div class="modal-content">
-        <h3>소금 거래 내역</h3>
-        <div v-if="isLoadingHistory" class="spinner-small"></div>
-        <ul v-else-if="tradeHistory.length > 0" class="trade-history-list">
-          <li v-for="item in tradeHistory" :key="item.id">
-            <span class="history-date">{{ new Date(item.timestamp.seconds * 1000).toLocaleString('ko-KR') }}</span>
-            <span class="history-action" :class="item.action">{{ item.action === 'buy' ? '매수' : '매도' }}</span>
-            <span class="history-details">{{ item.quantity }}개 ({{ item.price }}/개)</span>
-          </li>
-        </ul>
-        <p v-else>거래 내역이 없습니다.</p>
-        <button @click="isHistoryModalVisible = false" class="btn-secondary">닫기</button>
       </div>
-    </div>
   </div>
 </template>
 
@@ -186,6 +175,9 @@ const openHistoryModal = async () => {
 </script>
 
 <style scoped>
+.price-display {
+  text-align: center;
+}
 :root {
   --primary-blue: #007bff;
   --success-green: #28a745;
