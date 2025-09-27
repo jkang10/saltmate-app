@@ -25,7 +25,7 @@
             <h4>소금 사기 (매수)</h4>
             <div class="input-group">
               <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량">
-              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading || buyQuantity <= 0">매수</button>
+              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
             </div>
             <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
@@ -33,7 +33,7 @@
             <h4>소금 팔기 (매도)</h4>
             <div class="input-group">
               <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량">
-              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading || sellQuantity <= 0">매도</button>
+              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
             </div>
             <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
@@ -222,14 +222,20 @@ const openHistoryModal = async () => {
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
 /* [핵심 수정] 입력 폼과 버튼 스타일 추가 */
 .input-group { display: flex; }
+/* [핵심 수정] 입력 폼 스타일 개선 */
 .input-group input { 
   flex-grow: 1; 
-  border: 1px solid var(--border-color); 
+  border: 2px solid var(--border-color); /* 테두리 두께 추가 */
   padding: 10px; 
   border-radius: 6px 0 0 6px; 
   font-size: 1em; 
   -webkit-appearance: none;
   margin: 0;
+  transition: border-color 0.2s;
+}
+.input-group input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
 }
 .input-group button { border-radius: 0 6px 6px 0; }
 .trade-summary { font-size: 0.9em; color: var(--text-light); margin-top: 8px; text-align: right; }
