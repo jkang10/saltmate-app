@@ -14,6 +14,15 @@
         </nav>
         <div class="navbar-actions">
           <div v-if="isLoggedIn" class="user-actions">
+            <router-link to="/salt-trader" class="salt-ticker" title="소금 상인 페이지로 이동">
+              <span class="ticker-label">SALT</span>
+              <span class="ticker-price">{{ saltPrice.toLocaleString() }}</span>
+              <span class="ticker-change" :class="priceClass">
+                <i v-if="priceClass === 'up'" class="fas fa-caret-up"></i>
+                <i v-if="priceClass === 'down'" class="fas fa-caret-down"></i>
+                {{ priceChange }}
+              </span>
+            </router-link>
             <router-link to="/profile" class="user-profile-link">
               <i class="fas fa-user-circle"></i>
               <span>{{ userName }}</span>
@@ -66,7 +75,7 @@ import { ref, onMounted, onUnmounted, watch, reactive } from "vue";
 import { auth, db, functions, rtdb } from "@/firebaseConfig"; // functions 추가
 import { httpsCallable } from "firebase/functions"; // httpsCallable 추가
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
 import { useRouter } from "vue-router";
 import QrcodeVue from 'qrcode.vue'; // QR코드 생성 라이브러리
@@ -116,6 +125,8 @@ export default {
         managePresence(user);
         if (user) {
           isLoggedIn.value = true;
+          // [핵심 추가] 로그인 시 소금 시세 리스너 시작
+          listenToSaltPrice(); 
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
@@ -133,10 +144,29 @@ export default {
           isLoggedIn.value = false;
           userName.value = "";
           userRole.value = null; // 로그아웃 시 역할 초기화
+          // [핵심 추가] 로그아웃 시 소금 시세 리스너 정리
+          if (saltPriceUnsubscribe) saltPriceUnsubscribe();
         }
       });
     };
     
+    // [핵심 추가] 실시간으로 소금 시세를 가져오는 함수
+    const listenToSaltPrice = () => {
+      const marketRef = doc(db, "configuration", "saltMarket");
+      saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const marketData = docSnap.data();
+          const newPrice = marketData.currentPrice;
+
+          if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
+            priceChange.value = newPrice - saltPrice.value;
+            priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
+          }
+          saltPrice.value = newPrice;
+        }
+      });
+    };
+
     // [핵심 추가] QR코드 생성 함수
     const generateQR = async () => {
       qrModal.visible = true;
@@ -190,9 +220,8 @@ export default {
     });
 
     onUnmounted(() => {
-      if (authUnsubscribe) {
-        authUnsubscribe();
-      }
+      if (authUnsubscribe) authUnsubscribe();
+      if (saltPriceUnsubscribe) saltPriceUnsubscribe(); // [핵심 추가]
       if (auth.currentUser) {
         const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
         remove(userPresenceRef);
@@ -206,12 +235,51 @@ export default {
     return {
       isLoggedIn, userName, logout, isNavActive, toggleNav,
       userRole, qrModal, generateQR, closeQrModal,
+      // [핵심 추가] 템플릿에서 사용할 변수들
+      saltPrice, priceChange, priceClass,
     };
   },
 };
 </script>
 
 <style scoped>
+.salt-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-family: monospace;
+  text-decoration: none;
+  color: #212529;
+  transition: box-shadow 0.2s;
+}
+.salt-ticker:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.ticker-label {
+  font-weight: bold;
+  font-size: 0.9em;
+  color: #007bff;
+}
+.ticker-price {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+.ticker-change {
+  font-weight: bold;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+}
+.ticker-change.up {
+  color: #28a745; /* 초록색 */
+}
+.ticker-change.down {
+  color: #dc3545; /* 빨간색 */
+}
 #app {
   display: flex;
   flex-direction: column;

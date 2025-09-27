@@ -8,19 +8,25 @@
       <div v-else-if="rankings.length > 0" class="ranking-container">
         <div class="podium">
           <div v-if="rankings[1]" class="podium-item rank-2">
-            <div class="rank-icon" v-html="getRankIcon(1)"></div>
-            <div class="player-name">{{ rankings[1].userName }}</div>
-            <div class="player-score">+{{ rankings[1].level }}</div>
+            <div class="player-info">
+              <div class="rank-icon" v-html="getRankIcon(1)"></div>
+              <div class="player-name">{{ rankings[1].userName }}</div>
+              <div class="player-score">+{{ rankings[1].level }}</div>
+            </div>
           </div>
           <div v-if="rankings[0]" class="podium-item rank-1">
-            <div class="rank-icon" v-html="getRankIcon(0)"></div>
-            <div class="player-name">{{ rankings[0].userName }}</div>
-            <div class="player-score">+{{ rankings[0].level }}</div>
+             <div class="player-info">
+              <div class="rank-icon" v-html="getRankIcon(0)"></div>
+              <div class="player-name">{{ rankings[0].userName }}</div>
+              <div class="player-score">+{{ rankings[0].level }}</div>
+            </div>
           </div>
           <div v-if="rankings[2]" class="podium-item rank-3">
-            <div class="rank-icon" v-html="getRankIcon(2)"></div>
-            <div class="player-name">{{ rankings[2].userName }}</div>
-            <div class="player-score">+{{ rankings[2].level }}</div>
+             <div class="player-info">
+              <div class="rank-icon" v-html="getRankIcon(2)"></div>
+              <div class="player-name">{{ rankings[2].userName }}</div>
+              <div class="player-score">+{{ rankings[2].level }}</div>
+            </div>
           </div>
         </div>
 
@@ -109,7 +115,8 @@ onMounted(fetchRankings);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  /* [수정] justify-content를 flex-end -> center 로 변경 */
+  justify-content: center; 
   border-radius: 10px;
   width: 30%;
   transition: all 0.3s ease;
@@ -125,14 +132,13 @@ onMounted(fetchRankings);
     width: 100%;
 }
 .rank-icon { font-size: 2em; margin-bottom: 8px; }
-.player-name, .lower-ranks .name { 
+.player-name { 
   font-weight: bold; 
   font-size: 1.1em; 
   text-overflow: ellipsis; 
   overflow: hidden; 
   white-space: nowrap; 
   width: 100%;
-  /* [핵심 수정] 이름 중앙 정렬 */
   text-align: center;
 }
 .player-score { font-size: 1.3em; font-weight: 700; font-family: monospace; }
@@ -179,12 +185,13 @@ onMounted(fetchRankings);
 .lower-ranks { list-style: none; padding: 0; margin: 15px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px; }
 .lower-ranks li { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 5px; }
 .lower-ranks .rank { font-weight: bold; text-align: center; color: #95a5a6; }
+/* [핵심 수정] 아래쪽 랭킹 이름도 중앙 정렬 */
+.lower-ranks .name { font-weight: 500; text-align: center; } 
 .lower-ranks .score { font-family: monospace; }
 
 .loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
 .loading-spinner { border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto; }
 
-/* 애니메이션 */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse-gold {
   0% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.4); }
