@@ -19,21 +19,47 @@
           </div>
         </div>
 
-        <div class="card order-card">
+<div class="card order-card">
           <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
           <div class="trade-section">
             <h4>소금 사기 (매수)</h4>
             <div class="input-group">
-              <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량">
-              <button @click="trade('buy')" class="btn-primary btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
+              <input 
+                type="number" 
+                v-model.number="buyQuantity" 
+                min="1" 
+                placeholder="수량"
+                style="border: 2px solid #dee2e6 !important;"
+              >
+              <button 
+                @click="trade('buy')" 
+                class="btn-primary btn-buy" 
+                :disabled="isTrading || !buyQuantity || buyQuantity <= 0"
+                style="background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 0 6px 6px 0; font-weight: bold; cursor: pointer;"
+              >
+                매수
+              </button>
             </div>
             <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
           <div class="trade-section">
             <h4>소금 팔기 (매도)</h4>
             <div class="input-group">
-              <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량">
-              <button @click="trade('sell')" class="btn-primary btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
+              <input 
+                type="number" 
+                v-model.number="sellQuantity" 
+                min="1" 
+                placeholder="수량"
+                style="border: 2px solid #dee2e6 !important;"
+              >
+              <button 
+                @click="trade('sell')" 
+                class="btn-primary btn-sell" 
+                :disabled="isTrading || !sellQuantity || sellQuantity <= 0"
+                style="background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 0 6px 6px 0; font-weight: bold; cursor: pointer;"
+              >
+                매도
+              </button>
             </div>
             <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
           </div>
