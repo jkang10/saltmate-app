@@ -65,8 +65,8 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, onSnapshot } from "firebase/firestore";
-import { onBeforeRouteLeave, useRouter } from 'vue-router';
+import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { onBeforeRouteLeave, useRouter } from 'vue-router';`
 
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
@@ -179,19 +179,27 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
+let matchInfoUnsubscribe = null; // [신규] 매치 정보 리스너 해제용
+
 // --- 대전 모드 전용 함수들 ---
 const startMatchmaking = async () => {
     matchState.value = 'searching';
-    if(auth.currentUser && !userProfileUnsubscribe) {
-        const userDocRef = doc(db, 'users', auth.currentUser.uid);
-        userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-            const activePvpGameId = docSnap.data()?.activePvpGameId;
-            if (activePvpGameId && matchState.value !== 'playing') {
-                if(userProfileUnsubscribe) {
-                    userProfileUnsubscribe();
-                    userProfileUnsubscribe = null;
+    
+    // [최종 핵심 수정] users 문서 대신, 'matches' 컬렉션의 내 문서를 감시합니다.
+    if(auth.currentUser && !matchInfoUnsubscribe) {
+        const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
+        matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
+            if (docSnap.exists() && matchState.value !== 'playing') {
+                const { gameRoomId } = docSnap.data();
+                if(matchInfoUnsubscribe) {
+                    matchInfoUnsubscribe();
+                    matchInfoUnsubscribe = null;
                 }
-                gameRoomId.value = activePvpGameId;
+                // 매칭 신호를 받으면 해당 문서는 바로 삭제
+                deleteDoc(matchInfoRef);
+
+                // 게임 룸으로 진입
+                this.gameRoomId = gameRoomId;
                 listenToGameRoom();
             }
         });
@@ -202,11 +210,8 @@ const startMatchmaking = async () => {
         await findMatchFunc();
     } catch(e) {
         console.error("매칭 요청 오류:", e);
-        if (userProfileUnsubscribe) userProfileUnsubscribe();
-        if (e.code !== 'functions/already-exists') { 
-            alert('매칭 서버에 접속하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-            router.push('/dashboard');
-        }
+        if (matchInfoUnsubscribe) matchInfoUnsubscribe();
+        router.push('/dashboard');
     }
 }
 
@@ -308,9 +313,10 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
+    // [수정] 모든 리스너를 확실하게 정리
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    if(userProfileUnsubscribe) userProfileUnsubscribe();
+    if(matchInfoUnsubscribe) matchInfoUnsubscribe();
     
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
