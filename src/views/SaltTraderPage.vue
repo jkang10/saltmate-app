@@ -45,7 +45,7 @@
         <div class="card market-card">
             <div class="market-header">
                 <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
-                <div class="price-change" :class="priceClass">
+                <div v-if="priceChange !== 0" class="price-change" :class="priceClass">
                     <i v-if="priceClass === 'up'" class="fas fa-caret-up"></i>
                     <i v-if="priceClass === 'down'" class="fas fa-caret-down"></i>
                     {{ priceChange.toFixed(2) }}%
@@ -100,19 +100,21 @@ const sellQuantity = ref(1);
 const error = ref('');
 const isTrading = ref(false);
 const priceClass = ref('');
+const priceChange = ref(0);
 let marketUnsubscribe = null;
 let userUnsubscribe = null;
 
 watch(() => market.value?.currentPrice, (newPrice, oldPrice) => {
-    if (newPrice > oldPrice) {
-        priceClass.value = 'up';
-    } else if (newPrice < oldPrice) {
-        priceClass.value = 'down';
+    if (oldPrice && oldPrice !== 0) {
+      priceChange.value = ((newPrice - oldPrice) / oldPrice) * 100;
+      if (newPrice > oldPrice) priceClass.value = 'up';
+      else if (newPrice < oldPrice) priceClass.value = 'down';
     }
     setTimeout(() => priceClass.value = '', 500);
 });
 
 const chartOption = computed(() => {
+    // [오류 수정] market.value.priceHistory가 없을 경우를 대비
     const history = market.value?.priceHistory || [];
     return {
         grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -120,9 +122,9 @@ const chartOption = computed(() => {
         xAxis: {
             type: 'category',
             boundaryGap: false,
-            data: history.map(h => new Date(h.time.seconds * 1000).toLocaleTimeString('ko-KR')),
+            data: history.map(h => h.time?.seconds ? new Date(h.time.seconds * 1000).toLocaleTimeString('ko-KR') : ''),
         },
-        yAxis: { type: 'value' },
+        yAxis: { type: 'value', scale: true },
         series: [{
             data: history.map(h => h.price),
             type: 'line',
@@ -193,111 +195,42 @@ const openHistoryModal = async () => {
   --text-dark: #212529;
   --text-light: #6c757d;
 }
-
-.page-container {
-  max-width: 1200px;
-  margin: 90px auto 20px;
-  padding: 20px;
-}
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
+.page-container { max-width: 1200px; margin: 90px auto 20px; padding: 20px; }
+.page-header { text-align: center; margin-bottom: 30px; }
 .page-header h1 { font-size: 2.5em; }
 .page-header p { font-size: 1.1em; color: var(--text-light); }
-
-.trader-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-.card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-}
-.left-panel, .right-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* 자산 카드 */
-.asset-card h3 { margin-top: 0; }
-.asset-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 0;
-}
+.trader-layout { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
+.card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+.left-panel, .right-panel { display: flex; flex-direction: column; gap: 24px; }
+.asset-card h3, .order-card h3 { margin-top: 0; }
+.asset-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .asset-item:not(:last-child) { border-bottom: 1px solid var(--border-color); }
 .asset-item span { font-weight: 500; color: var(--text-light); }
 .asset-item strong { font-size: 1.5em; font-weight: 700; }
 .asset-item.salt { cursor: pointer; transition: background-color 0.2s; border-radius: 8px; margin: 5px -15px 0; padding: 10px 15px; }
 .asset-item.salt:hover { background-color: var(--light-gray); }
-
-/* 주문 카드 */
-.order-card h3 { margin-top: 0; margin-bottom: 20px; }
-.trade-section {
-  padding-top: 20px;
-}
-.trade-section:not(:first-of-type) {
-  margin-top: 20px;
-  border-top: 1px solid var(--border-color);
-}
+.order-card h3 { margin-bottom: 20px; }
+.trade-section { padding-top: 20px; }
+.trade-section:not(:first-of-type) { margin-top: 20px; border-top: 1px solid var(--border-color); }
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
 .input-group { display: flex; }
-.input-group input {
-  flex-grow: 1;
-  border: 1px solid var(--border-color);
-  padding: 10px;
-  border-radius: 6px 0 0 6px;
-  font-size: 1em;
-}
-.input-group button {
-  border-radius: 0 6px 6px 0;
-}
+.input-group input { flex-grow: 1; border: 1px solid var(--border-color); padding: 10px; border-radius: 6px 0 0 6px; font-size: 1em; }
+.input-group button { border-radius: 0 6px 6px 0; }
 .trade-summary { font-size: 0.9em; color: var(--text-light); margin-top: 8px; text-align: right; }
-
-/* 시세 카드 */
 .market-card { padding: 0; overflow: hidden; }
-.market-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 24px 24px 0;
-}
-.price-change {
-    font-weight: bold;
-    padding: 5px 10px;
-    border-radius: 6px;
-}
+.market-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 24px 0; }
+.price-change { font-weight: bold; padding: 5px 10px; border-radius: 6px; }
 .price-change.up { color: var(--success-green); background-color: #eafaf1; }
 .price-change.down { color: var(--danger-red); background-color: #ffe8e8; }
-.current-price {
-  font-size: 3em;
-  font-weight: 700;
-  padding: 0 24px;
-  transition: color 0.3s;
-}
+.current-price { font-size: 3em; font-weight: 700; padding: 0 24px; transition: color 0.3s; }
 .current-price.up { color: var(--success-green); }
 .current-price.down { color: var(--danger-red); }
 .chart-container { height: 350px; }
-
-/* 공용 버튼 스타일 */
 .btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
 .btn-primary:disabled { background-color: #aaa; }
-
-/* 모바일 레이아웃 */
-@media (max-width: 900px) {
-  .trader-layout {
-    grid-template-columns: 1fr;
-  }
-}
+@media (max-width: 900px) { .trader-layout { grid-template-columns: 1fr; } }
 
 /* 모달 스타일 (기존과 동일) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }

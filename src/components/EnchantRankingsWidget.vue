@@ -80,6 +80,8 @@ onMounted(fetchRankings);
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
   border: 1px solid #4a6fa1;
+  position: relative;
+  overflow: hidden;
 }
 .widget-header {
   margin-bottom: 20px;
@@ -92,9 +94,6 @@ onMounted(fetchRankings);
   font-size: 1.3em;
   color: white;
   text-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.widget-body {
-  flex-grow: 1;
 }
 
 /* 명예의 단상 (Podium) 스타일 */
@@ -111,15 +110,31 @@ onMounted(fetchRankings);
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding: 10px;
   border-radius: 10px;
   width: 30%;
   transition: all 0.3s ease;
   border-top-width: 4px;
   border-top-style: solid;
+  position: relative;
+}
+.player-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    width: 100%;
 }
 .rank-icon { font-size: 2em; margin-bottom: 8px; }
-.player-name { font-weight: bold; font-size: 1.1em; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 100%; }
+.player-name, .lower-ranks .name { 
+  font-weight: bold; 
+  font-size: 1.1em; 
+  text-overflow: ellipsis; 
+  overflow: hidden; 
+  white-space: nowrap; 
+  width: 100%;
+  /* [핵심 수정] 이름 중앙 정렬 */
+  text-align: center;
+}
 .player-score { font-size: 1.3em; font-weight: 700; font-family: monospace; }
 
 /* 1등 스타일 */
@@ -134,46 +149,36 @@ onMounted(fetchRankings);
 .rank-1 .rank-icon :deep(.fa-crown) { color: #ffd700; }
 .rank-1 .player-score { color: #ffd700; }
 
-/* 2등 스타일 */
-.rank-2 {
-  height: 80%;
-  order: 1;
-  background: rgba(192, 192, 192, 0.15);
-  border-color: #c0c0c0;
+/* [핵심 추가] 1등 반짝이는 효과 */
+.rank-1::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200%;
+  padding-bottom: 200%;
+  border-radius: 50%;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.3), transparent 50%);
+  transform: translate(-50%, -50%);
+  animation: sparkle 3s linear infinite;
+  pointer-events: none;
 }
-.rank-2 .rank-icon :deep(.fa-medal) { color: #c0c0c0; }
+@keyframes sparkle {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(0); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(180deg) scale(1.5); opacity: 0; }
+}
 
-/* 3등 스타일 */
-.rank-3 {
-  height: 60%;
-  order: 3;
-  background: rgba(205, 127, 50, 0.15);
-  border-color: #cd7f32;
-}
+
+/* 2등, 3등 및 나머지 스타일 */
+.rank-2 { height: 80%; order: 1; background: rgba(192, 192, 192, 0.15); border-color: #c0c0c0; }
+.rank-2 .rank-icon :deep(.fa-medal) { color: #c0c0c0; }
+.rank-3 { height: 60%; order: 3; background: rgba(205, 127, 50, 0.15); border-color: #cd7f32; }
 .rank-3 .rank-icon :deep(.fa-award) { color: #cd7f32; }
 
-/* 나머지 랭킹 리스트 */
-.lower-ranks {
-  list-style: none;
-  padding: 0;
-  margin: 15px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 15px;
-}
-.lower-ranks li {
-  display: grid;
-  grid-template-columns: 30px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 5px;
-}
-.lower-ranks .rank {
-  font-weight: bold;
-  text-align: center;
-  color: #95a5a6;
-}
-.lower-ranks .name { font-weight: 500; }
+.lower-ranks { list-style: none; padding: 0; margin: 15px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px; }
+.lower-ranks li { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 5px; }
+.lower-ranks .rank { font-weight: bold; text-align: center; color: #95a5a6; }
 .lower-ranks .score { font-family: monospace; }
 
 .loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
