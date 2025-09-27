@@ -66,7 +66,7 @@ import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 // [핵심 수정] import 구문의 문법 오류를 수정합니다.
-import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
 // --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
