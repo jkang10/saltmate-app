@@ -60,7 +60,7 @@
         </div>
       </main>
     </div>
-
+    
     <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
       <div class="modal-content">
         <h3>소금 거래 내역</h3>
