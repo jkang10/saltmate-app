@@ -220,12 +220,10 @@ const openHistoryModal = async () => {
 .trade-section { padding-top: 20px; }
 .trade-section:not(:first-of-type) { margin-top: 20px; border-top: 1px solid var(--border-color); }
 .trade-section h4 { margin-top: 0; margin-bottom: 15px; font-size: 1.1em; }
-/* [핵심 수정] 입력 폼과 버튼 스타일 추가 */
 .input-group { display: flex; }
-/* [핵심 수정] 입력 폼 스타일 개선 */
 .input-group input { 
   flex-grow: 1; 
-  border: 2px solid var(--border-color); /* 테두리 두께 추가 */
+  border: 2px solid var(--border-color); /* 테두리 두께 수정 */
   padding: 10px; 
   border-radius: 6px 0 0 6px; 
   font-size: 1em; 
@@ -251,7 +249,13 @@ const openHistoryModal = async () => {
 .btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
-.btn-primary:disabled { background-color: #aaa; }
+
+/* [핵심 수정] 비활성화된 버튼 스타일을 추가합니다. */
+.btn-primary:disabled { 
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) { .trader-layout { grid-template-columns: 1fr; } }
 
 /* 모달 스타일 (기존과 동일) */
