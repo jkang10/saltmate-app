@@ -231,7 +231,7 @@ const openHistoryModal = async () => {
 .current-price.up { color: var(--success-green); }
 .current-price.down { color: var(--danger-red); }
 .chart-container { height: 350px; }
-.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: white; transition: background-color 0.2s; }
+.btn-primary { padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; color: black; transition: background-color 0.2s; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
 .btn-primary:disabled { background-color: #aaa; }
