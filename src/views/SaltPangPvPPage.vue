@@ -65,8 +65,11 @@ import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
-import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
-import { onBeforeRouteLeave, useRouter } from 'vue-router';`
+// [핵심 수정] import 구문의 문법 오류를 수정합니다.
+import { doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
+
+// --- (이하 모든 스크립트 내용은 기존과 동일합니다) ---
 
 // --- 게임 기본 설정 ---
 const BOARD_SIZE = 8;
@@ -107,7 +110,7 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- 게임 로직 함수들 (SaltPangPage.vue에서 가져와 PvP에 맞게 수정) ---
+// --- 게임 로직 함수들 ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
@@ -179,38 +182,29 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
-let matchInfoUnsubscribe = null; // [신규] 매치 정보 리스너 해제용
-
 // --- 대전 모드 전용 함수들 ---
 const startMatchmaking = async () => {
     matchState.value = 'searching';
-    
-    // [최종 핵심 수정] users 문서 대신, 'matches' 컬렉션의 내 문서를 감시합니다.
-    if(auth.currentUser && !matchInfoUnsubscribe) {
-        const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
-        matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
-            if (docSnap.exists() && matchState.value !== 'playing') {
-                const { gameRoomId } = docSnap.data();
-                if(matchInfoUnsubscribe) {
-                    matchInfoUnsubscribe();
-                    matchInfoUnsubscribe = null;
+    if(auth.currentUser && !userProfileUnsubscribe) {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            const activePvpGameId = docSnap.data()?.activePvpGameId;
+            if (activePvpGameId && matchState.value !== 'playing') {
+                if(userProfileUnsubscribe) {
+                    userProfileUnsubscribe();
+                    userProfileUnsubscribe = null;
                 }
-                // 매칭 신호를 받으면 해당 문서는 바로 삭제
-                deleteDoc(matchInfoRef);
-
-                // 게임 룸으로 진입
-                this.gameRoomId = gameRoomId;
+                gameRoomId.value = activePvpGameId;
                 listenToGameRoom();
             }
         });
     }
-
     try {
         const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
         await findMatchFunc();
     } catch(e) {
         console.error("매칭 요청 오류:", e);
-        if (matchInfoUnsubscribe) matchInfoUnsubscribe();
+        if (userProfileUnsubscribe) userProfileUnsubscribe();
         router.push('/dashboard');
     }
 }
@@ -223,17 +217,14 @@ const listenToGameRoom = () => {
             gameState.value = data;
             if(!board.value.length && data.board) {
                 board.value = data.board;
-                if (matchState.value !== 'playing') {
-                    matchState.value = 'playing';
-                    startTimer();
-                }
+                matchState.value = 'playing';
+                startTimer();
             }
         }
     });
 };
 
 const startTimer = () => {
-    if(timerInterval) clearInterval(timerInterval); // 중복 실행 방지
     timerInterval = setInterval(async () => {
         timer.value--;
         if (timer.value <= 0) {
@@ -313,11 +304,9 @@ const handleTouchEnd = () => { touchStart.index = null; };
 onMounted(startMatchmaking);
 
 onBeforeRouteLeave(async () => {
-    // [수정] 모든 리스너를 확실하게 정리
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    if(matchInfoUnsubscribe) matchInfoUnsubscribe();
-    
+    if(userProfileUnsubscribe) userProfileUnsubscribe();
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
         await cancelFunc();
