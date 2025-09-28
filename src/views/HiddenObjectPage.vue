@@ -1,4 +1,4 @@
-<template>
+<<template>
   <div class="page-container hidden-object-page">
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner-large"></div>
@@ -7,11 +7,11 @@
 
     <div v-if="level" class="game-container">
       <div class="image-area" ref="imageAreaRef" @click="handleImageClick">
-        <img :src="level.imageUrl" alt="숨은그림찾기 배경" />
-        <div v-for="found in foundObjects" :key="found.id" class="found-marker" :style="found.style"></div>
+        <img :src="level.imageUrl" alt="숨은그림찾기 배경" @load="onImageLoad" />
+        <div v-for="found in foundObjects" :key="found.id" class="found-marker" :style="getMarkerStyle(found.id)"></div>
       </div>
 
-      <div class="ui-panel">
+      <div class="ui-panel card">
         <h3>찾아야 할 물건</h3>
         <ul class="object-list">
           <li v-for="obj in level.objectsToFind" :key="obj.id" :class="{ 'found': isFound(obj.id) }">
@@ -23,9 +23,11 @@
     </div>
     
     <div v-if="gameResult.status" class="game-over-modal">
+      <div class="modal-content">
         <h2>{{ gameResult.title }}</h2>
         <p>{{ gameResult.message }}</p>
         <router-link to="/dashboard" class="btn-primary">대시보드로 돌아가기</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -34,6 +36,7 @@
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
+import { useRouter } from 'vue-router';
 
 const isLoading = ref(true);
 const level = ref(null);
@@ -41,36 +44,67 @@ const foundObjects = ref([]);
 const timer = ref(60);
 const imageAreaRef = ref(null);
 const gameResult = reactive({ status: null, title: '', message: '' });
+const imageDimensions = reactive({ naturalWidth: 0, naturalHeight: 0 });
+const router = useRouter();
 let timerInterval = null;
 
 const isFound = (objectId) => {
     return foundObjects.value.some(f => f.id === objectId);
 };
 
+const getMarkerStyle = (objectId) => {
+    if (!level.value || !imageAreaRef.value) return {};
+    const obj = level.value.objectsToFind.find(o => o.id === objectId);
+    if (!obj) return {};
+
+    const displayRect = imageAreaRef.value.querySelector('img').getBoundingClientRect();
+    const scale = displayRect.width / imageDimensions.naturalWidth;
+    
+    return {
+        left: `${obj.coords.x * scale}px`,
+        top: `${obj.coords.y * scale}px`,
+        width: `${obj.coords.width * scale}px`,
+        height: `${obj.coords.height * scale}px`,
+    };
+};
+
+const onImageLoad = (event) => {
+    imageDimensions.naturalWidth = event.target.naturalWidth;
+    imageDimensions.naturalHeight = event.target.naturalHeight;
+};
+
 const handleImageClick = async (event) => {
-    if (!imageAreaRef.value) return;
-    const rect = imageAreaRef.value.getBoundingClientRect();
+    if (!imageAreaRef.value || gameResult.status) return;
+    const img = imageAreaRef.value.querySelector('img');
+    if (!img) return;
+
+    const rect = img.getBoundingClientRect();
+    const scale = imageDimensions.naturalWidth / rect.width;
+    
     const clickCoords = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
+        x: (event.clientX - rect.left) * scale,
+        y: (event.clientY - rect.top) * scale
     };
     
-    // 사용자가 찾으려고 시도한 물건을 추측 (여기서는 단순화를 위해 모든 오브젝트에 대해 검사)
     for (const obj of level.value.objectsToFind) {
         if (!isFound(obj.id)) {
-            try {
-                const foundHiddenObject = httpsCallable(functions, 'foundHiddenObject');
-                const result = await foundHiddenObject({ objectId: obj.id, clickCoords });
-                
-                if (result.data.correct) {
-                    foundObjects.value.push({ id: obj.id, style: {} }); // 찾은 위치에 표시 추가 가능
-                    if (result.data.allFound) {
-                        endGame('win', result.data.reward);
+            const { x, y, width, height } = obj.coords;
+            const isCorrect = (clickCoords.x >= x && clickCoords.x <= x + width) &&
+                              (clickCoords.y >= y && clickCoords.y <= y + height);
+            
+            if (isCorrect) {
+                try {
+                    const foundHiddenObject = httpsCallable(functions, 'foundHiddenObject');
+                    const result = await foundHiddenObject({ objectId: obj.id });
+                    
+                    if (result.data.correct) {
+                        foundObjects.value.push({ id: obj.id });
+                        if (result.data.allFound) {
+                            endGame('win', result.data.reward);
+                        }
                     }
-                    return; // 하나 찾으면 중단
-                }
-            } catch (e) {
-                console.error("오브젝트 확인 오류:", e);
+                } catch (e) { console.error("오브젝트 확인 오류:", e); }
+                return; 
             }
         }
     }
@@ -103,7 +137,8 @@ onMounted(async () => {
     }, 1000);
   } catch (e) {
     console.error("게임 시작 오류:", e);
-    // 오류 발생 시 대시보드로 이동시키는 로직 추가 가능
+    alert(`게임 시작 중 오류가 발생했습니다: ${e.message}`);
+    router.push('/dashboard');
   }
 });
 
