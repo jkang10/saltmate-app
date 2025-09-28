@@ -52,6 +52,8 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter } from 'vue-router';
+// [핵심 수정] 이미지를 직접 import 합니다.
+import hiddenObjectBg from '@/assets/game_assets/hidden_object_bg.jpg';
 
 const isLoading = ref(true);
 const level = ref(null);
@@ -62,6 +64,14 @@ const gameResult = reactive({ status: null, title: '', message: '' });
 const imageDimensions = reactive({ naturalWidth: 0, naturalHeight: 0 });
 const router = useRouter();
 let timerInterval = null;
+
+// [핵심 수정] level 객체에 import한 이미지 경로를 직접 할당합니다.
+const assignImageUrl = (levelData) => {
+    if (levelData) {
+        levelData.imageUrl = hiddenObjectBg;
+    }
+    return levelData;
+};
 
 const isFound = (objectId) => {
     return foundObjects.value.some(f => f.id === objectId);
@@ -141,7 +151,8 @@ onMounted(async () => {
   try {
     const startHiddenObjectGame = httpsCallable(functions, 'startHiddenObjectGame');
     const result = await startHiddenObjectGame();
-    level.value = result.data.level;
+    // [핵심 수정] 받아온 레벨 데이터에 이미지 경로를 할당합니다.
+    level.value = assignImageUrl(result.data.level);
     isLoading.value = false;
 
     timerInterval = setInterval(() => {
