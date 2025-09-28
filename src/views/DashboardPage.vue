@@ -287,6 +287,12 @@
 	  <p>다른 유저와 실시간으로 솔트팡 대결을 펼치고 승리 보상을 획득하세요!</p>
 	  <span class="card-enter">대전 시작 &rarr;</span>
 	</router-link>
+	<router-link to="/hidden-object" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-search"></i></div>
+	  <h3>숨은그림찾기</h3>
+	  <p>제한 시간 내에 숨겨진 그림을 모두 찾아보세요!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
         </div>
       </main>
 

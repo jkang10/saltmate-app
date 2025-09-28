@@ -137,6 +137,12 @@ const routes = [
     component: () => import("@/views/GameZonePage.vue"),
     meta: { requiresAuth: true },
   },
+{
+  path: '/hidden-object',
+  name: 'HiddenObjectPage',
+  component: () => import('@/views/HiddenObjectPage.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: '/salt-pang',
     name: 'SaltPangPage',
