@@ -57,7 +57,6 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter } from 'vue-router';
-// [핵심 수정] 이미지를 직접 import 합니다.
 import hiddenObjectBg from '@/assets/game_assets/hidden_object_bg.jpg';
 
 const isLoading = ref(true);
@@ -70,7 +69,6 @@ const imageDimensions = reactive({ naturalWidth: 0, naturalHeight: 0 });
 const router = useRouter();
 let timerInterval = null;
 
-// [핵심 수정] level 객체에 import한 이미지 경로를 직접 할당합니다.
 const assignImageUrl = (levelData) => {
     if (levelData) {
         levelData.imageUrl = hiddenObjectBg;
@@ -103,24 +101,34 @@ const onImageLoad = (event) => {
     imageDimensions.naturalHeight = event.target.naturalHeight;
 };
 
+// [핵심 수정] handleImageClick 함수를 아래 코드로 교체합니다.
 const handleImageClick = async (event) => {
     if (!imageAreaRef.value || gameResult.status) return;
     const img = imageAreaRef.value.querySelector('img');
     if (!img) return;
 
     const rect = img.getBoundingClientRect();
+    
+    // 모바일 터치(touches)와 PC 클릭(clientX)을 모두 지원합니다.
+    const clickX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clickY = event.touches ? event.touches[0].clientY : event.clientY;
+
     const scale = imageDimensions.naturalWidth / rect.width;
     
     const clickCoords = {
-        x: (event.clientX - rect.left) * scale,
-        y: (event.clientY - rect.top) * scale
+        x: (clickX - rect.left) * scale,
+        y: (clickY - rect.top) * scale
     };
     
     for (const obj of level.value.objectsToFind) {
         if (!isFound(obj.id)) {
             const { x, y, width, height } = obj.coords;
-            const isCorrect = (clickCoords.x >= x && clickCoords.x <= x + width) &&
-                              (clickCoords.y >= y && clickCoords.y <= y + height);
+            
+            // [핵심 수정] 난이도 하향: 정답 영역 주변 20px까지 오차를 허용합니다.
+            const tolerance = 20; 
+            const isCorrect = 
+                (clickCoords.x >= x - tolerance && clickCoords.x <= x + width + tolerance) &&
+                (clickCoords.y >= y - tolerance && clickCoords.y <= y + height + tolerance);
             
             if (isCorrect) {
                 try {
@@ -176,6 +184,7 @@ onMounted(async () => {
 onUnmounted(() => {
     clearInterval(timerInterval);
 });
+
 </script>
 
 <style scoped>
