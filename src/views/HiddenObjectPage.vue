@@ -104,6 +104,7 @@ const onImageLoad = (event) => {
     imageDimensions.naturalHeight = event.target.naturalHeight;
 };
 
+// [핵심 수정] handleImageClick 함수를 아래 최종 버전으로 교체합니다.
 const handleImageClick = async (event) => {
     if (!imageAreaRef.value || gameResult.status) return;
     const img = imageAreaRef.value.querySelector('img');
@@ -111,6 +112,7 @@ const handleImageClick = async (event) => {
 
     const rect = img.getBoundingClientRect();
     
+    // 모바일 터치(touches)와 PC 클릭(clientX)을 모두 안정적으로 지원합니다.
     const clickX = event.touches ? event.touches[0].clientX : event.clientX;
     const clickY = event.touches ? event.touches[0].clientY : event.clientY;
 
@@ -124,12 +126,20 @@ const handleImageClick = async (event) => {
     for (const obj of level.value.objectsToFind) {
         if (!isFound(obj.id)) {
             const { x, y, width, height } = obj.coords;
-            const tolerance = 20; 
-            const isCorrect = 
-                (clickCoords.x >= x - tolerance && clickCoords.x <= x + width + tolerance) &&
-                (clickCoords.y >= y - tolerance && clickCoords.y <= y + height + tolerance);
             
-            if (isCorrect) {
+            // [핵심 수정] 난이도 대폭 하향: 정답 영역의 중심점을 기준으로 클릭 거리를 계산합니다.
+            // 이렇게 하면 오브젝트의 크기와 상관없이 주변을 클릭해도 정답으로 인정됩니다.
+            const objectCenterX = x + width / 2;
+            const objectCenterY = y + height / 2;
+            const distance = Math.sqrt(
+                Math.pow(clickCoords.x - objectCenterX, 2) + 
+                Math.pow(clickCoords.y - objectCenterY, 2)
+            );
+            
+            // 오브젝트의 대각선 길이 절반을 기준으로 판정 범위를 넓게 잡습니다.
+            const toleranceRadius = Math.sqrt(width*width + height*height) / 2 * 1.5;
+
+            if (distance < toleranceRadius) {
                 try {
                     const foundHiddenObject = httpsCallable(functions, 'foundHiddenObject');
                     const result = await foundHiddenObject({ objectId: obj.id });
@@ -141,11 +151,12 @@ const handleImageClick = async (event) => {
                         }
                     }
                 } catch (e) { console.error("오브젝트 확인 오류:", e); }
-                return; 
+                return; // 하나를 찾으면 더 이상 검사하지 않고 함수를 종료합니다.
             }
         }
     }
 };
+
 
 const endGame = (status, reward = 0) => {
     clearInterval(timerInterval);
