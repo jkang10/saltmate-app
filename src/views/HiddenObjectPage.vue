@@ -5,10 +5,15 @@
       <p>게임을 불러오는 중...</p>
     </div>
 
+    <header v-if="level" class="page-header">
+      <h1><i class="fas fa-search"></i> 숨은그림찾기</h1>
+      <p>이미지 속에 숨겨진 <strong>황금 소금 결정, 희귀 미네랄, 고대 유물</strong> 3가지를 찾아보세요!</p>
+    </header>
+
     <div v-if="level" class="game-layout">
       <aside class="ui-panel card">
         <div class="panel-header">
-          <h3><i class="fas fa-search"></i> 찾아야 할 물건</h3>
+          <h3><i class="fas fa-list-ul"></i> 찾아야 할 물건</h3>
         </div>
         <ul class="object-list">
           <li v-for="obj in level.objectsToFind" :key="obj.id" :class="{ 'found': isFound(obj.id) }">
@@ -176,11 +181,26 @@ onUnmounted(() => {
 <style scoped>
 .hidden-object-page {
   display: flex;
-  justify-content: center;
+  flex-direction: column; /* [수정] 세로 정렬로 변경 */
+  justify-content: flex-start; /* [수정] 위쪽부터 시작하도록 변경 */
   align-items: center;
   padding: 20px;
   background: #f0f2f5;
-  min-height: calc(100vh - 70px); /* 헤더 높이 제외 */
+  min-height: calc(100vh - 70px);
+}
+/* [신규] 페이지 헤더 스타일 */
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+  width: 100%;
+}
+.page-header h1 {
+  font-size: 2.2em;
+  margin-bottom: 10px;
+}
+.page-header p {
+  font-size: 1.1em;
+  color: #555;
 }
 .loading-overlay {
   position: fixed; /* 화면 전체를 덮도록 fixed 사용 */
@@ -357,13 +377,6 @@ li.found .checkbox {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(2); opacity: 0; }
 }
-.game-container { display: flex; gap: 20px; }
-.image-area { position: relative; cursor: pointer; }
-.image-area img { max-width: 800px; border-radius: 8px; }
-.found-marker { position: absolute; border: 3px solid #ffd700; border-radius: 50%; /* ... */ }
-.ui-panel { width: 250px; }
-.object-list { list-style: none; padding: 0; }
-.object-list li.found { text-decoration: line-through; color: #888; }
 .game-over-modal {
   position: absolute;
   top: 50%;
