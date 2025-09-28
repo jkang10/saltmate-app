@@ -12,8 +12,12 @@
 
     <div v-if="level" class="game-layout">
       <aside class="ui-panel card">
-        <div class="panel-header">
-          <h3><i class="fas fa-list-ul"></i> 찾아야 할 물건</h3>
+        <div class="panel-header timer-container">
+          <h3><i class="fas fa-hourglass-half"></i> 남은 시간</h3>
+          <span class="timer">{{ timer }}</span>
+        </div>
+        <div class="panel-subheader">
+          <h4><i class="fas fa-list-ul"></i> 찾아야 할 물건</h4>
         </div>
         <ul class="object-list">
           <li v-for="obj in level.objectsToFind" :key="obj.id" :class="{ 'found': isFound(obj.id) }">
@@ -23,13 +27,9 @@
             <span>{{ obj.name }}</span>
           </li>
         </ul>
-        <div class="timer-container">
-          <i class="fas fa-hourglass-half"></i>
-          <span class="timer">{{ timer }}</span>
-        </div>
       </aside>
 
-      <main class="image-area" ref="imageAreaRef" @click="handleImageClick">
+      <main class="image-area" ref="imageAreaRef" @click="handleImageClick" @touchstart="handleImageClick">
         <img :src="level.imageUrl" alt="숨은그림찾기 배경" @load="onImageLoad" />
         <div 
           v-for="found in foundObjects" 
@@ -82,17 +82,20 @@ const isFound = (objectId) => {
 
 const getMarkerStyle = (objectId) => {
     if (!level.value || !imageAreaRef.value) return {};
-    const obj = level.value.objectsToFind.find(o => o.id === objectId);
-    if (!obj) return {};
+    const objToFind = level.value.objectsToFind.find(o => o.id === objectId);
+    if (!objToFind) return {};
 
-    const displayRect = imageAreaRef.value.querySelector('img').getBoundingClientRect();
+    const img = imageAreaRef.value.querySelector('img');
+    if (!img) return {};
+
+    const displayRect = img.getBoundingClientRect();
     const scale = displayRect.width / imageDimensions.naturalWidth;
     
     return {
-        left: `${obj.coords.x * scale}px`,
-        top: `${obj.coords.y * scale}px`,
-        width: `${obj.coords.width * scale}px`,
-        height: `${obj.coords.height * scale}px`,
+        left: `${objToFind.coords.x * scale}px`,
+        top: `${objToFind.coords.y * scale}px`,
+        width: `${objToFind.coords.width * scale}px`,
+        height: `${objToFind.coords.height * scale}px`,
     };
 };
 
@@ -101,7 +104,6 @@ const onImageLoad = (event) => {
     imageDimensions.naturalHeight = event.target.naturalHeight;
 };
 
-// [핵심 수정] handleImageClick 함수를 아래 코드로 교체합니다.
 const handleImageClick = async (event) => {
     if (!imageAreaRef.value || gameResult.status) return;
     const img = imageAreaRef.value.querySelector('img');
@@ -109,7 +111,6 @@ const handleImageClick = async (event) => {
 
     const rect = img.getBoundingClientRect();
     
-    // 모바일 터치(touches)와 PC 클릭(clientX)을 모두 지원합니다.
     const clickX = event.touches ? event.touches[0].clientX : event.clientX;
     const clickY = event.touches ? event.touches[0].clientY : event.clientY;
 
@@ -123,8 +124,6 @@ const handleImageClick = async (event) => {
     for (const obj of level.value.objectsToFind) {
         if (!isFound(obj.id)) {
             const { x, y, width, height } = obj.coords;
-            
-            // [핵심 수정] 난이도 하향: 정답 영역 주변 20px까지 오차를 허용합니다.
             const tolerance = 20; 
             const isCorrect = 
                 (clickCoords.x >= x - tolerance && clickCoords.x <= x + width + tolerance) &&
@@ -164,7 +163,6 @@ onMounted(async () => {
   try {
     const startHiddenObjectGame = httpsCallable(functions, 'startHiddenObjectGame');
     const result = await startHiddenObjectGame();
-    // [핵심 수정] 받아온 레벨 데이터에 이미지 경로를 할당합니다.
     level.value = assignImageUrl(result.data.level);
     isLoading.value = false;
 
@@ -184,20 +182,18 @@ onMounted(async () => {
 onUnmounted(() => {
     clearInterval(timerInterval);
 });
-
 </script>
 
 <style scoped>
 .hidden-object-page {
   display: flex;
-  flex-direction: column; /* [수정] 세로 정렬로 변경 */
-  justify-content: flex-start; /* [수정] 위쪽부터 시작하도록 변경 */
+  flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
   padding: 20px;
   background: #f0f2f5;
   min-height: calc(100vh - 70px);
 }
-/* [신규] 페이지 헤더 스타일 */
 .page-header {
   text-align: center;
   margin-bottom: 30px;
@@ -212,8 +208,8 @@ onUnmounted(() => {
   color: #555;
 }
 .loading-overlay {
-  position: fixed; /* 화면 전체를 덮도록 fixed 사용 */
-  inset: 0; /* top, right, bottom, left를 0으로 설정 */
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -236,45 +232,6 @@ onUnmounted(() => {
   height: 60px;
   animation: spin 1s linear infinite;
 }
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.game-over-modal .modal-content {
-  background: white;
-  padding: 40px;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  text-align: center;
-  width: 90%;
-  max-width: 400px;
-  animation: fadeIn 0.5s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-.modal-content h2 {
-  font-size: 2em;
-  margin: 0 0 20px;
-}
-.modal-content p {
-  font-size: 1.2em;
-  color: #555;
-  margin-bottom: 30px;
-}
-.btn-primary {
-  padding: 12px 25px;
-  border: none;
-  background-color: #007bff;
-  color: white;
-  font-weight: bold;
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  font-size: 1.1em;
-}
 .game-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -292,13 +249,31 @@ onUnmounted(() => {
 }
 .panel-header {
   text-align: center;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
   padding-bottom: 15px;
 }
-.panel-header h3 {
+.timer-container {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+.timer-container h3 {
+  margin: 0 0 10px;
+  font-size: 1.2em;
+  color: #555;
+  font-weight: 500;
+}
+.timer {
+  font-family: monospace;
+  font-size: 2.5em;
+  font-weight: bold;
+  color: #dc3545;
+}
+.panel-subheader {
+  text-align: center;
+  margin-bottom: 15px;
+}
+.panel-subheader h4 {
   margin: 0;
-  font-size: 1.4em;
+  font-size: 1.2em;
   color: #333;
 }
 .object-list {
@@ -328,23 +303,12 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-shrink: 0;
 }
 li.found .checkbox {
   border-color: #28a745;
   background-color: #28a745;
   color: white;
-}
-.timer-container {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-  text-align: center;
-  font-size: 1.5em;
-  font-weight: bold;
-}
-.timer {
-  font-family: monospace;
-  color: #dc3545;
 }
 .image-area {
   position: relative;
@@ -365,12 +329,12 @@ li.found .checkbox {
   box-shadow: 0 0 20px #ffd700, inset 0 0 15px rgba(255, 215, 0, 0.5);
   transform: scale(0);
   animation: found-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  pointer-events: none;
 }
 @keyframes found-pop {
   from { transform: scale(0); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-
 .sparkle {
   position: absolute;
   width: 100%;
@@ -387,28 +351,26 @@ li.found .checkbox {
   100% { transform: scale(2); opacity: 0; }
 }
 .game-over-modal {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0,0,0,0.7);
+  z-index: 100;
+}
+.modal-content {
   background: white;
   padding: 40px;
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  z-index: 100;
   text-align: center;
   width: 90%;
   max-width: 400px;
+  animation: fadeIn 0.5s ease-out;
 }
-.game-over-modal h2 {
-  font-size: 2em;
-  margin: 0 0 20px;
-}
-.game-over-modal p {
-  font-size: 1.2em;
-  color: #555;
-  margin-bottom: 30px;
-}
+.modal-content h2 { font-size: 2em; margin: 0 0 20px; }
+.modal-content p { font-size: 1.2em; color: #555; margin-bottom: 30px; }
 .btn-primary {
   padding: 12px 25px;
   border: none;
@@ -420,4 +382,6 @@ li.found .checkbox {
   text-decoration: none;
   font-size: 1.1em;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 </style>
