@@ -269,7 +269,14 @@ const openHistoryModal = async () => {
 .asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
 .input-group { display: flex; }
-.input-group input { flex-grow: 1; border: 1px solid #dee2e6; padding: 10px; border-radius: 6px 0 0 6px; }
+.input-group input {
+  flex-grow: 1;
+  border: 1px solid #dee2e6;
+  padding: 10px;
+  border-radius: 6px 0 0 6px;
+  /* [핵심 수정] input이 무한정 늘어나는 것을 방지하는 코드 */
+  min-width: 0;
+}
 .input-group button { border-radius: 0 6px 6px 0; border: none; font-weight: bold; cursor: pointer; color: white; padding: 10px 15px; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
