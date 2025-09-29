@@ -57,7 +57,9 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter } from 'vue-router';
-import hiddenObjectBg from '@/assets/game_assets/hidden_object_bg.jpg';
+
+// [핵심 수정] 더 이상 사용하지 않으므로 이 라인을 삭제해도 됩니다.
+// import hiddenObjectBg from '@/assets/game_assets/hidden_object_bg.jpg';
 
 const isLoading = ref(true);
 const level = ref(null);
@@ -69,12 +71,15 @@ const imageDimensions = reactive({ naturalWidth: 0, naturalHeight: 0 });
 const router = useRouter();
 let timerInterval = null;
 
+// [핵심 수정] 이미지 주소를 강제로 덮어쓰던 이 함수를 완전히 삭제합니다.
+/*
 const assignImageUrl = (levelData) => {
     if (levelData) {
         levelData.imageUrl = hiddenObjectBg;
     }
     return levelData;
 };
+*/
 
 const isFound = (objectId) => {
     return foundObjects.value.some(f => f.id === objectId);
@@ -83,10 +88,10 @@ const isFound = (objectId) => {
 const getMarkerStyle = (objectId) => {
     if (!level.value || !imageAreaRef.value) return {};
     const objToFind = level.value.objectsToFind.find(o => o.id === objectId);
-    if (!objToFind) return {};
+    if (!objToFind || !objToFind.coords) return {}; // [수정] coords가 없을 경우를 대비
 
     const img = imageAreaRef.value.querySelector('img');
-    if (!img) return {};
+    if (!img || imageDimensions.naturalWidth === 0) return {}; // [수정] 이미지 로드 전 오류 방지
 
     const displayRect = img.getBoundingClientRect();
     const scale = displayRect.width / imageDimensions.naturalWidth;
@@ -104,15 +109,13 @@ const onImageLoad = (event) => {
     imageDimensions.naturalHeight = event.target.naturalHeight;
 };
 
-// [핵심 수정] handleImageClick 함수를 아래 최종 버전으로 교체합니다.
 const handleImageClick = async (event) => {
     if (!imageAreaRef.value || gameResult.status) return;
     const img = imageAreaRef.value.querySelector('img');
-    if (!img) return;
+    if (!img || imageDimensions.naturalWidth === 0) return;
 
     const rect = img.getBoundingClientRect();
     
-    // 모바일 터치(touches)와 PC 클릭(clientX)을 모두 안정적으로 지원합니다.
     const clickX = event.touches ? event.touches[0].clientX : event.clientX;
     const clickY = event.touches ? event.touches[0].clientY : event.clientY;
 
@@ -127,8 +130,6 @@ const handleImageClick = async (event) => {
         if (!isFound(obj.id)) {
             const { x, y, width, height } = obj.coords;
             
-            // [핵심 수정] 난이도 대폭 하향: 정답 영역의 중심점을 기준으로 클릭 거리를 계산합니다.
-            // 이렇게 하면 오브젝트의 크기와 상관없이 주변을 클릭해도 정답으로 인정됩니다.
             const objectCenterX = x + width / 2;
             const objectCenterY = y + height / 2;
             const distance = Math.sqrt(
@@ -136,7 +137,6 @@ const handleImageClick = async (event) => {
                 Math.pow(clickCoords.y - objectCenterY, 2)
             );
             
-            // 오브젝트의 대각선 길이 절반을 기준으로 판정 범위를 넓게 잡습니다.
             const toleranceRadius = Math.sqrt(width*width + height*height) / 2 * 1.5;
 
             if (distance < toleranceRadius) {
@@ -151,7 +151,7 @@ const handleImageClick = async (event) => {
                         }
                     }
                 } catch (e) { console.error("오브젝트 확인 오류:", e); }
-                return; // 하나를 찾으면 더 이상 검사하지 않고 함수를 종료합니다.
+                return;
             }
         }
     }
@@ -174,7 +174,10 @@ onMounted(async () => {
   try {
     const startHiddenObjectGame = httpsCallable(functions, 'startHiddenObjectGame');
     const result = await startHiddenObjectGame();
-    level.value = assignImageUrl(result.data.level);
+    
+    // [핵심 수정] assignImageUrl 함수 호출을 제거하고 서버에서 받은 데이터를 그대로 사용합니다.
+    level.value = result.data.level;
+    
     isLoading.value = false;
 
     timerInterval = setInterval(() => {
