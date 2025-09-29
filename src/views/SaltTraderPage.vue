@@ -23,15 +23,19 @@
 	  <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
 	  <div class="trade-section">
 	    <h4>소금 사기 (매수)</h4>
-	    <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량" class="trade-input">
+	    <div class="input-group">
+	      <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량" class="trade-input">
+	      <button @click="trade('buy')" class="btn-trade btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
+	    </div>
 	    <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-	    <button @click="trade('buy')" class="btn-trade btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수 실행</button>
 	  </div>
 	  <div class="trade-section">
 	    <h4>소금 팔기 (매도)</h4>
-	    <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량" class="trade-input">
+	    <div class="input-group">
+	      <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량" class="trade-input">
+	      <button @click="trade('sell')" class="btn-trade btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
+	    </div>
 	    <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-	    <button @click="trade('sell')" class="btn-trade btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도 실행</button>
 	  </div>
 	   <p v-if="error" class="error-message">{{ error }}</p>
 	</div>
@@ -263,6 +267,31 @@ const openHistoryModal = async () => {
 .trade-section:not(:last-child) {
   border-bottom: 1px solid #f0f0f0;
 }
+.input-group .trade-input {
+  flex: 1; /* 남는 공간을 모두 차지하도록 설정 */
+  min-width: 0; /* input이 flex 환경에서 넘치는 것을 방지하는 핵심 속성 */
+  border: 1px solid #dee2e6;
+  border-right: none; /* 버튼과 붙어 보이도록 오른쪽 테두리 제거 */
+  padding: 12px;
+  border-radius: 6px 0 0 6px; /* 왼쪽 모서리만 둥글게 */
+  font-size: 1.1em;
+  text-align: right;
+}
+.input-group .btn-trade {
+  flex-shrink: 0; /* 버튼 너비가 줄어들지 않도록 설정 */
+  border: 1px solid transparent;
+  border-radius: 0 6px 6px 0; /* 오른쪽 모서리만 둥글게 */
+  padding: 12px 20px;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+}
+/* [핵심 수정] 새로운 input-group 스타일 */
+.input-group {
+  display: flex;
+  width: 100%;
+}
 .trade-input {
   width: 100%;
   padding: 12px;
@@ -274,7 +303,7 @@ const openHistoryModal = async () => {
 }
 .trade-summary {
   text-align: right;
-  margin-bottom: 12px;
+  margin-top: 8px; /* 간격 조정 */
 }
 .btn-trade {
   width: 100%;
