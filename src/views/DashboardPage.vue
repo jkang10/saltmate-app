@@ -215,7 +215,6 @@
 	    <p>매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!</p>
 	    <span class="card-enter">열어보기 &rarr;</span>
 	  </router-link>
-
           <router-link to="/high-low-game" class="feature-card game">
             <div class="card-icon">
               <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
