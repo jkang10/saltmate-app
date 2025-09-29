@@ -93,18 +93,29 @@ const result = ref(null);
 const choice = ref("");
 const gameSettings = reactive({
   highLowMultiplier: 1.2,
+  // [수정] highLowBetMax의 기본값을 설정합니다.
+  highLowBetMax: 2000,
 });
 
 onMounted(() => {
   const configRef = doc(db, "configuration", "gameSettings");
   onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
-      gameSettings.highLowMultiplier = docSnap.data().highLowMultiplier || 1.2;
+      const settingsData = docSnap.data();
+      gameSettings.highLowMultiplier = settingsData.highLowMultiplier || 1.2;
+      // [핵심 추가] 서버의 gameSettings에서 highLowBetMax 값을 가져와 업데이트합니다.
+      gameSettings.highLowBetMax = settingsData.highLowBetMax || 2000;
     }
   });
 });
 
 const play = async (playerChoice) => {
+  // [핵심 추가] 프론트엔드에서도 최대 베팅 금액을 초과하는지 검사합니다.
+  if (betAmount.value > gameSettings.highLowBetMax) {
+    alert(`최대 ${gameSettings.highLowBetMax.toLocaleString()} SaltMate까지 베팅할 수 있습니다.`);
+    return;
+  }
+  
   if (betAmount.value <= 0) {
     alert("베팅 금액을 1 이상 입력해주세요.");
     return;
