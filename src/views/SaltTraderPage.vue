@@ -262,20 +262,27 @@ const openHistoryModal = async () => {
 .left-panel, .right-panel { display: flex; flex-direction: column; gap: 24px; }
 .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
+.asset-item.salt { cursor: pointer; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
+
+/* [핵심] 주문 실행 카드 스타일 */
 .trade-section {
-  padding-bottom: 20px;
-  margin-bottom: 20px;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
 }
-.trade-section:not(:last-child) {
+.trade-section:not(:last-of-type) {
   border-bottom: 1px solid #f0f0f0;
+}
+.trade-section h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 .input-group {
   display: flex;
   width: 100%;
 }
 .input-group .trade-input {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
   border: 1px solid #dee2e6;
   border-right: none;
@@ -283,16 +290,22 @@ const openHistoryModal = async () => {
   border-radius: 6px 0 0 6px;
   font-size: 1.1em;
   text-align: right;
+  transition: border-color .2s;
+}
+.input-group .trade-input:focus {
+  outline: none;
+  border-color: #007bff;
 }
 .input-group .btn-trade {
   flex-shrink: 0;
-  border: 1px solid transparent;
+  border: none;
   border-radius: 0 6px 6px 0;
   padding: 12px 20px;
   font-size: 1.1em;
   font-weight: bold;
   color: white;
   cursor: pointer;
+  transition: background-color .2s;
 }
 .trade-summary {
   font-size: 0.9em;
@@ -300,9 +313,14 @@ const openHistoryModal = async () => {
   margin-top: 8px;
   text-align: right;
 }
-.btn-buy { background-color: var(--primary-blue); }
-.btn-sell { background-color: var(--success-green); }
-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+.btn-buy { background-color: #007bff; }
+.btn-sell { background-color: #28a745; }
+.btn-trade:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+}
+
 .market-card { padding: 24px; }
 .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .current-price { font-size: 2.5em; font-weight: 700; }
