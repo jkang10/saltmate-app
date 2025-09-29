@@ -19,26 +19,22 @@
           </div>
         </div>
 
-        <div class="card order-card">
-          <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
-          <div class="trade-section">
-            <h4>소금 사기 (매수)</h4>
-            <div class="input-group">
-              <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량">
-              <button @click="trade('buy')" class="btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
-            </div>
-            <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-          </div>
-          <div class="trade-section">
-            <h4>소금 팔기 (매도)</h4>
-            <div class="input-group">
-              <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량">
-              <button @click="trade('sell')" class="btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
-            </div>
-            <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
-          </div>
-           <p v-if="error" class="error-message">{{ error }}</p>
-        </div>
+	<div class="card order-card">
+	  <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
+	  <div class="trade-section">
+	    <h4>소금 사기 (매수)</h4>
+	    <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량" class="trade-input">
+	    <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+	    <button @click="trade('buy')" class="btn-trade btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수 실행</button>
+	  </div>
+	  <div class="trade-section">
+	    <h4>소금 팔기 (매도)</h4>
+	    <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량" class="trade-input">
+	    <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+	    <button @click="trade('sell')" class="btn-trade btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도 실행</button>
+	  </div>
+	   <p v-if="error" class="error-message">{{ error }}</p>
+	</div>
 
         <div class="card recent-trades-card">
             <h3><i class="fas fa-history"></i> 실시간 체결 내역</h3>
@@ -260,6 +256,36 @@ const openHistoryModal = async () => {
   --success-green: #28a745;
   --danger-red: #dc3545;
 }
+.trade-section {
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+.trade-section:not(:last-child) {
+  border-bottom: 1px solid #f0f0f0;
+}
+.trade-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 1.1em;
+  text-align: right;
+  margin-bottom: 8px;
+}
+.trade-summary {
+  text-align: right;
+  margin-bottom: 12px;
+}
+.btn-trade {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+}
 .page-container { max-width: 1200px; margin: 90px auto 20px; padding: 20px; }
 .page-header { text-align: center; margin-bottom: 30px; }
 .trader-layout { display: grid; grid-template-columns: 350px 1fr; gap: 24px; align-items: start; }
@@ -268,16 +294,6 @@ const openHistoryModal = async () => {
 .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
-.input-group { display: flex; }
-.input-group input {
-  flex-grow: 1;
-  border: 1px solid #dee2e6;
-  padding: 10px;
-  border-radius: 6px 0 0 6px;
-  /* [핵심 수정] input이 무한정 늘어나는 것을 방지하는 코드 */
-  min-width: 0;
-}
-.input-group button { border-radius: 0 6px 6px 0; border: none; font-weight: bold; cursor: pointer; color: white; padding: 10px 15px; }
 .btn-buy { background-color: var(--primary-blue); }
 .btn-sell { background-color: var(--success-green); }
 button:disabled { background-color: #cccccc; cursor: not-allowed; }
