@@ -68,19 +68,15 @@ import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
-// --- 게임 기본 설정 ---
+// --- (게임 기본 설정, 상태 변수, 계산된 속성 등은 기존과 동일) ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
-
-// --- 게임 상태 변수 ---
 const board = ref([]);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const explodingGems = ref(new Set());
 const touchStart = { index: null, x: 0, y: 0 };
 let hasSwiped = false;
-
-// --- 대전 모드 상태 변수 ---
 const matchState = ref('searching');
 const gameRoomId = ref(null);
 const gameState = ref(null);
@@ -93,8 +89,6 @@ let roomListener = null;
 let timerInterval = null;
 let matchInfoUnsubscribe = null;
 const isCancelling = ref(false);
-
-// --- 계산된 속성 ---
 const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
 const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
 const opponent = computed(() => opponentId.value ? gameState.value.players[opponentId.value] : null);
@@ -107,77 +101,34 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- 게임 로직 함수들 ---
+// --- (게임 로직 함수들은 기존과 동일) ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
   catch (e) { return ''; }
 };
-
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
 };
-
 const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
-
 const checkAndClearMatches = async () => {
     const matches = new Set();
     for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
     for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+BOARD_SIZE]&&board.value[i]===board.value[i+2*BOARD_SIZE]) for(let k=r;k<BOARD_SIZE;k++){ i=k*BOARD_SIZE+c; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
-    
-    if (matches.size > 0) {
-        const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1);
-        matches.forEach(index => explodingGems.value.add(index));
-        await new Promise(r => setTimeout(r, 300));
-        matches.forEach(index => {
-            board.value[index] = null;
-            explodingGems.value.delete(index);
-        });
-        return { hasMatches: true, scoreGained };
-    }
+    if (matches.size > 0) { const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1); matches.forEach(index => explodingGems.value.add(index)); await new Promise(r => setTimeout(r, 300)); matches.forEach(index => { board.value[index] = null; explodingGems.value.delete(index); }); return { hasMatches: true, scoreGained }; }
     return { hasMatches: false, scoreGained: 0 };
 };
-
 const processBoard = async () => {
-    await new Promise(r => setTimeout(r, 200));
-    dropDownGems();
-    await new Promise(r => setTimeout(r, 200));
-    fillEmptyCells();
-    await new Promise(r => setTimeout(r, 200));
-    return await checkAndClearMatches();
+    await new Promise(r => setTimeout(r, 200)); dropDownGems(); await new Promise(r => setTimeout(r, 200)); fillEmptyCells(); await new Promise(r => setTimeout(r, 200)); return await checkAndClearMatches();
 };
-
 const swapAndCheck = async (index1, index2) => {
-  isProcessing.value = true;
-  [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-  await new Promise(r => setTimeout(r, 150));
-  
-  let totalScoreGained = 0;
-  let firstCheck = await checkAndClearMatches();
-  
-  if (!firstCheck.hasMatches) {
-    await new Promise(r => setTimeout(r, 150));
-    [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-    if (roomRef) { update(roomRef, { turn: opponentId.value }); }
-  } else {
-    totalScoreGained += firstCheck.scoreGained;
-    let subsequentCheck;
-    while ((subsequentCheck = await processBoard()).hasMatches) {
-        totalScoreGained += subsequentCheck.scoreGained;
-    }
-    if (roomRef && auth.currentUser) {
-        const newScore = (me.value.score || 0) + totalScoreGained;
-        update(roomRef, {
-            board: board.value,
-            [`/players/${auth.currentUser.uid}/score`]: newScore,
-            turn: opponentId.value
-        });
-    }
-  }
+  isProcessing.value = true; [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]]; await new Promise(r => setTimeout(r, 150)); let totalScoreGained = 0; let firstCheck = await checkAndClearMatches(); if (!firstCheck.hasMatches) { await new Promise(r => setTimeout(r, 150)); [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]]; if (roomRef) { update(roomRef, { turn: opponentId.value }); } } else { totalScoreGained += firstCheck.scoreGained; let subsequentCheck; while ((subsequentCheck = await processBoard()).hasMatches) { totalScoreGained += subsequentCheck.scoreGained; } if (roomRef && auth.currentUser) { const newScore = (me.value.score || 0) + totalScoreGained; update(roomRef, { board: board.value, [`/players/${auth.currentUser.uid}/score`]: newScore, turn: opponentId.value }); } }
   isProcessing.value = false;
 };
+
+// [핵심 수정] listenToGameRoom과 startMatchmaking 함수를 아래 코드로 교체합니다.
 
 const listenToGameRoom = () => {
     roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
@@ -185,12 +136,12 @@ const listenToGameRoom = () => {
         const data = snapshot.val();
         if(data) {
             gameState.value = data;
-            if(!board.value.length && data.board) {
+            if((!board.value || board.value.length === 0) && data.board) {
                 board.value = data.board;
-                if (matchState.value !== 'playing') {
-                    matchState.value = 'playing';
-                    startTimer();
-                }
+            }
+            if (matchState.value !== 'playing' && data.status === 'playing') {
+                matchState.value = 'playing';
+                startTimer();
             }
         }
     });
@@ -201,19 +152,20 @@ const startMatchmaking = async () => {
     
     if(auth.currentUser && !matchInfoUnsubscribe) {
         const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
+        // 1. 1차 신호 (게임방 ID)를 기다립니다.
         matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
-            if (docSnap.exists() && matchState.value !== 'playing') {
-                const data = docSnap.data();
+            if (docSnap.exists() && matchState.value === 'searching') {
+                const { gameRoomId: newGameRoomId } = docSnap.data();
                 
-                if(matchInfoUnsubscribe) {
+                // 1차 신호 수신 완료, 더 이상 기다릴 필요 없으므로 리스너와 문서를 정리합니다.
+                if (matchInfoUnsubscribe) {
                     matchInfoUnsubscribe();
                     matchInfoUnsubscribe = null;
                 }
                 deleteDoc(matchInfoRef);
 
-                // [최종 핵심 수정] 'this.gameRoomId' 대신 'gameRoomId.value'를 사용합니다.
-                gameRoomId.value = data.gameRoomId;
-                listenToGameRoom();
+                // 2. 2차 신호 (RTDB 준비 완료)를 기다리는 함수를 호출합니다.
+                waitForRtdbReady(newGameRoomId);
             }
         });
     }
@@ -226,8 +178,22 @@ const startMatchmaking = async () => {
         if (matchInfoUnsubscribe) matchInfoUnsubscribe();
         router.push('/dashboard');
     }
-}
+};
 
+// [핵심 추가] 2차 신호를 기다리는 새로운 함수
+const waitForRtdbReady = (newGameRoomId) => {
+    gameRoomId.value = newGameRoomId;
+    const gameResultRef = doc(db, 'pvpGameResults', newGameRoomId);
+    const unsubscribe = onSnapshot(gameResultRef, (docSnap) => {
+        // rtdbReady가 true가 되면, 안전하게 RTDB에 연결합니다.
+        if (docSnap.exists() && docSnap.data().rtdbReady === true) {
+            unsubscribe(); // 2차 신호 리스너는 이제 필요 없으므로 해제합니다.
+            listenToGameRoom(); // 안전하게 게임방에 입장합니다.
+        }
+    });
+};
+
+// --- (나머지 함수들은 기존과 동일) ---
 const startTimer = () => {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(async () => {
@@ -242,7 +208,6 @@ const startTimer = () => {
         }
     }, 1000);
 };
-
 const cancelMatchmaking = async () => {
     if (!auth.currentUser || isCancelling.value) return;
     isCancelling.value = true;
@@ -251,71 +216,22 @@ const cancelMatchmaking = async () => {
         await cancelFunc();
         alert('매칭이 취소되었습니다.');
         router.push('/dashboard');
-    } catch (error) {
-        console.error("매칭 취소 오류:", error);
-        alert('매칭 취소 중 오류가 발생했습니다.');
-    } finally {
-        isCancelling.value = false;
-    }
+    } catch (error) { console.error("매칭 취소 오류:", error); alert('매칭 취소 중 오류가 발생했습니다.'); } finally { isCancelling.value = false; }
 };
-
 const selectCell = (index) => {
     if (!isMyTurn.value || isProcessing.value) return;
-    if (selectedCell.value === null) {
-        selectedCell.value = index;
-    } else {
-        const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
-        const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
-        if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index);
-        selectedCell.value = null;
-    }
+    if (selectedCell.value === null) { selectedCell.value = index; } else { const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE; const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE; if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index); selectedCell.value = null; }
 };
-
 const handleTouchStart = (index, event) => {
-    if (!isMyTurn.value || isProcessing.value) return;
-    touchStart.index = index;
-    touchStart.x = event.touches[0].clientX;
-    touchStart.y = event.touches[0].clientY;
-    hasSwiped.value = false;
+    if (!isMyTurn.value || isProcessing.value) return; touchStart.index = index; touchStart.x = event.touches[0].clientX; touchStart.y = event.touches[0].clientY; hasSwiped.value = false;
 };
-
 const handleTouchMove = (event) => {
-  if (touchStart.index === null || hasSwiped.value) return;
-  const dx = event.touches[0].clientX - touchStart.x;
-  const dy = event.touches[0].clientY - touchStart.y;
-  const SWIPE_THRESHOLD = 20;
-
-  if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
-    hasSwiped.value = true;
-    let targetIndex = -1;
-    const { index } = touchStart;
-    const col = index % BOARD_SIZE;
-    
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
-      else if (dx < 0 && col > 0) targetIndex = index - 1;
-    } else {
-      if (dy > 0) targetIndex = index + BOARD_SIZE;
-      else if (dy < 0) targetIndex = index - BOARD_SIZE;
-    }
-    if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
-        swapAndCheck(touchStart.index, targetIndex);
-    }
-  }
+  if (touchStart.index === null || hasSwiped.value) return; const dx = event.touches[0].clientX - touchStart.x; const dy = event.touches[0].clientY - touchStart.y; const SWIPE_THRESHOLD = 20; if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) { hasSwiped.value = true; let targetIndex = -1; const { index } = touchStart; const col = index % BOARD_SIZE; if (Math.abs(dx) > Math.abs(dy)) { if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1; else if (dx < 0 && col > 0) targetIndex = index - 1; } else { if (dy > 0) targetIndex = index + BOARD_SIZE; else if (dy < 0) targetIndex = index - BOARD_SIZE; } if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) { swapAndCheck(touchStart.index, targetIndex); } }
 };
-
 const handleTouchEnd = () => { touchStart.index = null; };
-
 onMounted(startMatchmaking);
-
 onBeforeRouteLeave(async () => {
-    if(roomListener) roomListener();
-    if(timerInterval) clearInterval(timerInterval);
-    if(matchInfoUnsubscribe) matchInfoUnsubscribe();
-    if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
-        const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
-        await cancelFunc();
-    }
+    if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
     if(roomRef) remove(roomRef);
 });
 </script>
