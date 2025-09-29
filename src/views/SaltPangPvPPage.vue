@@ -91,7 +91,7 @@ const router = useRouter();
 let roomRef = null;
 let roomListener = null;
 let timerInterval = null;
-let userProfileUnsubscribe = null;
+let matchInfoUnsubscribe = null;
 const isCancelling = ref(false);
 
 // --- 계산된 속성 ---
@@ -179,8 +179,6 @@ const swapAndCheck = async (index1, index2) => {
   isProcessing.value = false;
 };
 
-// [수정] 사용하지 않는 matchInfoUnsubscribe 변수를 제거합니다.
-
 const listenToGameRoom = () => {
     roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
     roomListener = onValue(roomRef, (snapshot) => {
@@ -198,26 +196,23 @@ const listenToGameRoom = () => {
     });
 };
 
-let matchInfoUnsubscribe = null; // [신규] 매치 정보 리스너 해제용
-
 const startMatchmaking = async () => {
     matchState.value = 'searching';
     
-    // [최종 핵심 수정] users 문서 대신, 'matches' 컬렉션의 내 문서를 감시합니다.
     if(auth.currentUser && !matchInfoUnsubscribe) {
         const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
         matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
             if (docSnap.exists() && matchState.value !== 'playing') {
-                const { gameRoomId } = docSnap.data();
+                const data = docSnap.data();
+                
                 if(matchInfoUnsubscribe) {
                     matchInfoUnsubscribe();
                     matchInfoUnsubscribe = null;
                 }
-                // 매칭 신호를 받으면 해당 문서는 바로 삭제
                 deleteDoc(matchInfoRef);
 
-                // 게임 룸으로 진입
-                this.gameRoomId = gameRoomId;
+                // [최종 핵심 수정] 'this.gameRoomId' 대신 'gameRoomId.value'를 사용합니다.
+                gameRoomId.value = data.gameRoomId;
                 listenToGameRoom();
             }
         });
@@ -316,7 +311,7 @@ onMounted(startMatchmaking);
 onBeforeRouteLeave(async () => {
     if(roomListener) roomListener();
     if(timerInterval) clearInterval(timerInterval);
-    if(userProfileUnsubscribe) userProfileUnsubscribe();
+    if(matchInfoUnsubscribe) matchInfoUnsubscribe();
     if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) {
         const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
         await cancelFunc();
@@ -342,6 +337,7 @@ onBeforeRouteLeave(async () => {
 .player-info { padding: 10px 20px; font-size: 1.2em; font-weight: bold; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease; border: 2px solid transparent; }
 .player-info.active-turn { border-color: #ffd700; box-shadow: 0 0 15px #ffd700, inset 0 2px 4px rgba(0,0,0,0.1); }
 .turn-indicator { font-size: 0.8em; font-weight: bold; background: #ffd700; color: #333; padding: 3px 8px; border-radius: 5px; }
+.player-info .info-text { display: flex; flex-direction: column; align-items: flex-start; }
 .player-info.opponent { background: #ffe8e8; color: #721c24; }
 .player-info.me { background: #eafaf1; color: #155724; }
 .game-board-container { padding: 5px; background-color: #495057; border-radius: 8px; }
