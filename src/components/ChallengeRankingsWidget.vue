@@ -50,7 +50,6 @@ const getRankClass = (index) => {
 const fetchRankings = async () => {
   isLoading.value = true;
   try {
-    // [핵심 수정] 서버의 날짜 계산 로직과 100% 동일하게 수정합니다.
     const today = new Date();
     const dayOfWeek = today.getDay();
     const lastSunday = new Date(today);
@@ -59,7 +58,7 @@ const fetchRankings = async () => {
     lastMonday.setDate(lastSunday.getDate() - 6);
     const lastWeekId = lastMonday.toISOString().slice(0, 10);
 
-    const challengeId = activeTab.value; // 현재 활성화된 탭의 랭킹을 가져옵니다.
+    const challengeId = activeTab.value;
 
     const q = query(
       collection(db, 'challenges'),
