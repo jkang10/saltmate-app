@@ -218,10 +218,10 @@ export default {
       const boardEl = target.parentElement;
       return Array.from(boardEl.children).indexOf(target);
     };
-    const handleMouseDown = (index, event) => {
-      if (!isMyTurn.value || isProcessing.value) return;
-      inputState.value = { startIndex: index, isDragging: true };
-    };
+	const handleMouseDown = (index) => {
+	  if (!isMyTurn.value || isProcessing.value) return;
+	  inputState.value = { startIndex: index, isDragging: true };
+	};
     const handleMouseMove = (event) => {
       if (!inputState.value.isDragging) return;
       const currentIndex = getIndexFromEvent(event);
@@ -253,7 +253,7 @@ export default {
             selectedCell.value = null; 
         }
     };
-    const handleTouchStart = (index, event) => { handleMouseDown(index, event.touches[0]); };
+	const handleTouchStart = (index) => { handleMouseDown(index); };
     const handleTouchMove = (event) => { handleMouseMove(event.touches[0]); };
     const handleTouchEnd = () => { handleMouseUp(); };
     onMounted(() => {
