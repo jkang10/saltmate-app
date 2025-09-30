@@ -221,7 +221,7 @@ export default {
       return Array.from(boardElement.children).indexOf(targetElement);
     };
 
-    const handleInputStart = (index, event) => {
+    const handleInputStart = (index) => {
       if (!isMyTurn.value || isProcessing.value) return;
       inputState.value = { startIndex: index, isDragging: true };
     };
