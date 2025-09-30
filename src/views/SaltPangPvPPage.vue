@@ -190,20 +190,34 @@ export default {
             if (docSnap.exists() && docSnap.data().rtdbReady === true) { unsubscribe(); listenToGameRoom(); }
         });
     };
+
     const startTimer = () => {
-        if(timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(async () => {
-            timer.value--;
-            if (timer.value <= 0) {
-                clearInterval(timerInterval);
+    if(timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(async () => {
+        timer.value--;
+        if (timer.value <= 0) {
+            clearInterval(timerInterval);
+            try {
                 const finalizeGame = httpsCallable(functions, 'finalizePvpGame');
                 const result = await finalizeGame({ gameRoomId: gameRoomId.value });
                 gameResult.value = result.data.result;
+            } catch (error) {
+                console.error("게임 종료 처리 중 에러 발생:", error);
+                // 에러가 발생해도, 점수 비교로 승/패/무승부 결과는 보여줍니다.
+                const myFinalScore = me.value?.score || 0;
+                const opponentFinalScore = opponent.value?.score || 0;
+                if (myFinalScore > opponentFinalScore) gameResult.value = 'win';
+                else if (myFinalScore < opponentFinalScore) gameResult.value = 'lose';
+                else gameResult.value = 'draw';
+            } finally {
+                // 성공하든 실패하든, 최종 점수를 기록하고 결과 창을 띄웁니다.
                 finalScore.value = { me: me.value?.score || 0, opponent: opponent.value?.score || 0 };
                 matchState.value = 'finished';
             }
-        }, 1000);
-    };
+        }
+    }, 1000);
+};
+
     const cancelMatchmaking = async () => {
         if (!auth.currentUser || isCancelling.value) return;
         isCancelling.value = true;
