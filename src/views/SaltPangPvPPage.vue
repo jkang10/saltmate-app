@@ -26,12 +26,14 @@
       
       <div class="game-board-container">
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
-          <div
-            v-for="(cell, index) in board" :key="index" class="cell"
-            :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
-            @mousedown.prevent="handleMouseDown(index, $event)"
-            @touchstart.prevent="handleTouchStart(index, $event)"
-          >
+	<div
+	  v-for="(cell, index) in board" :key="index" class="cell"
+	  :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
+	  @mousedown.prevent="handleMouseDown(index, $event)"
+	  @touchstart.prevent="handleTouchStart(index, $event)"
+	  @touchmove.prevent="handleTouchMove($event)"
+	  @touchend.prevent="handleTouchEnd()"
+	>
             <transition name="gem-fall">
               <img
                 v-if="cell !== null"
