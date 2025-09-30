@@ -28,11 +28,9 @@
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
           <div
             v-for="(cell, index) in board" :key="index" class="cell"
-            @click="selectCell(index)"
             :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
+            @mousedown.prevent="handleMouseDown(index, $event)"
             @touchstart.prevent="handleTouchStart(index, $event)"
-            @touchmove.prevent="handleTouchMove($event)"
-            @touchend.prevent="handleTouchEnd()"
           >
             <transition name="gem-fall">
               <img
@@ -67,6 +65,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
+import matchSoundFile from '@/assets/sounds/match.mp3'; // [핵심 추가] 사운드 파일 import
 
 export default {
   name: 'SaltPangPvPPage',
@@ -77,10 +76,6 @@ export default {
     const selectedCell = ref(null);
     const isProcessing = ref(false);
     const explodingGems = ref(new Set());
-    
-    // [핵심 수정] 터치 상태 객체에 targetIndex 추가
-    const touchState = ref({ index: null, x: 0, y: 0, targetIndex: null, hasSwiped: false });
-    
     const matchState = ref('searching');
     const gameRoomId = ref(null);
     const gameState = ref(null);
@@ -93,6 +88,10 @@ export default {
     let timerInterval = null;
     let matchInfoUnsubscribe = null;
     const isCancelling = ref(false);
+
+    // [핵심 추가] 사운드 및 입력 상태 변수
+    const matchAudio = new Audio(matchSoundFile);
+    const inputState = ref({ startIndex: null, isDragging: false });
 
     const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
     const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
@@ -116,11 +115,15 @@ export default {
     const fillEmptyCells = () => {
       for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
     };
+    const playMatchSound = () => {
+      matchAudio.currentTime = 0;
+      matchAudio.play().catch(e => console.log("사운드 재생 오류:", e));
+    };
     const checkAndClearMatches = async () => {
         const matches = new Set();
         for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
         for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+BOARD_SIZE]&&board.value[i]===board.value[i+2*BOARD_SIZE]) for(let k=r;k<BOARD_SIZE;k++){ i=k*BOARD_SIZE+c; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
-        if (matches.size > 0) { const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1); matches.forEach(index => explodingGems.value.add(index)); await new Promise(r => setTimeout(r, 300)); matches.forEach(index => { board.value[index] = null; explodingGems.value.delete(index); }); return { hasMatches: true, scoreGained }; }
+        if (matches.size > 0) { playMatchSound(); const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1); matches.forEach(index => explodingGems.value.add(index)); await new Promise(r => setTimeout(r, 300)); matches.forEach(index => { board.value[index] = null; explodingGems.value.delete(index); }); return { hasMatches: true, scoreGained }; }
         return { hasMatches: false, scoreGained: 0 };
     };
     const processBoard = async () => {
@@ -147,11 +150,8 @@ export default {
               await update(roomRef, { board: board.value, [`/players/${auth.currentUser.uid}/score`]: newScore, turn: opponentId.value });
           }
         }
-      } catch (error) {
-        console.error("게임 진행 중 오류 발생:", error);
-      } finally {
-        isProcessing.value = false;
-      }
+      } catch (error) { console.error("게임 진행 중 오류 발생:", error); } 
+      finally { isProcessing.value = false; }
     };
     const listenToGameRoom = () => {
         roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
@@ -213,66 +213,70 @@ export default {
             router.push('/dashboard');
         } catch (error) { console.error("매칭 취소 오류:", error); alert('매칭 취소 중 오류가 발생했습니다.'); } finally { isCancelling.value = false; }
     };
-    const selectCell = (index) => {
-        if (!isMyTurn.value || isProcessing.value) return;
-        if (selectedCell.value === null) { selectedCell.value = index; } else { const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE; const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE; if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index); selectedCell.value = null; }
+    // [핵심 수정] 입력 처리 로직을 아래 코드로 교체합니다.
+    const getIndexFromEvent = (event) => {
+      const target = event.target.closest('.cell');
+      if (!target) return -1;
+      const boardEl = target.parentElement;
+      return Array.from(boardEl.children).indexOf(target);
+    };
+
+    const handleMouseDown = (index) => {
+      if (!isMyTurn.value || isProcessing.value) return;
+      inputState.value = { startIndex: index, isDragging: true };
+    };
+
+    const handleMouseMove = (event) => {
+      if (!inputState.value.isDragging) return;
+      
+      const currentIndex = getIndexFromEvent(event);
+      const { startIndex } = inputState.value;
+
+      if (currentIndex !== -1 && startIndex !== currentIndex) {
+        const r1=Math.floor(startIndex/BOARD_SIZE), c1=startIndex%BOARD_SIZE;
+        const r2=Math.floor(currentIndex/BOARD_SIZE), c2=currentIndex%BOARD_SIZE;
+        if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) {
+            swapAndCheck(startIndex, currentIndex);
+        }
+        inputState.value.isDragging = false;
+      }
     };
     
-    // [핵심 수정] 터치 핸들러 3개를 아래의 새 코드로 교체합니다.
-    const handleTouchStart = (index, event) => {
+    const handleMouseUp = () => {
+      if (inputState.value.isDragging) {
+        selectCell(inputState.value.startIndex);
+      }
+      inputState.value = { startIndex: null, isDragging: false };
+    };
+
+    const selectCell = (index) => {
         if (!isMyTurn.value || isProcessing.value) return;
-        touchState.value = { 
-            index: index, 
-            x: event.touches[0].clientX, 
-            y: event.touches[0].clientY,
-            targetIndex: null,
-            hasSwiped: false
-        };
-    };
-    const handleTouchMove = (event) => {
-      if (touchState.value.index === null || touchState.value.hasSwiped) return;
-      const dx = event.touches[0].clientX - touchState.value.x;
-      const dy = event.touches[0].clientY - touchState.value.y;
-      const SWIPE_THRESHOLD = 20;
-
-      if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
-        touchState.value.hasSwiped = true;
-        let targetIndex = -1;
-        const { index } = touchState.value;
-        const col = index % BOARD_SIZE;
-        
-        if (Math.abs(dx) > Math.abs(dy)) {
-          if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
-          else if (dx < 0 && col > 0) targetIndex = index - 1;
-        } else {
-          if (dy > 0) targetIndex = index + BOARD_SIZE;
-          else if (dy < 0) targetIndex = index - BOARD_SIZE;
+        if (selectedCell.value === null) { selectedCell.value = index; } 
+        else { 
+            const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
+            const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
+            if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) {
+                swapAndCheck(selectedCell.value, index);
+            }
+            selectedCell.value = null; 
         }
-
-        if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
-            touchState.value.targetIndex = targetIndex;
-        }
-      }
-    };
-    const handleTouchEnd = () => {
-      if (touchState.value.index === null) return;
-      
-      if (touchState.value.hasSwiped && touchState.value.targetIndex !== null) {
-        // 드래그(스와이프)가 감지되었으면, 이동 실행
-        swapAndCheck(touchState.value.index, touchState.value.targetIndex);
-      } else {
-        // 드래그가 아니면, 클릭으로 처리
-        selectCell(touchState.value.index);
-      }
-      
-      // 상태 초기화
-      touchState.value = { index: null, x: 0, y: 0, targetIndex: null, hasSwiped: false };
     };
 
-    onMounted(startMatchmaking);
+    const handleTouchStart = (index) => { handleMouseDown(index); };
+    const handleTouchMove = (event) => { if(event.touches[0]) handleMouseMove(event.touches[0]); };
+    const handleTouchEnd = () => { handleMouseUp(); };
+    
+    onMounted(() => {
+      startMatchmaking();
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    });
+
     onBeforeRouteLeave(async () => {
-        if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
-        if(roomRef) remove(roomRef);
+      if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
+      if(roomRef) remove(roomRef);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     });
 
     return {
