@@ -20,7 +20,7 @@ import {
   TooltipComponent,
   LegendComponent,
 } from "echarts/components";
-import './registerServiceWorker'
+// import './registerServiceWorker'
 
 use([
   CanvasRenderer,
