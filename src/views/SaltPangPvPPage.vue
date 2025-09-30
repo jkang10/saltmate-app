@@ -26,14 +26,12 @@
       
       <div class="game-board-container">
         <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
-	<div
-	  v-for="(cell, index) in board" :key="index" class="cell"
-	  :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
-	  @mousedown.prevent="handleMouseDown(index, $event)"
-	  @touchstart.prevent="handleTouchStart(index, $event)"
-	  @touchmove.prevent="handleTouchMove($event)"
-	  @touchend.prevent="handleTouchEnd()"
-	>
+          <div
+            v-for="(cell, index) in board" :key="index" class="cell"
+            :class="{ selected: selectedCell === index, 'not-my-turn': !isMyTurn }"
+            @mousedown.prevent="handleInputStart(index, $event)"
+            @touchstart.prevent="handleInputStart(index, $event)"
+          >
             <transition name="gem-fall">
               <img
                 v-if="cell !== null"
@@ -72,6 +70,7 @@ import matchSoundFile from '@/assets/sounds/match.mp3';
 export default {
   name: 'SaltPangPvPPage',
   setup() {
+    // --- 상태 변수 ---
     const BOARD_SIZE = 8;
     const NUM_GEM_TYPES = 5;
     const board = ref([]);
@@ -85,13 +84,15 @@ export default {
     const gameResult = ref('');
     const finalScore = ref({ me: 0, opponent: 0 });
     const router = useRouter();
+    const isCancelling = ref(false);
+    const matchAudio = new Audio(matchSoundFile);
+    const inputState = ref({ startIndex: null, isDragging: false });
     let roomRef = null;
     let roomListener = null;
     let timerInterval = null;
     let matchInfoUnsubscribe = null;
-    const isCancelling = ref(false);
-    const matchAudio = new Audio(matchSoundFile);
-    const inputState = ref({ startIndex: null, isDragging: false });
+
+    // --- 계산된 속성 ---
     const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
     const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
     const opponent = computed(() => opponentId.value ? gameState.value.players[opponentId.value] : null);
@@ -103,6 +104,7 @@ export default {
         if(gameResult.value === 'draw') return '무승부';
         return '';
     });
+
     const getGemImage = (gemType) => {
       if (gemType === null) return '';
       try { return require(`@/assets/gems/gem_${gemType}.png`); } 
@@ -213,38 +215,50 @@ export default {
         } catch (error) { console.error("매칭 취소 오류:", error); alert('매칭 취소 중 오류가 발생했습니다.'); } finally { isCancelling.value = false; }
     };
     const getIndexFromEvent = (event) => {
-      const target = event.target.closest('.cell');
-      if (!target) return -1;
-      const boardEl = target.parentElement;
-      return Array.from(boardEl.children).indexOf(target);
+      const targetElement = event.target.closest('.cell');
+      if (!targetElement) return -1;
+      const boardElement = targetElement.parentElement;
+      return Array.from(boardElement.children).indexOf(targetElement);
     };
-	const handleMouseDown = (index) => {
-	  if (!isMyTurn.value || isProcessing.value) return;
-	  inputState.value = { startIndex: index, isDragging: true };
-	};
-    const handleMouseMove = (event) => {
+
+    const handleInputStart = (index, event) => {
+      if (!isMyTurn.value || isProcessing.value) return;
+      inputState.value = { startIndex: index, isDragging: true };
+    };
+
+    const handleInputMove = (event) => {
       if (!inputState.value.isDragging) return;
-      const currentIndex = getIndexFromEvent(event);
+      const eventForCoord = event.touches ? event.touches[0] : event;
+      const elementUnderFinger = document.elementFromPoint(eventForCoord.clientX, eventForCoord.clientY);
+      
+      if (!elementUnderFinger) return;
+
+      const currentIndex = getIndexFromEvent({ target: elementUnderFinger });
       const { startIndex } = inputState.value;
+
       if (currentIndex !== -1 && startIndex !== currentIndex) {
         const r1=Math.floor(startIndex/BOARD_SIZE), c1=startIndex%BOARD_SIZE;
         const r2=Math.floor(currentIndex/BOARD_SIZE), c2=currentIndex%BOARD_SIZE;
         if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) {
             swapAndCheck(startIndex, currentIndex);
+            inputState.value.isDragging = false; // 드래그 성공 시 즉시 드래그 상태 해제
         }
-        inputState.value.isDragging = false;
       }
     };
-    const handleMouseUp = () => {
+    
+    const handleInputEnd = () => {
+      // 드래그가 성공하지 않았을 때 (isDragging이 여전히 true일 때) 클릭으로 간주
       if (inputState.value.isDragging) {
         selectCell(inputState.value.startIndex);
       }
       inputState.value = { startIndex: null, isDragging: false };
     };
+
     const selectCell = (index) => {
         if (!isMyTurn.value || isProcessing.value) return;
-        if (selectedCell.value === null) { selectedCell.value = index; } 
-        else { 
+        if (selectedCell.value === null) { 
+            selectedCell.value = index; 
+        } else { 
             const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
             const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
             if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) {
@@ -253,38 +267,34 @@ export default {
             selectedCell.value = null; 
         }
     };
-	const handleTouchStart = (index) => { handleMouseDown(index); };
-    const handleTouchMove = (event) => { handleMouseMove(event.touches[0]); };
-    const handleTouchEnd = () => { handleMouseUp(); };
+    
+    // --- 생명주기 훅 ---
     onMounted(() => {
       startMatchmaking();
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      // [핵심 추가] 모바일 드래그를 위한 터치 이벤트 리스너 추가
-      window.addEventListener('touchmove', handleTouchMove);
-      window.addEventListener('touchend', handleTouchEnd);
+      window.addEventListener('mousemove', handleInputMove);
+      window.addEventListener('mouseup', handleInputEnd);
+      window.addEventListener('touchmove', handleInputMove);
+      window.addEventListener('touchend', handleInputEnd);
     });
+
     onBeforeRouteLeave(async () => {
       if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
       if(roomRef) remove(roomRef);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      // [핵심 추가] 컴포넌트 파괴 시 터치 리스너도 제거
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('mousemove', handleInputMove);
+      window.removeEventListener('mouseup', handleInputEnd);
+      window.removeEventListener('touchmove', handleInputMove);
+      window.removeEventListener('touchend', handleInputEnd);
     });
     
     return {
-      auth, BOARD_SIZE, board, selectedCell, isProcessing, explodingGems,
-      matchState, isCancelling, gameResult, finalScore, gameState, timer,
-      me, opponent, isMyTurn, isOpponentTurn, resultText,
-      getGemImage, cancelMatchmaking, inputState,
-      selectCell, handleMouseDown, handleMouseMove, handleMouseUp,
-      handleTouchStart, handleTouchMove, handleTouchEnd,
+      BOARD_SIZE, board, selectedCell, explodingGems, matchState, isCancelling,
+      gameResult, finalScore, timer, me, opponent, isMyTurn, isOpponentTurn, resultText,
+      getGemImage, cancelMatchmaking, handleInputStart,
     };
   }
 }
 </script>
+
 
 <style scoped>
 .pvp-page { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(rgba(15, 32, 39, 0.8), rgba(32, 58, 67, 0.8), rgba(44, 83, 100, 0.8)), url('https://www.transparenttextures.com/patterns/clean-gray-paper.png'); padding: 20px; overflow: hidden; }
