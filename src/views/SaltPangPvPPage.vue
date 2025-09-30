@@ -107,12 +107,15 @@ const getGemImage = (gemType) => {
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
   catch (e) { return ''; }
 };
+
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
 };
+
 const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
+
 const checkAndClearMatches = async () => {
     const matches = new Set();
     for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
@@ -120,15 +123,55 @@ const checkAndClearMatches = async () => {
     if (matches.size > 0) { const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1); matches.forEach(index => explodingGems.value.add(index)); await new Promise(r => setTimeout(r, 300)); matches.forEach(index => { board.value[index] = null; explodingGems.value.delete(index); }); return { hasMatches: true, scoreGained }; }
     return { hasMatches: false, scoreGained: 0 };
 };
+
 const processBoard = async () => {
     await new Promise(r => setTimeout(r, 200)); dropDownGems(); await new Promise(r => setTimeout(r, 200)); fillEmptyCells(); await new Promise(r => setTimeout(r, 200)); return await checkAndClearMatches();
 };
-const swapAndCheck = async (index1, index2) => {
-  isProcessing.value = true; [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]]; await new Promise(r => setTimeout(r, 150)); let totalScoreGained = 0; let firstCheck = await checkAndClearMatches(); if (!firstCheck.hasMatches) { await new Promise(r => setTimeout(r, 150)); [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]]; if (roomRef) { update(roomRef, { turn: opponentId.value }); } } else { totalScoreGained += firstCheck.scoreGained; let subsequentCheck; while ((subsequentCheck = await processBoard()).hasMatches) { totalScoreGained += subsequentCheck.scoreGained; } if (roomRef && auth.currentUser) { const newScore = (me.value.score || 0) + totalScoreGained; update(roomRef, { board: board.value, [`/players/${auth.currentUser.uid}/score`]: newScore, turn: opponentId.value }); } }
-  isProcessing.value = false;
-};
 
-// [핵심 수정] listenToGameRoom과 startMatchmaking 함수를 아래 코드로 교체합니다.
+const swapAndCheck = async (index1, index2) => {
+  if (isProcessing.value) return; // 중복 실행 방지
+  isProcessing.value = true;
+  
+  try {
+    // 젬을 시각적으로 교환
+    [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
+    await new Promise(r => setTimeout(r, 150));
+    
+    let totalScoreGained = 0;
+    const firstCheck = await checkAndClearMatches();
+    
+    if (!firstCheck.hasMatches) {
+      // 매칭되는 젬이 없으면 원상복구하고 턴 넘김
+      await new Promise(r => setTimeout(r, 150));
+      [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
+      
+      if (roomRef) {
+        await update(roomRef, { turn: opponentId.value });
+      }
+    } else {
+      // 매칭되는 젬이 있으면 연쇄 반응 처리 및 점수/턴 업데이트
+      totalScoreGained += firstCheck.scoreGained;
+      let subsequentCheck;
+      while ((subsequentCheck = await processBoard()).hasMatches) {
+          totalScoreGained += subsequentCheck.scoreGained;
+      }
+      if (roomRef && auth.currentUser) {
+          const newScore = (me.value.score || 0) + totalScoreGained;
+          await update(roomRef, {
+              board: board.value,
+              [`/players/${auth.currentUser.uid}/score`]: newScore,
+              turn: opponentId.value
+          });
+      }
+    }
+  } catch (error) {
+    console.error("게임 진행 중 오류 발생:", error);
+    alert("상대방과 통신 중 오류가 발생했습니다. 권한 문제를 확인해주세요.");
+  } finally {
+    // [핵심] 성공하든 실패하든, 반드시 게임판 잠금을 해제합니다.
+    isProcessing.value = false;
+  }
+};
 
 const listenToGameRoom = () => {
     roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
