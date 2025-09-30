@@ -90,10 +90,8 @@ export default {
     let timerInterval = null;
     let matchInfoUnsubscribe = null;
     const isCancelling = ref(false);
-
     const matchAudio = new Audio(matchSoundFile);
     const inputState = ref({ startIndex: null, isDragging: false });
-
     const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
     const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
     const opponent = computed(() => opponentId.value ? gameState.value.players[opponentId.value] : null);
@@ -154,30 +152,80 @@ export default {
       } catch (error) { console.error("게임 진행 중 오류 발생:", error); } 
       finally { isProcessing.value = false; }
     };
-    const listenToGameRoom = () => { /* ... 이전과 동일 ... */ };
-    const startMatchmaking = async () => { /* ... 이전과 동일 ... */ };
-    const waitForRtdbReady = (newGameRoomId) => { /* ... 이전과 동일 ... */ };
-    const startTimer = () => { /* ... 이전과 동일 ... */ };
-    const cancelMatchmaking = async () => { /* ... 이전과 동일 ... */ };
-    
+    const listenToGameRoom = () => {
+        roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
+        roomListener = onValue(roomRef, (snapshot) => {
+            const data = snapshot.val();
+            if(data) {
+                gameState.value = data;
+                if((!board.value || board.value.length === 0) && data.board) { board.value = data.board; }
+                if (matchState.value !== 'playing' && data.status === 'playing') { matchState.value = 'playing'; startTimer(); }
+            }
+        });
+    };
+    const startMatchmaking = async () => {
+        matchState.value = 'searching';
+        if(auth.currentUser && !matchInfoUnsubscribe) {
+            const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
+            matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
+                if (docSnap.exists() && matchState.value === 'searching') {
+                    const { gameRoomId: newGameRoomId } = docSnap.data();
+                    if (matchInfoUnsubscribe) { matchInfoUnsubscribe(); matchInfoUnsubscribe = null; }
+                    deleteDoc(matchInfoRef);
+                    waitForRtdbReady(newGameRoomId);
+                }
+            });
+        }
+        try {
+            const findMatchFunc = httpsCallable(functions, 'findSaltPangMatch');
+            await findMatchFunc();
+        } catch(e) { console.error("매칭 요청 오류:", e); if (matchInfoUnsubscribe) matchInfoUnsubscribe(); router.push('/dashboard'); }
+    };
+    const waitForRtdbReady = (newGameRoomId) => {
+        gameRoomId.value = newGameRoomId;
+        const gameResultRef = doc(db, 'pvpGameResults', newGameRoomId);
+        const unsubscribe = onSnapshot(gameResultRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().rtdbReady === true) { unsubscribe(); listenToGameRoom(); }
+        });
+    };
+    const startTimer = () => {
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(async () => {
+            timer.value--;
+            if (timer.value <= 0) {
+                clearInterval(timerInterval);
+                const finalizeGame = httpsCallable(functions, 'finalizePvpGame');
+                const result = await finalizeGame({ gameRoomId: gameRoomId.value });
+                gameResult.value = result.data.result;
+                finalScore.value = { me: me.value?.score || 0, opponent: opponent.value?.score || 0 };
+                matchState.value = 'finished';
+            }
+        }, 1000);
+    };
+    const cancelMatchmaking = async () => {
+        if (!auth.currentUser || isCancelling.value) return;
+        isCancelling.value = true;
+        try {
+            const cancelFunc = httpsCallable(functions, 'cancelMatchmaking');
+            await cancelFunc();
+            alert('매칭이 취소되었습니다.');
+            router.push('/dashboard');
+        } catch (error) { console.error("매칭 취소 오류:", error); alert('매칭 취소 중 오류가 발생했습니다.'); } finally { isCancelling.value = false; }
+    };
     const getIndexFromEvent = (event) => {
       const target = event.target.closest('.cell');
       if (!target) return -1;
       const boardEl = target.parentElement;
       return Array.from(boardEl.children).indexOf(target);
     };
-
     const handleMouseDown = (index, event) => {
       if (!isMyTurn.value || isProcessing.value) return;
       inputState.value = { startIndex: index, isDragging: true };
     };
-
     const handleMouseMove = (event) => {
       if (!inputState.value.isDragging) return;
-      
       const currentIndex = getIndexFromEvent(event);
       const { startIndex } = inputState.value;
-
       if (currentIndex !== -1 && startIndex !== currentIndex) {
         const r1=Math.floor(startIndex/BOARD_SIZE), c1=startIndex%BOARD_SIZE;
         const r2=Math.floor(currentIndex/BOARD_SIZE), c2=currentIndex%BOARD_SIZE;
@@ -187,14 +235,12 @@ export default {
         inputState.value.isDragging = false;
       }
     };
-    
     const handleMouseUp = () => {
       if (inputState.value.isDragging) {
         selectCell(inputState.value.startIndex);
       }
       inputState.value = { startIndex: null, isDragging: false };
     };
-
     const selectCell = (index) => {
         if (!isMyTurn.value || isProcessing.value) return;
         if (selectedCell.value === null) { selectedCell.value = index; } 
@@ -207,11 +253,9 @@ export default {
             selectedCell.value = null; 
         }
     };
-
     const handleTouchStart = (index, event) => { handleMouseDown(index, event.touches[0]); };
     const handleTouchMove = (event) => { handleMouseMove(event.touches[0]); };
     const handleTouchEnd = () => { handleMouseUp(); };
-    
     onMounted(() => {
       startMatchmaking();
       window.addEventListener('mousemove', handleMouseMove);
@@ -220,7 +264,6 @@ export default {
       window.addEventListener('touchmove', handleTouchMove);
       window.addEventListener('touchend', handleTouchEnd);
     });
-
     onBeforeRouteLeave(async () => {
       if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
       if(roomRef) remove(roomRef);
@@ -230,17 +273,14 @@ export default {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     });
-
-    // [최종 핵심 수정] 템플릿에서 사용하는 모든 변수와 함수를 return합니다.
+    
     return {
       auth, BOARD_SIZE, board, selectedCell, isProcessing, explodingGems,
       matchState, isCancelling, gameResult, finalScore, gameState, timer,
       me, opponent, isMyTurn, isOpponentTurn, resultText,
-      getGemImage, cancelMatchmaking,
-      // 입력 처리 함수들
-      selectCell,
-      handleMouseDown,
-      handleTouchStart,
+      getGemImage, cancelMatchmaking, inputState,
+      selectCell, handleMouseDown, handleMouseMove, handleMouseUp,
+      handleTouchStart, handleTouchMove, handleTouchEnd,
     };
   }
 }
