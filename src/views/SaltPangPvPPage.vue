@@ -68,7 +68,6 @@ import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
 import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
-// --- (게임 기본 설정, 상태 변수, 계산된 속성 등은 기존과 동일) ---
 const BOARD_SIZE = 8;
 const NUM_GEM_TYPES = 5;
 const board = ref([]);
@@ -89,6 +88,7 @@ let roomListener = null;
 let timerInterval = null;
 let matchInfoUnsubscribe = null;
 const isCancelling = ref(false);
+
 const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
 const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
 const opponent = computed(() => opponentId.value ? gameState.value.players[opponentId.value] : null);
@@ -101,21 +101,17 @@ const resultText = computed(() => {
     return '';
 });
 
-// --- (게임 로직 함수들은 기존과 동일) ---
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try { return require(`@/assets/gems/gem_${gemType}.png`); } 
   catch (e) { return ''; }
 };
-
 const dropDownGems = () => {
   for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
 };
-
 const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
-
 const checkAndClearMatches = async () => {
     const matches = new Set();
     for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
@@ -123,17 +119,15 @@ const checkAndClearMatches = async () => {
     if (matches.size > 0) { const scoreGained = matches.size * 10 * (matches.size > 3 ? 2 : 1); matches.forEach(index => explodingGems.value.add(index)); await new Promise(r => setTimeout(r, 300)); matches.forEach(index => { board.value[index] = null; explodingGems.value.delete(index); }); return { hasMatches: true, scoreGained }; }
     return { hasMatches: false, scoreGained: 0 };
 };
-
 const processBoard = async () => {
     await new Promise(r => setTimeout(r, 200)); dropDownGems(); await new Promise(r => setTimeout(r, 200)); fillEmptyCells(); await new Promise(r => setTimeout(r, 200)); return await checkAndClearMatches();
 };
 
 const swapAndCheck = async (index1, index2) => {
-  if (isProcessing.value) return; // 중복 실행 방지
+  if (isProcessing.value) return;
   isProcessing.value = true;
   
   try {
-    // 젬을 시각적으로 교환
     [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
     await new Promise(r => setTimeout(r, 150));
     
@@ -141,15 +135,12 @@ const swapAndCheck = async (index1, index2) => {
     const firstCheck = await checkAndClearMatches();
     
     if (!firstCheck.hasMatches) {
-      // 매칭되는 젬이 없으면 원상복구하고 턴 넘김
       await new Promise(r => setTimeout(r, 150));
       [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-      
       if (roomRef) {
         await update(roomRef, { turn: opponentId.value });
       }
     } else {
-      // 매칭되는 젬이 있으면 연쇄 반응 처리 및 점수/턴 업데이트
       totalScoreGained += firstCheck.scoreGained;
       let subsequentCheck;
       while ((subsequentCheck = await processBoard()).hasMatches) {
@@ -168,7 +159,6 @@ const swapAndCheck = async (index1, index2) => {
     console.error("게임 진행 중 오류 발생:", error);
     alert("상대방과 통신 중 오류가 발생했습니다. 권한 문제를 확인해주세요.");
   } finally {
-    // [핵심] 성공하든 실패하든, 반드시 게임판 잠금을 해제합니다.
     isProcessing.value = false;
   }
 };
@@ -195,19 +185,14 @@ const startMatchmaking = async () => {
     
     if(auth.currentUser && !matchInfoUnsubscribe) {
         const matchInfoRef = doc(db, 'matches', auth.currentUser.uid);
-        // 1. 1차 신호 (게임방 ID)를 기다립니다.
         matchInfoUnsubscribe = onSnapshot(matchInfoRef, (docSnap) => {
             if (docSnap.exists() && matchState.value === 'searching') {
                 const { gameRoomId: newGameRoomId } = docSnap.data();
-                
-                // 1차 신호 수신 완료, 더 이상 기다릴 필요 없으므로 리스너와 문서를 정리합니다.
                 if (matchInfoUnsubscribe) {
                     matchInfoUnsubscribe();
                     matchInfoUnsubscribe = null;
                 }
                 deleteDoc(matchInfoRef);
-
-                // 2. 2차 신호 (RTDB 준비 완료)를 기다리는 함수를 호출합니다.
                 waitForRtdbReady(newGameRoomId);
             }
         });
@@ -223,20 +208,17 @@ const startMatchmaking = async () => {
     }
 };
 
-// [핵심 추가] 2차 신호를 기다리는 새로운 함수
 const waitForRtdbReady = (newGameRoomId) => {
     gameRoomId.value = newGameRoomId;
     const gameResultRef = doc(db, 'pvpGameResults', newGameRoomId);
     const unsubscribe = onSnapshot(gameResultRef, (docSnap) => {
-        // rtdbReady가 true가 되면, 안전하게 RTDB에 연결합니다.
         if (docSnap.exists() && docSnap.data().rtdbReady === true) {
-            unsubscribe(); // 2차 신호 리스너는 이제 필요 없으므로 해제합니다.
-            listenToGameRoom(); // 안전하게 게임방에 입장합니다.
+            unsubscribe();
+            listenToGameRoom();
         }
     });
 };
 
-// --- (나머지 함수들은 기존과 동일) ---
 const startTimer = () => {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(async () => {
