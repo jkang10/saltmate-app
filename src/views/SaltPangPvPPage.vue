@@ -16,13 +16,6 @@
     </div>
 
     <div v-if="matchState === 'playing'" class="game-area">
-      <div class="debug-panel">
-        <p>My UID: {{ auth.currentUser?.uid }}</p>
-        <p>Turn UID: {{ gameState?.turn }}</p>
-        <p style="color: yellow; font-weight: bold;">Is My Turn: {{ isMyTurn }}</p>
-        <p>Is Processing: {{ isProcessing }}</p>
-      </div>
-      
       <div class="player-info opponent" :class="{ 'active-turn': isOpponentTurn }">
         <div class="info-text">
             <span>{{ opponent?.name }}</span>
@@ -68,7 +61,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { functions, auth, rtdb, db } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { ref as rtdbRef, onValue, update, remove } from "firebase/database";
@@ -98,18 +91,6 @@ export default {
     let timerInterval = null;
     let matchInfoUnsubscribe = null;
     const isCancelling = ref(false);
-
-    watch(gameState, (newState) => {
-        if (!newState || !auth.currentUser) return;
-        console.log("--------------------------");
-        console.log("GAME STATE UPDATED");
-        console.log("My UID:", auth.currentUser.uid);
-        console.log("Current Turn UID:", newState.turn);
-        const amIWhoseTurnItIs = newState.turn === auth.currentUser.uid;
-        console.log("Is it my turn?:", amIWhoseTurnItIs);
-        console.log("Is board processing?:", isProcessing.value);
-        console.log("--------------------------");
-    }, { deep: true });
 
     const me = computed(() => gameState.value?.players[auth.currentUser.uid]);
     const opponentId = computed(() => Object.keys(gameState.value?.players || {}).find(id => id !== auth.currentUser.uid));
@@ -166,8 +147,9 @@ export default {
         }
       } catch (error) {
         console.error("게임 진행 중 오류 발생:", error);
-        alert("상대방과 통신 중 오류가 발생했습니다. 권한 문제를 확인해주세요.");
-      } finally { isProcessing.value = false; }
+      } finally {
+        isProcessing.value = false;
+      }
     };
     const listenToGameRoom = () => {
         roomRef = rtdbRef(rtdb, `pvpGameRooms/${gameRoomId.value}`);
@@ -239,16 +221,20 @@ export default {
     const handleTouchMove = (event) => {
       if (touchStart.index === null || hasSwiped.value) return; const dx = event.touches[0].clientX - touchStart.x; const dy = event.touches[0].clientY - touchStart.y; const SWIPE_THRESHOLD = 20; if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) { hasSwiped.value = true; let targetIndex = -1; const { index } = touchStart; const col = index % BOARD_SIZE; if (Math.abs(dx) > Math.abs(dy)) { if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1; else if (dx < 0 && col > 0) targetIndex = index - 1; } else { if (dy > 0) targetIndex = index + BOARD_SIZE; else if (dy < 0) targetIndex = index - BOARD_SIZE; } if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) { swapAndCheck(touchStart.index, targetIndex); } }
     };
-    const handleTouchEnd = () => { touchStart.index = null; };
+    const handleTouchEnd = () => {
+      if (touchStart.index !== null && !hasSwiped.value) {
+        selectCell(touchStart.index);
+      }
+      touchStart.index = null;
+    };
     onMounted(startMatchmaking);
     onBeforeRouteLeave(async () => {
         if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
         if(roomRef) remove(roomRef);
     });
 
-    // [최종 핵심 수정] 템플릿에서 사용할 모든 변수와 함수를 return합니다.
     return {
-      auth, // 디버그 패널용
+      auth,
       BOARD_SIZE,
       board,
       selectedCell,
@@ -276,24 +262,7 @@ export default {
 }
 </script>
 
-
 <style scoped>
-/* [진단용 코드 추가] 디버그 패널 스타일 */
-.debug-panel {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background-color: rgba(0,0,0,0.7);
-  color: white;
-  padding: 10px;
-  border-radius: 5px;
-  font-family: monospace;
-  font-size: 12px;
-  z-index: 999;
-}
-.debug-panel p {
-  margin: 2px 0;
-}
 .pvp-page { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(rgba(15, 32, 39, 0.8), rgba(32, 58, 67, 0.8), rgba(44, 83, 100, 0.8)), url('https://www.transparenttextures.com/patterns/clean-gray-paper.png'); padding: 20px; overflow: hidden; }
 .match-overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px); z-index: 100; }
 .status-box { background: white; padding: 40px 50px; border-radius: 16px; text-align: center; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); animation: fadeIn 0.5s ease-out; }
