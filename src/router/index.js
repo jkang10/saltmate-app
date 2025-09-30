@@ -149,6 +149,12 @@ const routes = [
     component: () => import('@/views/SaltPangPage.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/rtdb-test',
+    name: 'RtdbTestPage',
+    component: () => import('@/views/RtdbTestPage.vue'),
+    meta: { requiresAuth: true }
+  },
   // [신규 추가] 솔트팡 PvP 대전 모드 경로
   {
     path: '/salt-pang-pvp',
