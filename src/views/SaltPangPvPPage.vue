@@ -77,8 +77,10 @@ export default {
     const selectedCell = ref(null);
     const isProcessing = ref(false);
     const explodingGems = ref(new Set());
-    const touchStart = { index: null, x: 0, y: 0 };
-    let hasSwiped = false;
+    
+    // [핵심 수정] 터치 상태 객체에 targetIndex 추가
+    const touchState = ref({ index: null, x: 0, y: 0, targetIndex: null, hasSwiped: false });
+    
     const matchState = ref('searching');
     const gameRoomId = ref(null);
     const gameState = ref(null);
@@ -215,18 +217,58 @@ export default {
         if (!isMyTurn.value || isProcessing.value) return;
         if (selectedCell.value === null) { selectedCell.value = index; } else { const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE; const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE; if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index); selectedCell.value = null; }
     };
+    
+    // [핵심 수정] 터치 핸들러 3개를 아래의 새 코드로 교체합니다.
     const handleTouchStart = (index, event) => {
-        if (!isMyTurn.value || isProcessing.value) return; touchStart.index = index; touchStart.x = event.touches[0].clientX; touchStart.y = event.touches[0].clientY; hasSwiped.value = false;
+        if (!isMyTurn.value || isProcessing.value) return;
+        touchState.value = { 
+            index: index, 
+            x: event.touches[0].clientX, 
+            y: event.touches[0].clientY,
+            targetIndex: null,
+            hasSwiped: false
+        };
     };
     const handleTouchMove = (event) => {
-      if (touchStart.index === null || hasSwiped.value) return; const dx = event.touches[0].clientX - touchStart.x; const dy = event.touches[0].clientY - touchStart.y; const SWIPE_THRESHOLD = 20; if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) { hasSwiped.value = true; let targetIndex = -1; const { index } = touchStart; const col = index % BOARD_SIZE; if (Math.abs(dx) > Math.abs(dy)) { if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1; else if (dx < 0 && col > 0) targetIndex = index - 1; } else { if (dy > 0) targetIndex = index + BOARD_SIZE; else if (dy < 0) targetIndex = index - BOARD_SIZE; } if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) { swapAndCheck(touchStart.index, targetIndex); } }
+      if (touchState.value.index === null || touchState.value.hasSwiped) return;
+      const dx = event.touches[0].clientX - touchState.value.x;
+      const dy = event.touches[0].clientY - touchState.value.y;
+      const SWIPE_THRESHOLD = 20;
+
+      if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+        touchState.value.hasSwiped = true;
+        let targetIndex = -1;
+        const { index } = touchState.value;
+        const col = index % BOARD_SIZE;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
+          else if (dx < 0 && col > 0) targetIndex = index - 1;
+        } else {
+          if (dy > 0) targetIndex = index + BOARD_SIZE;
+          else if (dy < 0) targetIndex = index - BOARD_SIZE;
+        }
+
+        if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
+            touchState.value.targetIndex = targetIndex;
+        }
+      }
     };
     const handleTouchEnd = () => {
-      if (touchStart.index !== null && !hasSwiped.value) {
-        selectCell(touchStart.index);
+      if (touchState.value.index === null) return;
+      
+      if (touchState.value.hasSwiped && touchState.value.targetIndex !== null) {
+        // 드래그(스와이프)가 감지되었으면, 이동 실행
+        swapAndCheck(touchState.value.index, touchState.value.targetIndex);
+      } else {
+        // 드래그가 아니면, 클릭으로 처리
+        selectCell(touchState.value.index);
       }
-      touchStart.index = null;
+      
+      // 상태 초기화
+      touchState.value = { index: null, x: 0, y: 0, targetIndex: null, hasSwiped: false };
     };
+
     onMounted(startMatchmaking);
     onBeforeRouteLeave(async () => {
         if(roomListener) roomListener(); if(timerInterval) clearInterval(timerInterval); if(matchInfoUnsubscribe) matchInfoUnsubscribe(); if(matchState.value === 'searching' && auth.currentUser && !isCancelling.value) { const cancelFunc = httpsCallable(functions, 'cancelMatchmaking'); await cancelFunc(); }
@@ -234,29 +276,10 @@ export default {
     });
 
     return {
-      auth,
-      BOARD_SIZE,
-      board,
-      selectedCell,
-      isProcessing,
-      explodingGems,
-      matchState,
-      isCancelling,
-      gameResult,
-      finalScore,
-      gameState,
-      timer,
-      me,
-      opponent,
-      isMyTurn,
-      isOpponentTurn,
-      resultText,
-      getGemImage,
-      selectCell,
-      handleTouchStart,
-      handleTouchMove,
-      handleTouchEnd,
-      cancelMatchmaking,
+      auth, BOARD_SIZE, board, selectedCell, isProcessing, explodingGems,
+      matchState, isCancelling, gameResult, finalScore, gameState, timer,
+      me, opponent, isMyTurn, isOpponentTurn, resultText,
+      getGemImage, selectCell, handleTouchStart, handleTouchMove, handleTouchEnd, cancelMatchmaking,
     };
   }
 }
