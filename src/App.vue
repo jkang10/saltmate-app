@@ -14,6 +14,13 @@
         </nav>
         <div class="navbar-actions">
           <div v-if="isLoggedIn" class="user-actions">
+            <!-- [핵심 추가] 솔트팡 매칭중 알림 버튼 -->
+            <router-link to="/salt-pang-pvp" v-if="matchmakingQueueCount > 0" class="matchmaking-indicator" title="솔트팡 대전 참여하기">
+              <div class="pulse"></div>
+              <i class="fas fa-fist-raised"></i>
+              <span>대전 매칭중 ({{ matchmakingQueueCount }}명)</span>
+            </router-link>
+
             <router-link to="/salt-trader" class="salt-ticker" title="소금 상인 페이지로 이동">
               <span class="ticker-label">SALT</span>
               <span class="ticker-price">{{ saltPrice.toLocaleString() }}</span>
@@ -45,12 +52,10 @@
       <router-view />
     </main>
 
-    <!-- [핵심 추가] 센터 관리자에게만 보이는 QR 생성 버튼 (Floating Action Button) -->
     <button v-if="userRole === 'centerManager'" @click="generateQR" class="fab-qr-button" title="방문 인증 QR코드 생성">
       <i class="fas fa-qrcode"></i>
     </button>
 
-    <!-- [핵심 추가] QR코드 표시 모달 -->
     <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
       <div class="modal-content">
         <header class="modal-header">
@@ -72,13 +77,13 @@
 
 <script>
 import { ref, onMounted, onUnmounted, watch, reactive } from "vue";
-import { auth, db, functions, rtdb } from "@/firebaseConfig"; // functions 추가
-import { httpsCallable } from "firebase/functions"; // httpsCallable 추가
+import { auth, db, functions, rtdb } from "@/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
 import { useRouter } from "vue-router";
-import QrcodeVue from 'qrcode.vue'; // QR코드 생성 라이브러리
+import QrcodeVue from 'qrcode.vue';
 
 export default {
   components: {
@@ -96,15 +101,14 @@ export default {
       qrId: null,
       error: null,
     });
-
-    // [핵심 수정] 소금 시세 관련 변수들을 setup 스코프 최상단에 ref로 선언합니다.
     const saltPrice = ref(0);
     const priceChange = ref(0);
     const priceClass = ref('');
-    let saltPriceUnsubscribe = null; // 이 변수는 ref일 필요가 없습니다.
-
+    const matchmakingQueueCount = ref(0); // 매칭 대기 인원
+    let saltPriceUnsubscribe = null;
     let authUnsubscribe = null;
     let presenceRef = null;
+    let matchmakingUnsubscribe = null; // 매칭 리스너 해제용
 
     const managePresence = (user) => {
       if (user) {
@@ -124,14 +128,12 @@ export default {
       }
     };
 
-    // [핵심 추가] 실시간으로 소금 시세를 가져오는 함수
     const listenToSaltPrice = () => {
       const marketRef = doc(db, "configuration", "saltMarket");
       saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
         if (docSnap.exists()) {
           const marketData = docSnap.data();
           const newPrice = marketData.currentPrice;
-
           if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
             priceChange.value = newPrice - saltPrice.value;
             priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
@@ -141,20 +143,32 @@ export default {
       });
     };
 
+    const listenToMatchmakingQueue = () => {
+      const statsRef = doc(db, 'matchmakingQueue', '--stats--');
+      matchmakingUnsubscribe = onSnapshot(statsRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const count = docSnap.data().count;
+          matchmakingQueueCount.value = count > 0 ? count : 0;
+        } else {
+          matchmakingQueueCount.value = 0;
+        }
+      });
+    };
+
    const checkAuthState = () => {
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
         managePresence(user);
         if (user) {
           isLoggedIn.value = true;
-          // [핵심 추가] 로그인 시 소금 시세 리스너 시작
           listenToSaltPrice(); 
+          listenToMatchmakingQueue(); // 로그인 시 매칭 인원 감지 시작
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
             if (userSnap.exists()) {
               const userData = userSnap.data();
               userName.value = userData.name || "사용자";
-              userRole.value = userData.role || 'user'; // 사용자의 역할을 가져와서 저장
+              userRole.value = userData.role || 'user';
             }
           } catch (error) {
             console.error("사용자 정보를 가져오는 중 오류 발생:", error);
@@ -164,14 +178,13 @@ export default {
         } else {
           isLoggedIn.value = false;
           userName.value = "";
-          userRole.value = null; // 로그아웃 시 역할 초기화
-          // [핵심 추가] 로그아웃 시 소금 시세 리스너 정리
+          userRole.value = null;
           if (saltPriceUnsubscribe) saltPriceUnsubscribe();
+          if (matchmakingUnsubscribe) matchmakingUnsubscribe(); // 로그아웃 시 감지 종료
         }
       });
     };
     
-    // [핵심 추가] QR코드 생성 함수
     const generateQR = async () => {
       qrModal.visible = true;
       qrModal.isLoading = true;
@@ -179,10 +192,9 @@ export default {
       qrModal.error = null;
       try {
         const generateFunc = httpsCallable(functions, "generateCenterQRCode");
-        const result = await generateFunc(); // 센터 관리자는 centerId를 보낼 필요 없음
+        const result = await generateFunc();
         if (result.data.success) {
-          // [핵심 수정] 단순 ID가 아닌, 전체 URL을 QR코드 값으로 생성합니다.
-          const baseUrl = window.location.origin; // https://saltmate-app.netlify.app
+          const baseUrl = window.location.origin;
           qrModal.qrId = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
         } else {
           throw new Error("QR코드 생성에 실패했습니다.");
@@ -195,11 +207,9 @@ export default {
       }
     };
 
-    // [핵심 추가] QR 모달 닫기 함수
     const closeQrModal = () => {
       qrModal.visible = false;
     };
-
 
     const logout = async () => {
       try {
@@ -225,7 +235,8 @@ export default {
 
     onUnmounted(() => {
       if (authUnsubscribe) authUnsubscribe();
-      if (saltPriceUnsubscribe) saltPriceUnsubscribe(); // [핵심 추가]
+      if (saltPriceUnsubscribe) saltPriceUnsubscribe();
+      if (matchmakingUnsubscribe) matchmakingUnsubscribe();
       if (auth.currentUser) {
         const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
         remove(userPresenceRef);
@@ -239,14 +250,45 @@ export default {
     return {
       isLoggedIn, userName, logout, isNavActive, toggleNav,
       userRole, qrModal, generateQR, closeQrModal,
-      // [핵심 추가] 템플릿에서 사용할 변수들
       saltPrice, priceChange, priceClass,
+      matchmakingQueueCount,
     };
   },
 };
 </script>
 
 <style scoped>
+.matchmaking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #e74c3c;
+  color: white;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  text-decoration: none;
+  animation: pulse-bg 2s infinite;
+  position: relative;
+  z-index: 1;
+}
+.matchmaking-indicator .pulse {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 20px;
+  background-color: #e74c3c;
+  animation: pulse-ring 2s infinite;
+  z-index: -1;
+}
+@keyframes pulse-bg {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
 .salt-ticker {
   display: flex;
   align-items: center;
@@ -279,10 +321,10 @@ export default {
   align-items: center;
 }
 .ticker-change.up {
-  color: #28a745; /* 초록색 */
+  color: #28a745;
 }
 .ticker-change.down {
-  color: #dc3545; /* 빨간색 */
+  color: #dc3545;
 }
 #app {
   display: flex;
