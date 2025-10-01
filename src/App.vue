@@ -14,13 +14,6 @@
         </nav>
         <div class="navbar-actions">
           <div v-if="isLoggedIn" class="user-actions">
-            <!-- [핵심 추가] 솔트팡 매칭중 알림 버튼 -->
-            <router-link to="/salt-pang-pvp" v-if="matchmakingQueueCount > 0" class="matchmaking-indicator" title="솔트팡 대전 참여하기">
-              <div class="pulse"></div>
-              <i class="fas fa-fist-raised"></i>
-              <span>대전 매칭중 ({{ matchmakingQueueCount }}명)</span>
-            </router-link>
-
             <router-link to="/salt-trader" class="salt-ticker" title="소금 상인 페이지로 이동">
               <span class="ticker-label">SALT</span>
               <span class="ticker-price">{{ saltPrice.toLocaleString() }}</span>
@@ -47,6 +40,12 @@
         </div>
       </div>
     </header>
+
+    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0" class="fab-matchmaking-button" title="솔트팡 대전 참여하기">
+      <div class="pulse-ring"></div>
+      <i class="fas fa-fist-raised"></i>
+      <span class="fab-badge">{{ matchmakingQueueCount }}</span>
+    </router-link>
 
     <main class="main-content">
       <router-view />
@@ -104,11 +103,11 @@ export default {
     const saltPrice = ref(0);
     const priceChange = ref(0);
     const priceClass = ref('');
-    const matchmakingQueueCount = ref(0); // 매칭 대기 인원
+    const matchmakingQueueCount = ref(0);
     let saltPriceUnsubscribe = null;
     let authUnsubscribe = null;
     let presenceRef = null;
-    let matchmakingUnsubscribe = null; // 매칭 리스너 해제용
+    let matchmakingUnsubscribe = null;
 
     const managePresence = (user) => {
       if (user) {
@@ -161,7 +160,7 @@ export default {
         if (user) {
           isLoggedIn.value = true;
           listenToSaltPrice(); 
-          listenToMatchmakingQueue(); // 로그인 시 매칭 인원 감지 시작
+          listenToMatchmakingQueue();
           try {
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
@@ -180,7 +179,7 @@ export default {
           userName.value = "";
           userRole.value = null;
           if (saltPriceUnsubscribe) saltPriceUnsubscribe();
-          if (matchmakingUnsubscribe) matchmakingUnsubscribe(); // 로그아웃 시 감지 종료
+          if (matchmakingUnsubscribe) matchmakingUnsubscribe();
         }
       });
     };
@@ -258,37 +257,68 @@ export default {
 </script>
 
 <style scoped>
-.matchmaking-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* [핵심] 신규 플로팅 아이콘 버튼 스타일 */
+.fab-matchmaking-button {
+  position: fixed;
+  top: 85px; /* 네비게이션 바 바로 아래 */
+  right: 25px;
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
   background-color: #e74c3c;
   color: white;
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-weight: bold;
+  border: 2px solid white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.6em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  z-index: 998;
+  transition: all 0.3s ease;
   text-decoration: none;
-  animation: pulse-bg 2s infinite;
-  position: relative;
-  z-index: 1;
 }
-.matchmaking-indicator .pulse {
+.fab-matchmaking-button:hover {
+  background-color: #c0392b;
+  transform: scale(1.1);
+}
+.fab-badge {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border-radius: 20px;
-  background-color: #e74c3c;
-  animation: pulse-ring 2s infinite;
+  top: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  background-color: #007bff;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid white;
+}
+.pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid #e74c3c;
+  border-radius: 50%;
+  animation: pulse-animate 2s infinite cubic-bezier(0.2, 0.8, 0.7, 1);
   z-index: -1;
 }
-@keyframes pulse-bg {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+@keyframes pulse-animate {
+  0% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
-@keyframes pulse-ring {
-  0% { transform: scale(0.9); opacity: 1; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
+
+/* --- 나머지 스타일은 기존과 동일 --- */
 .salt-ticker {
   display: flex;
   align-items: center;
@@ -320,160 +350,30 @@ export default {
   display: flex;
   align-items: center;
 }
-.ticker-change.up {
-  color: #28a745;
-}
-.ticker-change.down {
-  color: #dc3545;
-}
-#app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: #f8f9fa;
-}
-.navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 1000;
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-.navbar-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.navbar-brand {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  color: #333;
-  font-size: 1.5em;
-  font-weight: bold;
-}
-.navbar-brand img {
-  height: 40px;
-  margin-right: 10px;
-}
-.navbar-nav {
-  display: flex;
-  gap: 25px;
-}
-.nav-link {
-  text-decoration: none;
-  color: #555;
-  font-weight: 500;
-  padding: 5px 0;
-  position: relative;
-  transition: color 0.3s;
-}
-.nav-link::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background-color: #007bff;
-  transition: width 0.3s;
-}
-.nav-link:hover,
-.nav-link.router-link-exact-active {
-  color: #007bff;
-}
-.nav-link:hover::after,
-.nav-link.router-link-exact-active::after {
-  width: 100%;
-}
-.navbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.user-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.user-profile-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: #333;
-  font-weight: 500;
-}
-.logout-button,
-.login-button {
-  padding: 8px 15px;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-weight: bold;
-  transition:
-    background-color 0.3s,
-    color 0.3s;
-}
-.logout-button {
-  background-color: #f8f9fa;
-  color: #dc3545;
-  border: 1px solid #dc3545;
-}
-.logout-button:hover {
-  background-color: #dc3545;
-  color: white;
-}
-.login-button {
-  background-color: #007bff;
-  color: white;
-  text-decoration: none;
-}
-.login-button:hover {
-  background-color: #0056b3;
-}
-.navbar-toggler {
-  display: none;
-  background: none;
-  border: none;
-  font-size: 1.5em;
-  cursor: pointer;
-}
-.main-content {
-  flex: 1;
-  margin-top: 70px;
-}
-.fab-qr-button {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 1.8em;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  z-index: 998;
-  transition: all 0.3s ease;
-}
-.fab-qr-button:hover {
-  background-color: #0056b3;
-  transform: scale(1.1);
-}
+.ticker-change.up { color: #28a745; }
+.ticker-change.down { color: #dc3545; }
+#app { display: flex; flex-direction: column; min-height: 100vh; background-color: #f8f9fa; }
+.navbar { position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; padding: 10px 20px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(0, 0, 0, 0.1); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); }
+.navbar-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+.navbar-brand { display: flex; align-items: center; text-decoration: none; color: #333; font-size: 1.5em; font-weight: bold; }
+.navbar-brand img { height: 40px; margin-right: 10px; }
+.navbar-nav { display: flex; gap: 25px; }
+.nav-link { text-decoration: none; color: #555; font-weight: 500; padding: 5px 0; position: relative; transition: color 0.3s; }
+.nav-link::after { content: ""; position: absolute; bottom: 0; left: 0; width: 0; height: 2px; background-color: #007bff; transition: width 0.3s; }
+.nav-link:hover, .nav-link.router-link-exact-active { color: #007bff; }
+.nav-link:hover::after, .nav-link.router-link-exact-active::after { width: 100%; }
+.navbar-actions { display: flex; align-items: center; gap: 15px; }
+.user-actions { display: flex; align-items: center; gap: 15px; }
+.user-profile-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #333; font-weight: 500; }
+.logout-button, .login-button { padding: 8px 15px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: background-color 0.3s, color 0.3s; }
+.logout-button { background-color: #f8f9fa; color: #dc3545; border: 1px solid #dc3545; }
+.logout-button:hover { background-color: #dc3545; color: white; }
+.login-button { background-color: #007bff; color: white; text-decoration: none; }
+.login-button:hover { background-color: #0056b3; }
+.navbar-toggler { display: none; background: none; border: none; font-size: 1.5em; cursor: pointer; }
+.main-content { flex: 1; margin-top: 70px; }
+.fab-qr-button { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background-color: #007bff; color: white; border: none; display: flex; justify-content: center; align-items: center; font-size: 1.8em; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); cursor: pointer; z-index: 998; transition: all 0.3s ease; }
+.fab-qr-button:hover { background-color: #0056b3; transform: scale(1.1); }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
@@ -483,34 +383,11 @@ export default {
 .qr-code-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
 .qr-info { font-size: 0.9em; color: #555; }
 .qr-error { color: #dc3545; }
-.loading-spinner {
-  display: inline-block;
-  border: 4px solid rgba(0,0,0,0.1);
-  border-top-color: #007bff;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
+.loading-spinner { display: inline-block; border: 4px solid rgba(0,0,0,0.1); border-top-color: #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 @media (max-width: 992px) {
-  .navbar-nav {
-    display: none;
-    position: absolute;
-    top: 70px;
-    left: 0;
-    width: 100%;
-    background-color: white;
-    flex-direction: column;
-    padding: 20px;
-    box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
-  }
-  .navbar-nav.is-active {
-    display: flex;
-  }
-  .navbar-toggler {
-    display: block;
-  }
+  .navbar-nav { display: none; position: absolute; top: 70px; left: 0; width: 100%; background-color: white; flex-direction: column; padding: 20px; box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1); }
+  .navbar-nav.is-active { display: flex; }
+  .navbar-toggler { display: block; }
 }
 </style>
