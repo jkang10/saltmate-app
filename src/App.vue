@@ -260,7 +260,7 @@ export default {
 /* [핵심] 신규 플로팅 아이콘 버튼 스타일 */
 .fab-matchmaking-button {
   position: fixed;
-  top: 85px; /* 네비게이션 바 바로 아래 */
+  top: 130px; /* [수정] 공지사항 바 아래로 위치 조정 */
   right: 25px;
   width: 55px;
   height: 55px;
