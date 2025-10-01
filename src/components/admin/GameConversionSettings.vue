@@ -1,9 +1,27 @@
 <template>
   <div class="settings-manager">
     <h2><i class="fas fa-gamepad"></i> 게임 설정</h2>
-
     <div class="card">
+      <h3 class="section-title">소금 상인 설정</h3>
+      <div class="form-group">
+        <label for="salt-price-interval"><i class="fas fa-clock"></i> 시세 변동 주기 (분)</label>
+        <div class="input-group">
+          <input type="number" step="1" min="1" v-model.number="settings.saltPriceUpdateInterval" />
+          <span> 분</span>
+        </div>
+        <small>이 시간마다 시세가 변동됩니다. (최소 1분)</small>
+      </div>
 
+      <div class="form-group">
+        <label><i class="fas fa-chart-line"></i> 시세 변동 최대폭 (%)</label>
+        <div class="input-group">
+          <span>± </span>
+          <input type="number" step="1" v-model.number="settings.saltPriceVolatility" />
+          <span> %</span>
+        </div>
+        <small>매시간 이 범위 내에서 시세가 랜덤하게 변동합니다.</small>
+      </div>
+      
       <h3 class="section-title">주간 경매 설정</h3>
       <div class="form-group">
         <label for="auction-prize-name"><i class="fas fa-gift"></i> 주간 경매 상품 이름</label>
@@ -17,7 +35,6 @@
           <textarea v-model="settings.auctionPrizeDesc" style="width: 100%; height: 60px;"></textarea>
         </div>
       </div>
-      
       <h3 class="section-title">랭킹 예측 베팅 설정</h3>
       <div class="form-group">
         <label><i class="fas fa-star"></i> 1등 예측 성공 배당률</label>
@@ -43,18 +60,6 @@
           <span> 배</span>
         </div>
       </div>
-
-      <h3 class="section-title">소금 상인 설정</h3>
-       <div class="form-group">
-        <label><i class="fas fa-chart-line"></i> 시세 변동 최대폭 (%)</label>
-        <div class="input-group">
-          <span>± </span>
-          <input type="number" step="1" v-model.number="settings.saltPriceVolatility" />
-          <span> %</span>
-        </div>
-        <small>매시간 이 범위 내에서 시세가 랜덤하게 변동합니다.</small>
-      </div>
-
       <h3 class="section-title">강화/인챈트 설정</h3>
       <div class="form-group">
         <label><i class="fas fa-hammer"></i> 기본 강화 비용</label>
@@ -81,7 +86,6 @@
         </div>
         <small>이 레벨부터 강화 실패 시 10% 확률로 아이템이 파괴됩니다.</small>
       </div>
-
       <h3 class="section-title">솔트팡: 타임 어택 입장료 설정</h3>
       <div class="form-group">
         <label for="time-attack-tier1-count">
@@ -112,8 +116,6 @@
         </div>
         <small>1단계 횟수를 초과하면 2단계 입장료가 적용됩니다.</small>
       </div>
-
-      <!-- [핵심 추가] 아래 블록을 '재화 전환 비율 설정' 섹션 위에 추가합니다. -->
       <h3 class="section-title">해양심층수 탐험: 자원 가격 설정</h3>
       <div class="form-group">
         <label for="deep-sea-water-price"><i class="fas fa-tint"></i> 심층수 기본 가격</label>
@@ -129,7 +131,6 @@
           <span> 자금 / 개</span>
         </div>
       </div>
-
       <h3 class="section-title">재화 전환 비율 설정</h3>
       <div class="form-group">
         <label for="salt-rate"><i class="fas fa-gem"></i> 소금 광산 (Salt ➞ SaltMate)</label>
@@ -145,7 +146,6 @@
           <span> 자금 = 1 SaltMate</span>
         </div>
       </div>
-
       <h3 class="section-title">일일 이용 횟수 설정</h3>
       <div class="form-group">
         <label for="rps-limit"><i class="fas fa-hand-scissors"></i> 가위바위보</label>
@@ -161,7 +161,6 @@
           <span> 회 / 일</span>
         </div>
       </div>
-      
       <h3 class="section-title">베팅 상한선 설정</h3>
       <div class="form-group">
         <label for="rps-bet-max"><i class="fas fa-hand-scissors"></i> 가위바위보 최대 베팅액</label>
@@ -177,7 +176,6 @@
           <span> SaltMate</span>
         </div>
       </div>
-
       <h3 class="section-title">게임 시스템 설정</h3>
       <div class="form-group">
         <label for="auto-sell-interval"><i class="fas fa-history"></i> 심해 해구 자동 판매 간격</label>
@@ -186,7 +184,6 @@
           <span> 분</span>
         </div>
       </div>
-
       <h3 class="section-title">게임 승리 배수 설정</h3>
       <div class="form-group">
         <label for="rps-multiplier"><i class="fas fa-hand-scissors"></i> 가위바위보 (승리 시)</label>
@@ -204,10 +201,8 @@
           <span> 배</span>
         </div>
       </div>
-
       <h3 class="section-title">랭킹 보상 설정 (SaltMate)</h3>
       <p class="description">각 랭킹의 1위부터 7위까지 지급될 보상을 순서대로 입력합니다.</p>
-      
       <div class="form-group">
         <label><i class="fas fa-sun"></i> 오늘의 SaltMate TOP 7</label>
         <div class="reward-inputs">
@@ -232,7 +227,6 @@
           <input v-for="i in 3" :key="i" type="number" v-model.number="settings.rewards.saltPangRanked[i-1]" :placeholder="`${i}위`" />
         </div>
       </div>
-
       <div class="actions">
         <button class="btn-save" @click="saveSettings" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
@@ -254,17 +248,16 @@ export default {
   setup() {
     const isLoading = ref(false);
     const settings = reactive({
-      // --- [신규 추가] 신규 게임 4종 설정 변수 ---
+      saltPriceUpdateInterval: 30, // [핵심 추가]
+      saltPriceVolatility: 10,
       auctionPrizeName: "희귀 소금 결정 x5",
       auctionPrizeDesc: "소금 결정 키우기 게임에서 즉시 5,000 포인트를 얻습니다.",
       predictionRate1: 10,
       predictionRate2: 5,
       predictionRate3: 2,
-      saltPriceVolatility: 10,
       enchantBaseCost: 100,
       enchantSuccessDecline: 5,
       enchantDestroyStartLevel: 5,
-
       saltMineRate: 1000,
       deepSeaRate: 100000,
       rpsLimit: 10,
@@ -275,16 +268,10 @@ export default {
       timeAttackTier1Count: 10,
       timeAttackTier1Fee: 400,
       timeAttackTier2Fee: 800,
-      
-      // [핵심 추가] 아래 두 라인을 추가합니다.
       deepSeaWaterPrice: 5,
       deepSeaPlanktonPrice: 15,
-
-      // [핵심 추가] 아래 두 라인을 추가합니다.
       rpsBetMax: 2000,
       highLowBetMax: 2000,
-
-      // [핵심 추가] rewards 객체를 추가합니다.
       rewards: {
         dailyTop7: [1000, 500, 300, 100, 100, 100, 100],
         weeklyTop7: [15000, 10000, 7000, 5000, 3000, 2000, 1000],
@@ -332,7 +319,6 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일과 동일 (변경 없음) */
 .settings-manager {
   padding: 20px;
 }

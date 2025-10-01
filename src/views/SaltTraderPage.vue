@@ -173,12 +173,13 @@ const candlestickData = computed(() => {
 
 const chartOption = computed(() => {
     const history = market.value?.priceHistory || [];
+    // [핵심 수정] dataZoom의 기본 확대를 50%에서 80%로 변경하여 더 많은 데이터를 보여줍니다.
     return {
         grid: { left: '10%', right: '5%', bottom: '20%' },
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'category', data: history.map(h => new Date(h.time.seconds * 1000).toLocaleTimeString('ko-KR')) },
         yAxis: { type: 'value', scale: true },
-        dataZoom: [{ type: 'inside', start: 50, end: 100 }, { start: 50, end: 100 }],
+        dataZoom: [{ type: 'inside', start: 80, end: 100 }, { start: 80, end: 100 }],
         series: [{
             type: 'candlestick',
             data: candlestickData.value,
