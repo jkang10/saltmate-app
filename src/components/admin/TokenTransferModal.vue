@@ -106,7 +106,8 @@ const handleTransfer = async () => {
       "transferTokensToUser",
     );
     const result = await transferTokensToUser({
-      targetUserId: props.user.id,
+      // [핵심 수정] props.user.id -> props.user.uid 로 변경
+      targetUserId: props.user.uid,
       tokenType: form.tokenType,
       quantity: form.quantity,
       reason: form.reason,
@@ -121,6 +122,7 @@ const handleTransfer = async () => {
     isProcessing.value = false;
   }
 };
+
 </script>
 
 <style scoped>
