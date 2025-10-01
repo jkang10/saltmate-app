@@ -278,6 +278,21 @@ export default {
   transition: all 0.3s ease;
   text-decoration: none;
 }
+/* [핵심 추가] 화면 너비가 768px 이하일 때 (모바일) 적용될 스타일 */
+@media (max-width: 768px) {
+  .fab-matchmaking-button {
+    top: 140px;  /* 모바일에서는 좀 더 아래로 내립니다. */
+    right: 15px; /* 오른쪽 여백을 줄입니다. */
+    width: 50px;   /* 아이콘 크기를 살짝 줄입니다. */
+    height: 50px;
+    font-size: 1.4em;
+  }
+  .fab-badge {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+}
 .fab-matchmaking-button:hover {
   background-color: #c0392b;
   transform: scale(1.1);
