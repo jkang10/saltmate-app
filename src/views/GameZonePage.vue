@@ -141,47 +141,54 @@ export default {
 </script>
 
 <style scoped>
-/* [핵심 수정] 전체적인 디자인 및 배경 추가 */
 .game-zone-page {
-  background-image: url('https://www.transparenttextures.com/patterns/debut-light.png'),
-    linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-attachment: fixed;
+  /* [수정] 보라색 배경 제거 */
+  background-color: #f8f9fa; /* 다른 페이지와 동일한 밝은 회색 배경 */
 }
 .page-container {
   max-width: 800px;
-  margin: 70px auto 20px;
+  margin: 90px auto 20px;
   padding: 20px;
 }
 .page-header {
   text-align: center;
   margin-bottom: 30px;
-  color: white;
+  /* [수정] 글씨 색상을 검은색으로 변경 */
+  color: #333;
 }
 .page-header h1 {
   font-size: 2.8em;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  text-shadow: none; /* 그림자 제거 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+/* [수정] 아이콘 색상을 붉은색으로 변경 */
+.page-header h1 i {
+    color: #e74c3c;
 }
 .page-header p {
   font-size: 1.2em;
+  color: #666; /* 글씨 색상 변경 */
 }
 
 .content-wrapper {
   text-align: center;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  /* [수정] 흰색 배경 카드 스타일 적용 */
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
 
 .roulette-container {
   position: relative;
-  width: 500px;
-  height: 500px;
+  width: 100%;
+  max-width: 500px; /* 최대 너비 설정 */
+  aspect-ratio: 1 / 1; /* 항상 정사각형 비율 유지 */
   margin: 0 auto 30px;
 }
-
-/* [핵심 수정] 룰렛 이미지 스타일 */
 .roulette-wheel {
   width: 100%;
   height: 100%;
@@ -189,7 +196,7 @@ export default {
 .roulette-wheel img {
   width: 100%;
   height: 100%;
-  animation: pulse-slow 4s infinite alternate; /* 천천히 두근거리는 효과 */
+  animation: pulse-slow 4s infinite alternate;
 }
 @keyframes pulse-slow {
   from { transform: scale(1); }
@@ -228,7 +235,7 @@ export default {
 }
 .spin-button:hover:not(:disabled) {
   transform: translate(-50%, -50%) scale(1.05);
-}14,018,000.00
+}
 .spin-button:disabled {
   background: #bdc3c7;
   cursor: not-allowed;
@@ -239,7 +246,26 @@ export default {
   font-weight: bold;
   padding: 15px;
   border-radius: 10px;
-  background-color: rgba(0,0,0,0.2);
-  color: white;
+  background-color: #f8f9fa;
+  color: #333; /* 글씨 색상 변경 */
+}
+
+/* 모바일 화면 대응 */
+@media (max-width: 600px) {
+  .roulette-container {
+    width: 90vw;
+    height: 90vw;
+  }
+  .spin-button {
+    width: 90px;
+    height: 90px;
+    font-size: 1.2em;
+  }
+  .roulette-pointer {
+    right: -15px;
+    border-top-width: 20px;
+    border-bottom-width: 20px;
+    border-left-width: 30px;
+  }
 }
 </style>
