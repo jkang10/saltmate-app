@@ -10,7 +10,7 @@
     <ul v-else-if="rankings.length > 0" class="ranking-list">
       <li
         v-for="(player, index) in rankings"
-        :key="player.uid"
+        :key="player.userId"
         :class="['rank-' + (index + 1)]"
       >
         <div class="rank-badge">
@@ -52,7 +52,7 @@ onMounted(fetchHallOfFame);
 
 <style scoped>
 .hall-of-fame-widget {
-  background: #2c3e50 !important; /* 어두운 배경색 강제 적용 */
+  background: #2c3e50 !important;
   color: #ecf0f1;
   padding: 20px;
   display: flex;
@@ -110,8 +110,8 @@ onMounted(fetchHallOfFame);
   border-radius: 8px;
   background-color: rgba(255, 255, 255, 0.05);
   font-size: 1.1em;
-  position: relative; /* [추가] 슈도 엘리먼트 위치 지정을 위함 */
-  overflow: hidden; /* [추가] 반짝이 효과가 바깥으로 나가지 않도록 */
+  position: relative;
+  overflow: hidden;
 }
 .rank-badge {
   width: 35px;
@@ -122,16 +122,12 @@ onMounted(fetchHallOfFame);
 }
 .player-name {
   flex-grow: 1;
-  /* [수정] 기본 글 색상 흰색 */
   color: #fff; 
 }
 .player-score {
   font-weight: bold;
-  /* [수정] 기본 글 색상 흰색 */
   color: #fff;
 }
-
-/* 1위 유저를 위한 화려한 이펙트 */
 .rank-1 {
   background: linear-gradient(-45deg, #f1c40f, #e67e22, #f39c12, #f1c40f);
   background-size: 400% 400%;
@@ -141,7 +137,6 @@ onMounted(fetchHallOfFame);
   border: 2px solid #fff;
   box-shadow: 0 0 15px #f1c40f;
 }
-/* [신규 추가] 1위 반짝이 애니메이션 */
 .rank-1::before {
   content: '';
   position: absolute;
@@ -149,55 +144,29 @@ onMounted(fetchHallOfFame);
   left: -50%;
   width: 0;
   height: 200%;
-  background: rgba(255, 255, 255, 0.4); /* 반짝이 색상 */
+  background: rgba(255, 255, 255, 0.4);
   transform: rotate(45deg);
   animation: shine-animation 3s infinite linear;
 }
-
 .rank-1 .rank-badge {
   color: #fff;
   text-shadow: 0 0 5px #000;
   animation: crown-glow 2s infinite alternate;
 }
-/* [수정] 1위일 경우 글 색상 다시 어둡게 (배경이 밝으니까) */
 .rank-1 .player-name,
 .rank-1 .player-score {
   color: #2c3e50; 
 }
+.rank-2 { background-color: rgba(192, 192, 192, 0.2); }
+.rank-3 { background-color: rgba(205, 127, 50, 0.2); }
+.rank-2, .rank-3 { color: #fff; }
 
-.rank-2 {
-  background-color: rgba(192, 192, 192, 0.2);
-}
-.rank-3 {
-  background-color: rgba(205, 127, 50, 0.2);
-}
-/* [신규 추가] 2등과 3등의 모든 텍스트 색상을 흰색으로 변경 */
-.rank-2, .rank-3 {
-  color: #fff;
+/* [핵심 추가] 4, 5위 스타일 */
+.rank-4, .rank-5 {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-@keyframes gradient-animation {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-@keyframes crown-glow {
-  from { transform: scale(1); }
-  to { transform: scale(1.2); }
-}
-/* [신규 추가] 반짝이 애니메이션 키프레임 */
-@keyframes shine-animation {
-  0% {
-    left: -50%;
-    width: 0;
-  }
-  50% {
-    left: 100%;
-    width: 100%;
-  }
-  100% {
-    left: 100%;
-    width: 0;
-  }
-}
+@keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes crown-glow { from { transform: scale(1); } to { transform: scale(1.2); } }
+@keyframes shine-animation { 0% { left: -50%; width: 0; } 50% { left: 100%; width: 100%; } 100% { left: 100%; width: 0; } }
 </style>
