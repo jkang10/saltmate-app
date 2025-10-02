@@ -153,8 +153,10 @@ export default {
 .page-header {
   text-align: center;
   margin-bottom: 30px;
-  /* [수정] 글씨 색상을 검은색으로 변경 */
   color: #333;
+  /* [핵심 추가] 헤더가 다른 요소 위에 오도록 z-index 설정 */
+  position: relative;
+  z-index: 5;
 }
 .page-header h1 {
   font-size: 2.8em;
@@ -192,7 +194,7 @@ export default {
 .roulette-wheel {
   width: 100%;
   height: 100%;
-  /* [핵심 추가] 이미지가 항상 맨 뒤에 있도록 z-index 설정 */
+  /* [핵심 추가] 이미지가 다른 요소들 뒤에 있도록 z-index 설정 */
   position: relative;
   z-index: 1;
 }
@@ -252,9 +254,11 @@ export default {
   padding: 15px;
   border-radius: 10px;
   background-color: #f8f9fa;
-  color: #333; /* 글씨 색상 변경 */
+  color: #333;
+  /* [핵심 추가] 결과 메시지가 다른 요소 위에 오도록 z-index 설정 */
+  position: relative;
+  z-index: 5;
 }
-
 /* 모바일 화면 대응 */
 @media (max-width: 600px) {
   .roulette-container {
