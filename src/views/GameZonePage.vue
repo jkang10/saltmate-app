@@ -43,81 +43,78 @@ export default {
       isSpinning: false,
       canPlay: true,
       resultMessage: "",
-      // [핵심 수정] 당첨 항목을 16개로 늘립니다.
       prizes: [
-        { name: "100 SaltMate", points: 100 },  // 1
-        { name: "꽝", points: 0 },             // 2
-        { name: "30 SaltMate", points: 30 },   // 3
-        { name: "50 SaltMate", points: 50 },   // 4
-        { name: "300 SaltMate", points: 300 },  // 5
-        { name: "꽝", points: 0 },             // 6
-        { name: "10 SaltMate", points: 10 },   // 7
-        { name: "1000 SaltMate", points: 1000 },// 8 (잭팟)
-        { name: "20 SaltMate", points: 20 },   // 9
-        { name: "꽝", points: 0 },             // 10
-        { name: "80 SaltMate", points: 80 },   // 11
-        { name: "50 SaltMate", points: 50 },   // 12
-        { name: "500 SaltMate", points: 500 },  // 13
-        { name: "꽝", points: 0 },             // 14
-        { name: "10 SaltMate", points: 10 },   // 15
-        { name: "200 SaltMate", points: 200 }   // 16
+        { name: "100 SaltMate", points: 100 },
+        { name: "꽝", points: 0 },
+        { name: "30 SaltMate", points: 30 },
+        { name: "50 SaltMate", points: 50 },
+        { name: "300 SaltMate", points: 300 },
+        { name: "꽝", points: 0 },
+        { name: "10 SaltMate", points: 10 },
+        { name: "1000 SaltMate", points: 1000 },
+        { name: "20 SaltMate", points: 20 },
+        { name: "꽝", points: 0 },
+        { name: "80 SaltMate", points: 80 },
+        { name: "50 SaltMate", points: 50 },
+        { name: "500 SaltMate", points: 500 },
+        { name: "꽝", points: 0 },
+        { name: "10 SaltMate", points: 10 },
+        { name: "200 SaltMate", points: 200 }
       ],
       rotationAngle: 0,
       spinSound: new Audio(spinSoundFile),
     };
   },
   methods: {
+    // [핵심 수정] spin 함수를 methods 객체 안으로 올바르게 이동시켰습니다.
+    async spin() {
+      if (this.isSpinning) return;
+      this.isSpinning = true;
+      this.resultMessage = "";
 
-  if (this.isSpinning) return;
-  this.isSpinning = true;
-  this.resultMessage = "";
+      try {
+        const functions = getFunctions(undefined, "asia-northeast3");
+        const spinRoulette = httpsCallable(functions, "spinRoulette");
+        const result = await spinRoulette();
 
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const spinRoulette = httpsCallable(functions, "spinRoulette");
-    const result = await spinRoulette();
+        const winningPrize = result.data?.prize;
+        if (!winningPrize) {
+            throw new Error("서버로부터 결과를 받지 못했습니다.");
+        }
+        
+        const possibleIndexes = [];
+        this.prizes.forEach((p, index) => {
+          if (p.points === (winningPrize.points || 0)) {
+            possibleIndexes.push(index);
+          }
+        });
+        
+        if (possibleIndexes.length === 0) {
+            const ggangIndex = this.prizes.findIndex(p => p.points === 0);
+            possibleIndexes.push(ggangIndex > -1 ? ggangIndex : 0);
+        }
+        
+        const prizeIndex = possibleIndexes[Math.floor(Math.random() * possibleIndexes.length)];
+        this.animateSpin(prizeIndex, winningPrize);
 
-    const winningPrize = result.data?.prize;
-    if (!winningPrize) {
-        throw new Error("서버로부터 결과를 받지 못했습니다.");
-    }
-    
-    const possibleIndexes = [];
-    this.prizes.forEach((p, index) => {
-      if (p.points === (winningPrize.points || 0)) {
-        possibleIndexes.push(index);
+      } catch (error) {
+        console.error("룰렛 오류:", error);
+        this.resultMessage = `오류: ${error.message}`;
+        if (error.message && error.message.includes("already-exists")) {
+          this.canPlay = false;
+        }
+        this.isSpinning = false;
       }
-    });
-    
-    if (possibleIndexes.length === 0) {
-        // [핵심 수정] 변수 이름을 영문으로 변경
-        const ggangIndex = this.prizes.findIndex(p => p.points === 0);
-        possibleIndexes.push(ggangIndex > -1 ? ggangIndex : 0);
-    }
-    
-    const prizeIndex = possibleIndexes[Math.floor(Math.random() * possibleIndexes.length)];
-    this.animateSpin(prizeIndex, winningPrize);
-
-  } catch (error) {
-    console.error("룰렛 오류:", error);
-    this.resultMessage = `오류: ${error.message}`;
-    if (error.message.includes("already-exists")) {
-      this.canPlay = false;
-    }
-    this.isSpinning = false;
-  }
-},
+    },
     animateSpin(prizeIndex, prizeData) {
       const numPrizes = this.prizes.length;
-      const arc = 360 / numPrizes; // 16칸 기준, 한 칸의 각도는 22.5도
+      const arc = 360 / numPrizes;
       const stopAngle = (prizeIndex * arc);
 
-      // 최소 5바퀴 + 최종 위치까지 회전
-      // 포인터가 오른쪽에 있으므로, 해당 칸이 오른쪽으로 오도록 각도를 계산합니다.
       const totalRotation = 360 * 5 + (270 - stopAngle);
       
       this.spinSound.currentTime = 0;
-      this.spinSound.play().catch(() => console.log("사운드 재생 실패")); // 'e'를 삭제
+      this.spinSound.play().catch(() => console.log("사운드 재생 실패"));
 
       const rouletteWheel = this.$el.querySelector('.roulette-wheel');
       rouletteWheel.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
