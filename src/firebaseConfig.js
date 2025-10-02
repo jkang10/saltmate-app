@@ -26,7 +26,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const functions = getFunctions(app);
+const functions = getFunctions(app, "asia-northeast3");
 const rtdb = getDatabase(app);
 
 // [신규 추가] 애널리틱스 초기화 및 export
