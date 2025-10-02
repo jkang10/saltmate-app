@@ -71,44 +71,43 @@ export default {
       selectedIndex: null,
     };
   },
-  methods: {
-    async openBox(selectedIndex) {
-      if (this.isOpening || this.hasPlayed) return;
-      this.isOpening = true;
-      this.selectedIndex = selectedIndex;
+methods: {
+  async openBox(selectedIndex) {
+    if (this.isOpening || this.hasPlayed) return;
+    this.isOpening = true;
+    this.selectedIndex = selectedIndex;
 
-      try {
-        const functions = getFunctions(undefined, "asia-northeast3");
-        const openTreasureBox = httpsCallable(functions, "openTreasureBox");
-        const result = await openTreasureBox();
+    try {
+      // [최종 핵심 수정] getFunctions를 호출할 때 'asia-northeast3' 지역을 명시적으로 지정합니다.
+      const functions = getFunctions(undefined, "asia-northeast3");
+      const openTreasureBox = httpsCallable(functions, "openTreasureBox");
+      const result = await openTreasureBox();
 
-        const winningPrize = result.data.prize;
+      const winningPrize = result.data.prize;
 
-        // 선택 애니메이션 후 1.5초 뒤에 결과 표시
-        setTimeout(() => {
-          this.showResult = true;
-          this.prizeHtml = `${winningPrize.points.toLocaleString()} <small>SaltMate</small>`;
-          if (winningPrize.points > 0) {
-            this.resultMessage = `🎉 <strong>${winningPrize.name}</strong>을 획득했습니다! 🎉`;
-          } else {
-            this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
-          }
-        }, 1500);
-
-      } catch (error) {
-        console.error("보물상자 오류:", error);
-        this.resultMessage = `오류: ${error.message}`;
-        if (error.code && error.code.includes("already-exists")) {
-          this.hasPlayed = true;
+      setTimeout(() => {
+        this.showResult = true;
+        this.prizeHtml = `${winningPrize.points.toLocaleString()} <small>SaltMate</small>`;
+        if (winningPrize.points > 0) {
+          this.resultMessage = `🎉 <strong>${winningPrize.name}</strong>을 획득했습니다! 🎉`;
+        } else {
+          this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
         }
-        // 오류 발생 시 선택 애니메이션 초기화
-        setTimeout(() => {
-          this.isOpening = false;
-          this.selectedIndex = null;
-        }, 1000);
+      }, 1500);
+
+    } catch (error) {
+      console.error("보물상자 오류:", error);
+      this.resultMessage = `오류: ${error.message}`;
+      if (error.code && error.code.includes("already-exists")) {
+        this.hasPlayed = true;
       }
-    },
+      setTimeout(() => {
+        this.isOpening = false;
+        this.selectedIndex = null;
+      }, 1000);
+    }
   },
+},
 };
 </script>
 
