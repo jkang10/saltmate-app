@@ -2,7 +2,7 @@
   <div class="management-container">
     <h3><i class="fas fa-gift"></i> 이벤트 및 보상 관리</h3>
     <p>사용자에게 쿠폰을 발급하거나, 각종 랭킹 및 챌린지 보상 지급 내역을 확인합니다.</p>
-
+    
     <div class="tabs">
       <button class="tab-button" :class="{active: activeTab === 'coupons'}" @click="activeTab = 'coupons'">쿠폰 발급</button>
       <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 SaltMate TOP 7</button>
@@ -36,43 +36,59 @@
                 </div>
               </div>
             </div>
-            </form>
-        </div>
-        </div>
-
-      <div v-show="activeTab !== 'coupons'">
-        <div class="card">
-          <h4>{{ currentTabTitle }} 지급 내역</h4>
-          <div v-if="isLoadingRankings" class="loading-spinner"></div>
-          <div v-else-if="currentRankings.length > 0">
-            <div v-for="group in currentRankings" :key="group.id" class="ranking-group">
-              <h5>{{ group.date }}</h5>
-              <table class="ranking-table">
-                <thead>
-                  <tr>
-                    <th>순위</th>
-                    <th>이름</th>
-                    <th>점수</th>
-                    <th>보상</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in group.items" :key="item.id || item.userId">
-                    <td>{{ item.rank }}</td>
-                    <td>{{ item.userName }}</td>
-                    <td>{{ (item.score || item.totalWinnings || item.wins).toLocaleString() }}</td>
-                    <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
-                  </tr>
-                </tbody>
-              </table>
+            
+            <div class="form-group">
+              <label for="description">이벤트 내용 (발급 사유)</label>
+              <textarea id="description" v-model="couponDetails.description" rows="3" placeholder="예: 서비스 오픈 기념 이벤트"></textarea>
             </div>
-          </div>
-          <div v-else class="no-data">
-            <p>표시할 데이터가 없습니다.</p>
-          </div>
+
+            <div class="form-group">
+              <label for="coupon-type">쿠폰 종류</label>
+              <select id="coupon-type" v-model="couponDetails.type" @change="resetCouponValues">
+                <option value="SALT_MINE_BOOST">소금 광산 채굴 부스트</option>
+                <option value="DEEP_SEA_AUTOSELL">심해 해구 자동판매</option>
+                <option value="SALTPANG_TIME_PLUS_5">솔트팡 +5초 시간 추가</option>
+                <option value="SALTPANG_SCORE_X2_10S">솔트팡 10초간 점수 2배</option>
+                <option value="ITEM_RARE_SALT">희귀 소금 결정</option>
+                <option value="DEEP_SEA_RESEARCH">해양심층수 연구 데이터</option>
+                <option value="DEEP_SEA_MINERAL">해양심층수 희귀 미네랄</option>
+                <option value="DEEP_SEA_PLANKTON">해양심층수 플랑크톤</option>
+                <option value="DEEP_SEA_RELIC">해양심층수 고대유물</option>
+                <option value="DEEP_SEA_GOLDENTIME">해양심층수 골든타임</option>
+              </select>
+            </div>
+
+            <div class="form-group-inline" v-if="couponDetails.type === 'SALT_MINE_BOOST'">
+              <div class="form-group">
+                <label>부스트 비율 (%)</label>
+                <input type="number" v-model.number="couponDetails.boostPercentage" required min="1" placeholder="예: 20" />
+              </div>
+              <div class="form-group">
+                <label>지속 시간 (분)</label>
+                <input type="number" v-model.number="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
+              </div>
+            </div>
+            <div class="form-group" v-if="couponDetails.type.startsWith('DEEP_SEA_') && couponDetails.type !== 'DEEP_SEA_AUTOSELL' && couponDetails.type !== 'DEEP_SEA_GOLDENTIME'">
+              <label>지급 수량</label>
+              <input type="number" v-model.number="couponDetails.quantity" required min="1" placeholder="예: 1000" />
+            </div>
+            <div class="form-group" v-if="['DEEP_SEA_AUTOSELL', 'DEEP_SEA_GOLDENTIME'].includes(couponDetails.type)">
+                <label>지속 시간 (분)</label>
+                <input type="number" v-model.number="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
+            </div>
+             <div class="form-group" v-if="['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S', 'ITEM_RARE_SALT'].includes(couponDetails.type)">
+                <label>지급 수량 (개)</label>
+                <input type="number" v-model.number="couponDetails.quantity" required min="1" placeholder="예: 1" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" :disabled="isIssuing || selectedUsers.length === 0">
+              <span v-if="isIssuing" class="spinner-small"></span>
+              <span v-else>선택한 사용자에게 쿠폰 발급</span>
+            </button>
+          </form>
         </div>
       </div>
-    </div>
+      </div>
   </div>
 </template>
 
