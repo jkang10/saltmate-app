@@ -65,6 +65,7 @@
 
 <script setup>
 import { reactive, ref, defineProps, defineEmits } from "vue";
+// [핵심 수정] getFunctions를 import 목록에 추가합니다.
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const props = defineProps({
@@ -100,13 +101,13 @@ const handleTransfer = async () => {
   error.value = null;
 
   try {
-    const functions = getFunctions();
+    // [최종 핵심 수정] getFunctions를 호출할 때 'asia-northeast3' 지역을 명시적으로 지정합니다.
+    const functions = getFunctions(undefined, "asia-northeast3");
     const transferTokensToUser = httpsCallable(
       functions,
       "transferTokensToUser",
     );
     const result = await transferTokensToUser({
-      // [핵심 수정] props.user.id -> props.user.uid 로 변경
       targetUserId: props.user.uid,
       tokenType: form.tokenType,
       quantity: form.quantity,
@@ -122,7 +123,6 @@ const handleTransfer = async () => {
     isProcessing.value = false;
   }
 };
-
 </script>
 
 <style scoped>
