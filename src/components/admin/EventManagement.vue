@@ -36,93 +36,55 @@
               <label for="description">이벤트 내용 (발급 사유)</label>
               <textarea id="description" v-model="couponDetails.description" rows="3" placeholder="예: 서비스 오픈 기념 이벤트"></textarea>
             </div>
+
             <div class="form-group">
               <label for="coupon-type">쿠폰 종류</label>
-              <input type="text" id="coupon-type" value="소금 광산 채굴 부스트" disabled />
+              <select id="coupon-type" v-model="couponDetails.type" @change="resetCouponValues">
+                <option value="SALT_MINE_BOOST">소금 광산 채굴 부스트</option>
+                <option value="DEEP_SEA_AUTOSELL">심해 해구 자동판매</option>
+                <option value="SALTPANG_TIME_PLUS_5">솔트팡 +5초 시간 추가</option>
+                <option value="SALTPANG_SCORE_X2_10S">솔트팡 10초간 점수 2배</option>
+                <option value="ITEM_RARE_SALT">희귀 소금 결정</option>
+                <option value="DEEP_SEA_RESEARCH">해양심층수 연구 데이터</option>
+                <option value="DEEP_SEA_MINERAL">해양심층수 희귀 미네랄</option>
+                <option value="DEEP_SEA_PLANKTON">해양심층수 플랑크톤</option>
+                <option value="DEEP_SEA_RELIC">해양심층수 고대유물</option>
+                <option value="DEEP_SEA_GOLDENTIME">해양심층수 골든타임</option>
+              </select>
             </div>
-            <div class="form-group-inline">
+
+            <div class="form-group-inline" v-if="couponDetails.type === 'SALT_MINE_BOOST'">
               <div class="form-group">
-                <label for="boost-percentage">부스트 비율 (%)</label>
-                <select id="boost-percentage" v-model="couponDetails.boostPercentage" required>
-                  <option value="20">20%</option><option value="40">40%</option><option value="60">60%</option>
-                  <option value="80">80%</option><option value="100">100%</option>
-                </select>
+                <label>부스트 비율 (%)</label>
+                <input type="number" v-model.number="couponDetails.boostPercentage" required min="1" placeholder="예: 20" />
               </div>
               <div class="form-group">
-                <label for="duration">지속 시간 (분)</label>
-                <input type="number" id="duration" v-model="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
+                <label>지속 시간 (분)</label>
+                <input type="number" v-model.number="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
               </div>
             </div>
+            <div class="form-group" v-if="couponDetails.type.startsWith('DEEP_SEA_') && couponDetails.type !== 'DEEP_SEA_AUTOSELL' && couponDetails.type !== 'DEEP_SEA_GOLDENTIME'">
+              <label>지급 수량</label>
+              <input type="number" v-model.number="couponDetails.quantity" required min="1" placeholder="예: 1000" />
+            </div>
+            <div class="form-group" v-if="['DEEP_SEA_AUTOSELL', 'DEEP_SEA_GOLDENTIME'].includes(couponDetails.type)">
+                <label>지속 시간 (분)</label>
+                <input type="number" v-model.number="couponDetails.durationMinutes" required min="1" placeholder="예: 60" />
+            </div>
+             <div class="form-group" v-if="couponDetails.type.startsWith('SALTPANG_') || couponDetails.type === 'ITEM_RARE_SALT'">
+                <label>지급 수량 (개)</label>
+                <input type="number" v-model.number="couponDetails.quantity" required min="1" placeholder="예: 1" />
+            </div>
+
+
             <button type="submit" class="btn btn-primary" :disabled="isIssuing || selectedUsers.length === 0">
               <span v-if="isIssuing" class="spinner-small"></span>
               <span v-else>선택한 사용자에게 쿠폰 발급</span>
             </button>
           </form>
         </div>
-        <div class="coupon-list-container card">
-            <h4><i class="fas fa-history"></i> 발급된 쿠폰 내역</h4>
-            <div v-if="isLoadingCoupons" class="loading-spinner"></div>
-            <table v-else-if="issuedCoupons.length > 0" class="event-table">
-                <thead><tr><th>발급 대상</th><th>이벤트 내용</th><th>효과</th><th>상태</th><th>발급일</th><th>만료일</th></tr></thead>
-                <tbody>
-                    <tr v-for="coupon in issuedCoupons" :key="coupon.id">
-                        <td>{{ coupon.userName }}</td><td>{{ coupon.description }}</td>
-                        <td>+{{ coupon.boostPercentage }}% ({{ coupon.durationMinutes }}분)</td>
-                        <td><span class="status-badge" :class="`status-${coupon.status}`">{{ formatCouponStatus(coupon.status) }}</span></td>
-                        <td>{{ formatDate(coupon.issuedAt) }}</td><td>{{ formatDate(coupon.expiresAt) }}</td>
-                    </tr>
-                </tbody>
-            </table>
-            <div v-else class="no-data"><p>아직 발급된 쿠폰이 없습니다.</p></div>
         </div>
       </div>
-      
-      <div v-show="activeTab === 'challenges'" class="card">
-        <h4><i class="fas fa-trophy"></i> 명예의 전당 (주간 챌린지) 보상 내역</h4>
-        <div v-if="isLoadingRankings" class="loading-spinner"></div>
-        <div v-else-if="groupedChallenges.length > 0">
-          <div v-for="(week, index) in groupedChallenges" :key="index" class="challenge-week">
-            <h5>{{ week.weekId }} 주차</h5>
-            <table class="event-table">
-              <thead><tr><th>챌린지</th><th>순위</th><th>사용자</th><th>기록</th><th>보상</th></tr></thead>
-              <tbody>
-                <tr v-for="result in week.results" :key="result.id">
-                  <td>{{ formatChallengeId(result.challengeId) }}</td>
-                  <td>{{ result.rank }} 위</td>
-                  <td>{{ result.userName }}</td>
-                  <td>{{ (result.score || 0).toLocaleString() }}</td>
-                  <td>{{ (result.reward || 0).toLocaleString() }} SaltMate</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div v-else class="no-data"><p>챌린지 결과 기록이 없습니다.</p></div>
-      </div>
-      
-      <div v-show="['dailyTop7', 'weeklyTop7', 'saltPangRanked'].includes(activeTab)" class="card">
-        <div v-if="isLoadingRankings" class="loading-spinner"></div>
-	<div v-else-if="currentRankings.length > 0">
-	   <h4>{{ currentTabTitle }} 보상 지급 내역 (최근 기록)</h4>
-	   <div v-for="group in currentRankings" :key="group.id" class="challenge-week">
-	     <h5>{{ group.date }}</h5>
-	     <table class="event-table">
-	       <thead><tr><th>순위</th><th>사용자</th><th>점수/기록</th><th>보상</th><th>지급일</th></tr></thead>
-	       <tbody>
-		 <tr v-for="item in group.items" :key="item.id">
-		   <td>{{ item.rank }} 위</td>
-		   <td>{{ item.userName }}</td>
-		   <td>{{ (item.score || item.totalWinnings || 0).toLocaleString() }}</td>
-		   <td>{{ (item.reward || 0).toLocaleString() }} SaltMate</td>
-		   <td>{{ formatDate(item.awardedAt) }}</td>
-		 </tr>
-	       </tbody>
-	     </table>
-           </div>
-        </div>
-        <div v-else class="no-data"><p>보상 지급 내역이 없습니다.</p></div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -134,16 +96,15 @@ import { httpsCallable } from "firebase/functions";
 
 const activeTab = ref('coupons');
 const isLoadingRankings = ref(true);
-const rankings = reactive({
-  dailyTop7: [], weeklyTop7: [], saltPangRanked: []
-});
+const rankings = reactive({ dailyTop7: [], weeklyTop7: [], saltPangRanked: [] });
 const challengeResults = ref([]);
-
 const userList = ref([]);
 const isIssuing = ref(false);
 const couponDetails = reactive({
+  type: 'SALT_MINE_BOOST',
   boostPercentage: 20,
   durationMinutes: 60,
+  quantity: null,
   description: '',
 });
 const selectedUsers = ref([]); 
@@ -265,6 +226,24 @@ const fetchAllRankings = async () => {
     finally { isLoadingRankings.value = false; }
 };
 
+// [핵심 추가] 쿠폰 종류 변경 시 값 초기화 함수
+const resetCouponValues = () => {
+    couponDetails.boostPercentage = null;
+    couponDetails.durationMinutes = null;
+    couponDetails.quantity = null;
+    // 기본값 설정
+    if(couponDetails.type === 'SALT_MINE_BOOST') {
+        couponDetails.boostPercentage = 20;
+        couponDetails.durationMinutes = 60;
+    } else if (couponDetails.type.startsWith('DEEP_SEA_') || couponDetails.type.startsWith('SALTPANG_') || couponDetails.type === 'ITEM_RARE_SALT') {
+        if(couponDetails.type.includes('AUTOSELL') || couponDetails.type.includes('GOLDENTIME')){
+            couponDetails.durationMinutes = 60;
+        } else {
+            couponDetails.quantity = 1;
+        }
+    }
+};
+
 const issueCoupons = async () => {
   if (selectedUsers.value.length === 0) return alert("쿠폰을 발급할 사용자를 선택해주세요.");
   if (!couponDetails.description) return alert("이벤트 내용을 입력해주세요.");
@@ -273,11 +252,13 @@ const issueCoupons = async () => {
   isIssuing.value = true;
   try {
     const issueCouponsToUser = httpsCallable(functions, "issueCouponsToUser");
+    
+    // [핵심 수정] 서버로 보낼 데이터를 couponDetails 객체 전체를 보내도록 변경
     const result = await issueCouponsToUser({
-      userIds: selectedUsers.value, couponType: 'SALT_MINE_BOOST',
-      boostPercentage: couponDetails.boostPercentage, durationMinutes: couponDetails.durationMinutes,
-      description: couponDetails.description,
+      userIds: selectedUsers.value,
+      couponData: { ...couponDetails } // 모든 쿠폰 관련 정보를 담아서 전송
     });
+
     alert(result.data.message);
     selectedUsers.value = []; 
     await fetchIssuedCoupons();
