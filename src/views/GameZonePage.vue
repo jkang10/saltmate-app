@@ -67,40 +67,48 @@ export default {
     };
   },
   methods: {
-    async spin() {
-      if (this.isSpinning) return;
-      this.isSpinning = true;
-      this.resultMessage = "";
+async spin() {
+  if (this.isSpinning) return;
+  this.isSpinning = true;
+  this.resultMessage = "";
 
-      try {
-        const functions = getFunctions(undefined, "asia-northeast3");
-        const spinRoulette = httpsCallable(functions, "spinRoulette");
-        const result = await spinRoulette();
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const spinRoulette = httpsCallable(functions, "spinRoulette");
+    const result = await spinRoulette();
 
-        const winningPrize = result.data.prize;
-        
-        // 당첨된 포인트와 일치하는 모든 칸의 인덱스를 찾습니다.
-        const possibleIndexes = [];
-        this.prizes.forEach((p, index) => {
-          if (p.points === winningPrize.points) {
-            possibleIndexes.push(index);
-          }
-        });
-        
-        // 여러 칸이 있다면 그 중 하나를 랜덤으로 선택합니다.
-        const prizeIndex = possibleIndexes[Math.floor(Math.random() * possibleIndexes.length)];
-        
-        this.animateSpin(prizeIndex, winningPrize);
-
-      } catch (error) {
-        console.error("룰렛 오류:", error);
-        this.resultMessage = `오류: ${error.message}`;
-        if (error.code && error.code.includes("already-exists")) {
-          this.canPlay = false;
-        }
-        this.isSpinning = false;
+    // [핵심 수정] 서버 결과가 null이거나 prize 속성이 없을 경우를 대비
+    const winningPrize = result.data?.prize;
+    if (!winningPrize) {
+        throw new Error("서버로부터 결과를 받지 못했습니다.");
+    }
+    
+    const possibleIndexes = [];
+    this.prizes.forEach((p, index) => {
+      // winningPrize.points가 없을 경우를 대비하여 || 0 추가
+      if (p.points === (winningPrize.points || 0)) {
+        possibleIndexes.push(index);
       }
-    },
+    });
+    
+    if (possibleIndexes.length === 0) {
+        // '꽝'에 해당하는 인덱스를 찾아서 지정
+        const꽝Index = this.prizes.findIndex(p => p.points === 0);
+        possibleIndexes.push(꽝Index > -1 ? 꽝Index : 0);
+    }
+    
+    const prizeIndex = possibleIndexes[Math.floor(Math.random() * possibleIndexes.length)];
+    this.animateSpin(prizeIndex, winningPrize);
+
+  } catch (error) {
+    console.error("룰렛 오류:", error);
+    this.resultMessage = `오류: ${error.message}`;
+    if (error.message.includes("already-exists")) {
+      this.canPlay = false;
+    }
+    this.isSpinning = false;
+  }
+},
     animateSpin(prizeIndex, prizeData) {
       const numPrizes = this.prizes.length;
       const arc = 360 / numPrizes; // 16칸 기준, 한 칸의 각도는 22.5도
