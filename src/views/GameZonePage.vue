@@ -67,7 +67,7 @@ export default {
     };
   },
   methods: {
-async spin() {
+
   if (this.isSpinning) return;
   this.isSpinning = true;
   this.resultMessage = "";
@@ -77,7 +77,6 @@ async spin() {
     const spinRoulette = httpsCallable(functions, "spinRoulette");
     const result = await spinRoulette();
 
-    // [핵심 수정] 서버 결과가 null이거나 prize 속성이 없을 경우를 대비
     const winningPrize = result.data?.prize;
     if (!winningPrize) {
         throw new Error("서버로부터 결과를 받지 못했습니다.");
@@ -85,16 +84,15 @@ async spin() {
     
     const possibleIndexes = [];
     this.prizes.forEach((p, index) => {
-      // winningPrize.points가 없을 경우를 대비하여 || 0 추가
       if (p.points === (winningPrize.points || 0)) {
         possibleIndexes.push(index);
       }
     });
     
     if (possibleIndexes.length === 0) {
-        // '꽝'에 해당하는 인덱스를 찾아서 지정
-        const꽝Index = this.prizes.findIndex(p => p.points === 0);
-        possibleIndexes.push(꽝Index > -1 ? 꽝Index : 0);
+        // [핵심 수정] 변수 이름을 영문으로 변경
+        const ggangIndex = this.prizes.findIndex(p => p.points === 0);
+        possibleIndexes.push(ggangIndex > -1 ? ggangIndex : 0);
     }
     
     const prizeIndex = possibleIndexes[Math.floor(Math.random() * possibleIndexes.length)];
