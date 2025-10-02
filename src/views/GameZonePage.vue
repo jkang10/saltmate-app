@@ -111,7 +111,7 @@ export default {
       const totalRotation = 360 * 5 + (270 - stopAngle);
       
       this.spinSound.currentTime = 0;
-      this.spinSound.play().catch(e => console.log("사운드 재생 실패"));
+      this.spinSound.play().catch(() => console.log("사운드 재생 실패")); // 'e'를 삭제
 
       const rouletteWheel = this.$el.querySelector('.roulette-wheel');
       rouletteWheel.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
