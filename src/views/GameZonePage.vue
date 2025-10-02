@@ -192,6 +192,9 @@ export default {
 .roulette-wheel {
   width: 100%;
   height: 100%;
+  /* [핵심 추가] 이미지가 항상 맨 뒤에 있도록 z-index 설정 */
+  position: relative;
+  z-index: 1;
 }
 .roulette-wheel img {
   width: 100%;
@@ -202,7 +205,6 @@ export default {
   from { transform: scale(1); }
   to { transform: scale(1.02); }
 }
-
 .roulette-pointer {
   position: absolute;
   top: 50%;
@@ -213,7 +215,8 @@ export default {
   border-top: 30px solid transparent;
   border-bottom: 30px solid transparent;
   border-left: 45px solid #e74c3c;
-  z-index: 10;
+  /* [수정] z-index 값을 높여 이미지보다 위에 오도록 보장 */
+  z-index: 3;
   filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
 }
 .spin-button {
@@ -221,6 +224,8 @@ export default {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  /* [핵심 추가] z-index를 추가하여 버튼이 이미지 위에 오도록 설정 */
+  z-index: 2;
   width: 120px;
   height: 120px;
   border-radius: 50%;
