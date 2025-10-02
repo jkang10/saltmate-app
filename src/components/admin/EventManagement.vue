@@ -88,189 +88,205 @@
   </div>
 </template>
 
-<script setup>
+<script>
 import { ref, reactive, onMounted, computed } from "vue";
 import { db, functions } from "@/firebaseConfig";
 import { collection, getDocs, query, orderBy, collectionGroup, limit } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
-const activeTab = ref('coupons');
-const isLoadingRankings = ref(true);
-const rankings = reactive({ dailyTop7: [], weeklyTop7: [], saltPangRanked: [] });
-const challengeResults = ref([]);
-const userList = ref([]);
-const isIssuing = ref(false);
-const couponDetails = reactive({
-  type: 'SALT_MINE_BOOST',
-  boostPercentage: 20,
-  durationMinutes: 60,
-  quantity: null,
-  description: '',
-});
-const selectedUsers = ref([]); 
-const issuedCoupons = ref([]);
-const isLoadingCoupons = ref(true);
+export default {
+  name: 'EventManagement',
+  setup() {
+    const activeTab = ref('coupons');
+    const isLoadingRankings = ref(true);
+    const rankings = reactive({ dailyTop7: [], weeklyTop7: [], saltPangRanked: [] });
+    const challengeResults = ref([]);
+    const userList = ref([]);
+    const isIssuing = ref(false);
+    const couponDetails = reactive({
+      type: 'SALT_MINE_BOOST',
+      boostPercentage: 20,
+      durationMinutes: 60,
+      quantity: null,
+      description: '',
+    });
+    const selectedUsers = ref([]); 
+    const issuedCoupons = ref([]);
+    const isLoadingCoupons = ref(true);
 
-const isAllUsersSelected = computed(() => userList.value.length > 0 && selectedUsers.value.length === userList.value.length);
+    const isAllUsersSelected = computed(() => userList.value.length > 0 && selectedUsers.value.length === userList.value.length);
 
-const groupedChallenges = computed(() => {
-  const groups = challengeResults.value.reduce((acc, curr) => {
-    (acc[curr.weekId] = acc[curr.weekId] || []).push(curr);
-    return acc;
-  }, {});
-  return Object.keys(groups).sort().reverse().map(weekId => ({
-    weekId,
-    results: groups[weekId].sort((a, b) => a.challengeId.localeCompare(b.challengeId) || a.rank - b.rank)
-  }));
-});
-
-// [핵심 수정] currentRankings를 그룹화하고 정렬하는 로직으로 변경
-const currentRankings = computed(() => {
-  let sourceData;
-  let dateKey;
-
-  switch(activeTab.value) {
-    case 'dailyTop7': 
-      sourceData = rankings.dailyTop7;
-      dateKey = 'date';
-      break;
-    case 'weeklyTop7': 
-      sourceData = rankings.weeklyTop7;
-      dateKey = 'weekId';
-      break;
-    case 'saltPangRanked': 
-      sourceData = rankings.saltPangRanked;
-      dateKey = 'weekId';
-      break;
-    default: return [];
-  }
-  
-  if (!sourceData || sourceData.length === 0) return [];
-
-  const groups = sourceData.reduce((acc, curr) => {
-    const key = curr[dateKey];
-    if (key) { // key가 undefined나 null이 아닐 때만 실행
-      (acc[key] = acc[key] || []).push(curr);
-    }
-    return acc;
-  }, {});
-  
-  if (Object.keys(groups).length === 0) return [];
-
-  return Object.keys(groups).sort().reverse().map(key => ({
-    id: key,
-    date: key,
-    items: groups[key].sort((a, b) => a.rank - b.rank)
-  }));
-});
-
-const currentTabTitle = computed(() => {
-    const titles = {
-        dailyTop7: '오늘의 TOP 7', weeklyTop7: '주간 TOP 7',
-        saltPangRanked: '솔트팡 랭킹전'
-    };
-    return titles[activeTab.value] || '';
-});
-
-const selectAllUsers = (event) => {
-    if (event.target.checked) selectedUsers.value = userList.value.map(user => user.id);
-    else selectedUsers.value = [];
-};
-
-const formatDate = (timestamp) => {
-  if (!timestamp?.toDate) return "N/A";
-  return timestamp.toDate().toLocaleString("ko-KR");
-};
-
-const formatCouponStatus = (status) => ({ unused: '미사용', used: '사용 완료', expired: '기간 만료' }[status] || status);
-const formatChallengeId = (id) => ({ saltKing: '주간 소금왕', seaExplorer: '주간 해양탐험가' }[id] || id);
-
-const fetchUsers = async () => {
-  try {
-    const q = query(collection(db, "users"), orderBy("name"));
-    const snapshot = await getDocs(q);
-    userList.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) { console.error("사용자 목록 로딩 실패:", error); }
-};
-
-const fetchIssuedCoupons = async () => {
-    isLoadingCoupons.value = true;
-    try {
-        const q = query(collectionGroup(db, 'coupons'), orderBy('issuedAt', 'desc'), limit(50));
-        const couponSnapshot = await getDocs(q);
-        const usersSnapshot = await getDocs(collection(db, "users"));
-        const userMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data().name]));
-        issuedCoupons.value = couponSnapshot.docs.map(doc => {
-            const userId = doc.ref.parent.parent.id;
-            return { id: doc.id, ...doc.data(), userName: userMap.get(userId) || '알 수 없음' };
-        });
-    } catch (error) { console.error("발급된 쿠폰 목록 로딩 실패:", error); } 
-    finally { isLoadingCoupons.value = false; }
-};
-
-const fetchAllRankings = async () => {
-    isLoadingRankings.value = true;
-    try {
-        const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
-        const result = await getAdminRankings();
-        
-        rankings.dailyTop7 = result.data.dailyTop7;
-        rankings.weeklyTop7 = result.data.weeklyTop7;
-        challengeResults.value = result.data.challenges;
-        rankings.saltPangRanked = result.data.saltPangRanked;
-
-    } catch (error) { 
-        console.error("랭킹 데이터 로딩 실패:", error); 
-        alert(`랭킹 데이터를 불러오는 데 실패했습니다. Firestore 보안 규칙을 확인해주세요. (${error.message})`);
-    } 
-    finally { isLoadingRankings.value = false; }
-};
-
-// [핵심 추가] 쿠폰 종류 변경 시 값 초기화 함수
-const resetCouponValues = () => {
-    couponDetails.boostPercentage = null;
-    couponDetails.durationMinutes = null;
-    couponDetails.quantity = null;
-    // 기본값 설정
-    if(couponDetails.type === 'SALT_MINE_BOOST') {
-        couponDetails.boostPercentage = 20;
-        couponDetails.durationMinutes = 60;
-    } else if (couponDetails.type.startsWith('DEEP_SEA_') || couponDetails.type.startsWith('SALTPANG_') || couponDetails.type === 'ITEM_RARE_SALT') {
-        if(couponDetails.type.includes('AUTOSELL') || couponDetails.type.includes('GOLDENTIME')){
-            couponDetails.durationMinutes = 60;
-        } else {
-            couponDetails.quantity = 1;
-        }
-    }
-};
-
-const issueCoupons = async () => {
-  if (selectedUsers.value.length === 0) return alert("쿠폰을 발급할 사용자를 선택해주세요.");
-  if (!couponDetails.description) return alert("이벤트 내용을 입력해주세요.");
-  if (!confirm(`${selectedUsers.value.length}명의 사용자에게 쿠폰을 발급하시겠습니까?`)) return;
-  
-  isIssuing.value = true;
-  try {
-    const issueCouponsToUser = httpsCallable(functions, "issueCouponsToUser");
-    
-    // [핵심 수정] 서버로 보낼 데이터를 couponDetails 객체 전체를 보내도록 변경
-    const result = await issueCouponsToUser({
-      userIds: selectedUsers.value,
-      couponData: { ...couponDetails } // 모든 쿠폰 관련 정보를 담아서 전송
+    const groupedChallenges = computed(() => {
+      const groups = challengeResults.value.reduce((acc, curr) => {
+        (acc[curr.weekId] = acc[curr.weekId] || []).push(curr);
+        return acc;
+      }, {});
+      return Object.keys(groups).sort().reverse().map(weekId => ({
+        weekId,
+        results: groups[weekId].sort((a, b) => a.challengeId.localeCompare(b.challengeId) || a.rank - b.rank)
+      }));
     });
 
-    alert(result.data.message);
-    selectedUsers.value = []; 
-    await fetchIssuedCoupons();
-  } catch (error) { console.error("쿠폰 발급 실패:", error); alert(`오류: ${error.message}`); } 
-  finally { isIssuing.value = false; }
-};
+    const currentRankings = computed(() => {
+      let sourceData;
+      let dateKey;
+      switch(activeTab.value) {
+        case 'dailyTop7': 
+          sourceData = rankings.dailyTop7;
+          dateKey = 'date';
+          break;
+        case 'weeklyTop7': 
+          sourceData = rankings.weeklyTop7;
+          dateKey = 'weekId';
+          break;
+        case 'saltPangRanked': 
+          sourceData = rankings.saltPangRanked;
+          dateKey = 'weekId';
+          break;
+        default: return [];
+      }
+      if (!sourceData || sourceData.length === 0) return [];
+      const groups = sourceData.reduce((acc, curr) => {
+        const key = curr[dateKey];
+        if (key) {
+          (acc[key] = acc[key] || []).push(curr);
+        }
+        return acc;
+      }, {});
+      if (Object.keys(groups).length === 0) return [];
+      return Object.keys(groups).sort().reverse().map(key => ({
+        id: key,
+        date: key,
+        items: groups[key].sort((a, b) => a.rank - b.rank)
+      }));
+    });
 
-onMounted(() => {
-    fetchUsers();
-    fetchIssuedCoupons();
-    fetchAllRankings();
-});
+    const currentTabTitle = computed(() => {
+        const titles = {
+            dailyTop7: '오늘의 TOP 7', weeklyTop7: '주간 TOP 7',
+            saltPangRanked: '솔트팡 랭킹전'
+        };
+        return titles[activeTab.value] || '';
+    });
+
+    const selectAllUsers = (event) => {
+        if (event.target.checked) selectedUsers.value = userList.value.map(user => user.id);
+        else selectedUsers.value = [];
+    };
+
+    const formatDate = (timestamp) => {
+      if (!timestamp?.toDate) return "N/A";
+      return timestamp.toDate().toLocaleString("ko-KR");
+    };
+
+    const formatCouponStatus = (status) => ({ unused: '미사용', used: '사용 완료', expired: '기간 만료' }[status] || status);
+    const formatChallengeId = (id) => ({ saltKing: '주간 소금왕', seaExplorer: '주간 해양탐험가' }[id] || id);
+
+    const fetchUsers = async () => {
+      try {
+        const q = query(collection(db, "users"), orderBy("name"));
+        const snapshot = await getDocs(q);
+        userList.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (error) { console.error("사용자 목록 로딩 실패:", error); }
+    };
+
+    const fetchIssuedCoupons = async () => {
+        isLoadingCoupons.value = true;
+        try {
+            const q = query(collectionGroup(db, 'coupons'), orderBy('issuedAt', 'desc'), limit(50));
+            const couponSnapshot = await getDocs(q);
+            const usersSnapshot = await getDocs(collection(db, "users"));
+            const userMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+            issuedCoupons.value = couponSnapshot.docs.map(doc => {
+                const userId = doc.ref.parent.parent.id;
+                return { id: doc.id, ...doc.data(), userName: userMap.get(userId) || '알 수 없음' };
+            });
+        } catch (error) { console.error("발급된 쿠폰 목록 로딩 실패:", error); } 
+        finally { isLoadingCoupons.value = false; }
+    };
+
+    const fetchAllRankings = async () => {
+        isLoadingRankings.value = true;
+        try {
+            const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
+            const result = await getAdminRankings();
+            rankings.dailyTop7 = result.data.dailyTop7;
+            rankings.weeklyTop7 = result.data.weeklyTop7;
+            challengeResults.value = result.data.challenges;
+            rankings.saltPangRanked = result.data.saltPangRanked;
+        } catch (error) { 
+            console.error("랭킹 데이터 로딩 실패:", error); 
+            alert(`랭킹 데이터를 불러오는 데 실패했습니다. Firestore 보안 규칙을 확인해주세요. (${error.message})`);
+        } 
+        finally { isLoadingRankings.value = false; }
+    };
+
+    const resetCouponValues = () => {
+        couponDetails.boostPercentage = null;
+        couponDetails.durationMinutes = null;
+        couponDetails.quantity = null;
+        if(couponDetails.type === 'SALT_MINE_BOOST') {
+            couponDetails.boostPercentage = 20;
+            couponDetails.durationMinutes = 60;
+        } else if (couponDetails.type.startsWith('DEEP_SEA_') || couponDetails.type.startsWith('SALTPANG_') || couponDetails.type === 'ITEM_RARE_SALT') {
+            if(couponDetails.type.includes('AUTOSELL') || couponDetails.type.includes('GOLDENTIME')){
+                couponDetails.durationMinutes = 60;
+            } else {
+                couponDetails.quantity = 1;
+            }
+        }
+    };
+
+    const issueCoupons = async () => {
+      if (selectedUsers.value.length === 0) return alert("쿠폰을 발급할 사용자를 선택해주세요.");
+      if (!couponDetails.description) return alert("이벤트 내용을 입력해주세요.");
+      if (!confirm(`${selectedUsers.value.length}명의 사용자에게 쿠폰을 발급하시겠습니까?`)) return;
+      
+      isIssuing.value = true;
+      try {
+        const issueCouponsToUser = httpsCallable(functions, "issueCouponsToUser");
+        const result = await issueCouponsToUser({
+          userIds: selectedUsers.value,
+          couponData: { ...couponDetails }
+        });
+        alert(result.data.message);
+        selectedUsers.value = []; 
+        await fetchIssuedCoupons();
+      } catch (error) { console.error("쿠폰 발급 실패:", error); alert(`오류: ${error.message}`); } 
+      finally { isIssuing.value = false; }
+    };
+
+    onMounted(() => {
+        fetchUsers();
+        fetchIssuedCoupons();
+        fetchAllRankings();
+    });
+
+    // [최종 핵심 수정] 템플릿에서 사용할 모든 변수와 함수를 return합니다.
+    return {
+      activeTab,
+      isLoadingRankings,
+      rankings,
+      challengeResults,
+      userList,
+      isIssuing,
+      couponDetails,
+      selectedUsers,
+      issuedCoupons,
+      isLoadingCoupons,
+      isAllUsersSelected,
+      groupedChallenges,
+      currentRankings,
+      currentTabTitle,
+      selectAllUsers,
+      formatDate,
+      formatCouponStatus,
+      formatChallengeId,
+      resetCouponValues,
+      issueCoupons,
+    };
+  }
+}
 </script>
 
 <style scoped>
