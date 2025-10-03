@@ -176,17 +176,23 @@ export default {
       }));
     });
 
-    const fetchAllRankings = async () => {
-      isLoadingRankings.value = true;
-      try {
-        const getAdminRankings = httpsCallable(functions, "getAdminDashboardRankings");
-        const result = await getAdminRankings();
-        Object.assign(rankings, result.data); // 받아온 모든 랭킹 데이터를 한번에 할당
-        challengeResults.value = result.data.challenges;
-      } catch (error) { 
-        console.error("랭킹 데이터 로딩 실패:", error);
-      } finally { isLoadingRankings.value = false; }
-    };
+const fetchAllRankings = async () => {
+  isLoadingRankings.value = true;
+  try {
+    // [핵심 수정] getFunctions 호출 시 지역을 명시합니다.
+    const functionsWithRegion = getFunctions(functions.app, "asia-northeast3");
+    const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
+    
+    const result = await getAdminRankings();
+    Object.assign(rankings, result.data);
+    challengeResults.value = result.data.challenges;
+  } catch (error) { 
+    console.error("랭킹 데이터 로딩 실패:", error);
+    alert(`랭킹 데이터를 불러오는 데 실패했습니다: ${error.message}`);
+  } finally { 
+    isLoadingRankings.value = false; 
+  }
+};
     
     // --- 나머지 함수들은 기존과 동일 ---
     const fetchUsers = async () => {
