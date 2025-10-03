@@ -8,7 +8,6 @@ import { getFunctions } from "firebase/functions";
 import { getDatabase } from "firebase/database";
 // [신규 추가] 애널리틱스 import
 import { getAnalytics } from "firebase/analytics";
-import firebaseAdmin from 'firebase-admin'; // Firebase Admin SDK는 Functions에서 사용되므로 여기서는 주석 처리하거나 제거 (Functions index.js에서 사용)
 
 // .env 파일에서 Firebase 설정 정보를 안전하게 불러옵니다.
 const firebaseConfig = {
