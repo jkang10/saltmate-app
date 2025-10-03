@@ -2,7 +2,7 @@
   <div class="my-events-page">
     <header class="page-header">
       <h1><i class="fas fa-gift"></i> 나의 이벤트 공간</h1>
-      <p class="description">보유 쿠폰 현황을 확인하고 사용할 수 있습니다.</p>
+      <p class="description">보유 쿠폰 현황을 확인하고 사용하거나 삭제할 수 있습니다.</p>
     </header>
 
     <main class="content-wrapper card glassmorphism">
@@ -14,40 +14,34 @@
         <p>현재 보유 중인 쿠폰이 없습니다.</p>
       </div>
       <div v-else class="coupon-grid">
-        <div v-for="coupon in coupons" :key="coupon.id" class="coupon-card" :class="coupon.status">
+        <div v-for="coupon in coupons" :key="coupon.id" class="coupon-card" :class="[coupon.status, `type-${coupon.type}`]">
           <div class="coupon-header">
-            <i class="fas fa-receipt coupon-main-icon"></i>
-            <span class="coupon-title">소금 광산 채굴 부스트</span>
+            <i :class="['coupon-main-icon', getCouponIcon(coupon.type)]"></i>
+            <span class="coupon-title">{{ formatCouponType(coupon.type) }}</span>
           </div>
           <div class="coupon-body">
-            <div class="coupon-effect">
-              <i class="fas fa-chart-line"></i>
-              <span>채굴 효율 <strong class="boost-percentage">+{{ coupon.boostPercentage }}%</strong> 증가</span>
-            </div>
-            <div class="coupon-duration">
-              <i class="fas fa-hourglass-half"></i>
-              <span>지속 시간: {{ coupon.durationMinutes }}분</span>
-            </div>
-            <div class="coupon-description">
-              <i class="fas fa-info-circle"></i>
-              <span>{{ coupon.description || '특별한 채굴 부스트 혜택!' }}</span>
-            </div>
+            <ul class="details">
+              <li v-if="coupon.boostPercentage"><i class="fas fa-bolt"></i> 채굴 효율 +{{ coupon.boostPercentage }}% 증가</li>
+              <li v-if="coupon.durationMinutes"><i class="fas fa-hourglass-half"></i> 지속 시간: {{ coupon.durationMinutes }}분</li>
+              <li v-if="coupon.quantity"><i class="fas fa-box"></i> 지급 수량: {{ coupon.quantity }}개</li>
+            </ul>
+            <p class="description">{{ coupon.description }}</p>
           </div>
           <div class="coupon-footer">
             <div class="coupon-expiry">
               <i class="fas fa-calendar-alt"></i>
               <span>유효기간: ~{{ formatDate(coupon.expiresAt) }}</span>
             </div>
-            <button
-              @click="useCoupon(coupon.id)"
-              class="btn btn-use"
-              :disabled="coupon.status !== 'unused' || isUsing"
-            >
-              <span v-if="isUsing && currentUsingCouponId === coupon.id" class="spinner-small"></span>
-              <span v-else-if="coupon.status === 'used'">사용 완료</span>
-              <span v-else-if="coupon.status === 'expired'">기간 만료</span>
-              <span v-else>사용하기</span>
-            </button>
+            <div class="button-group">
+              <button @click="useCoupon(coupon)" class="btn btn-use" :disabled="coupon.status !== 'unused' || isUsing === coupon.id">
+                <span v-if="isUsing === coupon.id" class="spinner-small"></span>
+                <span v-else>{{ formatStatus(coupon.status) }}</span>
+              </button>
+              <!-- [핵심 추가] 삭제 버튼 -->
+              <button @click="deleteCoupon(coupon.id)" class="btn btn-delete" v-if="coupon.status !== 'unused'" title="쿠폰 삭제">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -55,134 +49,129 @@
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
+<script>
+import { ref, onMounted, onUnmounted } from 'vue';
 import { auth, db, functions } from '@/firebaseConfig';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { httpsCallable, getFunctions } from 'firebase/functions';
 import { useRouter } from 'vue-router';
 
-const coupons = ref([]);
-const isLoading = ref(true);
-const isUsing = ref(false);
-const currentUsingCouponId = ref(null); // [신규] 어떤 쿠폰이 사용 중인지 추적
-const router = useRouter();
+export default {
+  name: 'MyEventsPage',
+  setup() {
+    const coupons = ref([]);
+    const isLoading = ref(true);
+    const isUsing = ref(null); // 어떤 쿠폰이 사용 중인지 ID로 추적
+    const router = useRouter();
+    let unsubscribe = null;
 
-const formatDate = (timestamp) => {
-  if (!timestamp?.toDate) return "N/A";
-  return timestamp.toDate().toLocaleDateString("ko-KR");
-};
+    const couponDetailsMap = {
+        SALT_MINE_BOOST: { name: '소금 광산 부스트', icon: 'fas fa-gem' },
+        DEEP_SEA_AUTOSELL: { name: '심해 자동판매', icon: 'fas fa-robot' },
+        SALTPANG_TIME_PLUS_5: { name: '솔트팡 +5초', icon: 'fas fa-stopwatch' },
+        SALTPANG_SCORE_X2_10S: { name: '솔트팡 점수 2배', icon: 'fas fa-sort-amount-up-alt' },
+        ITEM_RARE_SALT: { name: '희귀 소금 결정', icon: 'fas fa-registered' },
+        DEEP_SEA_RESEARCH: { name: '연구 데이터', icon: 'fas fa-flask' },
+        DEEP_SEA_MINERAL: { name: '희귀 미네랄', icon: 'fas fa-atom' },
+        DEEP_SEA_PLANKTON: { name: '플랑크톤', icon: 'fas fa-bacterium' },
+        DEEP_SEA_RELIC: { name: '고대 유물', icon: 'fas fa-scroll' },
+        DEEP_SEA_GOLDENTIME: { name: '해양 골든타임', icon: 'fas fa-star' },
+    };
 
-const fetchCoupons = async () => {
-  isLoading.value = true;
-  try {
-    if (!auth.currentUser) return;
-    const q = query(
-      collection(db, `users/${auth.currentUser.uid}/coupons`),
-      orderBy("issuedAt", "desc")
-    );
-    const querySnapshot = await getDocs(q);
-    coupons.value = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      // 만료일이 지난 쿠폰의 상태를 'expired'로 업데이트 (프론트엔드에서만 표시)
-      if (data.status === 'unused' && data.expiresAt.toDate() < new Date()) {
-        return { id: doc.id, ...data, status: 'expired' };
+    const formatCouponType = (type) => couponDetailsMap[type]?.name || '알 수 없는 쿠폰';
+    const getCouponIcon = (type) => couponDetailsMap[type]?.icon || 'fas fa-ticket-alt';
+    const formatStatus = (status) => ({ unused: '사용하기', used: '사용 완료', expired: '기간 만료' }[status] || status);
+    const formatDate = (timestamp) => {
+      if (!timestamp?.toDate) return "N/A";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    };
+
+    const fetchCoupons = () => {
+      if (auth.currentUser) {
+        const q = query(collection(db, `users/${auth.currentUser.uid}/coupons`), orderBy("issuedAt", "desc"));
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          coupons.value = snapshot.docs.map(doc => {
+            const data = doc.data();
+            if (data.status === 'unused' && data.expiresAt.toDate() < new Date()) {
+              return { id: doc.id, ...data, status: 'expired' };
+            }
+            return { id: doc.id, ...data };
+          });
+          isLoading.value = false;
+        });
+      } else {
+        isLoading.value = false;
       }
-      return { id: doc.id, ...data };
+    };
+
+    const useCoupon = async (coupon) => {
+      if (!confirm(`'${formatCouponType(coupon.type)}' 쿠폰을 사용하시겠습니까?`)) return;
+      
+      isUsing.value = coupon.id;
+      try {
+        let funcName = '';
+        let payload = { couponId: coupon.id };
+
+        if (coupon.type === 'SALT_MINE_BOOST') {
+          funcName = 'activateMiningBoost';
+        } else {
+          funcName = 'useItemCoupon';
+        }
+
+        const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
+        const useCouponFunc = httpsCallable(functionsWithRegion, funcName);
+        const result = await useCouponFunc(payload);
+        alert(result.data.message);
+
+        // 특정 쿠폰 사용 후 페이지 이동 로직
+        if (coupon.type.startsWith('SALT_MINE')) router.push('/salt-mine-game');
+        else if (coupon.type.startsWith('DEEP_SEA')) router.push('/deep-sea-game');
+        else if (coupon.type.startsWith('SALTPANG')) router.push('/salt-pang');
+        
+      } catch (error) {
+        console.error("쿠폰 사용 실패:", error);
+        alert(`오류: ${error.message}`);
+      } finally {
+        isUsing.value = null;
+      }
+    };
+
+    // [핵심 추가] 쿠폰 삭제 함수
+    const deleteCoupon = async (couponId) => {
+        if (!confirm("이 쿠폰을 목록에서 삭제하시겠습니까?")) return;
+        try {
+            if (!auth.currentUser) throw new Error("로그인이 필요합니다.");
+            const couponRef = doc(db, `users/${auth.currentUser.uid}/coupons`, couponId);
+            await deleteDoc(couponRef);
+            alert("쿠폰이 삭제되었습니다.");
+        } catch (error) {
+            console.error("쿠폰 삭제 실패:", error);
+            alert(`오류: ${error.message}`);
+        }
+    };
+
+    onMounted(fetchCoupons);
+    onUnmounted(() => {
+      if (unsubscribe) unsubscribe();
     });
-  } catch (error) {
-    console.error("쿠폰 로딩 실패:", error);
-  } finally {
-    isLoading.value = false;
+
+    return {
+      coupons, isLoading, isUsing,
+      formatCouponType, getCouponIcon, formatStatus, formatDate,
+      useCoupon, deleteCoupon
+    };
   }
 };
-
-const useCoupon = async (couponId) => {
-  if (!confirm("쿠폰을 사용하시겠습니까? 사용 즉시 효과가 적용됩니다.")) return;
-  
-  isUsing.value = true;
-  currentUsingCouponId.value = couponId; // 어떤 쿠폰이 사용 중인지 기록
-  try {
-    const activateMiningBoost = httpsCallable(functions, "activateMiningBoost");
-    const result = await activateMiningBoost({ couponId });
-    alert(result.data.message);
-    // 성공 시, 소금 광산 페이지로 이동하여 효과를 바로 체감하게 함
-    router.push('/salt-mine-game');
-  } catch (error) {
-    console.error("쿠폰 사용 실패:", error);
-    alert(`오류: ${error.message}`);
-  } finally {
-    isUsing.value = false;
-    currentUsingCouponId.value = null; // 사용 완료/실패 후 초기화
-    fetchCoupons(); // 쿠폰 상태 갱신을 위해 다시 불러오기
-  }
-};
-
-onMounted(fetchCoupons);
 </script>
 
 <style scoped>
-.my-events-page {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #333;
-}
-
-.page-header h1 {
-  font-size: 2.5em;
-  color: #2c3e50;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-header h1 .fas {
-  margin-right: 15px;
-  color: #ff9800; /* 선물 아이콘 색상 */
-}
-
-.description {
-  color: #777;
-  font-size: 1.1em;
-}
-
-.content-wrapper {
-  background: linear-gradient(145deg, #ffffff, #e6e6e6);
-  border-radius: 15px;
-  padding: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
-}
-
-.content-wrapper h2 {
-  font-size: 2em;
-  color: #2c3e50;
-  margin-bottom: 25px;
-  border-bottom: 2px solid #eee;
-  padding-bottom: 15px;
-  display: flex;
-  align-items: center;
-}
-
-.content-wrapper h2 .fas {
-  margin-right: 10px;
-  color: #007bff; /* 티켓 아이콘 색상 */
-}
-
-.loading-state, .empty-state {
-  text-align: center;
-  padding: 50px 0;
-  color: #888;
-  font-size: 1.2em;
-}
-
+/* 전체적인 스타일은 유지하고, 쿠폰 카드 디자인을 전면 개편합니다. */
+.my-events-page { padding: 20px; max-width: 1200px; margin: 70px auto; }
+.page-header { text-align: center; margin-bottom: 30px; }
+.page-header h1 { font-size: 2.5em; }
+.content-wrapper { padding: 30px; }
+.content-wrapper h2 { font-size: 1.8em; }
+.loading-state, .empty-state { text-align: center; padding: 50px; }
 .spinner {
   border: 4px solid rgba(0, 0, 0, 0.1);
   border-left-color: #007bff;
@@ -192,7 +181,69 @@ onMounted(fetchCoupons);
   animation: spin 1s linear infinite;
   margin: 20px auto;
 }
+.coupon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
 
+/* 신규 쿠폰 카드 디자인 */
+.coupon-card {
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+.coupon-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+}
+.coupon-card.used, .coupon-card.expired {
+  opacity: 0.6;
+  filter: grayscale(80%);
+}
+.coupon-header {
+  color: #fff;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-radius: 15px 15px 0 0;
+}
+/* 쿠폰 종류별 색상 */
+.type-SALT_MINE_BOOST .coupon-header { background: linear-gradient(135deg, #f39c12, #e67e22); }
+.type-DEEP_SEA_AUTOSELL .coupon-header, .type-DEEP_SEA_GOLDENTIME .coupon-header,
+.type-DEEP_SEA_RESEARCH .coupon-header, .type-DEEP_SEA_MINERAL .coupon-header,
+.type-DEEP_SEA_PLANKTON .coupon-header, .type-DEEP_SEA_RELIC .coupon-header {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+}
+.type-SALTPANG_TIME_PLUS_5 .coupon-header, .type-SALTPANG_SCORE_X2_10S .coupon-header {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+.type-ITEM_RARE_SALT .coupon-header { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+
+.coupon-main-icon { font-size: 1.6em; }
+.coupon-title { font-size: 1.3em; font-weight: bold; }
+.coupon-body { padding: 20px; flex-grow: 1; }
+.coupon-body .description { font-style: italic; color: #777; margin-bottom: 15px; }
+.details { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.details li { display: flex; align-items: center; gap: 10px; }
+.details li i { color: #555; }
+.coupon-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f9f9f9;
+  border-radius: 0 0 15px 15px;
+}
+.coupon-expiry { font-size: 0.9em; color: #888; }
+
+.button-group { display: flex; gap: 10px; }
+.btn { border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: bold; transition: all 0.2s ease; }
+.btn-use { background-color: #28a745; color: white; }
+.btn-use:disabled { background-color: #6c757d; cursor: not-allowed; }
+.btn-delete { background-color: #dc3545; color: white; font-size: 0.9em; padding: 10px; }
+.status-badge { /* ... 이전과 동일 ... */ }
 .spinner-small {
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-left-color: #fff;
@@ -204,142 +255,12 @@ onMounted(fetchCoupons);
   vertical-align: middle;
   margin-right: 5px;
 }
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* --- 쿠폰 카드 스타일 --- */
-.coupon-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 30px;
-  padding-top: 10px;
-}
-
-.coupon-card {
-  background: #ffffff;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  border: 1px solid #e0e0e0;
-}
-
-.coupon-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
-}
-
-.coupon-card.used, .coupon-card.expired {
-  opacity: 0.7;
-  filter: grayscale(80%);
-  border-color: #bdbdbd;
-}
-
-.coupon-header {
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: #ffffff;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  font-size: 1.4em;
-  font-weight: bold;
-}
-
-.coupon-main-icon {
-  font-size: 1.8em;
-  color: #ffeb3b; /* 메인 아이콘 색상 */
-}
-
-.coupon-body {
-  padding: 20px;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.coupon-body > div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #555;
-  font-size: 1.05em;
-}
-
-.coupon-body > div .fas {
-  color: #007bff;
-  font-size: 1.2em;
-}
-
-.coupon-card.used .coupon-body > div .fas,
-.coupon-card.expired .coupon-body > div .fas {
-  color: #6c757d;
-}
-
-.boost-percentage {
-  color: #28a745;
-  font-weight: bold;
-}
-
-.coupon-description {
-  font-style: italic;
-  color: #777;
-  border-top: 1px dashed #eee;
-  padding-top: 10px;
-  margin-top: 5px;
-}
-
-.coupon-footer {
-  padding: 15px 20px;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #f9f9f9;
-}
-
-.coupon-expiry {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #888;
-  font-size: 0.95em;
-}
-
-.coupon-expiry .fas {
-  color: #ff9800; /* 유효기간 아이콘 색상 */
-}
-
-.btn-use {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: bold;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 100px; /* 버튼 최소 너비 설정 */
-}
-
 .btn-use:hover:not(:disabled) {
   background-color: #218838;
   transform: translateY(-2px);
 }
-
-.btn-use:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
-  box-shadow: none;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>
