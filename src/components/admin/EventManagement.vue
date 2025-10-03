@@ -93,7 +93,6 @@
 </template>
 
 <script>
-<script>
 import { ref, reactive, onMounted, computed } from "vue";
 import { db, functions } from "@/firebaseConfig";
 // [핵심 수정] getFunctions를 firebase/functions에서 import 합니다.
