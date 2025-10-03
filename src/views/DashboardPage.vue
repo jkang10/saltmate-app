@@ -293,6 +293,12 @@
 	  <p>제한 시간 내에 숨겨진 그림을 모두 찾아보세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
+	<router-link to="/salt-crystal-game" class="feature-card" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+	  <div class="card-icon" style="color: white;"><i class="fas fa-gem"></i></div>
+	  <h3 style="color: white;">나만의 소금 결정 키우기</h3>
+	  <p style="color: white;">매일 정성을 들여 당신만의 특별한 보석을 완성해보세요.</p>
+	  <span class="card-enter" style="color: white;">시작하기 &rarr;</span>
+	</router-link>
         </div>
       </main>
 
