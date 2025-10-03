@@ -95,6 +95,7 @@
 <script>
 import { ref, reactive, onMounted, computed } from "vue";
 import { db, functions } from "@/firebaseConfig";
+// [핵심 수정] getFunctions를 firebase/functions에서 import 합니다.
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { httpsCallable, getFunctions } from "firebase/functions";
 
@@ -174,20 +175,21 @@ export default {
       }));
     });
 
-    const fetchAllRankings = async () => {
+     const fetchAllRankings = async () => {
       isLoadingRankings.value = true;
       try {
+        // [최종 핵심 수정] getFunctions 호출 시 'asia-northeast3' 지역을 명시합니다.
         const functionsWithRegion = getFunctions(functions.app, "asia-northeast3");
         const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
-
+        
         const result = await getAdminRankings();
         Object.assign(rankings, result.data);
         challengeResults.value = result.data.challenges;
-      } catch (error) {
+      } catch (error) { 
         console.error("랭킹 데이터 로딩 실패:", error);
         alert(`랭킹 데이터를 불러오는 데 실패했습니다: ${error.message}`);
-      } finally {
-        isLoadingRankings.value = false;
+      } finally { 
+        isLoadingRankings.value = false; 
       }
     };
 
