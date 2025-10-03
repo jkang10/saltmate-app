@@ -60,9 +60,9 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue';
-import { auth, db, functions } from '@/firebaseConfig';
+import { auth, db } from '@/firebaseConfig'; // functions 제거
 import { httpsCallable, getFunctions } from 'firebase/functions';
-import { useRouter } from 'vue-router';
+// import { useRouter } from 'vue-router'; // 이 줄을 삭제하거나 주석 처리
 
 export default {
   name: 'SaltCrystalPage',
