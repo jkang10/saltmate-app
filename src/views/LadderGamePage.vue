@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { functions } from '@/firebaseConfig';
+// import { functions } from '@/firebaseConfig'; // 이 줄을 삭제하거나 주석 처리합니다.
 import { httpsCallable, getFunctions } from 'firebase/functions';
 
 const isLoading = ref(false);
