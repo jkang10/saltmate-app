@@ -175,11 +175,12 @@ export default {
       }));
     });
 
-     const fetchAllRankings = async () => {
+    const fetchAllRankings = async () => {
       isLoadingRankings.value = true;
       try {
         // [최종 핵심 수정] getFunctions 호출 시 'asia-northeast3' 지역을 명시합니다.
-        const functionsWithRegion = getFunctions(functions.app, "asia-northeast3");
+        // 기존의 functions.app 대신 auth.app을 사용하는 것이 더 안정적일 수 있습니다.
+        const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
         const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
         
         const result = await getAdminRankings();
@@ -238,6 +239,7 @@ export default {
 
     onMounted(() => {
         fetchUsers();
+        // fetchIssuedCoupons(); // 이 함수는 현재 없으므로 주석 처리하거나 추가해야 합니다.
         fetchAllRankings();
     });
 
