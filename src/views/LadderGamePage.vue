@@ -133,7 +133,7 @@ const generateLadder = () => {
     drawLadder();
 };
 
-const traceLadder = async (prizeIndex) => {
+const traceLadder = async () => {
     if (!ctx) return;
     const finalPositions = [];
     for (let i=0; i<NUM_LEGS; i++) {
