@@ -51,7 +51,7 @@
 
 <script>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { auth, db, functions } from '@/firebaseConfig';
+import { auth, db } from '@/firebaseConfig'; // functions 제거
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { useRouter } from 'vue-router';
