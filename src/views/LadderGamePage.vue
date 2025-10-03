@@ -60,9 +60,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { functions } from '@/firebaseConfig';
-import { httpsCallable } from 'firebase/functions';
+import { httpsCallable, getFunctions } from 'firebase/functions';
 
 const isLoading = ref(false);
 const gameStarted = ref(false);
@@ -75,12 +75,23 @@ let ladder = [];
 let ctx = null;
 const NUM_LEGS = 5;
 
-const totalWinnings = computed(() => results.value.length > 0 ? results.value[0].prize : 0);
+const totalWinnings = computed(() => {
+    if (!gameStarted.value || results.value.length === 0) return 0;
+    const finalLeg = traceLeg(selectedEntry.value - 1);
+    const finalResult = results.value[finalLeg];
+    return finalResult ? finalResult.prize : 0;
+});
 const netGain = computed(() => totalWinnings.value - 100);
 
 const selectStart = (n) => {
   if (gameStarted.value) return;
   selectedEntry.value = n;
+};
+
+const getLegX = (index) => {
+    if (!ladderCanvas.value) return 0;
+    const width = ladderCanvas.value.getBoundingClientRect().width;
+    return (width / NUM_LEGS) * (index + 0.5);
 };
 
 const drawLadder = () => {
@@ -95,16 +106,14 @@ const drawLadder = () => {
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#a9a9a9';
+    ctx.strokeStyle = '#ced4da';
 
-    // 세로줄 그리기
     for (let i = 0; i < NUM_LEGS; i++) {
         ctx.beginPath();
         ctx.moveTo(getLegX(i), 20);
-        ctx.lineTo(getLegX(i), canvas.height / dpr - 20);
+        ctx.lineTo(getLegX(i), rect.height - 20);
         ctx.stroke();
     }
-    // 가로줄 그리기
     for (const cross of ladder) {
         ctx.beginPath();
         ctx.moveTo(getLegX(cross.from), cross.y);
@@ -113,49 +122,44 @@ const drawLadder = () => {
     }
 };
 
-const getLegX = (index) => {
-    if (!ladderCanvas.value) return 0;
-    const width = ladderCanvas.value.getBoundingClientRect().width;
-    return (width / (NUM_LEGS + 1)) * (index + 1);
-};
-
 const generateLadder = () => {
     ladder = [];
     const height = ladderCanvas.value ? ladderCanvas.value.getBoundingClientRect().height : 300;
-    const numCrosses = 7; // 가로줄 개수
-    const availableY = Array.from({length: numCrosses}, (_, i) => 60 + i * ((height - 120) / numCrosses));
-    
+    const numCrosses = 7;
+    const ySpacing = (height - 120) / numCrosses;
+    let lastLeg = -2;
+
     for (let i = 0; i < numCrosses; i++) {
-        const from = Math.floor(Math.random() * (NUM_LEGS - 1));
-        const y = availableY.splice(Math.floor(Math.random() * availableY.length), 1)[0];
+        let from;
+        do {
+            from = Math.floor(Math.random() * (NUM_LEGS - 1));
+        } while (from === lastLeg);
+        const y = 60 + i * ySpacing + (Math.random() - 0.5) * 10;
         ladder.push({ from, y });
+        lastLeg = from;
     }
     drawLadder();
 };
 
-const traceLadder = async () => {
-    if (!ctx) return;
-    const finalPositions = [];
-    for (let i=0; i<NUM_LEGS; i++) {
-        let currentLeg = i;
-        const sortedCrosses = [...ladder].sort((a,b) => a.y - b.y);
-        for (const cross of sortedCrosses) {
-            if (cross.from === currentLeg) currentLeg++;
-            else if (cross.from + 1 === currentLeg) currentLeg--;
-        }
-        finalPositions[i] = currentLeg;
+const traceLeg = (startLeg) => {
+    let currentLeg = startLeg;
+    const sortedCrosses = [...ladder].sort((a,b) => a.y - b.y);
+    for (const cross of sortedCrosses) {
+        if (cross.from === currentLeg) currentLeg++;
+        else if (cross.from + 1 === currentLeg) currentLeg--;
     }
-    
-    // 서버 결과와 사다리 결과 매칭
-    const serverResultIndex = finalPositions[selectedEntry.value - 1];
-    results.value[serverResultIndex] = { prize: totalWinnings.value };
+    return currentLeg;
+};
 
+const animateTrace = async () => {
+    if (!ctx) return;
     ctx.strokeStyle = '#007bff';
     ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
     let currentLeg = selectedEntry.value - 1;
     let currentY = 20;
-
     const sortedCrosses = [...ladder].sort((a,b) => a.y - b.y);
+
     for (const cross of sortedCrosses) {
         if(cross.y > currentY) {
             await drawLine(getLegX(currentLeg), currentY, getLegX(currentLeg), cross.y);
@@ -171,19 +175,17 @@ const traceLadder = async () => {
     }
     const height = ladderCanvas.value.getBoundingClientRect().height;
     await drawLine(getLegX(currentLeg), currentY, getLegX(currentLeg), height - 20);
-
-    setTimeout(() => {
-        gameEnded.value = true;
-    }, 500);
+    setTimeout(() => { gameEnded.value = true; }, 500);
 };
 
 const drawLine = (x1, y1, x2, y2) => {
     return new Promise(resolve => {
-        const duration = 200;
+        const duration = 150;
         const startTime = performance.now();
         const animate = (time) => {
             const elapsed = time - startTime;
-            const progress = Math.min(elapsed / duration, 1);
+            let progress = elapsed / duration;
+            if (progress > 1) progress = 1;
             const currentX = x1 + (x2 - x1) * progress;
             const currentY = y1 + (y2 - y1) * progress;
             ctx.beginPath();
@@ -200,19 +202,27 @@ const drawLine = (x1, y1, x2, y2) => {
 const startGame = async () => {
   isLoading.value = true;
   error.value = null;
-  results.value = Array(NUM_LEGS).fill({ prize: 0 }); // 결과 배열 초기화
   try {
-    const playLadderGame = httpsCallable(functions, 'playLadderGame');
-    const response = await playLadderGame({ entryCount: 1 }); // 1회만 참여
+    const functionsWithRegion = getFunctions(undefined, "asia-northeast3");
+    const playLadderGame = httpsCallable(functionsWithRegion, 'playLadderGame');
+    const response = await playLadderGame({ entryCount: 1 });
     
-    // 서버로부터 받은 단일 결과를 임시 저장
-    const serverResult = response.data.results[0];
-    results.value = [{ prize: serverResult.prize }]; // 실제 당첨금만 우선 저장
+    // 서버 결과를 실제 사다리 위치에 맞게 재배치
+    const finalPositions = Array(NUM_LEGS);
+    for (let i = 0; i < NUM_LEGS; i++) finalPositions[traceLeg(i)] = i;
+    
+    const finalResults = Array(NUM_LEGS);
+    const serverPrize = response.data.results[0].prize;
+    const winningLeg = traceLeg(selectedEntry.value - 1);
+
+    for(let i=0; i<NUM_LEGS; i++){
+      if(i === winningLeg) finalResults[i] = { prize: serverPrize };
+      else finalResults[i] = { prize: 0 }; // 나머지는 꽝으로 채움
+    }
+    results.value = finalResults;
     
     gameStarted.value = true;
-    
-    // 애니메이션 시작
-    await traceLadder();
+    await animateTrace();
 
   } catch (err) {
     console.error("사다리타기 게임 오류:", err);
@@ -241,21 +251,29 @@ const getResultClass = (prize) => {
 };
 
 onMounted(() => {
-    generateLadder();
-    window.addEventListener('resize', drawLadder);
+    setTimeout(() => {
+      generateLadder();
+      window.addEventListener('resize', drawLadder);
+    }, 100);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', drawLadder);
 });
 </script>
 
 <style scoped>
-.ladder-game-page { padding: 20px; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+/* [핵심 수정] 전체적인 디자인 개선 */
+.ladder-game-page { padding: 20px; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 70px); }
 .card { background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
-.game-container { padding: 30px; width: 100%; max-width: 600px; text-align: center; }
-.game-header h1 { margin: 0 0 10px; font-size: 2em; }
+.game-container { padding: 30px 40px; width: 100%; max-width: 600px; text-align: center; }
+.game-header h1 { margin: 0 0 10px; font-size: 2em; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.game-header h1 i { color: #007bff; }
 .game-header p { margin: 0 0 30px; color: #666; }
 
 .ladder-wrapper { position: relative; height: 300px; margin-bottom: 30px; }
-.ladder-canvas { width: 100%; height: 100%; }
-.start-points, .end-points { position: absolute; left: 0; right: 0; display: flex; justify-content: space-around; }
+.ladder-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.start-points, .end-points { position: absolute; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 12.5%; /* [수정] 위치 보정 */ box-sizing: border-box; }
 .start-points { top: -20px; }
 .end-points { bottom: -20px; }
 .point {
@@ -264,6 +282,8 @@ onMounted(() => {
   font-weight: bold; font-size: 1.2em;
   background: #e9ecef; border: 2px solid #adb5bd;
   transition: all 0.2s;
+  position: relative; /* z-index 적용 위함 */
+  z-index: 2;
 }
 .point.start { cursor: pointer; }
 .point.start:hover { transform: scale(1.1); }
@@ -271,13 +291,14 @@ onMounted(() => {
 .point.start.disabled { cursor: not-allowed; opacity: 0.7; }
 
 .point.end { font-size: 0.9em; }
-.point.end.win-high { background: #ffd700; border-color: #f1c40f; color: #333; }
-.point.end.win-low { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+.point.end.win-high { background: #ffd700; border-color: #f1c40f; color: #333; animation: prize-pop 0.5s ease-out; }
+.point.end.win-low { background: #d4edda; border-color: #c3e6cb; color: #155724; animation: prize-pop 0.5s ease-out; }
 .point.end.lose { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+@keyframes prize-pop { from { transform: scale(0.5); } to { transform: scale(1); } }
 
 .setup-controls, .results-display { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-.cost-info { font-weight: bold; color: #333; }
-.start-button { background-color: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; }
+.cost-info { font-weight: bold; color: #333; font-size: 1.1em; }
+.start-button { background-color: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
 .start-button:disabled { background-color: #aaa; }
 .summary { width: 100%; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
 .summary p { margin: 5px 0; display: flex; justify-content: space-between; font-size: 1.1em; }
