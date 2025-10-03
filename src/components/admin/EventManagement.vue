@@ -95,7 +95,6 @@
 <script>
 import { ref, reactive, onMounted, computed } from "vue";
 import { db, functions } from "@/firebaseConfig";
-// [핵심 수정] getFunctions를 firebase/functions에서 import 합니다.
 import { collection, getDocs, query, orderBy, collectionGroup, limit } from "firebase/firestore";
 import { httpsCallable, getFunctions } from "firebase/functions";
 
@@ -118,15 +117,15 @@ export default {
       quantity: null,
       description: '',
     });
-    const selectedUsers = ref([]); 
+    const selectedUsers = ref([]);
     const issuedCoupons = ref([]);
     const isLoadingCoupons = ref(true);
-    const searchQuery = ref(''); // 사용자 검색어
+    const searchQuery = ref('');
 
     const filteredUserList = computed(() => {
       if (!searchQuery.value) return userList.value;
       const term = searchQuery.value.toLowerCase();
-      return userList.value.filter(user => 
+      return userList.value.filter(user =>
         user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term)
       );
     });
@@ -140,8 +139,7 @@ export default {
       if (event.target.checked) selectedUsers.value = filteredUserList.value.map(user => user.uid);
       else selectedUsers.value = [];
     };
-    
-    // [핵심 수정 3] 탭 메뉴 개편 로직
+
     const currentTabTitle = computed(() => {
       const titles = {
         dailyTop7: '오늘의 SaltMate TOP 7', weeklyTop7: '주간 SaltMate TOP 7',
@@ -151,7 +149,7 @@ export default {
       };
       return titles[activeTab.value] || '';
     });
-    
+
     const currentRankings = computed(() => {
       let sourceData, dateKey;
       switch(activeTab.value) {
@@ -160,9 +158,8 @@ export default {
         case 'saltPangRanked': sourceData = rankings.saltPangRanked; dateKey = 'weekId'; break;
         case 'pvpWeekly': sourceData = rankings.pvpWeekly; dateKey = 'weekId'; break;
         case 'challenges': sourceData = challengeResults.value; dateKey = 'weekId'; break;
-        case 'saltPangHoF': 
+        case 'saltPangHoF':
         case 'enchantRankings':
-          // 이 탭들은 날짜 그룹핑이 필요 없음
           return [{ id: 'all-time', date: '역대 랭킹', items: rankings[activeTab.value] }];
         default: return [];
       }
@@ -177,25 +174,23 @@ export default {
       }));
     });
 
-const fetchAllRankings = async () => {
-  isLoadingRankings.value = true;
-  try {
-    // [핵심 수정] getFunctions 호출 시 지역을 명시합니다.
-    const functionsWithRegion = getFunctions(functions.app, "asia-northeast3");
-    const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
-    
-    const result = await getAdminRankings();
-    Object.assign(rankings, result.data);
-    challengeResults.value = result.data.challenges;
-  } catch (error) { 
-    console.error("랭킹 데이터 로딩 실패:", error);
-    alert(`랭킹 데이터를 불러오는 데 실패했습니다: ${error.message}`);
-  } finally { 
-    isLoadingRankings.value = false; 
-  }
-};
-    
-    // --- 나머지 함수들은 기존과 동일 ---
+    const fetchAllRankings = async () => {
+      isLoadingRankings.value = true;
+      try {
+        const functionsWithRegion = getFunctions(functions.app, "asia-northeast3");
+        const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
+
+        const result = await getAdminRankings();
+        Object.assign(rankings, result.data);
+        challengeResults.value = result.data.challenges;
+      } catch (error) {
+        console.error("랭킹 데이터 로딩 실패:", error);
+        alert(`랭킹 데이터를 불러오는 데 실패했습니다: ${error.message}`);
+      } finally {
+        isLoadingRankings.value = false;
+      }
+    };
+
     const fetchUsers = async () => {
       try {
         const q = query(collection(db, "users"), orderBy("name"));
@@ -203,17 +198,66 @@ const fetchAllRankings = async () => {
         userList.value = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
       } catch (error) { console.error("사용자 목록 로딩 실패:", error); }
     };
-    const issueCoupons = async () => { /* ... 이전과 동일 ... */ };
+
+    const resetCouponValues = () => {
+        couponDetails.boostPercentage = null;
+        couponDetails.durationMinutes = null;
+        couponDetails.quantity = null;
+        if(couponDetails.type === 'SALT_MINE_BOOST') {
+            couponDetails.boostPercentage = 20;
+            couponDetails.durationMinutes = 60;
+        } else if (couponDetails.type.startsWith('DEEP_SEA_') || couponDetails.type.startsWith('SALTPANG_') || couponDetails.type === 'ITEM_RARE_SALT') {
+            if(couponDetails.type.includes('AUTOSELL') || couponDetails.type.includes('GOLDENTIME')){
+                couponDetails.durationMinutes = 60;
+            } else {
+                couponDetails.quantity = 1;
+            }
+        }
+    };
+    
+    const issueCoupons = async () => {
+      if (selectedUsers.value.length === 0) return alert("쿠폰을 발급할 사용자를 선택해주세요.");
+      if (!couponDetails.description) return alert("이벤트 내용을 입력해주세요.");
+      if (!confirm(`${selectedUsers.value.length}명의 사용자에게 쿠폰을 발급하시겠습니까?`)) return;
+
+      isIssuing.value = true;
+      try {
+        const issueCouponsToUser = httpsCallable(functions, "issueCouponsToUser");
+        const result = await issueCouponsToUser({
+          userIds: selectedUsers.value,
+          couponData: { ...couponDetails }
+        });
+        alert(result.data.message);
+        selectedUsers.value = [];
+        // 쿠폰 발급 후 목록을 새로고침하는 로직이 필요하다면 여기에 추가
+      } catch (error) { console.error("쿠폰 발급 실패:", error); alert(`오류: ${error.message}`); }
+      finally { isIssuing.value = false; }
+    };
+
     onMounted(() => {
         fetchUsers();
         fetchAllRankings();
     });
 
     return {
-      activeTab, isLoadingRankings, rankings, challengeResults, userList,
-      isIssuing, couponDetails, selectedUsers, issuedCoupons, isLoadingCoupons,
-      searchQuery, filteredUserList, isAllUsersSelected, selectAllUsers,
-      currentRankings, currentTabTitle, issueCoupons,
+      activeTab,
+      isLoadingRankings,
+      rankings,
+      challengeResults,
+      userList,
+      isIssuing,
+      couponDetails,
+      selectedUsers,
+      issuedCoupons,
+      isLoadingCoupons,
+      searchQuery,
+      filteredUserList,
+      isAllUsersSelected,
+      selectAllUsers,
+      currentRankings,
+      currentTabTitle,
+      issueCoupons,
+      resetCouponValues,
     };
   }
 }
