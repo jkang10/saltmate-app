@@ -139,6 +139,7 @@ export default {
     
     const findMatches = () => {
       const matches = new Set();
+      if (!board.value) return []; // 방어 코드
       for (let y = 0; y < BOARD_SIZE; y++) {
         for (let x = 0; x < BOARD_SIZE; x++) {
           const gem = board.value.find(g => g.x === x && g.y === y);
@@ -166,19 +167,21 @@ export default {
       return Array.from(matches);
     };
 
-    const processMatches = async (matches) => {
-      score.value += matches.length * 10;
-      board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
-      await new Promise(resolve => setTimeout(resolve, 100)); // 시각적 효과를 위한 딜레이
-      await fillGaps();
-      const newMatches = findMatches();
-      if (newMatches.length > 0) {
-        await processMatches(newMatches);
-      }
+    // ==================== [핵심 수정 1] 재귀 호출을 while 반복문으로 변경 ====================
+    const processMatches = async (initialMatches) => {
+        let matches = initialMatches;
+        while (matches.length > 0) {
+            score.value += matches.length * 10;
+            board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
+            await new Promise(resolve => setTimeout(resolve, 150));
+            await fillGaps();
+            matches = findMatches();
+        }
     };
     
-    // ==================== [핵심 수정] dropGems와 fillGaps 로직 개선 ====================
+    // ==================== [핵심 수정 2] dropGems와 fillGaps 로직 단순화 및 안정화 ====================
     const dropGems = async () => {
+      if (!board.value) return;
       for (let x = 0; x < BOARD_SIZE; x++) {
         const columnGems = board.value.filter(g => g.x === x).sort((a,b) => a.y - b.y);
         columnGems.forEach((gem, index) => {
@@ -189,6 +192,7 @@ export default {
     };
 
     const fillGaps = async () => {
+      if (!board.value) return;
       for (let x = 0; x < BOARD_SIZE; x++) {
         const gemsInColumn = board.value.filter(g => g.x === x).length;
         const missingCount = BOARD_SIZE - gemsInColumn;
@@ -225,12 +229,11 @@ export default {
       isProcessing.value = false;
       selectedGem.value = null;
       
-      // ==================== [핵심 수정] 불안정한 while문 대신 안정적인 초기화 로직으로 변경 ====================
-      // 매칭이 없는 상태가 될 때까지 보드를 다시 생성합니다.
+      // ==================== [핵심 수정 3] 안정적인 초기화 로직 유지 ====================
       do {
         initializeBoard();
       } while (findMatches().length > 0);
-      // ================================================================================================
+      // ================================================================================
       
       if(timer) clearInterval(timer);
       timer = setInterval(() => {
