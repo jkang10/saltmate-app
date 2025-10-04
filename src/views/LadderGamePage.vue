@@ -100,7 +100,8 @@ const LADDER_PADDING_X = 20; // 캔버스 좌우 가장자리에서 사다리 �
 // --- 계산된 속성 (Computed Properties) ---
 // 총 획득 금액 계산
 const totalWinnings = computed(() => {
-    if (!gameEnded.value || finalResultIndex.value === null) return 0;
+    // [핵심 수정] gameEnded.value 체크를 제거하여, 최종 도착지가 정해지는 즉시 당첨금을 계산하도록 변경합니다.
+    if (finalResultIndex.value === null) return 0;
     const finalResult = results.value[finalResultIndex.value];
     return finalResult ? finalResult.prize : 0;
 });
