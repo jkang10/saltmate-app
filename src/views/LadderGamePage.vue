@@ -114,13 +114,8 @@ const getLegX = (index) => {
 // [추가] 시작/끝 점 위치 계산 (세로줄 중앙에 오도록)
 const getPointXPosition = (index) => {
     if (!ladderCanvas.value) return 0;
-    const canvasWidth = ladderCanvas.value.getBoundingClientRect().width;
-    // (캔버스 전체 폭 - 패딩 * 2) / (NUM_LEGS - 1) 로 간격을 계산
-    // 그리고 각 점은 그 간격의 절반만큼 중앙에 위치해야 함
-    // (index * LEG_SPACING)은 해당 세로줄의 시작점, 여기서 중앙으로 이동
-    return LADDER_PADDING_X + index * LEG_SPACING.value - 20; // 20은 point div의 절반 너비 (40px/2)
+    return LADDER_PADDING_X + index * LEG_SPACING.value - 20;
 };
-
 
 // 캔버스에 사다리 그리기
 const drawLadder = () => {
@@ -273,10 +268,7 @@ const startGame = async () => {
     // 서버에서 5개의 모든 다리에 대한 결과 받기
     const response = await playLadderGame({ entryCount: NUM_LEGS }); 
     results.value = response.data.results; // 서버로부터 받은 모든 결과 저장
-
-    // 사용자가 선택한 시작점에서 최종 도착점 계산
-    const calculatedFinalLeg = traceLeg(selectedEntry.value - 1); 
-    
+  
     // [핵심] 애니메이션 시작
     await animateTrace(selectedEntry.value - 1); // 사용자가 선택한 다리만 애니메이션
 
