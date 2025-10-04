@@ -179,17 +179,6 @@ const generateLadder = () => {
     drawLadder(); // 가로선 생성 후 바로 캔버스에 그리기
 };
 
-// 특정 시작점에서 사다리 타고 내려가서 최종 도착점 인덱스 계산
-const traceLeg = (startLeg) => {
-    let currentLeg = startLeg;
-    const sortedCrosses = [...ladder].sort((a,b) => a.y - b.y); // Y축 기준으로 정렬하여 위에서 아래로 탐색
-    for (const cross of sortedCrosses) {
-        if (cross.from === currentLeg) currentLeg++; // 현재 다리에서 오른쪽으로 가로선이 연결되면 오른쪽 다리로 이동
-        else if (cross.from + 1 === currentLeg) currentLeg--; // 현재 다리에서 왼쪽으로 가로선이 연결되면 왼쪽 다리로 이동
-    }
-    return currentLeg; // 최종 도착점 인덱스 (0부터 NUM_LEGS-1)
-};
-
 // [수정] 선택된 사다리 라인만 애니메이션으로 그리기 (재귀적 Promise 기반)
 const animateTrace = async (startLegIndex) => {
     if (!ctx) return;
