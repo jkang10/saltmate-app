@@ -91,7 +91,7 @@ export default {
     });
 
     const createGem = (x, y, type = null) => ({
-      id: Math.random(),
+      id: Date.now() + Math.random(),
       x,
       y,
       type: type || GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)],
@@ -105,36 +105,6 @@ export default {
         }
       }
       board.value = tempBoard;
-    };
-
-    const swapGems = async (gem1, gem2) => {
-      if (isProcessing.value) return;
-      isProcessing.value = true;
-      
-      const gem1Index = board.value.findIndex(g => g.id === gem1.id);
-      const gem2Index = board.value.findIndex(g => g.id === gem2.id);
-
-      [board.value[gem1Index].x, board.value[gem2Index].x] = [gem2.x, gem1.x];
-      [board.value[gem1Index].y, board.value[gem2Index].y] = [gem2.y, gem1.y];
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const matchesAfterSwap = findMatches();
-      if (matchesAfterSwap.length > 0) {
-        movesLeft.value--;
-        await processMatches(matchesAfterSwap);
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        [board.value[gem1Index].x, board.value[gem2Index].x] = [gem1.x, gem2.x];
-        [board.value[gem1Index].y, board.value[gem2Index].y] = [gem1.y, gem2.y];
-      }
-      
-      selectedGem.value = null;
-      isProcessing.value = false;
-
-      if (movesLeft.value <= 0 && !gameOver.value) {
-        endGame();
-      }
     };
     
     const findMatches = () => {
@@ -167,41 +137,68 @@ export default {
       return Array.from(matches);
     };
 
-    // ==================== [핵심 수정 1] `processMatches` 함수를 while 반복문으로 변경 ====================
-    const processMatches = async (initialMatches) => {
+    // ==================== [핵심 수정 1] 통합된 매치 처리 함수 ====================
+    const handleMatches = async (initialMatches) => {
         let matches = initialMatches;
         while (matches.length > 0) {
             score.value += matches.length * 10;
+            
+            // 1. 매칭된 보석 제거
             board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
             await new Promise(resolve => setTimeout(resolve, 150));
-            await fillGaps();
+
+            // 2. 남은 보석 내리기와 새 보석 채우기 동시 진행
+            for (let x = 0; x < BOARD_SIZE; x++) {
+                const columnGems = board.value.filter(g => g.x === x);
+                const missingCount = BOARD_SIZE - columnGems.length;
+
+                // 2-1. 남은 보석들 위치 재조정 (아래로 내리기)
+                columnGems.sort((a, b) => a.y - b.y).forEach((gem, index) => {
+                    gem.y = BOARD_SIZE - columnGems.length + index;
+                });
+                
+                // 2-2. 빈 공간에 새 보석 생성 (화면 위쪽)
+                for (let i = 0; i < missingCount; i++) {
+                    board.value.push(createGem(x, i - missingCount));
+                }
+            }
+            
+            // 3. 애니메이션 시간 대기
+            await new Promise(resolve => setTimeout(resolve, 350));
+            
+            // 4. 연쇄 반응을 위한 새로운 매치 확인
             matches = findMatches();
         }
     };
-    
-    const dropGems = async () => {
-      if (!board.value) return;
-      for (let x = 0; x < BOARD_SIZE; x++) {
-        const columnGems = board.value.filter(g => g.x === x).sort((a,b) => a.y - b.y);
-        columnGems.forEach((gem, index) => {
-            gem.y = BOARD_SIZE - columnGems.length + index;
-        });
-      }
-      await new Promise(resolve => setTimeout(resolve, 300));
-    };
 
-    const fillGaps = async () => {
-      if (!board.value) return;
-      for (let x = 0; x < BOARD_SIZE; x++) {
-        const gemsInColumn = board.value.filter(g => g.x === x).length;
-        const missingCount = BOARD_SIZE - gemsInColumn;
-        for (let i = 0; i < missingCount; i++) {
-          const newGem = createGem(x, -1 - i);
-          board.value.push(newGem);
-        }
+    const swapGems = async (gem1, gem2) => {
+      if (isProcessing.value) return;
+      isProcessing.value = true;
+      
+      const gem1Index = board.value.findIndex(g => g.id === gem1.id);
+      const gem2Index = board.value.findIndex(g => g.id === gem2.id);
+
+      [board.value[gem1Index].x, board.value[gem2Index].x] = [gem2.x, gem1.x];
+      [board.value[gem1Index].y, board.value[gem2Index].y] = [gem2.y, gem1.y];
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const matchesAfterSwap = findMatches();
+      if (matchesAfterSwap.length > 0) {
+        movesLeft.value--;
+        await handleMatches(matchesAfterSwap); // 수정된 함수 호출
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        [board.value[gem1Index].x, board.value[gem2Index].x] = [gem1.x, gem2.x];
+        [board.value[gem1Index].y, board.value[gem2Index].y] = [gem1.y, gem2.y];
       }
-      await new Promise(resolve => setTimeout(resolve, 50));
-      await dropGems();
+      
+      selectedGem.value = null;
+      isProcessing.value = false;
+
+      if (movesLeft.value <= 0 && !gameOver.value) {
+        endGame();
+      }
     };
 
     const endGame = async () => {
@@ -218,7 +215,7 @@ export default {
       }
     };
 
-    // ==================== [핵심 수정 2] `restartGame` 함수 로직을 단순하고 안정적으로 변경 ====================
+    // ==================== [핵심 수정 2] 안정화된 게임 시작 함수 ====================
     const restartGame = async () => {
       score.value = 0;
       movesLeft.value = 30;
@@ -228,15 +225,17 @@ export default {
       isProcessing.value = false;
       selectedGem.value = null;
       
-      initializeBoard();
-
-      // 시작 시점에 있는 매칭을 비동기적으로 처리
+      // 보드를 생성하고, 시작 시점에 있는 매칭을 비동기적으로 처리
+      do {
+        initializeBoard();
+      } while (findMatches().length > 0);
+      
+      isProcessing.value = true;
       const initialMatches = findMatches();
       if (initialMatches.length > 0) {
-          isProcessing.value = true;
-          await processMatches(initialMatches);
-          isProcessing.value = false;
+          await handleMatches(initialMatches);
       }
+      isProcessing.value = false;
       
       if(timer) clearInterval(timer);
       timer = setInterval(() => {
@@ -297,7 +296,6 @@ export default {
 
     const handleInteractionMove = (e) => {
       if (!interaction.startGem) return;
-
       e.preventDefault();
       const coords = getCoords(e);
       const deltaX = coords.clientX - interaction.startX;
@@ -323,11 +321,9 @@ export default {
         else if (direction === 'down') targetY++;
 
         const targetGem = board.value.find(g => g.x === targetX && g.y === targetY);
-        
         if (targetGem) {
           swapGems(start, targetGem);
         }
-        
         cleanupInteraction();
       }
     };
@@ -379,7 +375,6 @@ export default {
   padding: 20px;
   box-sizing: border-box;
 }
-
 .game-header {
   display: flex;
   justify-content: space-around;
@@ -390,29 +385,24 @@ export default {
   padding: 15px;
   border-radius: 10px;
 }
-
 .header-item {
   display: flex;
   align-items: center;
   font-size: 1.5em;
   font-weight: bold;
 }
-
 .header-item i {
   margin-right: 10px;
 }
-
 .game-board-wrapper {
   background: #34495e;
   padding: 10px;
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
-
 .game-board {
   position: relative;
 }
-
 .gem {
   width: 50px;
   height: 50px;
@@ -425,11 +415,9 @@ export default {
   transform: translate(calc(var(--gem-x) * 50px), calc(var(--gem-y) * 50px));
   transition: transform 0.3s ease;
 }
-
 .gem.selected {
   animation: pulse 0.6s infinite alternate;
 }
-
 @keyframes pulse {
   to {
     transform: translate(calc(var(--gem-x) * 50px), calc(var(--gem-y) * 50px)) scale(1.1);
@@ -437,7 +425,6 @@ export default {
     border-radius: 5px;
   }
 }
-
 .game-over-overlay {
   position: fixed;
   top: 0;
@@ -450,7 +437,6 @@ export default {
   align-items: center;
   z-index: 100;
 }
-
 .game-over-modal {
   background: #34495e;
   padding: 40px;
@@ -458,19 +444,16 @@ export default {
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
-
 .game-over-modal h2 {
   margin-top: 0;
   font-size: 2.5em;
   color: #f1c40f;
 }
-
 .modal-actions {
   margin-top: 30px;
   display: flex;
   gap: 20px;
 }
-
 .btn-restart, .btn-home {
   padding: 12px 25px;
   border: none;
@@ -486,7 +469,6 @@ export default {
 .btn-restart:hover { background-color: #3498db; }
 .btn-home { background-color: #27ae60; }
 .btn-home:hover { background-color: #2ecc71; }
-
 @media (max-width: 480px) {
   .game-board-wrapper {
     padding: 5px;
