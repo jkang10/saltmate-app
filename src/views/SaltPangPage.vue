@@ -84,14 +84,11 @@ export default {
       return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     });
 
-    // ==================== [핵심 수정] getGemStyle 함수 변경 ====================
-    // transform 대신 CSS 변수를 사용하여 위치를 전달합니다.
     const getGemStyle = (gem) => ({
       '--gem-x': gem.x,
       '--gem-y': gem.y,
       backgroundImage: `url(${require(`@/assets/gems/${gem.type}.png`)})`,
     });
-    // =========================================================================
 
     const createGem = (x, y, type = null) => ({
       id: Math.random(),
@@ -172,14 +169,15 @@ export default {
     const processMatches = async (matches) => {
       score.value += matches.length * 10;
       board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
-      await dropGems();
+      await new Promise(resolve => setTimeout(resolve, 100)); // 시각적 효과를 위한 딜레이
       await fillGaps();
       const newMatches = findMatches();
       if (newMatches.length > 0) {
         await processMatches(newMatches);
       }
     };
-
+    
+    // ==================== [핵심 수정] dropGems와 fillGaps 로직 개선 ====================
     const dropGems = async () => {
       for (let x = 0; x < BOARD_SIZE; x++) {
         const columnGems = board.value.filter(g => g.x === x).sort((a,b) => a.y - b.y);
@@ -187,31 +185,22 @@ export default {
             gem.y = BOARD_SIZE - columnGems.length + index;
         });
       }
-       await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 300));
     };
 
     const fillGaps = async () => {
       for (let x = 0; x < BOARD_SIZE; x++) {
         const gemsInColumn = board.value.filter(g => g.x === x).length;
-        for (let y = 0; y < BOARD_SIZE - gemsInColumn; y++) {
-          const newGem = createGem(x, y - (BOARD_SIZE - gemsInColumn));
+        const missingCount = BOARD_SIZE - gemsInColumn;
+        for (let i = 0; i < missingCount; i++) {
+          const newGem = createGem(x, -1 - i);
           board.value.push(newGem);
         }
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
-      for (let x = 0; x < BOARD_SIZE; x++) {
-        const columnGems = board.value.filter(g => g.x === x).sort((a,b) => a.y - b.y);
-        columnGems.forEach((gem, index) => {
-          gem.y = index;
-        });
-      }
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const newMatches = findMatches();
-       if (newMatches.length > 0) {
-        await processMatches(newMatches);
-      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await dropGems();
     };
+    // =================================================================================
 
     const endGame = async () => {
       if(gameOver.value) return;
@@ -236,15 +225,12 @@ export default {
       isProcessing.value = false;
       selectedGem.value = null;
       
-      initializeBoard();
-
-      let matches = findMatches();
-      while(matches.length > 0) {
-        board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
-        dropGems();
-        fillGaps();
-        matches = findMatches();
-      }
+      // ==================== [핵심 수정] 불안정한 while문 대신 안정적인 초기화 로직으로 변경 ====================
+      // 매칭이 없는 상태가 될 때까지 보드를 다시 생성합니다.
+      do {
+        initializeBoard();
+      } while (findMatches().length > 0);
+      // ================================================================================================
       
       if(timer) clearInterval(timer);
       timer = setInterval(() => {
@@ -430,16 +416,11 @@ export default {
   -webkit-user-drag: none;
   user-select: none;
   touch-action: none;
-
-  /* ==================== [핵심 수정] transform 로직 변경 ==================== */
-  /* 인라인 스타일 transform을 제거하고 CSS 변수와 calc를 사용합니다. */
   transform: translate(calc(var(--gem-x) * 50px), calc(var(--gem-y) * 50px));
   transition: transform 0.3s ease;
-  /* ========================================================================= */
 }
 
 .gem.selected {
-  /* scale 애니메이션이 위치 transform과 충돌하지 않습니다. */
   animation: pulse 0.6s infinite alternate;
 }
 
@@ -500,7 +481,6 @@ export default {
 .btn-home { background-color: #27ae60; }
 .btn-home:hover { background-color: #2ecc71; }
 
-/* 반응형 스타일 */
 @media (max-width: 480px) {
   .game-board-wrapper {
     padding: 5px;
@@ -508,7 +488,6 @@ export default {
   .gem {
     width: calc((100vw - 30px) / 8);
     height: calc((100vw - 30px) / 8);
-    /* CSS 변수에서 사용할 보석 크기를 업데이트 */
     --gem-size: calc((100vw - 30px) / 8); 
     transform: translate(calc(var(--gem-x) * var(--gem-size)), calc(var(--gem-y) * var(--gem-size)));
   }
