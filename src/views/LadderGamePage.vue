@@ -214,6 +214,27 @@ const animateTrace = async (startLegIndex) => {
 
     // [핵심] 애니메이션 완료 후 최종 결과 공개 및 게임 종료 처리
     finalResultIndex.value = currentLeg; // 최종 도착 다리 인덱스 기록
+    
+    // =================================================================
+    // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ 이 코드를 추가해주세요 ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    // =================================================================
+    try {
+        // 애니메이션이 끝나고 최종 당첨금이 확정되면, 서버에 알려서 최종 처리
+        const functionsWithRegion = getFunctions(undefined, "asia-northeast3");
+        const finalizeLadderGame = httpsCallable(functionsWithRegion, 'finalizeLadderGame');
+        
+        // computed 속성인 totalWinnings의 현재 값을 가져와서 서버로 전송
+        await finalizeLadderGame({ winnings: totalWinnings.value });
+
+    } catch (err) {
+        console.error("사다리타기 결과 처리 오류:", err);
+        // 사용자에게 중요한 오류는 아니므로, 콘솔에만 기록합니다.
+        // 필요하다면 여기에 사용자에게 보여줄 에러 처리 로직을 추가할 수 있습니다.
+    }
+    // =================================================================
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+    // =================================================================
+
     setTimeout(() => { gameEnded.value = true; }, 500); // 짧은 딜레이 후 게임 종료 상태로 전환
 };
 
