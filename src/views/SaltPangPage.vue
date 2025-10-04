@@ -139,7 +139,7 @@ export default {
     
     const findMatches = () => {
       const matches = new Set();
-      if (!board.value) return []; // 방어 코드
+      if (!board.value) return [];
       for (let y = 0; y < BOARD_SIZE; y++) {
         for (let x = 0; x < BOARD_SIZE; x++) {
           const gem = board.value.find(g => g.x === x && g.y === y);
@@ -167,7 +167,7 @@ export default {
       return Array.from(matches);
     };
 
-    // ==================== [핵심 수정 1] 재귀 호출을 while 반복문으로 변경 ====================
+    // ==================== [핵심 수정 1] `processMatches` 함수를 while 반복문으로 변경 ====================
     const processMatches = async (initialMatches) => {
         let matches = initialMatches;
         while (matches.length > 0) {
@@ -179,7 +179,6 @@ export default {
         }
     };
     
-    // ==================== [핵심 수정 2] dropGems와 fillGaps 로직 단순화 및 안정화 ====================
     const dropGems = async () => {
       if (!board.value) return;
       for (let x = 0; x < BOARD_SIZE; x++) {
@@ -204,7 +203,6 @@ export default {
       await new Promise(resolve => setTimeout(resolve, 50));
       await dropGems();
     };
-    // =================================================================================
 
     const endGame = async () => {
       if(gameOver.value) return;
@@ -220,7 +218,8 @@ export default {
       }
     };
 
-    const restartGame = () => {
+    // ==================== [핵심 수정 2] `restartGame` 함수 로직을 단순하고 안정적으로 변경 ====================
+    const restartGame = async () => {
       score.value = 0;
       movesLeft.value = 30;
       timeLeft.value = 120;
@@ -229,11 +228,15 @@ export default {
       isProcessing.value = false;
       selectedGem.value = null;
       
-      // ==================== [핵심 수정 3] 안정적인 초기화 로직 유지 ====================
-      do {
-        initializeBoard();
-      } while (findMatches().length > 0);
-      // ================================================================================
+      initializeBoard();
+
+      // 시작 시점에 있는 매칭을 비동기적으로 처리
+      const initialMatches = findMatches();
+      if (initialMatches.length > 0) {
+          isProcessing.value = true;
+          await processMatches(initialMatches);
+          isProcessing.value = false;
+      }
       
       if(timer) clearInterval(timer);
       timer = setInterval(() => {
