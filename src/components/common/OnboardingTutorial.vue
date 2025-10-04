@@ -112,9 +112,14 @@ watch(stepIndex, () => {
 
 onMounted(() => {
   window.addEventListener('resize', updatePositions);
+  // [수정] 스크롤 이벤트가 발생할 때마다 위치를 업데이트하도록 리스너를 추가합니다.
+  // (true 옵션은 이벤트 감지 우선순위를 높여 더 부드럽게 반응하도록 합니다.)
+  window.addEventListener('scroll', updatePositions, true);
 });
 onUnmounted(() => {
   window.removeEventListener('resize', updatePositions);
+  // [수정] 추가했던 스크롤 이벤트 리스너를 반드시 제거해줍니다.
+  window.removeEventListener('scroll', updatePositions, true);
 });
 
 </script>
