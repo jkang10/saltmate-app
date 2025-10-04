@@ -267,7 +267,7 @@ const startGame = async () => {
     const playLadderGame = httpsCallable(functionsWithRegion, 'playLadderGame'); // 호출 가능한 함수 참조
     
     // 서버에서 NUM_LEGS 개의 모든 다리에 대한 결과 받기
-    const response = await playLadderGame({ entryCount: NUM_LEGS }); 
+    const response = await playLadderGame({}); // [수정] 빈 객체를 보내 1회 플레이를 요청합니다.
     results.value = response.data.results; // 서버로부터 받은 모든 결과 저장
 
     // [핵심] 사용자가 선택한 다리(startLegIndex)를 따라 애니메이션 시작
