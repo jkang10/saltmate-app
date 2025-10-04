@@ -338,7 +338,7 @@
 
 <script>
 // [핵심] ref, onMounted, computed를 vue에서 직접 import합니다.
-import { ref, onMounted, computed } from "vue"; 
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
