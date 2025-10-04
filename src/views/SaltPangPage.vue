@@ -46,7 +46,7 @@
 
 <script>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import { auth, functions } from '@/firebaseConfig';
+import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
 export default {
