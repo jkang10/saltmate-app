@@ -29,23 +29,25 @@
           <div class="countdown">{{ countdown }}</div>
         </div>
 
-        <form @submit.prevent="placeBid" class="bid-form">
-          <div class="input-wrapper">
-            <i class="fas fa-coins"></i>
-            <input 
-              type="number" 
-              v-model="bidAmount" 
-              :placeholder="`입찰가 입력 (최소 ${(auction.active.highestBid || 0) + 1})`" 
-              :min="(auction.active.highestBid || 0) + 1"
-              required>
-          </div>
-          <button type="submit" :disabled="isBidding || !isAuctionActive" class="btn-bid">
-            <span v-if="isBidding" class="spinner-small"></span>
-            <span v-else>{{ isAuctionActive ? '입찰 참여' : '경매 마감' }}</span>
-          </button>
-        </form>
-        <p v-if="error" class="error-message">{{ error }}</p>
-      </div>
+        <div class="bid-action-area">
+          <form @submit.prevent="placeBid" class="bid-form">
+            <div class="input-wrapper">
+              <i class="fas fa-coins"></i>
+              <input 
+                type="number" 
+                v-model="bidAmount" 
+                :placeholder="`입찰가 입력 (최소 ${(auction.active.highestBid || 0) + 1})`" 
+                :min="(auction.active.highestBid || 0) + 1"
+                required>
+            </div>
+            <button type="submit" :disabled="isBidding || !isAuctionActive" class="btn-bid">
+              <span v-if="isBidding" class="spinner-small"></span>
+              <span v-else>{{ isAuctionActive ? '입찰 참여' : '경매 마감' }}</span>
+            </button>
+          </form>
+          <p v-if="error" class="error-message">{{ error }}</p>
+        </div>
+        </div>
     </div>
     
     <div v-else class="card-placeholder">
@@ -55,6 +57,7 @@
 </template>
 
 <script setup>
+// ... 스크립트 내용은 이전과 동일 ...
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { db, functions } from '@/firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -69,11 +72,10 @@ let unsubscribe = null;
 let countdownInterval = null;
 
 const getWeekId = () => {
-    // KST 기준으로 월요일을 계산
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
     const kstNow = new Date(now.getTime() + kstOffset);
-    const dayOfWeek = kstNow.getUTCDay(); // 0(일) ~ 6(토)
+    const dayOfWeek = kstNow.getUTCDay();
     const monday = new Date(kstNow);
     monday.setUTCDate(kstNow.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
     return monday.toISOString().slice(0,10);
@@ -145,6 +147,8 @@ const placeBid = async () => {
 </script>
 
 <style scoped>
+/* ... 이전 스타일 내용은 대부분 그대로 유지 ... */
+
 /* 페이지 전체 스타일 */
 .auction-page {
   text-align: center;
@@ -263,6 +267,14 @@ const placeBid = async () => {
   font-family: 'Courier New', Courier, monospace;
   text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
 }
+
+/* ==================== [핵심 수정] 입찰 폼 영역 스타일 추가 ==================== */
+.bid-action-area {
+  max-width: 400px; /* 폼의 최대 너비를 제한 */
+  width: 100%;
+  margin: 0 auto; /* 중앙 정렬 */
+}
+/* ============================================================================ */
 
 /* 입찰 폼 */
 .bid-form {
