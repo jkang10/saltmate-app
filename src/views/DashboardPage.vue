@@ -293,11 +293,16 @@
 	  <p>제한 시간 내에 숨겨진 그림을 모두 찾아보세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
-	<router-link to="/salt-crystal-game" class="feature-card" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
-	  <div class="card-icon" style="color: white;"><i class="fas fa-gem"></i></div>
-	  <h3 style="color: white;">나만의 소금 결정 키우기</h3>
-	  <p style="color: white;">매일 정성을 들여 당신만의 특별한 보석을 완성해보세요.</p>
-	  <span class="card-enter" style="color: white;">시작하기 &rarr;</span>
+	<router-link to="/salt-crystal-game" class="feature-card crystal-game">
+	  <div class="crystal-aura-bg"></div>
+	  <div class="crystal-icon-main">
+	    <i class="fas fa-gem"></i>
+	  </div>
+	  <div class="card-content">
+	    <h3>나만의 소금 결정 키우기</h3>
+	    <p>매일 정성을 들여 당신만의 특별한 보석을 완성해보세요.</p>
+	    <span class="card-enter">시작하기 &rarr;</span>
+	  </div>
 	</router-link>
         </div>
       </main>
@@ -561,6 +566,68 @@ export default {
 </script>
 
 <style scoped>
+.feature-card.crystal-game {
+  background: linear-gradient(145deg, #1e2a3a, #3b506c);
+  color: #fff;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 30px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.feature-card.crystal-game:hover {
+  box-shadow: 0 15px 40px rgba(45, 74, 109, 0.4);
+}
+.crystal-icon-main {
+  font-size: 4em;
+  color: #fff;
+  margin-bottom: 20px;
+  text-shadow: 0 0 25px rgba(255, 255, 255, 0.7);
+  animation: float-icon 5s ease-in-out infinite;
+  z-index: 2;
+}
+@keyframes float-icon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.crystal-aura-bg {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(137, 247, 254, 0.3) 0%, rgba(102, 166, 255, 0) 70%);
+  border-radius: 50%;
+  animation: aura-pulse 4s infinite alternate;
+  z-index: 0;
+}
+@keyframes aura-pulse {
+  from { transform: scale(0.9); opacity: 0.7; }
+  to { transform: scale(1.1); opacity: 1; }
+}
+.feature-card.crystal-game .card-content {
+  z-index: 1;
+}
+.feature-card.crystal-game h3 {
+  font-size: 1.8em;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.feature-card.crystal-game p {
+  color: #c9d6e4;
+  font-size: 1.05em;
+}
+.feature-card.crystal-game .card-enter {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+.feature-card.crystal-game:hover .card-enter {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
 .feature-card.pvp .card-icon {
   color: #e74c3c;
 }
