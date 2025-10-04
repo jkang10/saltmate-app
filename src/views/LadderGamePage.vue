@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
@@ -69,7 +69,6 @@ const canvasRef = ref(null);
 const pathRef = ref(null);
 
 const isAnimating = ref(false);
-const animationPath = ref([]);
 const pathData = ref('');
 const canvasWidth = ref(0);
 const canvasHeight = ref(0);
