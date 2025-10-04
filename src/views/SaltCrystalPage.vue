@@ -60,9 +60,9 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue';
-import { auth, db } from '@/firebaseConfig'; // db를 이렇게 가져와야 합니다.
+import { auth, db } from '@/firebaseConfig';
 import { httpsCallable, getFunctions } from 'firebase/functions';
-// import { useRouter } from 'vue-router'; // 이 줄을 삭제하거나 주석 처리
+import { doc, getDoc } from 'firebase/firestore'; // 👈 [수정 1] doc, getDoc 함수를 import 합니다.
 
 export default {
   name: 'SaltCrystalPage',
@@ -113,8 +113,12 @@ export default {
         crystal.value = result.data;
         checkDailyActions(result.data.lastAction || {});
 
-        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
-        if(userDoc.exists) userTier.value = userDoc.data().tier || 'BRONZE';
+        // 👈 [수정 2] v9 문법으로 Firestore 문서 조회를 변경합니다.
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        // 👈 [수정 3] userDoc.exists는 v9에서 함수 호출 방식(.exists())으로 변경되었습니다.
+        if(userDoc.exists()) userTier.value = userDoc.data().tier || 'BRONZE';
 
       } catch (error) {
         console.error("결정 정보 로딩 실패:", error);
