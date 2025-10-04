@@ -69,9 +69,7 @@ import { httpsCallable } from 'firebase/functions';
 export default {
   name: 'SaltPangPage',
   setup() {
-    // ==================== [핵심] 상태 관리 변수 추가 ====================
-    const gameMode = ref('selection'); // 'selection', 'single', 'pvp'
-
+    const gameMode = ref('selection');
     const BOARD_SIZE = 8;
     const GEM_SIZE = 50;
     const GEM_TYPES = ['gem-1', 'gem-2', 'gem-3', 'gem-4', 'gem-5', 'gem-6'];
@@ -86,7 +84,6 @@ export default {
     const isProcessing = ref(false);
     let timer = null;
 
-    // ==================== [핵심] 드래그 인터랙션 상태 관리 ====================
     const interaction = reactive({
       startGem: null,
       startX: 0,
@@ -105,7 +102,6 @@ export default {
       return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     });
     
-    // ==================== [핵심] CSS 변수를 사용하도록 수정 ====================
     const getGemStyle = (gem) => ({
       '--gem-x': gem.x,
       '--gem-y': gem.y,
@@ -131,7 +127,7 @@ export default {
     
     const findMatches = () => {
       const matches = new Set();
-      if (!board.value) return [];
+      if (!board.value || board.value.length === 0) return [];
       for (let y = 0; y < BOARD_SIZE; y++) {
         for (let x = 0; x < BOARD_SIZE; x++) {
           const gem = board.value.find(g => g.x === x && g.y === y);
@@ -140,18 +136,14 @@ export default {
             const gemLeft1 = board.value.find(g => g.x === x - 1 && g.y === y);
             const gemLeft2 = board.value.find(g => g.x === x - 2 && g.y === y);
             if (gemLeft1 && gemLeft2 && gem.type === gemLeft1.type && gem.type === gemLeft2.type) {
-              matches.add(gem);
-              matches.add(gemLeft1);
-              matches.add(gemLeft2);
+              matches.add(gem); matches.add(gemLeft1); matches.add(gemLeft2);
             }
           }
           if (y > 1) {
             const gemUp1 = board.value.find(g => g.x === x && g.y === y - 1);
             const gemUp2 = board.value.find(g => g.x === x && g.y === y - 2);
             if (gemUp1 && gemUp2 && gem.type === gemUp1.type && gem.type === gemUp2.type) {
-              matches.add(gem);
-              matches.add(gemUp1);
-              matches.add(gemUp2);
+              matches.add(gem); matches.add(gemUp1); matches.add(gemUp2);
             }
           }
         }
@@ -159,29 +151,43 @@ export default {
       return Array.from(matches);
     };
 
+    // ==================== [핵심 수정] 새롭고 안정적인 매치 처리 함수 ====================
     const handleMatches = async (initialMatches) => {
-        let matches = initialMatches;
-        while (matches.length > 0) {
-            score.value += matches.length * 10;
+        let currentMatches = initialMatches;
+        
+        while (currentMatches.length > 0) {
+            score.value += currentMatches.length * 10;
             
-            board.value = board.value.filter(gem => !matches.some(m => m.id === gem.id));
+            // 1. 매칭된 보석이 '없는' 보드를 임시로 생성
+            const gemsToRemove = new Set(currentMatches.map(m => m.id));
+            let remainingGems = board.value.filter(gem => !gemsToRemove.has(gem.id));
+            
             await new Promise(resolve => setTimeout(resolve, 150));
 
+            // 2. 다음 상태의 보드를 '새로운 배열'에 계산하여 생성
+            let nextBoard = [];
             for (let x = 0; x < BOARD_SIZE; x++) {
-                const columnGems = board.value.filter(g => g.x === x);
+                const columnGems = remainingGems.filter(g => g.x === x);
                 const missingCount = BOARD_SIZE - columnGems.length;
 
-                columnGems.sort((a, b) => a.y - b.y).forEach((gem, index) => {
-                    gem.y = BOARD_SIZE - columnGems.length + index;
+                // 2-1. 기존 보석들의 새 y 좌표 계산
+                columnGems.forEach((gem, index) => {
+                    nextBoard.push({ ...gem, y: BOARD_SIZE - columnGems.length + index });
                 });
                 
+                // 2-2. 새 보석 생성
                 for (let i = 0; i < missingCount; i++) {
-                    board.value.push(createGem(x, i - missingCount));
+                    nextBoard.push(createGem(x, i));
                 }
             }
+
+            // 3. 계산이 완료된 새 보드를 한번에 할당
+            board.value = nextBoard;
             
             await new Promise(resolve => setTimeout(resolve, 350));
-            matches = findMatches();
+            
+            // 4. 새 보드에서 연쇄 매칭 확인
+            currentMatches = findMatches();
         }
     };
 
@@ -199,7 +205,7 @@ export default {
 
       const matchesAfterSwap = findMatches();
       if (matchesAfterSwap.length > 0) {
-        movesLeft.value--;
+        if(movesLeft.value > 0) movesLeft.value--;
         await handleMatches(matchesAfterSwap);
       } else {
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -229,7 +235,7 @@ export default {
       }
     };
 
-    const restartGame = async () => {
+    const restartGame = () => {
       score.value = 0;
       movesLeft.value = 30;
       timeLeft.value = 120;
@@ -242,13 +248,6 @@ export default {
         initializeBoard();
       } while (findMatches().length > 0);
       
-      isProcessing.value = true;
-      const initialMatches = findMatches();
-      if (initialMatches.length > 0) {
-          await handleMatches(initialMatches);
-      }
-      isProcessing.value = false;
-      
       if(timer) clearInterval(timer);
       timer = setInterval(() => {
         if(timeLeft.value > 0){
@@ -260,7 +259,6 @@ export default {
       }, 1000);
     };
 
-    // ==================== [핵심] 게임 모드 제어 함수들 ====================
     const startGame = (mode) => {
       if (mode === 'single') {
         gameMode.value = 'single';
@@ -276,7 +274,6 @@ export default {
       if (timer) clearInterval(timer);
     };
 
-    // ==================== 기존 클릭 및 드래그 로직 (수정 없음) ====================
     const selectGem = (gem) => {
       if (isProcessing.value) return;
       if (selectedGem.value) {
@@ -359,26 +356,13 @@ export default {
     });
 
     return {
-      gameMode,
-      board,
-      selectedGem,
-      score,
-      movesLeft,
-      gameOver,
-      earnedPoints,
-      boardStyle,
-      formattedTime,
-      getGemStyle,
-      selectGem,
-      restartGame,
-      handleInteractionStart,
-      startGame,
-      backToSelection,
+      gameMode, board, selectedGem, score, movesLeft, gameOver, earnedPoints,
+      boardStyle, formattedTime, getGemStyle, selectGem, restartGame,
+      handleInteractionStart, startGame, backToSelection,
     };
   }
 };
 </script>
-
 
 <style scoped>
 .salt-pang-container {
