@@ -1,503 +1,751 @@
 <template>
-  <div class="salt-pang-container">
-    <div v-if="gameMode === 'selection'" class="selection-screen">
-      <img src="@/assets/slatpang.png" alt="Salt Pang Logo" class="game-logo">
-      <p>플레이할 싱글 플레이 모드를 선택하세요.</p>
-      <div class="active-missions">
-        <div v-if="dailyMission" class="mission-card daily">
-          <strong>오늘의 미션</strong>
-          <span>솔트팡에서 {{ dailyMission.targetType }} {{ dailyMission.targetCount }}개 제거</span>
-          <small>보상: {{ dailyMission.reward }} SaltMate</small>
-        </div>
-        <div v-if="weeklyMission" class="mission-card weekly">
-          <strong>이번 주 미션</strong>
-          <span>솔트팡 {{ weeklyMission.targetCount }}번 플레이</span>
-          <small>보상: {{ weeklyMission.reward }} SaltMate</small>
-        </div>
-      </div>
-      <div class="mode-buttons">
-        <button @click="startGame('classic')" class="btn-mode-select classic">
-          <div class="btn-title"><i class="fas fa-chess-king"></i> 클래식 모드</div>
-          <div class="btn-desc">30번의 이동 횟수 안에 최고 점수에 도전하세요!</div>
-        </button>
-        <button @click="startGame('timeAttack')" class="btn-mode-select time-attack">
-          <div class="btn-title"><i class="fas fa-bolt"></i> 타임 어택</div>
-          <div class="btn-desc">120초의 시간 안에 최고 점수에 도전하세요!</div>
-        </button>
-        <button @click="startGame('infinite')" class="btn-mode-select infinite">
-          <div class="btn-title"><i class="fas fa-infinity"></i> 무한 모드</div>
-          <div class="btn-desc">이동과 시간 제한 없이 자유롭게 플레이하세요!</div>
-        </button>
-        <button @click="startGame('mission')" class="btn-mode-select mission">
-          <div class="btn-title"><i class="fas fa-flag-checkered"></i> 미션 모드</div>
-          <div class="btn-desc">주어지는 미션을 클리어하고 보너스를 받으세요!</div>
-        </button>
-      </div>
-    </div>
+  <div class="salt-pang-page">
+    <header class="page-header">
+      <h1>💎 솔트팡</h1>
+      <p>같은 모양의 소금 결정을 3개 이상 맞춰보세요!</p>
+    </header>
 
-    <div v-else class="game-screen">
-      <div v-if="gameOver" class="game-over-overlay">
-        <div class="game-over-modal">
-          <h2>{{ mission?.cleared ? '미션 성공!' : '게임 종료' }}</h2>
-          <p>최종 점수: {{ score.toLocaleString() }}</p>
-          <p v-if="mission?.cleared">미션 클리어 보너스: +{{ mission.reward.toLocaleString() }} SaltMate</p>
-          <p>획득 SaltMate: {{ earnedPoints.toLocaleString() }}</p>
-          <div class="modal-actions">
-            <button @click="restartGame" class="btn-restart">다시 시작</button>
-            <button @click="backToSelection" class="btn-home">모드 선택으로</button>
+    <main class="game-container card">
+      <div v-if="gameState === 'ready'" class="game-intro">
+        <div class="intro-section jackpot-section">
+          <h3 class="section-title"><i class="fas fa-gem jackpot-icon"></i> 현재 잭팟 금액</h3>
+          <div class="jackpot-amount">
+            {{ jackpotAmount.toLocaleString() }} SaltMate
           </div>
         </div>
-      </div>
 
-      <header class="game-header">
-        <div class="header-item score-display">
-          <i class="fas fa-star"></i>
-          <span>{{ score.toLocaleString() }}</span>
+        <h2 class="main-title">게임 설정</h2>
+        
+        <div class="intro-section mission-section">
+          <h3 class="section-title"><i class="fas fa-tasks"></i> 오늘의 미션</h3>
+          <div v-if="missions.daily.length > 0" class="mission-list">
+            <div v-for="mission in missions.daily" :key="mission.missionId" class="mission-item">
+              <div class="mission-desc">{{ mission.description }}</div>
+              <div class="mission-progress-bar">
+                <div class="progress" :style="{ width: `${Math.min(100, (mission.progress / mission.targetCount) * 100)}%` }"></div>
+              </div>
+              <div class="mission-status">
+                <span v-if="mission.completed && mission.claimed" class="claimed">✓ 완료</span>
+                <button v-else-if="mission.completed && !mission.claimed" @click="claimReward(mission)" class="claim-button">
+                  보상 받기 (+{{ mission.reward }} SP)
+                </button>
+                <span v-else>{{ mission.progress }} / {{ mission.targetCount }}</span>
+              </div>
+            </div>
+          </div>
+          <p v-else>일일 미션을 불러오는 중...</p>
+          
+          <h3 class="section-title weekly"><i class="fas fa-calendar-week"></i> 이번 주 미션</h3>
+          <div v-if="missions.weekly.length > 0" class="mission-list">
+             <div v-for="mission in missions.weekly" :key="mission.missionId" class="mission-item">
+              <div class="mission-desc">{{ mission.description }}</div>
+              <div class="mission-progress-bar">
+                <div class="progress" :style="{ width: `${Math.min(100, (mission.progress / mission.targetCount) * 100)}%` }"></div>
+              </div>
+              <div class="mission-status">
+                <span v-if="mission.completed && mission.claimed" class="claimed">✓ 완료</span>
+                <button v-else-if="mission.completed && !mission.claimed" @click="claimReward(mission)" class="claim-button">
+                  보상 받기 (+{{ mission.reward }} SP)
+                </button>
+                <span v-else>{{ mission.progress }} / {{ mission.targetCount }}</span>
+              </div>
+            </div>
+          </div>
+          <p v-else>주간 미션을 불러오는 중...</p>
         </div>
-        <div v-if="gameMode === 'classic' || gameMode === 'mission'" class="header-item moves-display">
-          <i class="fas fa-arrows-alt"></i>
-          <span>남은 횟수: {{ movesLeft }}</span>
-        </div>
-        <div v-if="gameMode === 'timeAttack'" class="header-item timer-display">
-          <i class="fas fa-clock"></i>
-          <span>{{ formattedTime }}</span>
-        </div>
-        <div v-if="gameMode === 'mission' && mission" class="header-item mission-display">
-          <img :src="getMissionGemImage()" class="mission-gem-icon"/>
-          <span>{{ mission.clearedCount }} / {{ mission.targetCount }}</span>
-        </div>
-      </header>
 
-      <div class="game-board-wrapper">
-        <div class="game-board" :style="boardStyle">
-          <div v-if="isJackpotRound" class="jackpot-effect">JACKPOT!</div>
-
-          <div v-for="effect in effects" :key="effect.id" class="effect" :style="getEffectStyle(effect)" :class="effect.type"></div>
-
-          <div 
-            v-for="gem in board" 
-            :key="gem.id" 
-            class="gem" 
-            :style="getGemStyle(gem)"
-            :class="[gem.type, { 'selected': selectedGem && selectedGem.id === gem.id }]"
-            @click="selectGem(gem)"
-            @mousedown.prevent="handleInteractionStart(gem, $event)"
-            @touchstart.prevent="handleInteractionStart(gem, $event)">
+        <div class="intro-section mode-section">
+          <h3 class="section-title"><i class="fas fa-gamepad"></i> 게임 모드 선택</h3>
+          <div class="mode-selection">
+            <div class="mode-card" :class="{ active: gameMode === 'classic' }" @click="selectGameMode('classic')">
+              <h4>클래식</h4>
+              <p>60초 시간 제한</p>
+            </div>
+            <div class="mode-card" :class="{ active: gameMode === 'timeAttack' }" @click="selectGameMode('timeAttack')">
+              <h4>타임 어택</h4>
+              <p>30초 + 추가 시간</p>
+            </div>
+            <div class="mode-card" :class="{ active: gameMode === 'infinite' }" @click="selectGameMode('infinite')">
+              <h4>무한 모드</h4>
+              <p>30회 이동 제한</p>
+            </div>
+            <div class="mode-card ranked" :class="{ active: gameMode === 'ranked' }" @click="selectGameMode('ranked')" :disabled="!isRankedPlayable">
+              <h4>랭킹전</h4>
+              <p>주말 전용</p>
+            </div>
           </div>
         </div>
+
+        <div class="intro-section item-section">
+           <h3 class="section-title"><i class="fas fa-shopping-cart"></i> 아이템 상점</h3>
+           <div class="item-shop">
+            <div v-for="item in items" :key="item.id" class="item" :class="{ purchased: purchasedItems.has(item.id) }" @click="buyItem(item)">
+              <div class="item-icon">{{ item.icon }}</div>
+              <div class="item-name">{{ item.name }}</div>
+              <div class="item-cost">{{ item.cost }} SP</div>
+              <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+            </div>
+          </div>
+          <p v-if="gameMode === 'timeAttack'" class="item-notice">
+            아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
+          </p>
+        </div>
+
+        <div class="start-info">
+          <div class="entry-fee">
+            <p>입장료</p>
+            <strong>{{ currentEntryFee }} SaltMate</strong>
+          </div>
+          <button @click="startGame" class="game-button" :disabled="isStarting || isBuyingItem">
+            <span v-if="isStarting">입장 중...</span>
+            <span v-else-if="isBuyingItem">구매 중...</span>
+            <span v-else>GAME START</span>
+          </button>
+        </div>
       </div>
-       <button @click="backToSelection" class="btn-back-selection">모드 선택으로 돌아가기</button>
-    </div>
+
+      <div v-if="gameState === 'playing' || gameState === 'ended'" class="game-area">
+        <div class="game-stats">
+          <div class="stat-item" v-if="gameMode === 'infinite'">이동: <strong>{{ movesLeft }} / {{ INFINITE_MODE_MOVES }}</strong></div>
+          <div class="stat-item" v-else>시간: <strong>{{ timer }}</strong></div>
+          <button @click="toggleMute" class="mute-button">
+            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
+          </button>
+          <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
+        </div>
+        <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
+          <div
+            v-for="(cell, index) in board" :key="index" class="cell"
+            @click="selectCell(index)"
+            :class="{ selected: selectedCell === index }"
+            @touchstart="handleTouchStart(index, $event)"
+            @touchmove="handleTouchMove($event)"
+            @touchend="handleTouchEnd()"
+          >
+            <transition name="gem-fall">
+              <img
+                v-if="cell !== null"
+                :src="getGemImage(cell)"
+                class="gem-image"
+                :class="{ 'clearing': explodingGems.has(index) }"
+                alt="Gem"
+              />
+            </transition>
+          </div>
+        </div>
+        <div v-if="isScoreBoostActive" class="score-boost-overlay">
+          SCORE x2!
+        </div>
+      </div>
+      
+      <div v-if="gameState === 'ended'" class="game-overlay">
+        <div class="end-modal">
+          <h2>게임 종료!</h2>
+          <p>최종 점수: <strong>{{ score.toLocaleString() }}</strong></p>
+          <p>획득 보상: <strong>{{ awardedPoints.toLocaleString() }} SaltMate</strong></p>
+          <button @click="resetGame" class="game-button">다시하기</button>
+        </div>
+      </div>
+
+      <div v-if="gameState === 'playing' && timer <= 5 && timer > 0 && gameMode !== 'infinite'" class="countdown-overlay">
+        {{ timer }}
+      </div>
+    </main>
+
+    <div v-if="error" class="error-message" @click="error = ''">{{ error }}</div>
   </div>
 </template>
 
-<script>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import { auth, db, functions } from '@/firebaseConfig';
-import { doc, getDoc, collection, query, getDocs } from "firebase/firestore";
-import { httpsCallable } from 'firebase/functions';
+<script setup>
+import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { db, auth } from "@/firebaseConfig";
+import { doc, getDoc, onSnapshot } from "firebase/firestore"; // onSnapshot 추가
+import soundMatch from '@/assets/sounds/match.mp3';
+import soundBgm from '@/assets/sounds/bgm.mp3';
 
-export default {
-  name: 'SaltPangPage',
-  setup() {
-    const gameMode = ref('selection');
-    const BOARD_SIZE = 8;
-    const GEM_SIZE = 50;
-    const GEM_TYPES = ['gem-1', 'gem-2', 'gem-3', 'gem-4', 'gem-5', 'gem-6'];
-    
-    const board = ref([]);
-    const selectedGem = ref(null);
-    const score = ref(0);
-    const movesLeft = ref(30);
-    const timeLeft = ref(120);
-    const gameOver = ref(false);
-    const earnedPoints = ref(0);
-    const isProcessing = ref(false);
-    const mission = ref(null);
-    let timer = null;
+// --- 기본 설정 ---
+const BOARD_SIZE = 8;
+const NUM_GEM_TYPES = 5;
+const CLASSIC_DURATION = 60;
+const TIME_ATTACK_DURATION = 30;
+const INFINITE_MODE_MOVES = 30;
 
-    // [기존 기능 유지] 잭팟, 미션, 아이템 관련 상태
-    const jackpotContribution = ref(0);
-    const jackpotChance = ref(0.01);
-    const isJackpotRound = ref(false);
-    const activeItems = ref([]);
-    const dailyMission = ref(null);
-    const weeklyMission = ref(null);
+// --- 상태 변수 (Refs) ---
+const jackpotAmount = ref(0); // [추가] 잭팟 금액을 저장할 변수
+const gameState = ref('ready');
+const gameMode = ref('classic');
+const board = ref([]);
+const score = ref(0);
+const timer = ref(CLASSIC_DURATION);
+const movesLeft = ref(INFINITE_MODE_MOVES);
+const selectedCell = ref(null);
+const isProcessing = ref(false);
+const isStarting = ref(false);
+const isBuyingItem = ref(false);
+const error = ref('');
+const awardedPoints = ref(0);
+const explodingGems = ref(new Set()); 
+const playCount = reactive({ classic: 0, timeAttack: 0 });
 
-    // [핵심 추가] 드래그 & 특수효과 상태
-    const effects = ref([]);
-    const interaction = reactive({
-      startGem: null, startX: 0, startY: 0, didMove: false, 
-    });
+// --- 아이템 관련 상태 ---
+const items = ref([
+  { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150, icon: '⏱️' },
+  { id: 'score_x2_10s', name: '10초간 점수 2배', cost: 300, icon: '🚀' },
+]);
+const purchasedItems = ref(new Set());
+const isScoreBoostActive = ref(false);
 
-    const boardStyle = computed(() => ({
-      width: `${BOARD_SIZE * GEM_SIZE}px`,
-      height: `${BOARD_SIZE * GEM_SIZE}px`,
-    }));
+// --- 미션 관련 상태 ---
+const missions = reactive({ daily: [], weekly: [] });
+const gameStats = reactive({
+  gemsMatched: {},
+  maxCombo: 0,
+  jackpotGemsMatched: 0,
+  playCount: 0,
+});
+let currentCombo = 0;
 
-    const formattedTime = computed(() => {
-      const minutes = Math.floor(timeLeft.value / 60);
-      const seconds = timeLeft.value % 60;
-      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    });
-    
-    // [핵심 수정] 애니메이션 충돌 방지를 위한 CSS 변수 사용
-    const getGemStyle = (gem) => ({
-      '--gem-x': gem.x, '--gem-y': gem.y,
-      backgroundImage: `url(${require(`@/assets/gems/${gem.type}.png`)})`,
-    });
-    
-    // [핵심 추가] 특수 효과 스타일 계산
-    const getEffectStyle = (effect) => ({
-      left: `${effect.x * GEM_SIZE + GEM_SIZE/2}px`,
-      top: `${effect.y * GEM_SIZE + GEM_SIZE/2}px`,
-    });
+// --- 스와이프 관련 상태 ---
+const touchStart = reactive({ index: null, x: 0, y: 0 });
+const hasSwiped = ref(false);
 
-    const getMissionGemImage = () => {
-        if (!mission.value) return '';
-        try {
-            return require(`@/assets/gems/${mission.value.targetType}.png`);
-        } catch { return ''; }
-    };
+// --- 오디오 관련 ---
+let audioContextStarted = false;
+const isMuted = ref(false);
+const sounds = {
+  match: new Audio(soundMatch),
+  background: new Audio(soundBgm),
+  countdownTick: null,
+  countdownEnd: null,
+};
+sounds.background.loop = true;
+sounds.background.volume = 0.3;
 
-    const createGem = (x, y, type = null) => ({
-      id: Date.now() + Math.random(), x, y,
-      type: type || GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)],
-    });
+// --- 내부 변수 ---
+let timerInterval = null;
+let sessionId = null;
+let scoreBoostTimeout = null;
 
-    const initializeBoard = () => {
-      let tempBoard = [];
-      for (let y = 0; y < BOARD_SIZE; y++) { for (let x = 0; x < BOARD_SIZE; x++) { tempBoard.push(createGem(x, y)); } }
-      board.value = tempBoard;
-    };
-    
-    const findMatches = () => {
-      // ... 기존 findMatches 로직과 동일 ...
-      const matches = new Set();
-      if (!board.value || board.value.length === 0) return [];
-      for (let y = 0; y < BOARD_SIZE; y++) {
-        for (let x = 0; x < BOARD_SIZE; x++) {
-          const gem = board.value.find(g => g.x === x && g.y === y);
-          if (!gem) continue;
-          if (x > 1) {
-            const g1 = board.value.find(g => g.x === x - 1 && g.y === y); const g2 = board.value.find(g => g.x === x - 2 && g.y === y);
-            if (g1 && g2 && gem.type === g1.type && gem.type === g2.type) { [gem, g1, g2].forEach(g => matches.add(g)); }
-          }
-          if (y > 1) {
-            const g1 = board.value.find(g => g.x === x && g.y === y - 1); const g2 = board.value.find(g => g.x === x && g.y === y - 2);
-            if (g1 && g2 && gem.type === g1.type && gem.type === g2.type) { [gem, g1, g2].forEach(g => matches.add(g)); }
-          }
-        }
-      }
-      return Array.from(matches);
-    };
+// --- 계산된 속성 (Computed) ---
+const isRankedPlayable = computed(() => {
+  const today = new Date();
+  const day = today.getDay();
+  return day === 0 || day === 6;
+});
 
-    const handleMatches = async (initialMatches) => {
-        let currentMatches = initialMatches;
-        while (currentMatches.length > 0) {
-            const matchScore = currentMatches.length * 10;
-            score.value += matchScore;
+const currentEntryFee = computed(() => {
+  if (gameMode.value === 'classic') {
+    if (playCount.classic >= 30) return 300;
+    if (playCount.classic >= 15) return 200;
+    return 100;
+  }
+  if (gameMode.value === 'timeAttack') { 
+    return "400 ~";
+  }
+  // [핵심 수정] 무한 모드 입장료를 200에서 300으로 변경합니다.
+  if (gameMode.value === 'infinite') return 300;
+  if (gameMode.value === 'ranked') return 500;
+  return 100;
+});
 
-            // [기존 기능 유지] 잭팟 기여금 적립
-            const contribution = Math.floor(matchScore * 0.05);
-            jackpotContribution.value += contribution;
-
-            // [핵심 추가] 특수 효과 생성
-            if (currentMatches.length >= 4) {
-                const centerX = currentMatches.reduce((sum, gem) => sum + gem.x, 0) / currentMatches.length;
-                const centerY = currentMatches.reduce((sum, gem) => sum + gem.y, 0) / currentMatches.length;
-                const effect = { id: Date.now(), x: centerX, y: centerY, type: currentMatches.length >= 5 ? 'effect-bomb-clear' : 'effect-line-clear' };
-                effects.value.push(effect);
-                setTimeout(() => { effects.value = effects.value.filter(e => e.id !== effect.id); }, 500);
-            }
-
-            // [기존 기능 유지] 미션 카운트
-            if (dailyMission.value && !dailyMission.value.cleared) {
-                const clearedDailyGems = currentMatches.filter(gem => gem.type.includes(dailyMission.value.targetType)).length;
-                if(clearedDailyGems > 0) {
-                    const updateMission = httpsCallable(functions, 'updateMissionProgress');
-                    updateMission({ missionId: dailyMission.value.id, type: 'daily', progress: clearedDailyGems });
-                }
-            }
-            if (gameMode.value === 'mission' && mission.value && !mission.value.cleared) {
-                const clearedMissionGems = currentMatches.filter(gem => gem.type === mission.value.targetType).length;
-                mission.value.clearedCount += clearedMissionGems;
-                if(mission.value.clearedCount >= mission.value.targetCount) {
-                    mission.value.cleared = true;
-                    setTimeout(endGame, 500);
-                }
-            }
-            
-            const gemsToRemove = new Set(currentMatches.map(m => m.id));
-            board.value = board.value.filter(gem => !gemsToRemove.has(gem.id));
-            await new Promise(resolve => setTimeout(resolve, 150));
-
-            let nextBoard = [];
-            for (let x = 0; x < BOARD_SIZE; x++) {
-                const columnGems = board.value.filter(g => g.x === x);
-                const missingCount = BOARD_SIZE - columnGems.length;
-                columnGems.sort((a, b) => a.y - b.y).forEach((gem, index) => { nextBoard.push({ ...gem, y: BOARD_SIZE - columnGems.length + index }); });
-                for (let i = 0; i < missingCount; i++) { nextBoard.push(createGem(x, i)); }
-            }
-            board.value = nextBoard;
-            await new Promise(resolve => setTimeout(resolve, 350));
-            currentMatches = findMatches();
-        }
-    };
-
-    const swapGems = async (gem1, gem2) => {
-      // ... 기존 swapGems 로직과 동일 (handleMatches 호출) ...
-      if (isProcessing.value) return;
-      isProcessing.value = true;
-      const gem1Index = board.value.findIndex(g => g.id === gem1.id);
-      const gem2Index = board.value.findIndex(g => g.id === gem2.id);
-      [board.value[gem1Index].x, board.value[gem2Index].x] = [gem2.x, gem1.x];
-      [board.value[gem1Index].y, board.value[gem2Index].y] = [gem2.y, gem1.y];
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // [기존 기능 유지] 잭팟 라운드 처리
-      if(isJackpotRound.value) {
-        handleJackpotWin();
-        isJackpotRound.value = false;
-        isProcessing.value = false;
-        return;
-      }
-
-      const matchesAfterSwap = findMatches();
-      if (matchesAfterSwap.length > 0) {
-        if(gameMode.value === 'classic' || gameMode.value === 'mission') { if (movesLeft.value > 0) movesLeft.value--; }
-        await handleMatches(matchesAfterSwap);
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        [board.value[gem1Index].x, board.value[gem2Index].x] = [gem1.x, gem2.x];
-        [board.value[gem1Index].y, board.value[gem2Index].y] = [gem1.y, gem2.y];
-      }
-      
-      // [기존 기능 유지] 잭팟 발동 확률 체크
-      if (Math.random() < jackpotChance.value) {
-        isJackpotRound.value = true;
-        // 잭팟 라운드 알림 등의 UI 효과를 여기에 추가할 수 있습니다.
-      }
-      
-      selectedGem.value = null;
-      isProcessing.value = false;
-      if ((gameMode.value === 'classic' || gameMode.value === 'mission') && movesLeft.value <= 0 && !gameOver.value) { endGame(); }
-    };
-    
-    // [기존 기능 유지] 잭팟 당첨 처리
-    const handleJackpotWin = async () => {
-        try {
-            const triggerJackpot = httpsCallable(functions, 'triggerSaltPangJackpot');
-            const result = await triggerJackpot({ contribution: jackpotContribution.value });
-            alert(`잭팟 당첨! ${result.data.amount} SaltMate를 획득했습니다!`);
-            jackpotContribution.value = 0;
-        } catch (error) {
-            console.error("잭팟 처리 오류:", error);
-            alert("잭팟 처리 중 오류가 발생했습니다.");
-        }
-    };
-
-    const endGame = async () => {
-      // ... 기존 endGame 로직과 동일 ...
-      if(gameOver.value) return;
-      gameOver.value = true;
-      clearInterval(timer);
-      const saveScore = httpsCallable(functions, 'saveSaltPangScore');
-      try {
-        const result = await saveScore({ score: score.value, mode: gameMode.value, cleared: mission.value?.cleared || false });
-        earnedPoints.value = result.data.earnedPoints;
-      } catch (error) { console.error("점수 저장 실패:", error); earnedPoints.value = 0; }
-    };
-
-    const restartGame = () => {
-        // ... 기존 restartGame 로직과 동일 ...
-        isProcessing.value = true;
-        Object.assign(interaction, { startGem: null, startX: 0, startY: 0, didMove: false });
-        effects.value = []; score.value = 0; gameOver.value = false; earnedPoints.value = 0; selectedGem.value = null;
-        if (gameMode.value === 'classic') { movesLeft.value = 30; }
-        if (gameMode.value === 'timeAttack') { timeLeft.value = 120; }
-        if (gameMode.value === 'infinite') { movesLeft.value = 999; }
-        if (gameMode.value === 'mission') {
-            movesLeft.value = 30;
-            mission.value = {
-                targetType: GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)],
-                targetCount: 15 + Math.floor(Math.random() * 10),
-                clearedCount: 0, cleared: false, reward: 2000,
-            };
-        }
-        applyItemEffects();
-        do { initializeBoard(); } while (findMatches().length > 0);
-        if(timer) clearInterval(timer);
-        if(gameMode.value === 'timeAttack') {
-            timer = setInterval(() => {
-                if(timeLeft.value > 0) { timeLeft.value--; }
-                if (timeLeft.value <= 0 && !gameOver.value) { endGame(); }
-            }, 1000);
-        }
-        isProcessing.value = false;
-    };
-
-    const startGame = (mode) => {
-      gameMode.value = mode;
-      restartGame();
-    };
-
-    const backToSelection = () => {
-      gameMode.value = 'selection';
-      if (timer) clearInterval(timer);
-    };
-
-    const selectGem = (gem) => {
-      // ... 기존 selectGem 로직과 동일 ...
-      if (isProcessing.value) return;
-      if (selectedGem.value) {
-        if (selectedGem.value.id === gem.id) { selectedGem.value = null; }
-        else {
-          const dx = Math.abs(selectedGem.value.x - gem.x); const dy = Math.abs(selectedGem.value.y - gem.y);
-          if (dx + dy === 1) { swapGems(selectedGem.value, gem); } else { selectedGem.value = gem; }
-        }
-      } else { selectedGem.value = gem; }
-    };
-    
-    // [핵심 추가] 드래그 핸들러 로직 (안정성 검증된 버전)
-    const getCoords = (e) => e.touches ? e.touches[0] : e;
-    const cleanupInteraction = () => {
-      interaction.startGem = null;
-      window.removeEventListener('mousemove', handleInteractionMove); window.removeEventListener('touchmove', handleInteractionMove);
-      window.removeEventListener('mouseup', handleInteractionEnd); window.removeEventListener('touchend', handleInteractionEnd);
-    };
-    const handleInteractionStart = (gem, e) => {
-      if (isProcessing.value) return;
-      interaction.startGem = gem;
-      const coords = getCoords(e);
-      interaction.startX = coords.clientX; interaction.startY = coords.clientY;
-      interaction.didMove = false;
-      window.addEventListener('mousemove', handleInteractionMove); window.addEventListener('touchmove', handleInteractionMove);
-      window.addEventListener('mouseup', handleInteractionEnd); window.addEventListener('touchend', handleInteractionEnd);
-    };
-    const handleInteractionMove = (e) => {
-      if (!interaction.startGem) return;
-      e.preventDefault();
-      const coords = getCoords(e);
-      const deltaX = coords.clientX - interaction.startX; const deltaY = coords.clientY - interaction.startY;
-      const dragThreshold = 10;
-      if (Math.abs(deltaX) > dragThreshold || Math.abs(deltaY) > dragThreshold) {
-        interaction.didMove = true;
-        let direction = Math.abs(deltaX) > Math.abs(deltaY) ? (deltaX > 0 ? 'right' : 'left') : (deltaY > 0 ? 'down' : 'up');
-        const start = interaction.startGem;
-        let targetX = start.x; let targetY = start.y;
-        if (direction === 'right') targetX++; else if (direction === 'left') targetX--; else if (direction === 'up') targetY--; else if (direction === 'down') targetY++;
-        const targetGem = board.value.find(g => g.x === targetX && g.y === targetY);
-        if (targetGem) { swapGems(start, targetGem); }
-        cleanupInteraction();
-      }
-    };
-    const handleInteractionEnd = () => {
-      if (!interaction.didMove && interaction.startGem) { selectGem(interaction.startGem); }
-      cleanupInteraction();
-    };
-
-    // [기존 기능 유지] 아이템 및 미션 데이터 로딩
-    const fetchActiveItems = async () => {
-        const q = query(collection(db, `users/${auth.currentUser.uid}/active_items`));
-        const querySnapshot = await getDocs(q);
-        activeItems.value = querySnapshot.docs.map(doc => doc.data());
-    };
-    const applyItemEffects = () => {
-        activeItems.value.forEach(item => {
-            if(item.id === 'move_plus_5' && gameMode.value === 'classic') movesLeft.value += 5;
-            if(item.id === 'time_plus_30' && gameMode.value === 'timeAttack') timeLeft.value += 30;
-        });
-    };
-    const fetchMissions = async () => {
-        const uid = auth.currentUser.uid;
-        const today = new Date();
-        today.setHours(today.getHours() + 9);
-        const todayStr = today.toISOString().slice(0, 10);
-        const dayOfWeek = today.getUTCDay();
-        const monday = new Date(today);
-        monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-        const weekId = monday.toISOString().slice(0, 10);
-
-        const dailyMissionRef = doc(db, `users/${uid}/daily_missions`, todayStr);
-        const weeklyMissionRef = doc(db, `users/${uid}/weekly_missions`, weekId);
-
-        const [dailySnap, weeklySnap] = await Promise.all([getDoc(dailyMissionRef), getDoc(weeklyMissionRef)]);
-        if (dailySnap.exists() && dailySnap.data().game === 'saltPang' && !dailySnap.data().cleared) {
-            dailyMission.value = { id: dailySnap.id, ...dailySnap.data() };
-        }
-        if (weeklySnap.exists() && weeklySnap.data().game === 'saltPang' && !weeklySnap.data().cleared) {
-            weeklyMission.value = { id: weeklySnap.id, ...weeklySnap.data() };
-        }
-    };
-
-    onMounted(() => {
-      if (auth.currentUser) {
-        fetchActiveItems();
-        fetchMissions();
-      }
-    });
-
-    onUnmounted(() => {
-      clearInterval(timer);
-      cleanupInteraction();
-    });
-
-    return {
-      gameMode, board, selectedGem, score, movesLeft, timeLeft, gameOver, earnedPoints,
-      boardStyle, formattedTime, getGemStyle, selectGem, restartGame, mission,
-      handleInteractionStart, startGame, backToSelection, effects, getEffectStyle, getMissionGemImage,
-      dailyMission, weeklyMission
-    };
+// --- 함수 ---
+const getGemImage = (gemType) => {
+  if (gemType === null) return '';
+  try {
+    return require(`@/assets/gems/gem_${gemType}.png`);
+  } catch (e) {
+    return require(`@/assets/logo.png`); 
   }
 };
+
+const fetchPlayCount = async () => {
+  if (!auth.currentUser) return;
+  const todayStr = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const playCountRef = doc(db, "users", auth.currentUser.uid, "daily_play_counts", todayStr);
+  const docSnap = await getDoc(playCountRef);
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    playCount.classic = data.saltPang_classic || 0;
+    playCount.timeAttack = data.saltPang_timeAttack || 0;
+  } else {
+    playCount.classic = 0;
+    playCount.timeAttack = 0;
+  }
+};
+
+const fetchMissions = async () => {
+  error.value = '';
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
+    const result = await getMissionsFunc();
+    missions.daily = result.data.daily;
+    missions.weekly = result.data.weekly;
+  } catch (err) {
+    console.error("미션 불러오기 오류:", err);
+    error.value = `미션 로딩 실패: ${err.message}`;
+  }
+};
+
+const claimReward = async (mission) => {
+  error.value = '';
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
+    await claimRewardFunc({ missionId: mission.missionId });
+    mission.claimed = true; // 우선 화면에 즉시 반영
+    alert("보상이 지급되었습니다!");
+    // [핵심 추가] 미션 목록을 다시 불러와서 다른 미션들의 진행도를 갱신합니다.
+    await fetchMissions();
+  } catch(err) {
+    console.error("미션 보상 수령 오류:", err);
+    error.value = `보상 수령 실패: ${err.message}`;
+    mission.claimed = false; // 실패 시 원상 복구
+  }
+};
+
+const playSound = (soundKey) => {
+  if (!isMuted.value && audioContextStarted && sounds[soundKey]) {
+    const sound = sounds[soundKey];
+    sound.currentTime = 0;
+    sound.play().catch(e => console.error(`${soundKey} 사운드 재생 오류:`, e));
+  }
+};
+
+const initAudioContext = async () => {
+  if (!audioContextStarted && window.Tone) {
+    await window.Tone.start();
+    sounds.countdownTick = new window.Tone.Synth().toDestination();
+    sounds.countdownEnd = new window.Tone.Synth().toDestination();
+    audioContextStarted = true;
+  }
+};
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (isMuted.value) sounds.background.pause();
+  else if (gameState.value === 'playing') sounds.background.play();
+};
+
+const createBoard = () => {
+  let newBoard;
+  do { 
+    newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
+      if (Math.random() < 0.005) return 6;
+      return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+    });
+  } while (hasInitialMatches(newBoard)); 
+  return newBoard;
+};
+
+const hasInitialMatches = (b) => {
+  for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+1]&&b[i]===b[i+2]) return true; }
+  for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+BOARD_SIZE]&&b[i]===b[i+2*BOARD_SIZE]) return true; }
+  return false;
+};
+
+const buyItem = async (item) => {
+  if (purchasedItems.value.has(item.id) || isBuyingItem.value) return;
+  error.value = '';
+  isBuyingItem.value = true;
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
+    await purchaseItemFunc({ itemId: item.id });
+    purchasedItems.value.add(item.id);
+  } catch (err) {
+    console.error("아이템 구매 오류:", err);
+    error.value = `구매 실패: ${err.message}`;
+  } finally {
+    isBuyingItem.value = false;
+  }
+};
+
+const selectGameMode = (mode) => {
+  if (mode === 'ranked' && !isRankedPlayable.value) {
+    error.value = '랭킹전은 토요일과 일요일에만 참여할 수 있습니다.';
+    return;
+  }
+  error.value = '';
+  gameMode.value = mode;
+};
+
+const startGame = async () => {
+  isStarting.value = true;
+  error.value = '';
+  await initAudioContext();
+
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const startSession = httpsCallable(functions, 'startSaltPangSession');
+    const result = await startSession({ gameMode: gameMode.value });
+    sessionId = result.data.sessionId;
+    
+    score.value = 0;
+    awardedPoints.value = 0;
+    board.value = createBoard();
+    
+    gameStats.gemsMatched = {};
+    gameStats.maxCombo = 0;
+    gameStats.jackpotGemsMatched = 0;
+    gameStats.playCount = 1;
+    currentCombo = 0;
+
+    if (gameMode.value === 'classic') timer.value = CLASSIC_DURATION;
+    else if (gameMode.value === 'timeAttack') timer.value = TIME_ATTACK_DURATION;
+    else if (gameMode.value === 'infinite') {
+      timer.value = 0;
+      movesLeft.value = INFINITE_MODE_MOVES;
+    } else if (gameMode.value === 'ranked') {
+        timer.value = CLASSIC_DURATION;
+    }
+
+    if (purchasedItems.value.has('time_plus_5') && gameMode.value !== 'infinite') timer.value += 5;
+    if (purchasedItems.value.has('score_x2_10s')) {
+      scoreBoostTimeout = setTimeout(() => {
+        isScoreBoostActive.value = true;
+        setTimeout(() => isScoreBoostActive.value = false, 10000);
+      }, 10000);
+    }
+    
+    await fetchPlayCount(); 
+    gameState.value = 'playing';
+    playSound('background');
+
+    if (gameMode.value !== 'infinite') {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timer.value--;
+        if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) sounds.countdownTick.triggerAttackRelease("C5", "8n");
+        if (timer.value <= 0) {
+          if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
+          endGame();
+        }
+      }, 1000);
+    }
+
+  } catch (err) {
+    console.error("게임 시작 오류:", err);
+    error.value = `게임 시작 실패: ${err.message}`;
+  } finally {
+    isStarting.value = false;
+  }
+};
+
+// 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
+
+const endGame = async () => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
+  isScoreBoostActive.value = false;
+  gameState.value = 'ended';
+  sounds.background.pause();
+  sounds.background.currentTime = 0;
+
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const endSession = httpsCallable(functions, 'endSaltPangSession');
+    
+    // [핵심 수정] gameStats 객체를 서버로 함께 전송합니다.
+    const result = await endSession({ 
+      sessionId: sessionId, 
+      score: score.value,
+      gameStats: {
+        gemsMatched: gameStats.gemsMatched,
+        maxCombo: gameStats.maxCombo,
+        jackpotGemsMatched: gameStats.jackpotGemsMatched,
+        playCount: gameStats.playCount,
+      }
+    }); 
+    
+    awardedPoints.value = result.data.awardedPoints;
+  } catch (err) {
+    console.error("게임 종료 오류:", err);
+    error.value = `결과 처리 실패: ${err.message}`;
+  }
+};
+
+const resetGame = async () => {
+  gameState.value = 'ready';
+  sessionId = null;
+  error.value = '';
+  purchasedItems.value.clear();
+  explodingGems.value.clear();
+  await fetchPlayCount();
+  await fetchMissions();
+};
+
+const handleTouchStart = (index, event) => {
+  if (isProcessing.value || gameState.value !== 'playing') return;
+  touchStart.index = index;
+  touchStart.x = event.touches[0].clientX;
+  touchStart.y = event.touches[0].clientY;
+  hasSwiped.value = false;
+};
+
+const handleTouchMove = (event) => {
+  if (touchStart.index === null || hasSwiped.value) return;
+
+  const dx = event.touches[0].clientX - touchStart.x;
+  const dy = event.touches[0].clientY - touchStart.y;
+  const SWIPE_THRESHOLD = 20;
+
+  if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+    hasSwiped.value = true;
+    let targetIndex = -1;
+    const { index } = touchStart;
+    const col = index % BOARD_SIZE;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && col < BOARD_SIZE - 1) targetIndex = index + 1;
+      else if (dx < 0 && col > 0) targetIndex = index - 1;
+    } else {
+      if (dy > 0) targetIndex = index + BOARD_SIZE;
+      else if (dy < 0) targetIndex = index - BOARD_SIZE;
+    }
+
+    if (targetIndex >= 0 && targetIndex < BOARD_SIZE * BOARD_SIZE) {
+      swapAndCheck(index, targetIndex);
+    }
+  }
+};
+
+const handleTouchEnd = () => {
+  touchStart.index = null;
+};
+
+const selectCell = (index) => {
+  if (hasSwiped.value || isProcessing.value || gameState.value !== 'playing') return;
+  initAudioContext();
+  if (selectedCell.value === null) {
+    selectedCell.value = index;
+  } else {
+    const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
+    const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
+    if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index);
+    selectedCell.value = null;
+  }
+};
+
+const swapAndCheck = async (index1, index2) => {
+  if (gameMode.value === 'infinite') {
+    if (movesLeft.value <= 0) return;
+    movesLeft.value--;
+  }
+  isProcessing.value = true;
+  [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
+  await new Promise(r => setTimeout(r, 150));
+  
+  const hasMatches = await checkAndClearMatches();
+  if (!hasMatches) {
+    await new Promise(r => setTimeout(r, 150));
+    [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
+    currentCombo = 0;
+    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
+  } else {
+    while (await processBoard());
+    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
+  }
+  isProcessing.value = false;
+};
+
+const processBoard = async () => {
+  await new Promise(r => setTimeout(r, 200));
+  dropDownGems();
+  await new Promise(r => setTimeout(r, 200));
+  fillEmptyCells();
+  await new Promise(r => setTimeout(r, 200));
+  const hasMoreMatches = await checkAndClearMatches();
+  if (!hasMoreMatches) {
+    currentCombo = 0;
+  }
+  return hasMoreMatches;
+};
+
+const checkAndClearMatches = async () => {
+  const matches = new Set();
+  // 가로 매치 확인
+  for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+1]&&board.value[i]===board.value[i+2]) for(let k=c;k<BOARD_SIZE;k++){ i=r*BOARD_SIZE+k; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
+  // 세로 매치 확인
+  for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { let i=r*BOARD_SIZE+c; if (board.value[i]&&board.value[i]===board.value[i+BOARD_SIZE]&&board.value[i]===board.value[i+2*BOARD_SIZE]) for(let k=r;k<BOARD_SIZE;k++){ i=k*BOARD_SIZE+c; if(board.value[i]===board.value[r*BOARD_SIZE+c]) matches.add(i); else break;} }
+  
+  if (matches.size > 0) {
+    playSound('match');
+    
+    currentCombo++;
+    if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
+    
+    // [핵심 수정] 매치된 보석 정보를 gameStats에 정확히 기록합니다.
+    matches.forEach(index => {
+      explodingGems.value.add(index);
+      const gemType = board.value[index];
+      if (gemType) {
+        if(gemType === 6) gameStats.jackpotGemsMatched++;
+        // gemType을 키로 사용하여 맞춘 개수를 누적합니다.
+        gameStats.gemsMatched[gemType] = (gameStats.gemsMatched[gemType] || 0) + 1;
+      }
+    });
+
+    if (gameMode.value === 'timeAttack') timer.value += 1;
+    let scoreMultiplier = 1;
+    if (isScoreBoostActive.value) scoreMultiplier = 2;
+    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1) * scoreMultiplier;
+    
+    await new Promise(r => setTimeout(r, 300));
+    matches.forEach(index => {
+      board.value[index] = null;
+      explodingGems.value.delete(index);
+    });
+    return true;
+  }
+  return false;
+};
+
+const dropDownGems = () => {
+  for(let c=0;c<BOARD_SIZE;c++){ let er=-1; for(let r=BOARD_SIZE-1;r>=0;r--){ const i=r*BOARD_SIZE+c; if(board.value[i]===null&&er===-1)er=r; else if(board.value[i]!==null&&er!==-1){ board.value[er*BOARD_SIZE+c]=board.value[i]; board.value[i]=null; er--; } } }
+};
+
+const fillEmptyCells = () => {
+  for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
+};
+
+// [추가] 잭팟 금액을 실시간으로 가져오는 함수
+const listenToJackpot = () => {
+  const jackpotRef = doc(db, "configuration", "saltPangJackpot");
+  onSnapshot(jackpotRef, (docSnap) => {
+    if (docSnap.exists()) {
+      jackpotAmount.value = docSnap.data().amount || 0;
+    }
+  });
+};
+
+onMounted(() => {
+  fetchPlayCount();
+  fetchMissions();
+  listenToJackpot(); // [추가] onMounted에서 함수 호출
+});
+
+onUnmounted(() => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
+  sounds.background.pause();
+});
+
 </script>
 
-
 <style scoped>
-/* 이전과 거의 동일한 스타일에 일부 추가 및 수정 */
-.salt-pang-container{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(to bottom, #2c3e50, #1a2a3a);color:#fff;padding:20px;box-sizing:border-box}
-.selection-screen{text-align:center;background:rgba(0,0,0,0.2);padding:40px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.4);backdrop-filter:blur(5px)}
-.game-logo{width:250px;margin-bottom:20px}
-.selection-screen p{font-size:1.2em;color:#ecf0f1;margin-bottom:20px}
-.active-missions{display:flex;flex-direction:column;gap:10px;margin-bottom:30px;width:100%;max-width:500px}
-.mission-card{background:rgba(0,0,0,0.3);padding:15px;border-radius:10px;text-align:left;border-left:5px solid}
-.mission-card.daily{border-color:#3498db}
-.mission-card.weekly{border-color:#9b59b6}
-.mission-card strong{display:block;font-size:1.1em;margin-bottom:5px}
-.mission-card span{font-size:0.95em}
-.mission-card small{display:block;margin-top:5px;opacity:0.8;font-size:0.9em}
-.mode-buttons{display:grid;gap:20px;grid-template-columns:1fr 1fr}
-.btn-mode-select{padding:20px;font-weight:700;border:1px solid rgba(255,255,255,0.2);border-radius:15px;cursor:pointer;transition:all .3s ease;background:rgba(255,255,255,0.1);color:#fff;text-align:left}
-.btn-mode-select:hover:not(:disabled){background:rgba(255,255,255,0.2);transform:translateY(-5px);box-shadow:0 8px 20px rgba(0,0,0,0.3)}
-.btn-mode-select.classic{--color:#3498db}.btn-mode-select.time-attack{--color:#f1c40f}.btn-mode-select.infinite{--color:#9b59b6}.btn-mode-select.mission{--color:#e74c3c}
-.btn-title{font-size:1.4em;margin-bottom:8px;color:var(--color)}
-.btn-desc{font-size:0.9em;color:#bdc3c7;line-height:1.4}
-.btn-mode-select .fas{margin-right:10px;width:20px}
-.game-screen{display:flex;flex-direction:column;align-items:center;width:100%}
-.game-header{display:flex;justify-content:space-around;align-items:center;width:100%;max-width:420px;margin-bottom:20px;background:#34495e;padding:10px 15px;border-radius:10px}
-.header-item{display:flex;align-items:center;font-size:1.4em;font-weight:700}
-.header-item i{margin-right:8px}
-.mission-display{background:rgba(0,0,0,0.3);padding:5px 10px;border-radius:8px;font-size:1.2em}
-.mission-gem-icon{width:24px;height:24px;margin-right:5px;vertical-align:middle}
-.game-board-wrapper{background:#34495e;padding:10px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
-.game-board{position:relative}
-.jackpot-effect{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:5em;font-weight:900;color:#ffd700;text-shadow:0 0 20px #ff0,0 0 30px #f90;z-index:10;animation:jackpot-anim 1s ease-out}
-@keyframes jackpot-anim{0%{opacity:0;transform:translate(-50%,-50%) scale(0.5)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
-.gem{width:50px;height:50px;position:absolute;background-size:cover;cursor:pointer;-webkit-user-drag:none;user-select:none;touch-action:none;transform:translate(calc(var(--gem-x) * 50px),calc(var(--gem-y) * 50px));transition:transform .3s ease}
-.gem.selected{animation:pulse .6s infinite alternate}
-@keyframes pulse{to{transform:translate(calc(var(--gem-x) * 50px),calc(var(--gem-y) * 50px)) scale(1.1);box-shadow:0 0 15px #f1c40f;border-radius:5px}}
-.game-over-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(5px)}
-.game-over-modal{background:#34495e;padding:40px;border-radius:15px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.game-over-modal h2{margin-top:0;font-size:2.5em;color:#f1c40f}
-.modal-actions{margin-top:30px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
-.btn-restart,.btn-home{padding:12px 25px;border:none;border-radius:8px;font-size:1.1em;font-weight:700;cursor:pointer;text-decoration:none;color:#fff;transition:background-color .2s}
-.btn-restart{background-color:#2980b9}.btn-restart:hover{background-color:#3498db}.btn-home{background-color:#27ae60}.btn-home:hover{background-color:#2ecc71}
-.btn-back-selection{margin-top:25px;padding:10px 20px;background:#7f8c8d;color:#fff;border:none;border-radius:8px;font-size:1em;cursor:pointer}
-.effect{position:absolute;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
-.effect.effect-line-clear{width:50px;height:50px;border:3px solid #fff;animation:line-clear .5s ease-out forwards}
-.effect.effect-bomb-clear{width:50px;height:50px;background:rgba(255,255,255,0.8);animation:bomb-clear .5s ease-out forwards}
-@keyframes line-clear{0%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(3);opacity:0}}
-@keyframes bomb-clear{0%{transform:translate(-50%,-50%) scale(1);opacity:1;box-shadow:0 0 30px #fff}100%{transform:translate(-50%,-50%) scale(4);opacity:0;box-shadow:0 0 50px #fff}}
-@media (max-width:520px){.mode-buttons{grid-template-columns:1fr}.game-board-wrapper{padding:5px}.gem{width:calc((100vw - 30px)/ 8);height:calc((100vw - 30px)/ 8);--gem-size:calc((100vw - 30px)/ 8);transform:translate(calc(var(--gem-x) * var(--gem-size)),calc(var(--gem-y) * var(--gem-size)))}.game-board{width:calc(100vw - 30px);height:calc(100vw - 30px)}.game-header{flex-direction:column;gap:10px;align-items:flex-start}}
+/* [핵심 수정] 잭팟 UI 관련 스타일을 아래 코드로 교체합니다. */
+.jackpot-section {
+  text-align: center;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: white;
+  padding: 25px;
+  border-radius: 12px; /* [추가] 모서리를 둥글게 처리 */
+}
+
+.jackpot-icon {
+  color: #ffd700;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.jackpot-amount {
+  font-size: 2.8em; /* [수정] 글씨 크기를 약간 키움 */
+  font-weight: bold;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  
+  /* [핵심 추가] 황금색 그라데이션 및 반짝임 효과 */
+  background: linear-gradient(45deg, #ffd700, #fca5f1, #b3c7f0, #ffd700);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-animation 4s ease infinite;
+}
+
+@keyframes gradient-animation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
+.page-header { text-align: center; margin-bottom: 20px; color: #333; }
+.page-header h1 { font-size: 2.5em; font-weight: 900; }
+.page-header p { font-size: 1.1em; color: #666; }
+.game-container { padding: 10px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
+.game-intro { display: flex; flex-direction: column; gap: 15px; }
+.main-title { text-align: center; }
+.intro-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); }
+.section-title { font-size: 1.3em; font-weight: bold; margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px; color: #007bff; }
+.section-title.weekly { margin-top: 20px; }
+
+.mission-list { display: flex; flex-direction: column; gap: 12px; }
+.mission-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; }
+.mission-desc { font-weight: 500; text-align: left; }
+.mission-progress-bar { grid-column: 1 / 3; width: 100%; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; }
+.progress { height: 100%; background: linear-gradient(90deg, #28a745, #20c997); transition: width 0.3s ease; }
+.mission-status { text-align: right; font-size: 0.9em; }
+.claimed { color: #28a745; font-weight: bold; }
+.claim-button { padding: 5px 10px; font-size: 0.8em; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+
+.mode-selection { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.mode-card { padding: 15px; border: 2px solid #e9ecef; border-radius: 10px; cursor: pointer; transition: all 0.2s ease-in-out; text-align: center; }
+.mode-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+.mode-card.active { border-color: #007bff; background-color: #e7f1ff; box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); }
+.mode-card h4 { margin: 0 0 5px; font-size: 1.1em; }
+.mode-card p { margin: 0; color: #666; font-size: 0.9em; }
+.mode-card.ranked { border-style: dashed; }
+.mode-card.ranked.active { border-color: #dc3545; background-color: #ffe8e8; }
+.mode-card:disabled { opacity: 0.6; cursor: not-allowed; background-color: #f8f9fa; }
+.mode-card:disabled:hover { transform: none; box-shadow: none; }
+
+.item-shop { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.item { padding: 15px; border: 2px solid #e9ecef; border-radius: 10px; cursor: pointer; transition: all 0.2s ease-in-out; text-align: center; position: relative; }
+.item:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+.item.purchased { border-color: #28a745; background-color: #eafaf1; box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.25); }
+.item-icon { font-size: 1.5em; }
+.item-name { font-weight: bold; margin: 5px 0; }
+.item-cost { font-size: 1em; color: #007bff; font-weight: 500; }
+.purchased-badge { position: absolute; top: 5px; right: 5px; background-color: #28a745; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+.start-info { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); }
+.entry-fee p { margin: 0; color: #666; }
+.entry-fee strong { font-size: 1.3em; color: #333; }
+.game-button { padding: 15px 30px; font-size: 1.2em; cursor: pointer; border-radius: 10px; border: none; background: linear-gradient(135deg, #007bff, #0056b3); color: white; font-weight: bold; transition: all 0.3s ease; }
+.game-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4); }
+.game-button:disabled { background: #a0c9ff; cursor: not-allowed; }
+.item-notice { margin-top: 10px; font-size: 0.9em; color: #007bff; font-weight: 500; text-align: center; }
+
+.game-area { position: relative; }
+.game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 1.2em; }
+.game-board { display: grid; gap: 4px; border: 2px solid #ccc; padding: 5px; border-radius: 8px; touch-action: none; }
+.cell { width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; position: relative; overflow: hidden; }
+.cell.selected { background-color: #e0e0e0; transform: scale(0.95); }
+.gem-image { width: 90%; height: 90%; object-fit: contain; user-select: none; position: absolute; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.cell.selected .gem-image { transform: scale(1.15); filter: brightness(1.2); }
+.gem-image.clearing { animation: gem-clear 0.3s ease-out forwards; }
+@keyframes gem-clear { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+.gem-fall-enter-active { animation: gem-fall 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes gem-fall { 0% { transform: translateY(-50px) scale(0.5); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+.game-overlay { position: absolute; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; border-radius: 12px; z-index: 20; }
+.end-modal { background-color: white; padding: 30px; border-radius: 8px; text-align: center; color: #333; }
+.error-message { margin-top: 15px; color: red; text-align: center; cursor: pointer; }
+.mute-button { background: none; border: 1px solid #ccc; width: 40px; height: 40px; border-radius: 50%; font-size: 1em; cursor: pointer; color: #555; }
+.countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10em; font-weight: 900; color: rgba(220, 53, 69, 0.7); text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); animation: countdown-pulse 1s ease-in-out infinite; pointer-events: none; z-index: 10; }
+@keyframes countdown-pulse { from { transform: translate(-50%, -50%) scale(1); opacity: 0.7; } to { transform: translate(-50%, -50%) scale(1.15); opacity: 1; } }
+.score-boost-overlay { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); font-size: 2em; font-weight: bold; color: #e67e22; background-color: rgba(255, 255, 255, 0.9); padding: 5px 15px; border-radius: 20px; z-index: 15; animation: boost-fade 10s linear forwards; }
+@keyframes boost-fade { from { opacity: 1; } to { opacity: 0; } }
+.mode-description { margin-top: 10px; color: #666; font-size: 0.9em; min-height: 1em; }
+.ranked-notice { color: #dc3545; font-weight: 500; }
+
+@media (max-width: 480px) {
+  .cell { width: 11vw; height: 11vw; }
+  .game-stats { font-size: 1em; }
+  .page-header h1 { font-size: 1.8em; }
+}
 </style>
