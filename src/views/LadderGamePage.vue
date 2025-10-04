@@ -61,7 +61,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-// import { functions } from '@/firebaseConfig'; // 이 줄을 삭제하거나 주석 처리합니다.
 import { httpsCallable, getFunctions } from 'firebase/functions';
 
 const isLoading = ref(false);
@@ -207,18 +206,12 @@ const startGame = async () => {
     const playLadderGame = httpsCallable(functionsWithRegion, 'playLadderGame');
     const response = await playLadderGame({ entryCount: 1 });
     
-    // 서버 결과를 실제 사다리 위치에 맞게 재배치
-    const finalPositions = Array(NUM_LEGS);
-    for (let i = 0; i < NUM_LEGS; i++) finalPositions[traceLeg(i)] = i;
-    
-    const finalResults = Array(NUM_LEGS);
     const serverPrize = response.data.results[0].prize;
     const winningLeg = traceLeg(selectedEntry.value - 1);
 
-    for(let i=0; i<NUM_LEGS; i++){
-      if(i === winningLeg) finalResults[i] = { prize: serverPrize };
-      else finalResults[i] = { prize: 0 }; // 나머지는 꽝으로 채움
-    }
+    const finalResults = Array(NUM_LEGS).fill({ prize: 0 }).map((_, i) => {
+        return i === winningLeg ? { prize: serverPrize } : { prize: 0 };
+    });
     results.value = finalResults;
     
     gameStarted.value = true;
@@ -273,7 +266,7 @@ onUnmounted(() => {
 
 .ladder-wrapper { position: relative; height: 300px; margin-bottom: 30px; }
 .ladder-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-.start-points, .end-points { position: absolute; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 12.5%; /* [수정] 위치 보정 */ box-sizing: border-box; }
+.start-points, .end-points { position: absolute; left: 0; right: 0; display: flex; justify-content: space-around; padding: 0 12.5%; box-sizing: border-box; }
 .start-points { top: -20px; }
 .end-points { bottom: -20px; }
 .point {
@@ -282,7 +275,7 @@ onUnmounted(() => {
   font-weight: bold; font-size: 1.2em;
   background: #e9ecef; border: 2px solid #adb5bd;
   transition: all 0.2s;
-  position: relative; /* z-index 적용 위함 */
+  position: relative;
   z-index: 2;
 }
 .point.start { cursor: pointer; }
