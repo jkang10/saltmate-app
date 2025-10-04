@@ -1,5 +1,7 @@
 <template>
   <div>
+    <OnboardingTutorial :run="shouldRunTutorial" @complete="onTutorialComplete" />
+
     <AnnouncementTicker />
     <div class="dashboard-container">
       <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
@@ -25,7 +27,7 @@
       </section>
 
       <main class="dashboard-content">
-        <section class="performance-card card">
+        <section class="performance-card card user-info-widget">
           <div class="card-header">
             <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
             <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{ userProfile?.tier }}</span>
@@ -116,7 +118,7 @@
         </section>
 
         <div class="dashboard-grid">
-          <LiveGameFeed />
+          <LiveGameFeed class="live-feed-widget" />
           <LeaderboardWidget />
           <WeeklyLeaderboardWidget />
           <SaltPangHallOfFame />
@@ -335,10 +337,11 @@
 </template>
 
 <script>
+// [핵심] ref, onMounted, computed를 vue에서 직접 import합니다.
+import { ref, onMounted, computed } from "vue"; 
 import { auth, db, functions } from "@/firebaseConfig";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable, getFunctions } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
-// [핵심 수정] 필요한 모든 Firestore 함수를 import합니다.
 import {
   collection,
   query,
@@ -350,6 +353,7 @@ import {
   getDoc,
   onSnapshot,
 } from "firebase/firestore";
+// ... (나머지 컴포넌트 import는 그대로 유지) ...
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -361,14 +365,15 @@ import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
 import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
-import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue'; // [신규] 위젯 import
-// [핵심 추가] 새로운 위젯을 import 합니다.
+import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
 import SaltPangPvpRankingsWidget from '@/components/SaltPangPvpRankingsWidget.vue';
+import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 
 
 export default {
   name: "DashboardPage",
   components: {
+    // ... (모든 컴포넌트 등록은 그대로 유지) ...
     TransactionHistoryModal,
     UpgradeTierModal,
     WithdrawalRequestModal,
@@ -380,187 +385,190 @@ export default {
     ChallengeRankingsWidget,
     SaltPangRankedWidget,
     AnnouncementTicker,
-    EnchantRankingsWidget, // [신규] 컴포넌트 등록
-    // [핵심 추가] 새로운 위젯을 components 객체에 등록합니다.
+    EnchantRankingsWidget,
     SaltPangPvpRankingsWidget,
+    OnboardingTutorial,
   },
-  data() {
-    return {
-      userProfile: null,
-      loadingUser: true,
-      error: null,
-      notices: [],
-      historyModal: { visible: false, type: "" },
-      upgradeModalVisible: false,
-      isWithdrawalModalVisible: false,
-      isCycleModalVisible: false,
-      marketingPlan: null,
-      unsubscribe: null,
-      isRequestingPayment: false,
-      latestJackpotWinner: null, // [추가] 잭팟 당첨자 정보
-      unsubscribeJackpot: null, // [추가] 리스너 해제용
-    };
-  },
-  computed: {
-    cycleProgress() {
-      if (
-        !this.userProfile ||
-        !this.userProfile.cycleCap ||
-        this.userProfile.cycleCap === 0
-      ) {
-        return 0;
-      }
-      return Math.min(
-        (this.userProfile.currentCycleEarnings / this.userProfile.cycleCap) *
-          100,
-        100,
-      );
-    },
-    isWithdrawalEnabled() {
+  // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
+  setup() {
+    // --- 1. data()에 있던 변수들을 ref 또는 reactive로 변환 ---
+    const userProfile = ref(null);
+    const loadingUser = ref(true);
+    const error = ref(null);
+    const notices = ref([]);
+    const historyModal = ref({ visible: false, type: "" });
+    const upgradeModalVisible = ref(false);
+    const isWithdrawalModalVisible = ref(false);
+    const isCycleModalVisible = ref(false);
+    const marketingPlan = ref(null);
+    const isRequestingPayment = ref(false);
+    const latestJackpotWinner = ref(null);
+    
+    let unsubscribe = null;
+    let unsubscribeJackpot = null;
+
+    // --- 2. 튜토리얼 관련 상태 변수 추가 ---
+    const shouldRunTutorial = ref(false);
+
+    // --- 3. computed 속성 정의 ---
+    const cycleProgress = computed(() => {
+      if (!userProfile.value || !userProfile.value.cycleCap || userProfile.value.cycleCap === 0) return 0;
+      return Math.min((userProfile.value.currentCycleEarnings / userProfile.value.cycleCap) * 100, 100);
+    });
+
+    const isWithdrawalEnabled = computed(() => {
       const now = new Date();
       const day = now.getDay();
       const hour = now.getHours();
       return day === 2 && hour >= 9 && hour < 17;
-    },
-    daysUntilPayment() {
-      if (!this.userProfile?.nextPaymentDueDate) {
-        return "N/A";
-      }
-      const dueDate = this.userProfile.nextPaymentDueDate.toDate();
+    });
+
+    const daysUntilPayment = computed(() => {
+      if (!userProfile.value?.nextPaymentDueDate) return "N/A";
+      const dueDate = userProfile.value.nextPaymentDueDate.toDate();
       const today = new Date();
       dueDate.setHours(0, 0, 0, 0);
       today.setHours(0, 0, 0, 0);
-
       const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return Math.max(0, diffDays);
-    },
-    subscriptionStatusClass() {
-      if (!this.userProfile?.subscriptionStatus) return "";
-      return `status-${this.userProfile.subscriptionStatus}`;
-    },
-  },
-  created() {
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        this.listenToUserProfile(user.uid);
-        this.fetchMarketingPlan();
-        this.fetchNotices();
-        this.listenToLatestJackpot(); // [추가] 잭팟 리스너 호출
-      } else {
-        this.loadingUser = false;
-      }
+      return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     });
-  },
-  unmounted() {
-    if (this.unsubscribe) this.unsubscribe();
-    if (this.unsubscribeJackpot) this.unsubscribeJackpot(); // [추가] 리스너 해제
-  },
-  methods: {
-      // [추가] 잭팟 당첨 정보를 가져오는 함수
-    listenToLatestJackpot() {
-      const q = query(
-        collection(db, "saltPangJackpotWins"),
-        orderBy("wonAt", "desc"),
-        limit(1)
-      );
-      this.unsubscribeJackpot = onSnapshot(q, (snapshot) => {
+
+    const subscriptionStatusClass = computed(() => {
+      if (!userProfile.value?.subscriptionStatus) return "";
+      return `status-${userProfile.value.subscriptionStatus}`;
+    });
+
+    // --- 4. methods를 일반 함수로 정의 ---
+    const listenToLatestJackpot = () => {
+      const q = query(collection(db, "saltPangJackpotWins"), orderBy("wonAt", "desc"), limit(1));
+      unsubscribeJackpot = onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
-          this.latestJackpotWinner = snapshot.docs[0].data();
+          latestJackpotWinner.value = snapshot.docs[0].data();
         }
       });
-    },
+    };
 
-    async requestPayment() {
-      if (
-        !confirm(
-          "월간 구독료(만원의 행복) 결제를 요청하시겠습니까? 관리자 확인 후 승인 처리됩니다.",
-        )
-      )
-        return;
-      this.isRequestingPayment = true;
+    const requestPayment = async () => {
+      if (!confirm("월간 구독료(만원의 행복) 결제를 요청하시겠습니까? 관리자 확인 후 승인 처리됩니다.")) return;
+      isRequestingPayment.value = true;
       try {
-        const requestMonthlyPayment = httpsCallable(
-          functions,
-          "requestMonthlyPayment",
-        );
+        const requestMonthlyPayment = httpsCallable(functions, "requestMonthlyPayment");
         await requestMonthlyPayment();
-        alert(
-          "결제 요청이 완료되었습니다. 관리자가 승인하면 구독 상태가 갱신됩니다.",
-        );
-      } catch (error) {
-        console.error("월간 결제 요청 오류:", error);
-        alert(`오류가 발생했습니다: ${error.message}`);
+        alert("결제 요청이 완료되었습니다. 관리자가 승인하면 구독 상태가 갱신됩니다.");
+      } catch (e) {
+        console.error("월간 결제 요청 오류:", e);
+        alert(`오류가 발생했습니다: ${e.message}`);
       } finally {
-        this.isRequestingPayment = false;
+        isRequestingPayment.value = false;
       }
-    },
-    listenToUserProfile(uid) {
-      this.loadingUser = true;
+    };
+
+    const listenToUserProfile = (uid) => {
+      loadingUser.value = true;
       const userRef = doc(db, "users", uid);
-      this.unsubscribe = onSnapshot(
-        userRef,
+      unsubscribe = onSnapshot(userRef,
         (docSnap) => {
           if (docSnap.exists()) {
-            this.userProfile = docSnap.data();
+            userProfile.value = docSnap.data();
+            // [핵심] 사용자 프로필을 받은 후 튜토리얼 실행 여부 결정
+            if (!userProfile.value.hasCompletedTutorial) {
+              shouldRunTutorial.value = true;
+            }
           } else {
-            this.error = "사용자 프로필을 찾을 수 없습니다.";
+            error.value = "사용자 프로필을 찾을 수 없습니다.";
           }
-          this.loadingUser = false;
+          loadingUser.value = false;
         },
         (e) => {
           console.error("프로필 실시간 수신 실패:", e);
-          this.error = "프로필 로딩에 실패했습니다.";
-          this.loadingUser = false;
-        },
+          error.value = "프로필 로딩에 실패했습니다.";
+          loadingUser.value = false;
+        }
       );
-    },
-    async fetchMarketingPlan() {
+    };
+
+    const fetchMarketingPlan = async () => {
       const planRef = doc(db, "configuration", "marketingPlan");
       const docSnap = await getDoc(planRef);
       if (docSnap.exists()) {
-        this.marketingPlan = docSnap.data();
+        marketingPlan.value = docSnap.data();
       }
-    },
-    async fetchNotices() {
+    };
+
+    const fetchNotices = async () => {
       try {
-        const q = query(
-          collection(db, "posts"),
-          where("category", "==", "notices"),
-          orderBy("createdAt", "desc"),
-          limit(3),
-        );
+        const q = query(collection(db, "posts"), where("category", "==", "notices"), orderBy("createdAt", "desc"), limit(3));
         const querySnapshot = await getDocs(q);
-        this.notices = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (error) {
-        console.error("공지사항 로딩 오류:", error);
+        notices.value = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.error("공지사항 로딩 오류:", e);
       }
-    },
-    formatDate(timestamp) {
+    };
+
+    const formatDate = (timestamp) => {
       if (!timestamp?.toDate) return "";
       return timestamp.toDate().toLocaleDateString("ko-KR");
-    },
-    getTierClass(tier) {
+    };
+
+    const getTierClass = (tier) => {
       if (!tier) return "default";
       if (tier === "승인대기중") return "pending";
       return tier.toLowerCase();
-    },
-    openHistoryModal(type) {
-      this.historyModal.type = type;
-      this.historyModal.visible = true;
-    },
-    openUpgradeModal() {
-      this.upgradeModalVisible = true;
-    },
-    openWithdrawalModal() {
-      this.isWithdrawalModalVisible = true;
-    },
-    openCycleEarningsModal() {
-      this.isCycleModalVisible = true;
-    },
+    };
+    
+    const openHistoryModal = (type) => {
+      historyModal.value.type = type;
+      historyModal.value.visible = true;
+    };
+    const openUpgradeModal = () => { upgradeModalVisible.value = true; };
+    const openWithdrawalModal = () => { isWithdrawalModalVisible.value = true; };
+    const openCycleEarningsModal = () => { isCycleModalVisible.value = true; };
+    
+    // --- 5. 튜토리얼 완료 처리 함수 ---
+    const onTutorialComplete = async () => {
+      shouldRunTutorial.value = false; // 튜토리얼 숨기기
+      try {
+        const functionsWithRegion = getFunctions(undefined, "asia-northeast3");
+        const markComplete = httpsCallable(functionsWithRegion, 'markTutorialAsCompleted');
+        await markComplete();
+        // 로컬 userProfile 상태도 업데이트하여 새로고침 전까지 다시 보이지 않도록 함
+        if(userProfile.value) userProfile.value.hasCompletedTutorial = true;
+      } catch (e) {
+        console.error("Failed to mark tutorial as complete:", e);
+      }
+    };
+
+    // --- 6. created()와 unmounted()를 onMounted()와 onUnmounted()로 변환 ---
+    onMounted(() => {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          listenToUserProfile(user.uid);
+          fetchMarketingPlan();
+          fetchNotices();
+          listenToLatestJackpot();
+        } else {
+          loadingUser.value = false;
+        }
+      });
+    });
+
+    onUnmounted(() => {
+      if (unsubscribe) unsubscribe();
+      if (unsubscribeJackpot) unsubscribeJackpot();
+    });
+
+    // --- 7. template에서 사용할 모든 변수와 함수를 return ---
+    return {
+      userProfile, loadingUser, error, notices, historyModal, upgradeModalVisible,
+      isWithdrawalModalVisible, isCycleModalVisible, marketingPlan, isRequestingPayment,
+      latestJackpotWinner,
+      cycleProgress, isWithdrawalEnabled, daysUntilPayment, subscriptionStatusClass,
+      requestPayment, formatDate, getTierClass, openHistoryModal, openUpgradeModal,
+      openWithdrawalModal, openCycleEarningsModal,
+      // 튜토리얼 관련
+      shouldRunTutorial,
+      onTutorialComplete,
+    };
   },
 };
 </script>

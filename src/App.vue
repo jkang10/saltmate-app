@@ -8,8 +8,9 @@
         </router-link>
         <nav class="navbar-nav" :class="{ 'is-active': isNavActive }">
           <router-link to="/shop" class="nav-link">등급 선택</router-link>
-          <router-link to="/my-investments" class="nav-link">내 수익 현황</router-link>
+         /* <router-link to="/my-investments" class="nav-link">내 수익 현황</router-link> */
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
+	  <router-link to="/help" class="nav-link">도움말</router-link>
           <router-link to="/about" class="nav-link">솔트메이트 소개</router-link>
         </nav>
         <div class="navbar-actions">
