@@ -27,7 +27,7 @@
       </section>
 
       <main class="dashboard-content">
-        <section class="performance-card card user-info-widget">
+	<section class="performance-card card user-info-widget">
           <div class="card-header">
             <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
             <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{ userProfile?.tier }}</span>
@@ -118,7 +118,7 @@
         </section>
 
         <div class="dashboard-grid">
-          <LiveGameFeed class="live-feed-widget" />
+	<LiveGameFeed class="live-feed-widget" />
           <LeaderboardWidget />
           <WeeklyLeaderboardWidget />
           <SaltPangHallOfFame />

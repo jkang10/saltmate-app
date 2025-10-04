@@ -1,6 +1,6 @@
 <template>
   <div class="tutorial-overlay" v-if="isActive && currentStep">
-    <div class="tutorial-highlight" :style="highlightStyle"></div>
+    <div v-if="currentStep.target !== 'body'" class="tutorial-highlight" :style="highlightStyle"></div>
     <div class="tutorial-textbox" :style="textboxStyle">
       <h4>{{ currentStep.title }} ({{ stepIndex + 1 }}/{{ steps.length }})</h4>
       <p>{{ currentStep.content }}</p>
