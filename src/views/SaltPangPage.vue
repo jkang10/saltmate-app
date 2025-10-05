@@ -807,22 +807,22 @@ const findMatchesOnBoard = () => {
     }
   }
   
-  for (let r = 0; r < BOARD_SIZE - 2; r++) {
+for (let r = 0; r < BOARD_SIZE - 2; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       const i = r * BOARD_SIZE + c;
       const p = board.value[i]?.type || board.value[i];
       if(!p) continue;
 
       const right1 = board.value[i+1]?.type || board.value[i+1];
-      const right2 = board.value[i+2]?.type || board.value[i+2];
+      // const right2 = board.value[i+2]?.type || board.value[i+2]; // 이 줄 삭제
       const down1 = board.value[i+BOARD_SIZE]?.type || board.value[i+BOARD_SIZE];
-      const down2 = board.value[i+2*BOARD_SIZE]?.type || board.value[i+2*BOARD_SIZE];
+      // const down2 = board.value[i+2*BOARD_SIZE]?.type || board.value[i+2*BOARD_SIZE]; // 이 줄 삭제
       
       if (p === right1 && p === down1) {
         if(p === (board.value[i+BOARD_SIZE+1]?.type || board.value[i+BOARD_SIZE+1])) shapes.push({center: i});
       }
     }
-  }
+}
 
   return { all: matches, byType: { longH, longV, shape: shapes } };
 };
