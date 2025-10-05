@@ -642,10 +642,10 @@ const handleTouchEnd = () => {
   touchStart.index = null;
 };
 
-const swapAndCheck = async (index1, index2) => {
-  if (isProcessing.value) return; // 중복 실행 방지
+
+  if (isProcessing.value) return;
   isProcessing.value = true;
-  selectedCell.value = null; // 선택 해제
+  selectedCell.value = null;
 
   if (gameMode.value === 'infinite') {
     if (movesLeft.value <= 0) {
@@ -658,40 +658,42 @@ const swapAndCheck = async (index1, index2) => {
   const gem1 = board.value[index1];
   const gem2 = board.value[index2];
 
-  const r1 = Math.floor(index1 / BOARD_SIZE), r2 = Math.floor(index2 / BOARD_SIZE);
+  const r1 = Math.floor(index1 / BOARD_SIZE);
+  const r2 = Math.floor(index2 / BOARD_SIZE);
   lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
-  // [핵심 수정] 모든 경우에 대해 일단 보드를 시각적으로 바꿉니다.
+  // 먼저 보드를 시각적으로 바꿉니다.
   [board.value[index1], board.value[index2]] = [gem2, gem1];
   await new Promise(r => setTimeout(r, 150));
 
   let matchFound = false;
 
-  // 특수 보석 관련 로직
+  // 특수 보석 관련 로직 (기존과 동일)
   if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
     const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
     const otherIndex = rainbowIndex === index1 ? index2 : index1;
     await activateRainbowCombination(rainbowIndex, otherIndex);
-    matchFound = true; // 무지개 보석은 항상 매치를 유발
+    matchFound = true;
   } else if (gem1?.special && gem2?.special) {
     await activateSpecialCombination(index1, index2);
-    matchFound = true; // 특수 보석 조합은 항상 매치를 유발
+    matchFound = true;
   } 
-  // [핵심 복구] 일반 보석을 옮겨서 매치가 발생하는지 확인하는 로직
+  // [핵심 수정] 일반 보석 매치 확인 로직 보완
   else {
+    // 움직인 두 위치 모두에서 매치가 있는지 확인합니다.
     const matches1 = findMatchesAt(index1);
     const matches2 = findMatchesAt(index2);
 
-    if (matches1.size > 0 || matches2.size > 0) {
+    if (matches1.size >= 3 || matches2.size >= 3) {
       matchFound = true;
     }
   }
 
-  // 최종적으로 매치가 있었는지 여부에 따라 처리
+  // 최종적으로 매치가 있었는지 여부에 따라 처리합니다.
   if (matchFound) {
-    await processBoard(); // 매치가 있었으면 보드 처리 시작
+    await processBoard(); // 매치가 있었으면 연쇄 반응 처리
   } else {
-    // 매치가 없었으면 원래 자리로 되돌림
+    // 매치가 없었으면 원래 자리로 되돌립니다.
     await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
     currentCombo = 0;
