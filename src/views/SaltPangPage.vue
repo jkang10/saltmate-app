@@ -615,8 +615,8 @@ const processBoard = async () => {
 // [핵심 수정] 4개 이상 매치 시 특수 효과를 추가하도록 checkAndClearMatches 함수 수정
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  const rows = [];
-  const cols = [];
+  // const rows = [];  <- 이 줄을 삭제
+  // const cols = [];  <- 이 줄을 삭제
 
   // 가로/세로 매치 확인 로직 (기존과 동일)
   for (let r=0; r<BOARD_SIZE; r++) { /* ... */ }
