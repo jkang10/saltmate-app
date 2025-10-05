@@ -615,12 +615,32 @@ const processBoard = async () => {
 // [핵심 수정] 4개 이상 매치 시 특수 효과를 추가하도록 checkAndClearMatches 함수 수정
 const checkAndClearMatches = async () => {
   const matches = new Set();
-  // const rows = [];  <- 이 줄을 삭제
-  // const cols = [];  <- 이 줄을 삭제
 
-  // 가로/세로 매치 확인 로직 (기존과 동일)
-  for (let r=0; r<BOARD_SIZE; r++) { /* ... */ }
-  for (let c=0; c<BOARD_SIZE; c++) { /* ... */ }
+  // [핵심 복구] 가로 3개 이상 매치되는 보석 찾기
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE - 2; c++) {
+      const index = r * BOARD_SIZE + c;
+      const gemType = board.value[index];
+      if (gemType && gemType === board.value[index + 1] && gemType === board.value[index + 2]) {
+        matches.add(index);
+        matches.add(index + 1);
+        matches.add(index + 2);
+      }
+    }
+  }
+
+  // [핵심 복구] 세로 3개 이상 매치되는 보석 찾기
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    for (let r = 0; r < BOARD_SIZE - 2; r++) {
+      const index = r * BOARD_SIZE + c;
+      const gemType = board.value[index];
+      if (gemType && gemType === board.value[index + BOARD_SIZE] && gemType === board.value[index + BOARD_SIZE * 2]) {
+        matches.add(index);
+        matches.add(index + BOARD_SIZE);
+        matches.add(index + BOARD_SIZE * 2);
+      }
+    }
+  }
 
   if (matches.size > 0) {
     playSound('match');
@@ -628,10 +648,8 @@ const checkAndClearMatches = async () => {
     currentCombo++;
     if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
     
-    // 4개 이상 매치 시 점수 보너스 및 이펙트 추가
     if (matches.size >= 4) {
-      score.value += (matches.size - 3) * 20; // 4개: +20, 5개: +40 추가 점수
-      // 이펙트를 위해 잠시 대기
+      score.value += (matches.size - 3) * 20;
       await new Promise(r => setTimeout(r, 150)); 
     }
 
@@ -654,9 +672,10 @@ const checkAndClearMatches = async () => {
       board.value[index] = null;
       explodingGems.value.delete(index);
     });
-    return true;
+    return true; // 매치된 항목이 있었음을 반환
   }
-  return false;
+
+  return false; // 매치된 항목이 없었음을 반환
 };
 
 const dropDownGems = () => {
