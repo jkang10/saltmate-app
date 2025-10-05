@@ -320,24 +320,28 @@ const handleCellInteraction = (index, eventType) => {
       selectedCell.value = null;
     }
   } 
-  else if (eventType === 'enter') {
-    if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
+else if (eventType === 'enter') {
+  if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
 
-    preventClick.value = true; 
-    const index1 = mouseDownIndex.value;
-    const index2 = index;
+  preventClick.value = true; 
+  const index1 = mouseDownIndex.value;
+  const index2 = index;
 
-    isDragging.value = false;
-    mouseDownIndex.value = null;
+  isDragging.value = false;
+  mouseDownIndex.value = null;
 
-	const r1 = Math.floor(index1 / BOARD_SIZE);
-	const r2 = Math.floor(index2 / BOARD_SIZE);
-	lastMoveDirection = (r1 === r2) ? 'h' : 'v';
+  const r1 = Math.floor(index1 / BOARD_SIZE);
+  const r2 = Math.floor(index2 / BOARD_SIZE);
+  // ▼▼▼ 이 두 줄을 추가해주세요 ▼▼▼
+  const c1 = index1 % BOARD_SIZE;
+  const c2 = index2 % BOARD_SIZE;
+  
+  lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
-    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
-      swapAndCheck(index1, index2);
-    }
+  if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) { // 이제 c1, c2를 사용할 수 있습니다.
+    swapAndCheck(index1, index2);
   }
+}
 };
 
 const getGemImage = (gem) => {
@@ -650,9 +654,9 @@ const swapAndCheck = async (index1, index2) => {
   const gem2 = board.value[index2];
 
   // [신규] 마지막 이동 방향 기록
-  const r1 = Math.floor(index1 / BOARD_SIZE), c1 = index1 % BOARD_SIZE;
-  const r2 = Math.floor(index2 / BOARD_SIZE), c2 = index2 % BOARD_SIZE;
-  lastMoveDirection = (r1 === r2) ? 'h' : 'v';
+	const r1 = Math.floor(index1 / BOARD_SIZE);
+	const r2 = Math.floor(index2 / BOARD_SIZE);
+	lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
   // [신규] 특수 보석 조합 로직 추가
   if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
