@@ -643,50 +643,64 @@ const handleTouchEnd = () => {
 };
 
 const swapAndCheck = async (index1, index2) => {
-  if (gameMode.value === 'infinite') {
-    if (movesLeft.value <= 0) return;
-    movesLeft.value--;
-  }
+  if (isProcessing.value) return; // 중복 실행 방지
   isProcessing.value = true;
   selectedCell.value = null; // 선택 해제
+
+  if (gameMode.value === 'infinite') {
+    if (movesLeft.value <= 0) {
+      isProcessing.value = false;
+      return;
+    }
+    movesLeft.value--;
+  }
 
   const gem1 = board.value[index1];
   const gem2 = board.value[index2];
 
-  // [신규] 마지막 이동 방향 기록
-	const r1 = Math.floor(index1 / BOARD_SIZE);
-	const r2 = Math.floor(index2 / BOARD_SIZE);
-	lastMoveDirection = (r1 === r2) ? 'h' : 'v';
+  const r1 = Math.floor(index1 / BOARD_SIZE), r2 = Math.floor(index2 / BOARD_SIZE);
+  lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
-  // [신규] 특수 보석 조합 로직 추가
+  // [핵심 수정] 모든 경우에 대해 일단 보드를 시각적으로 바꿉니다.
+  [board.value[index1], board.value[index2]] = [gem2, gem1];
+  await new Promise(r => setTimeout(r, 150));
+
+  let matchFound = false;
+
+  // 특수 보석 관련 로직
   if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
-    // 무지개 보석과 조합 시 특별 로직 실행
     const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
     const otherIndex = rainbowIndex === index1 ? index2 : index1;
     await activateRainbowCombination(rainbowIndex, otherIndex);
+    matchFound = true; // 무지개 보석은 항상 매치를 유발
   } else if (gem1?.special && gem2?.special) {
-    // 특수 보석끼리 조합
-    [board.value[index1], board.value[index2]] = [gem2, gem1]; // 시각적 스왑
-    await new Promise(r => setTimeout(r, 150));
     await activateSpecialCombination(index1, index2);
-  } else {
-    // 일반 스왑 로직
-    [board.value[index1], board.value[index2]] = [gem2, gem1];
-    await new Promise(r => setTimeout(r, 150));
-
+    matchFound = true; // 특수 보석 조합은 항상 매치를 유발
+  } 
+  // [핵심 복구] 일반 보석을 옮겨서 매치가 발생하는지 확인하는 로직
+  else {
     const matches1 = findMatchesAt(index1);
     const matches2 = findMatchesAt(index2);
 
-    if (matches1.size === 0 && matches2.size === 0) {
-      await new Promise(r => setTimeout(r, 150));
-      [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
-      currentCombo = 0;
-    } else {
-      await processBoard();
+    if (matches1.size > 0 || matches2.size > 0) {
+      matchFound = true;
     }
   }
 
-  if (gameMode.value === 'infinite' && movesLeft.value <= 0) endGame();
+  // 최종적으로 매치가 있었는지 여부에 따라 처리
+  if (matchFound) {
+    await processBoard(); // 매치가 있었으면 보드 처리 시작
+  } else {
+    // 매치가 없었으면 원래 자리로 되돌림
+    await new Promise(r => setTimeout(r, 150));
+    [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
+    currentCombo = 0;
+  }
+
+  if (gameMode.value === 'infinite' && movesLeft.value <= 0) {
+    endGame();
+  }
+
   isProcessing.value = false;
 };
 
