@@ -330,8 +330,9 @@ const handleCellInteraction = (index, eventType) => {
     isDragging.value = false;
     mouseDownIndex.value = null;
 
-    const r1 = Math.floor(index1 / BOARD_SIZE), c1 = index1 % BOARD_SIZE;
-    const r2 = Math.floor(index2 / BOARD_SIZE), c2 = index2 % BOARD_SIZE;
+	const r1 = Math.floor(index1 / BOARD_SIZE);
+	const r2 = Math.floor(index2 / BOARD_SIZE);
+	lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
     if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
       swapAndCheck(index1, index2);
@@ -686,16 +687,17 @@ const swapAndCheck = async (index1, index2) => {
 };
 
 const processBoard = async () => {
-    while(true) {
-        const matchesFound = await checkAndClearMatches();
-        if (!matchesFound) break;
-
-        await new Promise(r => setTimeout(r, 200));
-        dropDownGems();
-        await new Promise(r => setTimeout(r, 200));
-        fillEmptyCells();
-        await new Promise(r => setTimeout(r, 200));
-    }
+    let matchesFound;
+    do {
+        matchesFound = await checkAndClearMatches();
+        if (matchesFound) {
+            await new Promise(r => setTimeout(r, 200));
+            dropDownGems();
+            await new Promise(r => setTimeout(r, 200));
+            fillEmptyCells();
+            await new Promise(r => setTimeout(r, 200));
+        }
+    } while (matchesFound);
     currentCombo = 0;
 };
 
