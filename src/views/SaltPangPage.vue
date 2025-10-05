@@ -289,11 +289,8 @@ const handleCellInteraction = (index, eventType) => {
     mouseDownIndex.value = index;
     isDragging.value = true;
     preventClick.value = false;
-
-    // [신규] 무지개 보석 즉시 발동 로직 (클릭 시)
     if (clickedGem?.special === 'rainbow') {
-      isProcessing.value = true;
-      selectedCell.value = index; // 무지개 보석을 선택 상태로 만듦
+      selectedCell.value = index;
       return;
     }
   } 
@@ -307,41 +304,44 @@ const handleCellInteraction = (index, eventType) => {
     isDragging.value = false;
     mouseDownIndex.value = null;
 
-    if (selectedCell.value !== null && board.value[selectedCell.value]?.special === 'rainbow') {
-        swapAndCheck(selectedCell.value, index);
-    } else if (selectedCell.value === null) {
-      selectedCell.value = index;
-    } else {
-      const r1 = Math.floor(selectedCell.value / BOARD_SIZE), c1 = selectedCell.value % BOARD_SIZE;
-      const r2 = Math.floor(index / BOARD_SIZE), c2 = index % BOARD_SIZE;
+    if (selectedCell.value === index) {
+      selectedCell.value = null; // 같은 셀 다시 클릭 시 선택 해제
+      return;
+    }
+
+    if (selectedCell.value !== null) {
+      const r1 = Math.floor(selectedCell.value / BOARD_SIZE);
+      const c1 = selectedCell.value % BOARD_SIZE;
+      const r2 = Math.floor(index / BOARD_SIZE);
+      const c2 = index % BOARD_SIZE;
       if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
         swapAndCheck(selectedCell.value, index);
+      } else {
+        selectedCell.value = index; // 인접하지 않으면 새로 선택
       }
-      selectedCell.value = null;
+    } else {
+      selectedCell.value = index; // 첫 선택
     }
   } 
-else if (eventType === 'enter') {
-  if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
+  else if (eventType === 'enter') {
+    if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
 
-  preventClick.value = true; 
-  const index1 = mouseDownIndex.value;
-  const index2 = index;
+    preventClick.value = true; 
+    const index1 = mouseDownIndex.value;
+    const index2 = index;
 
-  isDragging.value = false;
-  mouseDownIndex.value = null;
+    isDragging.value = false;
+    mouseDownIndex.value = null;
 
-  const r1 = Math.floor(index1 / BOARD_SIZE);
-  const r2 = Math.floor(index2 / BOARD_SIZE);
-  // ▼▼▼ 이 두 줄을 추가해주세요 ▼▼▼
-  const c1 = index1 % BOARD_SIZE;
-  const c2 = index2 % BOARD_SIZE;
-  
-  lastMoveDirection = (r1 === r2) ? 'h' : 'v';
-
-  if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) { // 이제 c1, c2를 사용할 수 있습니다.
-    swapAndCheck(index1, index2);
+    const r1 = Math.floor(index1 / BOARD_SIZE);
+    const c1 = index1 % BOARD_SIZE;
+    const r2 = Math.floor(index2 / BOARD_SIZE);
+    const c2 = index2 % BOARD_SIZE;
+    
+    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+      swapAndCheck(index1, index2);
+    }
   }
-}
 };
 
 const getGemImage = (gem) => {
@@ -662,13 +662,11 @@ const swapAndCheck = async (index1, index2) => {
   const r2 = Math.floor(index2 / BOARD_SIZE);
   lastMoveDirection = (r1 === r2) ? 'h' : 'v';
 
-  // 먼저 보드를 시각적으로 바꿉니다.
   [board.value[index1], board.value[index2]] = [gem2, gem1];
   await new Promise(r => setTimeout(r, 150));
 
   let matchFound = false;
 
-  // 특수 보석 관련 로직 (기존과 동일)
   if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
     const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
     const otherIndex = rainbowIndex === index1 ? index2 : index1;
@@ -677,23 +675,17 @@ const swapAndCheck = async (index1, index2) => {
   } else if (gem1?.special && gem2?.special) {
     await activateSpecialCombination(index1, index2);
     matchFound = true;
-  } 
-  // [핵심 수정] 일반 보석 매치 확인 로직 보완
-  else {
-    // 움직인 두 위치 모두에서 매치가 있는지 확인합니다.
+  } else {
     const matches1 = findMatchesAt(index1);
     const matches2 = findMatchesAt(index2);
-
     if (matches1.size >= 3 || matches2.size >= 3) {
       matchFound = true;
     }
   }
 
-  // 최종적으로 매치가 있었는지 여부에 따라 처리합니다.
   if (matchFound) {
-    await processBoard(); // 매치가 있었으면 연쇄 반응 처리
+    await processBoard();
   } else {
-    // 매치가 없었으면 원래 자리로 되돌립니다.
     await new Promise(r => setTimeout(r, 150));
     [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
     currentCombo = 0;
@@ -702,23 +694,23 @@ const swapAndCheck = async (index1, index2) => {
   if (gameMode.value === 'infinite' && movesLeft.value <= 0) {
     endGame();
   }
-
   isProcessing.value = false;
 };
 
 const processBoard = async () => {
-    let matchesFound;
-    do {
-        matchesFound = await checkAndClearMatches();
-        if (matchesFound) {
-            await new Promise(r => setTimeout(r, 200));
-            dropDownGems();
-            await new Promise(r => setTimeout(r, 200));
-            fillEmptyCells();
-            await new Promise(r => setTimeout(r, 200));
-        }
-    } while (matchesFound);
-    currentCombo = 0;
+  let hasMoreMatches;
+  do {
+    hasMoreMatches = await checkAndClearMatches();
+    if (hasMoreMatches) {
+      await new Promise(r => setTimeout(r, 200));
+      dropDownGems();
+      await new Promise(r => setTimeout(r, 200));
+      fillEmptyCells();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  } while (hasMoreMatches);
+  
+  currentCombo = 0;
 };
 
 const checkAndClearMatches = async () => {
