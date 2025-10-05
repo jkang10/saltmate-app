@@ -125,36 +125,36 @@
           class="game-board"
           :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }"
         >
-	<div
-	  v-for="(cell, index) in board"
-	  :key="index"
-	  class="cell"
-	  :class="{ selected: selectedCell === index }"
-	  
-	  @mousedown="handleCellInteraction(index, 'down')"
-	  @mouseup="handleCellInteraction(index, 'up')"
-	  @mouseenter="handleCellInteraction(index, 'enter')"
-	  @dragstart.prevent
+          <div
+            v-for="(cell, index) in board"
+            :key="index"
+            class="cell"
+            :class="{ selected: selectedCell === index }"
+            
+            @mousedown="handleCellInteraction(index, 'down')"
+            @mouseup="handleCellInteraction(index, 'up')"
+            @mouseenter="handleCellInteraction(index, 'enter')"
+            @dragstart.prevent
 
-	  @touchstart.prevent="handleTouchStart(index, $event)"
-	  @touchmove="handleTouchMove($event)"
-	  @touchend="handleTouchEnd()"
-	>
-	  <transition name="gem-fall">
-	    <div v-if="cell !== null" class="gem-image-wrapper" :class="getSpecialGemClass(cell)">
-	      <img
-		:src="getGemImage(cell)"
-		class="gem-image"
-		:class="{ 
-		  'clearing': explodingGems.has(index),
-		  'special-clear': explodingGems.has(index) && explodingGems.size >= 4
-		}"
-		alt="Gem"
-	      />
-	      <div class="gem-special-effect"></div>
-	    </div>
-	    </transition>
-	</div>
+            @touchstart.prevent="handleTouchStart(index, $event)"
+            @touchmove="handleTouchMove($event)"
+            @touchend="handleTouchEnd()"
+          >
+            <transition name="gem-fall">
+              <div v-if="cell !== null" class="gem-image-wrapper" :class="getSpecialGemClass(cell)">
+                <img
+                  :src="getGemImage(cell)"
+                  class="gem-image"
+                  :class="{ 
+                    'clearing': explodingGems.has(index),
+                    'special-clear': explodingGems.has(index) && explodingGems.size >= 4
+                  }"
+                  alt="Gem"
+                />
+                <div class="gem-special-effect"></div>
+              </div>
+            </transition>
+          </div>
         </div>
         <div v-if="isScoreBoostActive" class="score-boost-overlay">
           SCORE x2!
@@ -210,6 +210,7 @@ const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
 const playCount = reactive({ classic: 0, timeAttack: 0 });
+const jackpotEffect = reactive({ active: false, amount: 0 });
 
 // 아이템 관련 상태
 const items = ref([
@@ -254,13 +255,13 @@ sounds.background.volume = 0.3;
 let timerInterval = null;
 let sessionId = null;
 let scoreBoostTimeout = null;
-let lastMoveDirection = 'h'; // [신규] 줄무늬 보석 방향 결정을 위한 변수
+let lastMoveDirection = 'h';
 
 // --- 계산된 속성 ---
 const isRankedPlayable = computed(() => {
   const today = new Date();
   const day = today.getDay();
-  return day === 0 || day === 6; // 토, 일
+  return day === 0 || day === 6;
 });
 
 const currentEntryFee = computed(() => {
@@ -269,9 +270,7 @@ const currentEntryFee = computed(() => {
     if (playCount.classic >= 15) return 200;
     return 100;
   }
-  if (gameMode.value === 'timeAttack') { 
-    return "400 ~";
-  }
+  if (gameMode.value === 'timeAttack') return "400 ~";
   if (gameMode.value === 'infinite') return 300;
   if (gameMode.value === 'ranked') return 500;
   return 100;
@@ -305,7 +304,7 @@ const handleCellInteraction = (index, eventType) => {
     mouseDownIndex.value = null;
 
     if (selectedCell.value === index) {
-      selectedCell.value = null; // 같은 셀 다시 클릭 시 선택 해제
+      selectedCell.value = null;
       return;
     }
 
@@ -317,10 +316,10 @@ const handleCellInteraction = (index, eventType) => {
       if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
         swapAndCheck(selectedCell.value, index);
       } else {
-        selectedCell.value = index; // 인접하지 않으면 새로 선택
+        selectedCell.value = index;
       }
     } else {
-      selectedCell.value = index; // 첫 선택
+      selectedCell.value = index;
     }
   } 
   else if (eventType === 'enter') {
@@ -354,7 +353,6 @@ const getGemImage = (gem) => {
   }
 };
 
-// [신규] 특수 보석 효과를 위한 CSS 클래스 반환
 const getSpecialGemClass = (gem) => {
     if(typeof gem !== 'object' || !gem.special) return '';
     if(gem.special === 'striped-h') return 'striped-h';
@@ -362,6 +360,28 @@ const getSpecialGemClass = (gem) => {
     if(gem.special === 'bomb') return 'bomb';
     if(gem.special === 'rainbow') return 'rainbow';
     return '';
+};
+
+const triggerJackpotEffect = (amount) => {
+  jackpotEffect.amount = amount;
+  jackpotEffect.active = true;
+  setTimeout(() => {
+    jackpotEffect.active = false;
+  }, 3000);
+};
+
+const fetchMissions = async () => {
+  error.value = '';
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
+    const result = await getMissionsFunc(); 
+    missions.daily = result.data.daily;
+    missions.weekly = result.data.weekly;
+  } catch (err) {
+    console.error("미션 불러오기 오류:", err);
+    error.value = `미션 로딩 실패: ${err.message}`;
+  }
 };
 
 const fetchPlayCount = async () => {
@@ -376,76 +396,6 @@ const fetchPlayCount = async () => {
   } else {
     playCount.classic = 0;
     playCount.timeAttack = 0;
-  }
-};
-
-// [신규] 잭팟 이펙트 상태 변수
-const jackpotEffect = reactive({
-  active: false,
-  amount: 0,
-});
-
-// [신규] 잭팟 이펙트를 활성화하는 함수
-const triggerJackpotEffect = (amount) => {
-  jackpotEffect.amount = amount;
-  jackpotEffect.active = true;
-  setTimeout(() => {
-    jackpotEffect.active = false;
-  }, 3000); // 3초 후 이펙트 사라짐
-};
-
-// [수정] 미션 데이터를 불러올 때, 서버에 현재 게임 통계를 함께 보내 진행도를 계산하도록 요청합니다.
-const fetchMissions = async () => {
-  error.value = '';
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
-    // 서버에 게임 통계를 보내지 않으므로, 항상 초기 상태의 미션만 받아옵니다.
-    // 이 부분은 endGame에서 서버가 처리하도록 변경해야 합니다.
-    const result = await getMissionsFunc(); 
-    missions.daily = result.data.daily;
-    missions.weekly = result.data.weekly;
-  } catch (err) {
-    console.error("미션 불러오기 오류:", err);
-    error.value = `미션 로딩 실패: ${err.message}`;
-  }
-};
-
-
-// [수정] 게임이 끝났을 때 잭팟 당첨 여부를 확인하고 이펙트를 발생시킵니다.
-const endGame = async () => {
-  if (timerInterval) clearInterval(timerInterval);
-  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
-  isScoreBoostActive.value = false;
-  gameState.value = 'ended';
-  sounds.background.pause();
-  sounds.background.currentTime = 0;
-
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const endSession = httpsCallable(functions, 'endSaltPangSession');
-    
-    const result = await endSession({ 
-      sessionId: sessionId, 
-      score: score.value,
-      gameStats: {
-        gemsMatched: gameStats.gemsMatched,
-        maxCombo: gameStats.maxCombo,
-        jackpotGemsMatched: gameStats.jackpotGemsMatched,
-        playCount: gameStats.playCount,
-      }
-    }); 
-    
-    awardedPoints.value = result.data.awardedPoints;
-
-    // [핵심 추가] 잭팟에 당첨되었는지 확인하고 이펙트 함수를 호출합니다.
-    if (result.data.jackpotWinnings && result.data.jackpotWinnings > 0) {
-      triggerJackpotEffect(result.data.jackpotWinnings);
-    }
-    
-  } catch (err) {
-    console.error("게임 종료 오류:", err);
-    error.value = `결과 처리 실패: ${err.message}`;
   }
 };
 
@@ -492,7 +442,7 @@ const createBoard = () => {
   let newBoard;
   do { 
     newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
-      if (Math.random() < 0.005) return 6; // Jackpot gem
+      if (Math.random() < 0.005) return 6;
       return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
     });
   } while (hasInitialMatches(newBoard)); 
@@ -593,6 +543,41 @@ const startGame = async () => {
   }
 };
 
+const endGame = async () => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
+  isScoreBoostActive.value = false;
+  gameState.value = 'ended';
+  sounds.background.pause();
+  sounds.background.currentTime = 0;
+
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const endSession = httpsCallable(functions, 'endSaltPangSession');
+    
+    const result = await endSession({ 
+      sessionId: sessionId, 
+      score: score.value,
+      gameStats: {
+        gemsMatched: gameStats.gemsMatched,
+        maxCombo: gameStats.maxCombo,
+        jackpotGemsMatched: gameStats.jackpotGemsMatched,
+        playCount: gameStats.playCount,
+      }
+    }); 
+    
+    awardedPoints.value = result.data.awardedPoints;
+
+    if (result.data.jackpotWinnings && result.data.jackpotWinnings > 0) {
+      triggerJackpotEffect(result.data.jackpotWinnings);
+    }
+    
+  } catch (err) {
+    console.error("게임 종료 오류:", err);
+    error.value = `결과 처리 실패: ${err.message}`;
+  }
+};
+
 const resetGame = async () => {
   gameState.value = 'ready';
   sessionId = null;
@@ -687,7 +672,7 @@ const swapAndCheck = async (index1, index2) => {
     await processBoard();
   } else {
     await new Promise(r => setTimeout(r, 150));
-    [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
+    [board.value[index1], board.value[index2]] = [gem1, gem2];
     currentCombo = 0;
   }
 
@@ -721,20 +706,22 @@ const checkAndClearMatches = async () => {
   currentCombo++;
   if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
 
-  // [신규] 특수 보석 생성 로직
   const specialGemsToCreate = [];
   [...matches.byType.longH, ...matches.byType.longV].forEach(match => {
+    let bestIndex = -1;
+    if(match.includes(selectedCell.value)) bestIndex = selectedCell.value;
+    else bestIndex = match[1];
+
     if (match.length >= 5) {
-      specialGemsToCreate.push({ index: match[2], type: gameMode.value === 'ranked' ? 'rainbow' : 'time' });
+      specialGemsToCreate.push({ index: bestIndex, type: gameMode.value === 'ranked' ? 'rainbow' : 'time' });
     } else if (match.length === 4) {
-      specialGemsToCreate.push({ index: match[1], type: lastMoveDirection === 'h' ? 'striped-v' : 'striped-h' });
+      specialGemsToCreate.push({ index: bestIndex, type: lastMoveDirection === 'h' ? 'striped-v' : 'striped-h' });
     }
   });
    matches.byType.shape.forEach(match => {
      specialGemsToCreate.push({ index: match.center, type: 'bomb' });
   });
 
-  // [신규] 활성화될 특수 보석 찾기
   let gemsToActivate = new Set();
   matches.all.forEach(index => {
     const gem = board.value[index];
@@ -743,29 +730,26 @@ const checkAndClearMatches = async () => {
     }
   });
   
-  // 일반 보석 제거
-  let regularMatches = new Set([...matches.all].filter(index => !gemsToActivate.has(index)));
+  let regularMatches = new Set([...matches.all]);
+  specialGemsToCreate.forEach(sg => regularMatches.delete(sg.index));
+  
   await clearGems(regularMatches);
 
-  // 특수 보석 생성
   specialGemsToCreate.forEach(special => {
-      const baseGemType = board.value[special.index]?.type || Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+      const originalGem = board.value[special.index];
+      const baseGemType = originalGem?.type || (typeof originalGem === 'number' ? originalGem : Math.floor(Math.random() * NUM_GEM_TYPES) + 1);
       
-      // 5개 일렬 매치 (시간/무지개 보석)
       if (special.type === 'time' || special.type === 'rainbow') {
         board.value[special.index] = { type: baseGemType, special: special.type };
       }
-      // 4개 일렬 매치 (줄무늬 보석)
       else if (special.type === 'striped-h' || special.type === 'striped-v') {
          board.value[special.index] = { type: baseGemType, special: special.type };
       }
-      // L, T자 매치 (폭탄 보석)
       else if (special.type === 'bomb') {
          board.value[special.index] = { type: baseGemType, special: 'bomb' };
       }
   });
 
-  // 특수 보석 활성화
   if(gemsToActivate.size > 0) {
       await activateSpecialGems(gemsToActivate);
   }
@@ -773,7 +757,6 @@ const checkAndClearMatches = async () => {
   return true;
 };
 
-// [신규] 보드를 스캔하여 모든 매치를 찾는 함수
 const findMatchesOnBoard = () => {
   const matches = new Set();
   const longH = [], longV = [], shapes = [];
@@ -781,8 +764,17 @@ const findMatchesOnBoard = () => {
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let line = [r * BOARD_SIZE + c];
-      while (c + line.length < BOARD_SIZE && board.value[line[0]]?.type && board.value[line[0]]?.type === board.value[r * BOARD_SIZE + c + line.length]?.type) {
-        line.push(r * BOARD_SIZE + c + line.length);
+      const firstGemType = board.value[line[0]]?.type || board.value[line[0]];
+      if(!firstGemType) continue;
+
+      while (c + line.length < BOARD_SIZE) {
+        const nextIndex = r * BOARD_SIZE + c + line.length;
+        const nextGemType = board.value[nextIndex]?.type || board.value[nextIndex];
+        if (firstGemType === nextGemType) {
+          line.push(nextIndex);
+        } else {
+          break;
+        }
       }
       if (line.length >= 3) {
         line.forEach(i => matches.add(i));
@@ -795,8 +787,17 @@ const findMatchesOnBoard = () => {
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let line = [r * BOARD_SIZE + c];
-      while (r + line.length < BOARD_SIZE && board.value[line[0]]?.type && board.value[line[0]]?.type === board.value[(r + line.length) * BOARD_SIZE + c]?.type) {
-        line.push((r + line.length) * BOARD_SIZE + c);
+      const firstGemType = board.value[line[0]]?.type || board.value[line[0]];
+      if(!firstGemType) continue;
+
+      while (r + line.length < BOARD_SIZE) {
+        const nextIndex = (r + line.length) * BOARD_SIZE + c;
+        const nextGemType = board.value[nextIndex]?.type || board.value[nextIndex];
+        if(firstGemType === nextGemType) {
+          line.push(nextIndex);
+        } else {
+          break;
+        }
       }
       if (line.length >= 3) {
         line.forEach(i => matches.add(i));
@@ -806,18 +807,19 @@ const findMatchesOnBoard = () => {
     }
   }
   
-  for (let r = 0; r < BOARD_SIZE - 1; r++) {
-    for (let c = 0; c < BOARD_SIZE - 1; c++) {
+  for (let r = 0; r < BOARD_SIZE - 2; r++) {
+    for (let c = 0; c < BOARD_SIZE - 2; c++) {
       const i = r * BOARD_SIZE + c;
-      const hMatch = [i, i + 1, i + 2].filter(idx => c < BOARD_SIZE - 2 && board.value[i]?.type && board.value[i]?.type === board.value[idx]?.type).length === 3;
-      const vMatch = [i, i + BOARD_SIZE, i + 2*BOARD_SIZE].filter(idx => r < BOARD_SIZE - 2 && board.value[i]?.type && board.value[i]?.type === board.value[idx]?.type).length === 3;
+      const p = board.value[i]?.type || board.value[i];
+      if(!p) continue;
 
-      if(hMatch && vMatch) {
-         const centerGem = board.value[i];
-         const crossGems = [ board.value[i+1], board.value[i+2], board.value[i+BOARD_SIZE], board.value[i+2*BOARD_SIZE] ];
-         if(crossGems.every(g => g?.type === centerGem.type)) {
-            shapes.push({center: i});
-         }
+      const right1 = board.value[i+1]?.type || board.value[i+1];
+      const right2 = board.value[i+2]?.type || board.value[i+2];
+      const down1 = board.value[i+BOARD_SIZE]?.type || board.value[i+BOARD_SIZE];
+      const down2 = board.value[i+2*BOARD_SIZE]?.type || board.value[i+2*BOARD_SIZE];
+      
+      if (p === right1 && p === down1) {
+        if(p === (board.value[i+BOARD_SIZE+1]?.type || board.value[i+BOARD_SIZE+1])) shapes.push({center: i});
       }
     }
   }
@@ -825,34 +827,41 @@ const findMatchesOnBoard = () => {
   return { all: matches, byType: { longH, longV, shape: shapes } };
 };
 
-// [신규] 특정 위치의 매치를 찾는 헬퍼 함수
 const findMatchesAt = (index) => {
     const matches = new Set([index]);
-    const type = board.value[index]?.type;
+    const type = board.value[index]?.type || board.value[index];
     if (!type) return new Set();
 
     const r = Math.floor(index / BOARD_SIZE), c = index % BOARD_SIZE;
     
-    // Horizontal
     let hLine = [index];
-    for (let i = c - 1; i >= 0 && board.value[r * BOARD_SIZE + i]?.type === type; i--) hLine.unshift(r * BOARD_SIZE + i);
-    for (let i = c + 1; i < BOARD_SIZE && board.value[r * BOARD_SIZE + i]?.type === type; i++) hLine.push(r * BOARD_SIZE + i);
+    for (let i = c - 1; i >= 0; i--) {
+        const gemType = board.value[r * BOARD_SIZE + i]?.type || board.value[r * BOARD_SIZE + i];
+        if (gemType === type) hLine.unshift(r * BOARD_SIZE + i); else break;
+    }
+    for (let i = c + 1; i < BOARD_SIZE; i++) {
+        const gemType = board.value[r * BOARD_SIZE + i]?.type || board.value[r * BOARD_SIZE + i];
+        if (gemType === type) hLine.push(r * BOARD_SIZE + i); else break;
+    }
     if (hLine.length >= 3) hLine.forEach(i => matches.add(i));
 
-    // Vertical
     let vLine = [index];
-    for (let i = r - 1; i >= 0 && board.value[i * BOARD_SIZE + c]?.type === type; i--) vLine.unshift(i * BOARD_SIZE + c);
-    for (let i = r + 1; i < BOARD_SIZE && board.value[i * BOARD_SIZE + c]?.type === type; i++) vLine.push(i * BOARD_SIZE + c);
+    for (let i = r - 1; i >= 0; i--) {
+        const gemType = board.value[i * BOARD_SIZE + c]?.type || board.value[i * BOARD_SIZE + c];
+        if (gemType === type) vLine.unshift(i * BOARD_SIZE + c); else break;
+    }
+    for (let i = r + 1; i < BOARD_SIZE; i++) {
+        const gemType = board.value[i * BOARD_SIZE + c]?.type || board.value[i * BOARD_SIZE + c];
+        if (gemType === type) vLine.push(i * BOARD_SIZE + c); else break;
+    }
     if (vLine.length >= 3) vLine.forEach(i => matches.add(i));
     
     return matches.size >= 3 ? matches : new Set();
 };
 
-// [신규] 보석을 제거하고 점수를 올리는 함수
 const clearGems = async (indices) => {
   if (indices.size === 0) return;
   
-  // 점수 계산 및 통계 업데이트
   let scoreMultiplier = isScoreBoostActive.value ? 2 : 1;
   score.value += indices.size * 10 * scoreMultiplier;
   
@@ -876,7 +885,6 @@ const clearGems = async (indices) => {
   });
 };
 
-// [신규] 특수 보석을 활성화하는 함수
 const activateSpecialGems = async (indices) => {
     let affectedGems = new Set(indices);
     let newSpecialGemsToActivate = new Set();
@@ -918,13 +926,11 @@ const activateSpecialGems = async (indices) => {
     }
 };
 
-// [신규] 특수 보석 조합을 활성화하는 함수
 const activateSpecialCombination = async (index1, index2) => {
     const gem1 = board.value[index1];
     const gem2 = board.value[index2];
     let affectedGems = new Set([index1, index2]);
     
-    // 줄무늬 + 폭탄 조합: 가로/세로 3줄 폭발
     if ((gem1.special.startsWith('striped') && gem2.special === 'bomb') || (gem2.special.startsWith('striped') && gem1.special === 'bomb')) {
         const r = Math.floor(index1 / BOARD_SIZE);
         const c = index1 % BOARD_SIZE;
@@ -933,7 +939,6 @@ const activateSpecialCombination = async (index1, index2) => {
             affectedGems.add(i * BOARD_SIZE + c);
         }
     }
-    // 폭탄 + 폭탄 조합: 5x5 폭발
     else if (gem1.special === 'bomb' && gem2.special === 'bomb') {
         const r = Math.floor(index1 / BOARD_SIZE);
         const c = index1 % BOARD_SIZE;
@@ -946,48 +951,44 @@ const activateSpecialCombination = async (index1, index2) => {
             }
         }
     }
-    // 줄무늬 + 줄무늬 조합: 십자(+) 폭발
     else if (gem1.special.startsWith('striped') && gem2.special.startsWith('striped')) {
         const r = Math.floor(index1 / BOARD_SIZE);
         const c = index1 % BOARD_SIZE;
         for(let i=0; i<BOARD_SIZE; i++) {
-            affectedGems.add(r * BOARD_SIZE + i); // 가로 한 줄
-            affectedGems.add(i * BOARD_SIZE + c); // 세로 한 줄
+            affectedGems.add(r * BOARD_SIZE + i);
+            affectedGems.add(i * BOARD_SIZE + c);
         }
     }
 
     await clearGems(affectedGems);
 };
 
-// [신규] 무지개 보석 조합을 활성화하는 함수
 const activateRainbowCombination = async (rainbowIndex, otherIndex) => {
     const otherGem = board.value[otherIndex];
     let affectedGems = new Set([rainbowIndex]);
 
-    // 무지개 + 일반 보석
     if (!otherGem?.special) {
         const targetType = otherGem.type;
         for (let i = 0; i < board.value.length; i++) {
             const gem = board.value[i];
-            if (gem?.type === targetType) {
+            const gemType = gem?.type || gem;
+            if (gemType === targetType) {
                 affectedGems.add(i);
             }
         }
     }
-    // 무지개 + 특수 보석
     else {
         const targetType = otherGem.type;
         for (let i = 0; i < board.value.length; i++) {
             const gem = board.value[i];
-            if (gem?.type === targetType) {
-                // 일반 보석은 특수 보석으로 변환
-                board.value[i] = { ...gem, special: otherGem.special };
+            const gemType = gem?.type || gem;
+            if (gemType === targetType) {
+                board.value[i] = { type: gemType, special: otherGem.special };
                 affectedGems.add(i);
-
             }
         }
         await activateSpecialGems(affectedGems);
-        return; // clearGems를 직접 호출하지 않음
+        return;
     }
     await clearGems(affectedGems);
 };
