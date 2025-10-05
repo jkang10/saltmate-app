@@ -1,5 +1,13 @@
 <template>
   <div class="salt-pang-page">
+    <transition name="jackpot-fade">
+      <div v-if="jackpotEffect.active" class="jackpot-effect-overlay">
+        <div class="jackpot-content">
+          <div class="jackpot-title">JACKPOT!</div>
+          <div class="jackpot-prize">{{ jackpotEffect.amount.toLocaleString() }} SP!</div>
+        </div>
+      </div>
+    </transition>
     <header class="page-header">
       <h1>💎 솔트팡</h1>
       <p>같은 모양의 소금 결정을 3개 이상 맞춰보세요!</p>
@@ -117,34 +125,36 @@
           class="game-board"
           :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }"
         >
-          <div
-            v-for="(cell, index) in board"
-            :key="index"
-            class="cell"
-            :class="{ selected: selectedCell === index }"
-            
-            @mousedown="handleCellInteraction(index, 'down')"
-            @mouseup="handleCellInteraction(index, 'up')"
-            @mouseenter="handleCellInteraction(index, 'enter')"
-            @dragstart.prevent
+	<div
+	  v-for="(cell, index) in board"
+	  :key="index"
+	  class="cell"
+	  :class="{ selected: selectedCell === index }"
+	  
+	  @mousedown="handleCellInteraction(index, 'down')"
+	  @mouseup="handleCellInteraction(index, 'up')"
+	  @mouseenter="handleCellInteraction(index, 'enter')"
+	  @dragstart.prevent
 
-            @touchstart.prevent="handleTouchStart(index, $event)"
-            @touchmove="handleTouchMove($event)"
-            @touchend="handleTouchEnd()"
-          >
-            <transition name="gem-fall">
-              <img
-                v-if="cell !== null"
-                :src="getGemImage(cell)"
-                class="gem-image"
-                :class="{ 
-                  'clearing': explodingGems.has(index),
-                  'special-clear': explodingGems.has(index) && explodingGems.size >= 4
-                }"
-                alt="Gem"
-              />
-            </transition>
-          </div>
+	  @touchstart.prevent="handleTouchStart(index, $event)"
+	  @touchmove="handleTouchMove($event)"
+	  @touchend="handleTouchEnd()"
+	>
+	  <transition name="gem-fall">
+	    <div v-if="cell !== null" class="gem-image-wrapper" :class="getSpecialGemClass(cell)">
+	      <img
+		:src="getGemImage(cell)"
+		class="gem-image"
+		:class="{ 
+		  'clearing': explodingGems.has(index),
+		  'special-clear': explodingGems.has(index) && explodingGems.size >= 4
+		}"
+		alt="Gem"
+	      />
+	      <div class="gem-special-effect"></div>
+	    </div>
+	    </transition>
+	</div>
         </div>
         <div v-if="isScoreBoostActive" class="score-boost-overlay">
           SCORE x2!
@@ -244,12 +254,13 @@ sounds.background.volume = 0.3;
 let timerInterval = null;
 let sessionId = null;
 let scoreBoostTimeout = null;
+let lastMoveDirection = 'h'; // [신규] 줄무늬 보석 방향 결정을 위한 변수
 
 // --- 계산된 속성 ---
 const isRankedPlayable = computed(() => {
   const today = new Date();
   const day = today.getDay();
-  return day === 0 || day === 6;
+  return day === 0 || day === 6; // 토, 일
 });
 
 const currentEntryFee = computed(() => {
@@ -272,10 +283,19 @@ const handleCellInteraction = (index, eventType) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
   initAudioContext();
 
+  const clickedGem = board.value[index];
+
   if (eventType === 'down') {
     mouseDownIndex.value = index;
     isDragging.value = true;
     preventClick.value = false;
+
+    // [신규] 무지개 보석 즉시 발동 로직 (클릭 시)
+    if (clickedGem?.special === 'rainbow') {
+      isProcessing.value = true;
+      selectedCell.value = index; // 무지개 보석을 선택 상태로 만듦
+      return;
+    }
   } 
   else if (eventType === 'up') {
     if (preventClick.value) {
@@ -287,14 +307,13 @@ const handleCellInteraction = (index, eventType) => {
     isDragging.value = false;
     mouseDownIndex.value = null;
 
-    if (selectedCell.value === null) {
+    if (selectedCell.value !== null && board.value[selectedCell.value]?.special === 'rainbow') {
+        swapAndCheck(selectedCell.value, index);
+    } else if (selectedCell.value === null) {
       selectedCell.value = index;
     } else {
-      const r1 = Math.floor(selectedCell.value / BOARD_SIZE);
-      const c1 = selectedCell.value % BOARD_SIZE;
-      const r2 = Math.floor(index / BOARD_SIZE);
-      const c2 = index % BOARD_SIZE;
-
+      const r1 = Math.floor(selectedCell.value / BOARD_SIZE), c1 = selectedCell.value % BOARD_SIZE;
+      const r2 = Math.floor(index / BOARD_SIZE), c2 = index % BOARD_SIZE;
       if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
         swapAndCheck(selectedCell.value, index);
       }
@@ -304,32 +323,40 @@ const handleCellInteraction = (index, eventType) => {
   else if (eventType === 'enter') {
     if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
 
-    preventClick.value = true;
+    preventClick.value = true; 
     const index1 = mouseDownIndex.value;
     const index2 = index;
 
-    const r1 = Math.floor(index1 / BOARD_SIZE);
-    const c1 = index1 % BOARD_SIZE;
-    const r2 = Math.floor(index2 / BOARD_SIZE);
-    const c2 = index2 % BOARD_SIZE;
+    isDragging.value = false;
+    mouseDownIndex.value = null;
+
+    const r1 = Math.floor(index1 / BOARD_SIZE), c1 = index1 % BOARD_SIZE;
+    const r2 = Math.floor(index2 / BOARD_SIZE), c2 = index2 % BOARD_SIZE;
 
     if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
       swapAndCheck(index1, index2);
     }
-
-    isDragging.value = false;
-    mouseDownIndex.value = null;
   }
 };
 
-const getGemImage = (gemType) => {
-  if (gemType === null) return '';
+const getGemImage = (gem) => {
+  if (gem === null) return '';
   try {
-    const type = typeof gemType === 'object' ? gemType.type : gemType;
+    const type = typeof gem === 'object' ? gem.type : gem;
     return require(`@/assets/gems/gem_${type}.png`);
   } catch (e) {
     return require(`@/assets/logo.png`); 
   }
+};
+
+// [신규] 특수 보석 효과를 위한 CSS 클래스 반환
+const getSpecialGemClass = (gem) => {
+    if(typeof gem !== 'object' || !gem.special) return '';
+    if(gem.special === 'striped-h') return 'striped-h';
+    if(gem.special === 'striped-v') return 'striped-v';
+    if(gem.special === 'bomb') return 'bomb';
+    if(gem.special === 'rainbow') return 'rainbow';
+    return '';
 };
 
 const fetchPlayCount = async () => {
@@ -347,17 +374,73 @@ const fetchPlayCount = async () => {
   }
 };
 
+// [신규] 잭팟 이펙트 상태 변수
+const jackpotEffect = reactive({
+  active: false,
+  amount: 0,
+});
+
+// [신규] 잭팟 이펙트를 활성화하는 함수
+const triggerJackpotEffect = (amount) => {
+  jackpotEffect.amount = amount;
+  jackpotEffect.active = true;
+  setTimeout(() => {
+    jackpotEffect.active = false;
+  }, 3000); // 3초 후 이펙트 사라짐
+};
+
+// [수정] 미션 데이터를 불러올 때, 서버에 현재 게임 통계를 함께 보내 진행도를 계산하도록 요청합니다.
 const fetchMissions = async () => {
   error.value = '';
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
     const getMissionsFunc = httpsCallable(functions, 'getOrAssignSaltPangMissions');
-    const result = await getMissionsFunc();
+    // 서버에 게임 통계를 보내지 않으므로, 항상 초기 상태의 미션만 받아옵니다.
+    // 이 부분은 endGame에서 서버가 처리하도록 변경해야 합니다.
+    const result = await getMissionsFunc(); 
     missions.daily = result.data.daily;
     missions.weekly = result.data.weekly;
   } catch (err) {
     console.error("미션 불러오기 오류:", err);
     error.value = `미션 로딩 실패: ${err.message}`;
+  }
+};
+
+
+// [수정] 게임이 끝났을 때 잭팟 당첨 여부를 확인하고 이펙트를 발생시킵니다.
+const endGame = async () => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
+  isScoreBoostActive.value = false;
+  gameState.value = 'ended';
+  sounds.background.pause();
+  sounds.background.currentTime = 0;
+
+  try {
+    const functions = getFunctions(undefined, "asia-northeast3");
+    const endSession = httpsCallable(functions, 'endSaltPangSession');
+    
+    const result = await endSession({ 
+      sessionId: sessionId, 
+      score: score.value,
+      gameStats: {
+        gemsMatched: gameStats.gemsMatched,
+        maxCombo: gameStats.maxCombo,
+        jackpotGemsMatched: gameStats.jackpotGemsMatched,
+        playCount: gameStats.playCount,
+      }
+    }); 
+    
+    awardedPoints.value = result.data.awardedPoints;
+
+    // [핵심 추가] 잭팟에 당첨되었는지 확인하고 이펙트 함수를 호출합니다.
+    if (result.data.jackpotWinnings && result.data.jackpotWinnings > 0) {
+      triggerJackpotEffect(result.data.jackpotWinnings);
+    }
+    
+  } catch (err) {
+    console.error("게임 종료 오류:", err);
+    error.value = `결과 처리 실패: ${err.message}`;
   }
 };
 
@@ -505,36 +588,6 @@ const startGame = async () => {
   }
 };
 
-const endGame = async () => {
-  if (timerInterval) clearInterval(timerInterval);
-  if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
-  isScoreBoostActive.value = false;
-  gameState.value = 'ended';
-  sounds.background.pause();
-  sounds.background.currentTime = 0;
-
-  try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const endSession = httpsCallable(functions, 'endSaltPangSession');
-    
-    const result = await endSession({ 
-      sessionId: sessionId, 
-      score: score.value,
-      gameStats: {
-        gemsMatched: gameStats.gemsMatched,
-        maxCombo: gameStats.maxCombo,
-        jackpotGemsMatched: gameStats.jackpotGemsMatched,
-        playCount: gameStats.playCount,
-      }
-    }); 
-    
-    awardedPoints.value = result.data.awardedPoints;
-  } catch (err) {
-    console.error("게임 종료 오류:", err);
-    error.value = `결과 처리 실패: ${err.message}`;
-  }
-};
-
 const resetGame = async () => {
   gameState.value = 'ready';
   sessionId = null;
@@ -590,96 +643,339 @@ const swapAndCheck = async (index1, index2) => {
     movesLeft.value--;
   }
   isProcessing.value = true;
-  [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-  await new Promise(r => setTimeout(r, 150));
-  
-  const hasMatches = await checkAndClearMatches();
-  if (!hasMatches) {
+  selectedCell.value = null; // 선택 해제
+
+  const gem1 = board.value[index1];
+  const gem2 = board.value[index2];
+
+  // [신규] 마지막 이동 방향 기록
+  const r1 = Math.floor(index1 / BOARD_SIZE), c1 = index1 % BOARD_SIZE;
+  const r2 = Math.floor(index2 / BOARD_SIZE), c2 = index2 % BOARD_SIZE;
+  lastMoveDirection = (r1 === r2) ? 'h' : 'v';
+
+  // [신규] 특수 보석 조합 로직 추가
+  if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
+    // 무지개 보석과 조합 시 특별 로직 실행
+    const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
+    const otherIndex = rainbowIndex === index1 ? index2 : index1;
+    await activateRainbowCombination(rainbowIndex, otherIndex);
+  } else if (gem1?.special && gem2?.special) {
+    // 특수 보석끼리 조합
+    [board.value[index1], board.value[index2]] = [gem2, gem1]; // 시각적 스왑
     await new Promise(r => setTimeout(r, 150));
-    [board.value[index1], board.value[index2]] = [board.value[index2], board.value[index1]];
-    currentCombo = 0;
-    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
+    await activateSpecialCombination(index1, index2);
   } else {
-    while (await processBoard());
-    if (gameMode.value === 'infinite' && movesLeft.value === 0) endGame();
+    // 일반 스왑 로직
+    [board.value[index1], board.value[index2]] = [gem2, gem1];
+    await new Promise(r => setTimeout(r, 150));
+
+    const matches1 = findMatchesAt(index1);
+    const matches2 = findMatchesAt(index2);
+
+    if (matches1.size === 0 && matches2.size === 0) {
+      await new Promise(r => setTimeout(r, 150));
+      [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
+      currentCombo = 0;
+    } else {
+      await processBoard();
+    }
   }
+
+  if (gameMode.value === 'infinite' && movesLeft.value <= 0) endGame();
   isProcessing.value = false;
 };
 
 const processBoard = async () => {
-  await new Promise(r => setTimeout(r, 200));
-  dropDownGems();
-  await new Promise(r => setTimeout(r, 200));
-  fillEmptyCells();
-  await new Promise(r => setTimeout(r, 200));
-  const hasMoreMatches = await checkAndClearMatches();
-  if (!hasMoreMatches) {
+    while(true) {
+        const matchesFound = await checkAndClearMatches();
+        if (!matchesFound) break;
+
+        await new Promise(r => setTimeout(r, 200));
+        dropDownGems();
+        await new Promise(r => setTimeout(r, 200));
+        fillEmptyCells();
+        await new Promise(r => setTimeout(r, 200));
+    }
     currentCombo = 0;
-  }
-  return hasMoreMatches;
 };
 
 const checkAndClearMatches = async () => {
+  const matches = findMatchesOnBoard();
+  if (matches.all.size === 0) return false;
+
+  playSound('match');
+  currentCombo++;
+  if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
+
+  // [신규] 특수 보석 생성 로직
+  const specialGemsToCreate = [];
+  [...matches.byType.longH, ...matches.byType.longV].forEach(match => {
+    if (match.length >= 5) {
+      specialGemsToCreate.push({ index: match[2], type: gameMode.value === 'ranked' ? 'rainbow' : 'time' });
+    } else if (match.length === 4) {
+      specialGemsToCreate.push({ index: match[1], type: lastMoveDirection === 'h' ? 'striped-v' : 'striped-h' });
+    }
+  });
+   matches.byType.shape.forEach(match => {
+     specialGemsToCreate.push({ index: match.center, type: 'bomb' });
+  });
+
+  // [신규] 활성화될 특수 보석 찾기
+  let gemsToActivate = new Set();
+  matches.all.forEach(index => {
+    const gem = board.value[index];
+    if (gem?.special) {
+      gemsToActivate.add(index);
+    }
+  });
+  
+  // 일반 보석 제거
+  let regularMatches = new Set([...matches.all].filter(index => !gemsToActivate.has(index)));
+  await clearGems(regularMatches);
+
+  // 특수 보석 생성
+  specialGemsToCreate.forEach(special => {
+      const baseGemType = board.value[special.index]?.type || Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+      
+      // 5개 일렬 매치 (시간/무지개 보석)
+      if (special.type === 'time' || special.type === 'rainbow') {
+        board.value[special.index] = { type: baseGemType, special: special.type };
+      }
+      // 4개 일렬 매치 (줄무늬 보석)
+      else if (special.type === 'striped-h' || special.type === 'striped-v') {
+         board.value[special.index] = { type: baseGemType, special: special.type };
+      }
+      // L, T자 매치 (폭탄 보석)
+      else if (special.type === 'bomb') {
+         board.value[special.index] = { type: baseGemType, special: 'bomb' };
+      }
+  });
+
+  // 특수 보석 활성화
+  if(gemsToActivate.size > 0) {
+      await activateSpecialGems(gemsToActivate);
+  }
+
+  return true;
+};
+
+// [신규] 보드를 스캔하여 모든 매치를 찾는 함수
+const findMatchesOnBoard = () => {
   const matches = new Set();
+  const longH = [], longV = [], shapes = [];
 
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
-      const index = r * BOARD_SIZE + c;
-      const gemType = board.value[index];
-      if (gemType && gemType === board.value[index + 1] && gemType === board.value[index + 2]) {
-        matches.add(index);
-        matches.add(index + 1);
-        matches.add(index + 2);
+      let line = [r * BOARD_SIZE + c];
+      while (c + line.length < BOARD_SIZE && board.value[line[0]]?.type && board.value[line[0]]?.type === board.value[r * BOARD_SIZE + c + line.length]?.type) {
+        line.push(r * BOARD_SIZE + c + line.length);
+      }
+      if (line.length >= 3) {
+        line.forEach(i => matches.add(i));
+        if (line.length >= 4) longH.push(line);
+        c += line.length - 1;
       }
     }
   }
 
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
-      const index = r * BOARD_SIZE + c;
-      const gemType = board.value[index];
-      if (gemType && gemType === board.value[index + BOARD_SIZE] && gemType === board.value[index + BOARD_SIZE * 2]) {
-        matches.add(index);
-        matches.add(index + BOARD_SIZE);
-        matches.add(index + BOARD_SIZE * 2);
+      let line = [r * BOARD_SIZE + c];
+      while (r + line.length < BOARD_SIZE && board.value[line[0]]?.type && board.value[line[0]]?.type === board.value[(r + line.length) * BOARD_SIZE + c]?.type) {
+        line.push((r + line.length) * BOARD_SIZE + c);
+      }
+      if (line.length >= 3) {
+        line.forEach(i => matches.add(i));
+        if (line.length >= 4) longV.push(line);
+        r += line.length - 1;
+      }
+    }
+  }
+  
+  for (let r = 0; r < BOARD_SIZE - 1; r++) {
+    for (let c = 0; c < BOARD_SIZE - 1; c++) {
+      const i = r * BOARD_SIZE + c;
+      const hMatch = [i, i + 1, i + 2].filter(idx => c < BOARD_SIZE - 2 && board.value[i]?.type && board.value[i]?.type === board.value[idx]?.type).length === 3;
+      const vMatch = [i, i + BOARD_SIZE, i + 2*BOARD_SIZE].filter(idx => r < BOARD_SIZE - 2 && board.value[i]?.type && board.value[i]?.type === board.value[idx]?.type).length === 3;
+
+      if(hMatch && vMatch) {
+         const centerGem = board.value[i];
+         const crossGems = [ board.value[i+1], board.value[i+2], board.value[i+BOARD_SIZE], board.value[i+2*BOARD_SIZE] ];
+         if(crossGems.every(g => g?.type === centerGem.type)) {
+            shapes.push({center: i});
+         }
       }
     }
   }
 
-  if (matches.size > 0) {
-    playSound('match');
+  return { all: matches, byType: { longH, longV, shape: shapes } };
+};
+
+// [신규] 특정 위치의 매치를 찾는 헬퍼 함수
+const findMatchesAt = (index) => {
+    const matches = new Set([index]);
+    const type = board.value[index]?.type;
+    if (!type) return new Set();
+
+    const r = Math.floor(index / BOARD_SIZE), c = index % BOARD_SIZE;
     
-    currentCombo++;
-    if (currentCombo > gameStats.maxCombo) gameStats.maxCombo = currentCombo;
+    // Horizontal
+    let hLine = [index];
+    for (let i = c - 1; i >= 0 && board.value[r * BOARD_SIZE + i]?.type === type; i--) hLine.unshift(r * BOARD_SIZE + i);
+    for (let i = c + 1; i < BOARD_SIZE && board.value[r * BOARD_SIZE + i]?.type === type; i++) hLine.push(r * BOARD_SIZE + i);
+    if (hLine.length >= 3) hLine.forEach(i => matches.add(i));
+
+    // Vertical
+    let vLine = [index];
+    for (let i = r - 1; i >= 0 && board.value[i * BOARD_SIZE + c]?.type === type; i--) vLine.unshift(i * BOARD_SIZE + c);
+    for (let i = r + 1; i < BOARD_SIZE && board.value[i * BOARD_SIZE + c]?.type === type; i++) vLine.push(i * BOARD_SIZE + c);
+    if (vLine.length >= 3) vLine.forEach(i => matches.add(i));
     
-    if (matches.size >= 4) {
-      score.value += (matches.size - 3) * 20;
-      await new Promise(r => setTimeout(r, 150)); 
+    return matches.size >= 3 ? matches : new Set();
+};
+
+// [신규] 보석을 제거하고 점수를 올리는 함수
+const clearGems = async (indices) => {
+  if (indices.size === 0) return;
+  
+  // 점수 계산 및 통계 업데이트
+  let scoreMultiplier = isScoreBoostActive.value ? 2 : 1;
+  score.value += indices.size * 10 * scoreMultiplier;
+  
+  indices.forEach(index => {
+    explodingGems.value.add(index);
+    const gem = board.value[index];
+    if(gem){
+      const type = gem.type || gem;
+      if (type === 6) gameStats.jackpotGemsMatched++;
+      gameStats.gemsMatched[type] = (gameStats.gemsMatched[type] || 0) + 1;
+    }
+  });
+  
+  if (gameMode.value === 'timeAttack') timer.value += 1;
+
+  await new Promise(r => setTimeout(r, 300));
+
+  indices.forEach(index => {
+    board.value[index] = null;
+    explodingGems.value.delete(index);
+  });
+};
+
+// [신규] 특수 보석을 활성화하는 함수
+const activateSpecialGems = async (indices) => {
+    let affectedGems = new Set(indices);
+    let newSpecialGemsToActivate = new Set();
+
+    indices.forEach(index => {
+        const gem = board.value[index];
+        if (!gem?.special) return;
+
+        const r = Math.floor(index / BOARD_SIZE);
+        const c = index % BOARD_SIZE;
+
+        if (gem.special === 'striped-h') {
+            for (let i = 0; i < BOARD_SIZE; i++) affectedGems.add(r * BOARD_SIZE + i);
+        } else if (gem.special === 'striped-v') {
+            for (let i = 0; i < BOARD_SIZE; i++) affectedGems.add(i * BOARD_SIZE + c);
+        } else if (gem.special === 'bomb') {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                        affectedGems.add(nr * BOARD_SIZE + nc);
+                    }
+                }
+            }
+        }
+    });
+
+    affectedGems.forEach(index => {
+        const gem = board.value[index];
+        if (gem?.special && !indices.has(index)) {
+            newSpecialGemsToActivate.add(index);
+        }
+    });
+    
+    await clearGems(affectedGems);
+    
+    if (newSpecialGemsToActivate.size > 0) {
+        await activateSpecialGems(newSpecialGemsToActivate);
+    }
+};
+
+// [신규] 특수 보석 조합을 활성화하는 함수
+const activateSpecialCombination = async (index1, index2) => {
+    const gem1 = board.value[index1];
+    const gem2 = board.value[index2];
+    let affectedGems = new Set([index1, index2]);
+    
+    // 줄무늬 + 폭탄 조합: 가로/세로 3줄 폭발
+    if ((gem1.special.startsWith('striped') && gem2.special === 'bomb') || (gem2.special.startsWith('striped') && gem1.special === 'bomb')) {
+        const r = Math.floor(index1 / BOARD_SIZE);
+        const c = index1 % BOARD_SIZE;
+        for(let i=0; i<BOARD_SIZE; i++) {
+            affectedGems.add(r * BOARD_SIZE + i);
+            affectedGems.add(i * BOARD_SIZE + c);
+        }
+    }
+    // 폭탄 + 폭탄 조합: 5x5 폭발
+    else if (gem1.special === 'bomb' && gem2.special === 'bomb') {
+        const r = Math.floor(index1 / BOARD_SIZE);
+        const c = index1 % BOARD_SIZE;
+        for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                    affectedGems.add(nr * BOARD_SIZE + nc);
+                }
+            }
+        }
+    }
+    // 줄무늬 + 줄무늬 조합: 십자(+) 폭발
+    else if (gem1.special.startsWith('striped') && gem2.special.startsWith('striped')) {
+        const r = Math.floor(index1 / BOARD_SIZE);
+        const c = index1 % BOARD_SIZE;
+        for(let i=0; i<BOARD_SIZE; i++) {
+            affectedGems.add(r * BOARD_SIZE + i); // 가로 한 줄
+            affectedGems.add(i * BOARD_SIZE + c); // 세로 한 줄
+        }
     }
 
-    matches.forEach(index => {
-      explodingGems.value.add(index);
-      const gemType = board.value[index];
-      if (gemType) {
-        if(gemType === 6) gameStats.jackpotGemsMatched++;
-        gameStats.gemsMatched[gemType] = (gameStats.gemsMatched[gemType] || 0) + 1;
-      }
-    });
+    await clearGems(affectedGems);
+};
 
-    if (gameMode.value === 'timeAttack') timer.value += 1;
-    let scoreMultiplier = 1;
-    if (isScoreBoostActive.value) scoreMultiplier = 2;
-    score.value += matches.size * 10 * (matches.size > 3 ? 2 : 1) * scoreMultiplier;
-    
-    await new Promise(r => setTimeout(r, 300));
-    matches.forEach(index => {
-      board.value[index] = null;
-      explodingGems.value.delete(index);
-    });
-    return true;
-  }
+// [신규] 무지개 보석 조합을 활성화하는 함수
+const activateRainbowCombination = async (rainbowIndex, otherIndex) => {
+    const otherGem = board.value[otherIndex];
+    let affectedGems = new Set([rainbowIndex]);
 
-  return false;
+    // 무지개 + 일반 보석
+    if (!otherGem?.special) {
+        const targetType = otherGem.type;
+        for (let i = 0; i < board.value.length; i++) {
+            const gem = board.value[i];
+            if (gem?.type === targetType) {
+                affectedGems.add(i);
+            }
+        }
+    }
+    // 무지개 + 특수 보석
+    else {
+        const targetType = otherGem.type;
+        for (let i = 0; i < board.value.length; i++) {
+            const gem = board.value[i];
+            if (gem?.type === targetType) {
+                // 일반 보석은 특수 보석으로 변환
+                board.value[i] = { ...gem, special: otherGem.special };
+                affectedGems.add(i);
+
+            }
+        }
+        await activateSpecialGems(affectedGems);
+        return; // clearGems를 직접 호출하지 않음
+    }
+    await clearGems(affectedGems);
 };
 
 const dropDownGems = () => {
@@ -847,5 +1143,103 @@ onUnmounted(() => {
     transform: scale(0);
     opacity: 0;
   }
+}
+.gem-image-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gem-special-effect {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  pointer-events: none;
+}
+
+.striped-h .gem-special-effect {
+  background-image: linear-gradient(to bottom, transparent 45%, white 45%, white 55%, transparent 55%);
+}
+.striped-v .gem-special-effect {
+  background-image: linear-gradient(to right, transparent 45%, white 45%, white 55%, transparent 55%);
+}
+.bomb .gem-special-effect {
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.7) 20%, transparent 60%);
+  animation: bomb-pulse 1s infinite;
+}
+.rainbow .gem-special-effect {
+  animation: rainbow-spin 2s linear infinite;
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+@keyframes bomb-pulse {
+  0%, 100% { transform: scale(0.8); }
+  50% { transform: scale(1); }
+}
+@keyframes rainbow-spin {
+  to { transform: rotate(360deg); }
+}
+.jackpot-effect-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.jackpot-content {
+  text-align: center;
+  color: #fff;
+  animation: jackpot-show 3s forwards;
+}
+
+.jackpot-title {
+  font-size: 6em;
+  font-weight: 900;
+  text-transform: uppercase;
+  background: linear-gradient(45deg, #f7971e, #ffd200, #f7971e);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-animation 2s ease infinite, text-glow 1.5s infinite alternate;
+}
+
+.jackpot-prize {
+  font-size: 3em;
+  font-weight: 700;
+  text-shadow: 0 0 15px #fff;
+}
+
+.jackpot-fade-enter-active,
+.jackpot-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.jackpot-fade-enter-from,
+.jackpot-fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes jackpot-show {
+  0% { transform: scale(0.5); opacity: 0; }
+  20% { transform: scale(1.2); opacity: 1; }
+  40% { transform: scale(1); }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes text-glow {
+  from { text-shadow: 0 0 10px #ffd700, 0 0 20px #ffd700, 0 0 30px #f7971e; }
+  to { text-shadow: 0 0 20px #ffd700, 0 0 30px #f7971e, 0 0 40px #f7971e; }
 }
 </style>
