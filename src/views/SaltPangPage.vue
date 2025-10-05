@@ -668,7 +668,7 @@ const swapAndCheck = async (index1, index2) => {
 
   let matchFound = false;
 
-  // 특수 보석 관련 로직
+  // 특수 보석 관련 로직 (기존과 동일)
   if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
     const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
     const otherIndex = rainbowIndex === index1 ? index2 : index1;
@@ -678,10 +678,12 @@ const swapAndCheck = async (index1, index2) => {
     await activateSpecialCombination(index1, index2);
     matchFound = true;
   } 
-  // 일반 보석 매치 확인 로직
+  // [핵심 수정] 일반 보석 매치 확인 로직 보완
   else {
+    // 움직인 두 위치 모두에서 매치가 있는지 확인합니다.
     const matches1 = findMatchesAt(index1);
     const matches2 = findMatchesAt(index2);
+
     if (matches1.size >= 3 || matches2.size >= 3) {
       matchFound = true;
     }
@@ -689,7 +691,7 @@ const swapAndCheck = async (index1, index2) => {
 
   // 최종적으로 매치가 있었는지 여부에 따라 처리합니다.
   if (matchFound) {
-    await processBoard();
+    await processBoard(); // 매치가 있었으면 연쇄 반응 처리
   } else {
     // 매치가 없었으면 원래 자리로 되돌립니다.
     await new Promise(r => setTimeout(r, 150));
