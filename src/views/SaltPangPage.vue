@@ -113,35 +113,39 @@
           </button>
           <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
         </div>
-	<div class="game-board" 
-	     :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }"
-	     @mouseup="handleMouseUp"> <div
-	    v-for="(cell, index) in board" :key="index" class="cell"
-	    @click="selectCell(index)"
-	    :class="{ selected: selectedCell === index }"
-	    
-	    @mousedown="handleDragStart(index)"
-	    @mouseup="handleDrop(index)"
-	    @dragstart.prevent @touchstart="handleTouchStart(index, $event)"
-	    @touchmove="handleTouchMove($event)"
-	    @touchend="handleTouchEnd()"
-	  >
-	    <transition name="gem-fall">
-	      <img
-		v-if="cell !== null"
-		:src="getGemImage(cell)"
-		class="gem-image"
-		
-		:class="{ 
-		  'clearing': explodingGems.has(index),
-		  'special-clear': explodingGems.has(index) && explodingGems.size >= 4
-		}"
-		
-		alt="Gem"
-	      />
-	    </transition>
-	  </div>
-	</div>
+        <div
+          class="game-board"
+          :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }"
+        >
+          <div
+            v-for="(cell, index) in board"
+            :key="index"
+            class="cell"
+            :class="{ selected: selectedCell === index }"
+            
+            @mousedown="handleCellInteraction(index, 'down')"
+            @mouseup="handleCellInteraction(index, 'up')"
+            @mouseenter="handleCellInteraction(index, 'enter')"
+            @dragstart.prevent
+
+            @touchstart.prevent="handleTouchStart(index, $event)"
+            @touchmove="handleTouchMove($event)"
+            @touchend="handleTouchEnd()"
+          >
+            <transition name="gem-fall">
+              <img
+                v-if="cell !== null"
+                :src="getGemImage(cell)"
+                class="gem-image"
+                :class="{ 
+                  'clearing': explodingGems.has(index),
+                  'special-clear': explodingGems.has(index) && explodingGems.size >= 4
+                }"
+                alt="Gem"
+              />
+            </transition>
+          </div>
+        </div>
         <div v-if="isScoreBoostActive" class="score-boost-overlay">
           SCORE x2!
         </div>
@@ -197,7 +201,7 @@ const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
 const playCount = reactive({ classic: 0, timeAttack: 0 });
 
-// [신규] 아이템 관련 상태
+// 아이템 관련 상태
 const items = ref([
   { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150, icon: '⏱️' },
   { id: 'score_x2_10s', name: '10초간 점수 2배', cost: 300, icon: '🚀' },
@@ -205,7 +209,7 @@ const items = ref([
 const purchasedItems = ref(new Set());
 const isScoreBoostActive = ref(false);
 
-// [신규] 미션 관련 상태
+// 미션 관련 상태
 const missions = reactive({ daily: [], weekly: [] });
 const gameStats = reactive({
   gemsMatched: {},
@@ -215,15 +219,16 @@ const gameStats = reactive({
 });
 let currentCombo = 0;
 
-// [신규] 스와이프 관련 상태
+// 모바일 스와이프 관련 상태
 const touchStart = reactive({ index: null, x: 0, y: 0 });
 const hasSwiped = ref(false);
 
-// --- PC 드래그 상태 변수 추가 ---
+// PC 드래그 상태
 const isDragging = ref(false);
-const dragStartIndex = ref(null);
+const mouseDownIndex = ref(null);
+const preventClick = ref(false);
 
-// --- 오디오 관련 ---
+// 오디오 관련
 let audioContextStarted = false;
 const isMuted = ref(false);
 const sounds = {
@@ -235,7 +240,7 @@ const sounds = {
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
-// --- 내부 변수 ---
+// 내부 변수
 let timerInterval = null;
 let sessionId = null;
 let scoreBoostTimeout = null;
@@ -261,46 +266,65 @@ const currentEntryFee = computed(() => {
   return 100;
 });
 
-
 // --- 함수 ---
 
-// [신규] PC 마우스 드래그 시작
-const handleDragStart = (index) => {
+const handleCellInteraction = (index, eventType) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
-  isDragging.value = true;
-  dragStartIndex.value = index;
-};
+  initAudioContext();
 
-// [신규] PC 마우스 드래그 종료 (다른 셀 위에서)
-const handleDrop = (targetIndex) => {
-  if (!isDragging.value || dragStartIndex.value === null) return;
-  
-  const index1 = dragStartIndex.value;
-  const index2 = targetIndex;
+  if (eventType === 'down') {
+    mouseDownIndex.value = index;
+    isDragging.value = true;
+    preventClick.value = false;
+  } 
+  else if (eventType === 'up') {
+    if (preventClick.value) {
+      isDragging.value = false;
+      mouseDownIndex.value = null;
+      return;
+    }
+    
+    isDragging.value = false;
+    mouseDownIndex.value = null;
 
-  const r1 = Math.floor(index1 / BOARD_SIZE), c1 = index1 % BOARD_SIZE;
-  const r2 = Math.floor(index2 / BOARD_SIZE), c2 = index2 % BOARD_SIZE;
+    if (selectedCell.value === null) {
+      selectedCell.value = index;
+    } else {
+      const r1 = Math.floor(selectedCell.value / BOARD_SIZE);
+      const c1 = selectedCell.value % BOARD_SIZE;
+      const r2 = Math.floor(index / BOARD_SIZE);
+      const c2 = index % BOARD_SIZE;
 
-  // 인접한 셀인지 확인
-  if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
-    swapAndCheck(index1, index2);
+      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+        swapAndCheck(selectedCell.value, index);
+      }
+      selectedCell.value = null;
+    }
+  } 
+  else if (eventType === 'enter') {
+    if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
+
+    preventClick.value = true;
+    const index1 = mouseDownIndex.value;
+    const index2 = index;
+
+    const r1 = Math.floor(index1 / BOARD_SIZE);
+    const c1 = index1 % BOARD_SIZE;
+    const r2 = Math.floor(index2 / BOARD_SIZE);
+    const c2 = index2 % BOARD_SIZE;
+
+    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+      swapAndCheck(index1, index2);
+    }
+
+    isDragging.value = false;
+    mouseDownIndex.value = null;
   }
-  
-  // 드래그 상태 초기화
-  isDragging.value = false;
-  dragStartIndex.value = null;
-};
-
-// [신규] PC 마우스 드래그 취소 (보드 밖에서)
-const handleMouseUp = () => {
-  isDragging.value = false;
-  dragStartIndex.value = null;
 };
 
 const getGemImage = (gemType) => {
   if (gemType === null) return '';
   try {
-    // gemType이 객체 형태일 경우(특수 보석) type 속성을 사용
     const type = typeof gemType === 'object' ? gemType.type : gemType;
     return require(`@/assets/gems/gem_${type}.png`);
   } catch (e) {
@@ -343,14 +367,13 @@ const claimReward = async (mission) => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const claimRewardFunc = httpsCallable(functions, 'claimSaltPangMissionReward');
     await claimRewardFunc({ missionId: mission.missionId });
-    mission.claimed = true; // 우선 화면에 즉시 반영
+    mission.claimed = true;
     alert("보상이 지급되었습니다!");
-    // [핵심 추가] 미션 목록을 다시 불러와서 다른 미션들의 진행도를 갱신합니다.
     await fetchMissions();
   } catch(err) {
     console.error("미션 보상 수령 오류:", err);
     error.value = `보상 수령 실패: ${err.message}`;
-    mission.claimed = false; // 실패 시 원상 복구
+    mission.claimed = false;
   }
 };
 
@@ -381,7 +404,7 @@ const createBoard = () => {
   let newBoard;
   do { 
     newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
-      if (Math.random() < 0.005) return 6;
+      if (Math.random() < 0.005) return 6; // Jackpot gem
       return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
     });
   } while (hasInitialMatches(newBoard)); 
@@ -447,7 +470,7 @@ const startGame = async () => {
       timer.value = 0;
       movesLeft.value = INFINITE_MODE_MOVES;
     } else if (gameMode.value === 'ranked') {
-        timer.value = CLASSIC_DURATION;
+      timer.value = CLASSIC_DURATION;
     }
 
     if (purchasedItems.value.has('time_plus_5') && gameMode.value !== 'infinite') timer.value += 5;
@@ -482,8 +505,6 @@ const startGame = async () => {
   }
 };
 
-// 파일 경로: src/views/SaltPangPage.vue -> <script setup> 내부
-
 const endGame = async () => {
   if (timerInterval) clearInterval(timerInterval);
   if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
@@ -496,7 +517,6 @@ const endGame = async () => {
     const functions = getFunctions(undefined, "asia-northeast3");
     const endSession = httpsCallable(functions, 'endSaltPangSession');
     
-    // [핵심 수정] gameStats 객체를 서버로 함께 전송합니다.
     const result = await endSession({ 
       sessionId: sessionId, 
       score: score.value,
@@ -564,19 +584,6 @@ const handleTouchEnd = () => {
   touchStart.index = null;
 };
 
-const selectCell = (index) => {
-  if (hasSwiped.value || isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext();
-  if (selectedCell.value === null) {
-    selectedCell.value = index;
-  } else {
-    const r1=Math.floor(selectedCell.value/BOARD_SIZE), c1=selectedCell.value%BOARD_SIZE;
-    const r2=Math.floor(index/BOARD_SIZE), c2=index%BOARD_SIZE;
-    if (Math.abs(r1-r2)+Math.abs(c1-c2)===1) swapAndCheck(selectedCell.value, index);
-    selectedCell.value = null;
-  }
-};
-
 const swapAndCheck = async (index1, index2) => {
   if (gameMode.value === 'infinite') {
     if (movesLeft.value <= 0) return;
@@ -612,11 +619,9 @@ const processBoard = async () => {
   return hasMoreMatches;
 };
 
-// [핵심 수정] 4개 이상 매치 시 특수 효과를 추가하도록 checkAndClearMatches 함수 수정
 const checkAndClearMatches = async () => {
   const matches = new Set();
 
-  // [핵심 복구] 가로 3개 이상 매치되는 보석 찾기
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       const index = r * BOARD_SIZE + c;
@@ -629,7 +634,6 @@ const checkAndClearMatches = async () => {
     }
   }
 
-  // [핵심 복구] 세로 3개 이상 매치되는 보석 찾기
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       const index = r * BOARD_SIZE + c;
@@ -672,10 +676,10 @@ const checkAndClearMatches = async () => {
       board.value[index] = null;
       explodingGems.value.delete(index);
     });
-    return true; // 매치된 항목이 있었음을 반환
+    return true;
   }
 
-  return false; // 매치된 항목이 없었음을 반환
+  return false;
 };
 
 const dropDownGems = () => {
@@ -686,7 +690,6 @@ const fillEmptyCells = () => {
   for(let i=0;i<board.value.length;i++){ if(board.value[i]===null){ board.value[i]=Math.floor(Math.random()*NUM_GEM_TYPES)+1; } }
 };
 
-// [추가] 잭팟 금액을 실시간으로 가져오는 함수
 const listenToJackpot = () => {
   const jackpotRef = doc(db, "configuration", "saltPangJackpot");
   onSnapshot(jackpotRef, (docSnap) => {
@@ -700,16 +703,12 @@ onMounted(() => {
   fetchPlayCount();
   fetchMissions();
   listenToJackpot();
-  // PC 마우스 드래그 취소를 위한 이벤트 리스너 추가
-  window.addEventListener('mouseup', handleMouseUp);
 });
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   if (scoreBoostTimeout) clearTimeout(scoreBoostTimeout);
   sounds.background.pause();
-  // 이벤트 리스너 제거
-  window.removeEventListener('mouseup', handleMouseUp);
 });
 
 </script>
@@ -721,7 +720,7 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #1e3c72, #2a5298);
   color: white;
   padding: 25px;
-  border-radius: 12px; /* [추가] 모서리를 둥글게 처리 */
+  border-radius: 12px;
 }
 
 .jackpot-icon {
@@ -736,11 +735,10 @@ onUnmounted(() => {
 }
 
 .jackpot-amount {
-  font-size: 2.8em; /* [수정] 글씨 크기를 약간 키움 */
+  font-size: 2.8em;
   font-weight: bold;
   text-shadow: 0 2px 5px rgba(0,0,0,0.3);
   
-  /* [핵심 추가] 황금색 그라데이션 및 반짝임 효과 */
   background: linear-gradient(45deg, #ffd700, #fca5f1, #b3c7f0, #ffd700);
   background-size: 400% 400%;
   -webkit-background-clip: text;
@@ -753,7 +751,9 @@ onUnmounted(() => {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
+}
+
+.salt-pang-page { max-width: 500px; margin: 70px auto; padding: 15px; }
 .page-header { text-align: center; margin-bottom: 20px; color: #333; }
 .page-header h1 { font-size: 2.5em; font-weight: 900; }
 .page-header p { font-size: 1.1em; color: #666; }
