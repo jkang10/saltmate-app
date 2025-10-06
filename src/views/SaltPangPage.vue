@@ -355,6 +355,12 @@ const handleCellInteraction = (index, eventType) => {
   }
 };
 
+// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
+const getCouponCount = (itemId) => {
+  const couponType = itemId === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
+  return itemCoupons[couponType] || 0;
+};
+
 // [신규] 보유한 아이템 쿠폰 개수를 가져오는 함수
 const fetchItemCoupons = async () => {
   if (!auth.currentUser) return;
