@@ -44,7 +44,7 @@
 
         <div class="log-card card">
           <h3>이벤트 로그</h3>
-          <div class="log-box" id="logBox">
+          <div class="log-box" ref="logBox">
             <div v-for="(log, index) in logs" :key="index" v-html="log"></div>
           </div>
         </div>
@@ -137,238 +137,251 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebaseConfig";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  onSnapshot,
-  serverTimestamp,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
-export default {
-  name: "SaltMineGamePage",
-  data() {
-    return {
-      salt: 0, gold: 0, perClick: 1, perSecond: 0,
-      upgrades: {}, isSelling: false, isExchanging: false,
-      logs: [], currentUser: null, gameStateRef: null, isLoading: true,
-      authUnsubscribe: null,
-      gameSettings: { saltMineRate: 1000, deepSeaRate: 100000, goldenSaltExchangeRate: 1 },
-      gameInterval: null, saveInterval: null,
-      activeBoost: null, boostTimeRemaining: "00:00",
-    };
-  },
-  computed: {
-    isBoostActive() { return this.activeBoost && this.activeBoost.expiresAt.toDate() > new Date(); },
-    boostedPerClick() { return this.isBoostActive ? this.perClick * (1 + this.activeBoost.percentage / 100) : this.perClick; },
-    boostedPerSecond() { return this.isBoostActive ? this.perSecond * (1 + this.activeBoost.percentage / 100) : this.perSecond; },
-    shopItems() {
-      const SHOP_DEFS = [
-        { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
-        { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
-        { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
-        { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
-        { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
-      ];
-      return SHOP_DEFS.map((item) => ({
-        ...item,
-        cost: Math.ceil(item.baseCost * Math.pow(item.id.startsWith("offline") ? 2.5 : 1.6, this.upgrades[item.id] || 0)),
-      }));
-    },
-    currentPickaxeIcon() {
-      if ((this.upgrades["robot"] || 0) > 0) return "fas fa-robot";
-      if ((this.upgrades["drill"] || 0) > 0) return "fas fa-tools";
-      if ((this.upgrades["miner"] || 0) > 0) return "fas fa-cogs";
-      return "fas fa-hammer";
-    },
-    achievements() {
-      const ACH_DEFS = [
-        { id: "salt_1000", name: "초보 광부", desc: "소금 1,000개 모으기", icon: "⛏️", unlocked: this.salt >= 1000 },
-        { id: "salt_10000", name: "숙련된 광부", desc: "소금 10,000개 모으기", icon: "⚒️", unlocked: this.salt >= 10000 },
-        { id: "gold_1", name: "첫 발견", desc: "황금 소금 1개 발견하기", icon: "✨", unlocked: this.gold >= 1 },
-        { id: "automation_expert", name: "자동화 전문가", desc: "채굴 로봇 구매하기", icon: "🤖", unlocked: (this.upgrades["robot"] || 0) > 0 },
-      ];
-      return ACH_DEFS;
-    },
-  },
-  mounted() {
-    this.authUnsubscribe = onAuthStateChanged(auth, (user) => {
-      this.resetGameState();
-      if (user) {
-        this.currentUser = user;
-        this.gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
-        this.loadGame();
-        this.listenToGameSettings();
-      } else {
-        this.currentUser = null;
-        this.logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
-      }
-    });
+// --- 상태 변수 ---
+const salt = ref(0);
+const gold = ref(0);
+const perClick = ref(1);
+const perSecond = ref(0);
+const upgrades = reactive({});
+const isSelling = ref(false);
+const isExchanging = ref(false);
+const logs = ref([]);
+const currentUser = ref(null);
+const isLoading = ref(true);
+const gameSettings = reactive({ saltMineRate: 1000, deepSeaRate: 100000, goldenSaltExchangeRate: 1 });
+const activeBoost = ref(null);
+const boostTimeRemaining = ref("00:00");
+const logBox = ref(null);
 
-    this.gameInterval = setInterval(this.gameTick, 1000);
-    this.saveInterval = setInterval(this.saveGame, 15000);
-  },
-  unmounted() {
-    clearInterval(this.gameInterval);
-    clearInterval(this.saveInterval);
-    this.saveGame();
-    if (this.authUnsubscribe) this.authUnsubscribe();
-  },
-  methods: {
-    resetGameState() {
-      this.salt = 0; this.gold = 0; this.perClick = 1; this.perSecond = 0;
-      this.upgrades = {}; this.logs = []; this.isLoading = true; this.activeBoost = null;
-      this.logEvent("게임에 오신 것을 환영합니다!");
-    },
-    async loadGame() {
-      if (!this.gameStateRef) return;
-      this.isLoading = true;
-      try {
-        const docSnap = await getDoc(this.gameStateRef);
-        if (docSnap.exists()) {
-          const state = docSnap.data();
-          const upgrades = state.upgrades || {};
-          const offlineMinerLevel = upgrades.offline_miner_1 || 0;
-          let offlineRate = Math.min(offlineMinerLevel * 0.1, 1.0);
-          const lastUpdate = state.lastUpdated?.toDate() || new Date();
-          const secondsDiff = (new Date().getTime() - lastUpdate.getTime()) / 1000;
-          const effectiveSeconds = Math.min(secondsDiff, 24 * 3600);
-          const offlineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
-          if (offlineSalt > 0) this.logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`);
-          this.salt = (state.salt || 0) + offlineSalt;
-          this.gold = state.gold || 0;
-          this.perClick = state.perClick || 1;
-          this.perSecond = state.perSecond || 0;
-          this.upgrades = upgrades;
-          this.activeBoost = state.activeBoost || null;
-        } else {
-          this.logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
-        }
-      } catch (error) { console.error("게임 데이터 로딩 오류:", error); } 
-      finally { this.isLoading = false; }
-    },
-    async saveGame() {
-      if (!this.currentUser || !this.gameStateRef || this.isLoading) return;
-      const state = {
-        salt: this.salt, gold: this.gold, perClick: this.perClick,
-        perSecond: this.perSecond, upgrades: this.upgrades,
-        activeBoost: this.activeBoost, lastUpdated: serverTimestamp(),
-      };
-      try { await setDoc(this.gameStateRef, state, { merge: true }); }
-      catch (error) { console.error("게임 데이터 저장 오류:", error); }
-    },
-    listenToGameSettings() {
-      const configRef = doc(db, "configuration", "gameSettings");
-      onSnapshot(configRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          this.gameSettings.saltMineRate = data.saltMineRate || 1000;
-          this.gameSettings.deepSeaRate = data.deepSeaRate || 100000;
-          this.gameSettings.goldenSaltExchangeRate = data.goldenSaltExchangeRate || 1;
-        }
-      });
-    },
-    gameTick() {
-      this.salt += this.boostedPerSecond;
-      if (this.isBoostActive) {
-        const remaining = this.activeBoost.expiresAt.toDate().getTime() - new Date().getTime();
-        if (remaining <= 0) {
-          this.activeBoost = null;
-          this.logEvent("채굴 부스트 효과가 종료되었습니다.");
-        } else {
-          const minutes = Math.floor((remaining / 1000 / 60) % 60);
-          const seconds = Math.floor((remaining / 1000) % 60);
-          this.boostTimeRemaining = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-      }
-    },
-    mineSalt() {
-      this.salt += this.boostedPerClick;
-      if (Math.random() < 0.01) {
-        this.gold += 1;
-        this.logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
-      }
-    },
-    buyUpgrade(itemId) {
-      const item = this.shopItems.find((i) => i.id === itemId);
-      if (this.salt < item.cost) return;
-      this.salt -= item.cost;
-      this.upgrades[itemId] = (this.upgrades[itemId] || 0) + 1;
-      if (item.gps) this.perSecond += item.gps;
-      if (item.type === "click") this.perClick += item.add;
-      this.logEvent(`'${item.name}' 업그레이드 구매!`);
-    },
+let gameStateRef = null;
+let authUnsubscribe = null;
+let gameInterval = null;
+let saveInterval = null;
 
-    async sellSalt() {
-      if (!this.currentUser || this.isSelling) return;
+// --- 헬퍼 함수 ---
+const logEvent = (message) => {
+  logs.value.unshift(message);
+  if (logs.value.length > 50) logs.value.pop();
+  nextTick(() => {
+    if (logBox.value) logBox.value.scrollTop = 0;
+  });
+};
 
-      const saltToSell = Math.floor(this.salt);
-      if (saltToSell < this.gameSettings.saltMineRate) {
-        return alert(`${this.gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
-      }
+// --- 계산된 속성 ---
+const isBoostActive = computed(() => activeBoost.value && activeBoost.value.expiresAt.toDate() > new Date());
+const boostedPerClick = computed(() => isBoostActive.value ? perClick.value * (1 + activeBoost.value.percentage / 100) : perClick.value);
+const boostedPerSecond = computed(() => isBoostActive.value ? perSecond.value * (1 + activeBoost.value.percentage / 100) : perSecond.value);
 
-      this.isSelling = true;
-      try {
-        // [핵심 추가] 판매 요청 전에 현재 게임 상태를 서버에 먼저 저장합니다.
-        await this.saveGame(); 
+const SHOP_DEFS = [
+  { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
+  { id: "drill", name: "전동 드릴", baseCost: 300, gps: 5, desc: "초당 +5 소금", icon: "fas fa-tools" },
+  { id: "robot", name: "채굴 로봇", baseCost: 2000, gps: 25, desc: "초당 +25 소금", icon: "fas fa-robot" },
+  { id: "pick_upgrade", name: "곡괭이 강화", baseCost: 120, type: "click", add: 1, desc: "클릭당 +1 소금", icon: "fas fa-hammer" },
+  { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
+];
 
-        const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
-        const result = await sellSaltForPoints({ amountToSell: saltToSell });
-        const { awardedPoints, soldSalt } = result.data;
-        
-        // 판매 성공 후, 화면의 소금량을 판매한 만큼 차감합니다.
-        this.salt -= soldSalt;
-        
-        this.logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
-        alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
-      } catch (error) {
-        console.error("소금 판매 오류:", error);
-        alert(`오류: ${error.message}`);
-      } finally {
-        this.isSelling = false;
-      }
-    },
+const shopItems = computed(() => SHOP_DEFS.map((item) => ({
+  ...item,
+  cost: Math.ceil(item.baseCost * Math.pow(item.id.startsWith("offline") ? 2.5 : 1.6, upgrades[item.id] || 0)),
+})));
 
-async exchangeGold() {
-  if (!this.currentUser || this.gold < 1 || this.isExchanging) return;
-  if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
-  
-  this.isExchanging = true;
+const currentPickaxeIcon = computed(() => {
+  if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
+  if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
+  if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
+  return "fas fa-hammer";
+});
+
+const achievements = computed(() => [
+  { id: "salt_1000", name: "초보 광부", desc: "소금 1,000개 모으기", icon: "⛏️", unlocked: salt.value >= 1000 },
+  { id: "salt_10000", name: "숙련된 광부", desc: "소금 10,000개 모으기", icon: "⚒️", unlocked: salt.value >= 10000 },
+  { id: "gold_1", name: "첫 발견", desc: "황금 소금 1개 발견하기", icon: "✨", unlocked: gold.value >= 1 },
+  { id: "automation_expert", name: "자동화 전문가", desc: "채굴 로봇 구매하기", icon: "🤖", unlocked: (upgrades["robot"] || 0) > 0 },
+]);
+
+// --- 메서드 ---
+const resetGameState = () => {
+  salt.value = 0; gold.value = 0; perClick.value = 1; perSecond.value = 0;
+  Object.keys(upgrades).forEach(key => delete upgrades[key]);
+  logs.value = []; isLoading.value = true; activeBoost.value = null;
+  logEvent("게임에 오신 것을 환영합니다!");
+};
+
+const loadGame = async () => {
+  if (!gameStateRef) return;
+  isLoading.value = true;
   try {
-    // 1단계: 교환 준비 함수 호출
+    const docSnap = await getDoc(gameStateRef);
+    if (docSnap.exists()) {
+      const state = docSnap.data();
+      const loadedUpgrades = state.upgrades || {};
+      const offlineMinerLevel = loadedUpgrades.offline_miner_1 || 0;
+      let offlineRate = Math.min(offlineMinerLevel * 0.1, 1.0);
+      const lastUpdate = state.lastUpdated?.toDate() || new Date();
+      const secondsDiff = (new Date().getTime() - lastUpdate.getTime()) / 1000;
+      const effectiveSeconds = Math.min(secondsDiff, 24 * 3600);
+      const offlineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
+      if (offlineSalt > 0) logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`);
+      
+      salt.value = (state.salt || 0) + offlineSalt;
+      gold.value = state.gold || 0;
+      perClick.value = state.perClick || 1;
+      perSecond.value = state.perSecond || 0;
+      Object.assign(upgrades, loadedUpgrades);
+      activeBoost.value = state.activeBoost || null;
+    } else {
+      logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
+    }
+  } catch (error) { console.error("게임 데이터 로딩 오류:", error); } 
+  finally { isLoading.value = false; }
+};
+
+const saveGame = async () => {
+  if (!currentUser.value || !gameStateRef || isLoading.value) return;
+  const state = {
+    salt: salt.value, gold: gold.value, perClick: perClick.value,
+    perSecond: perSecond.value, upgrades: upgrades,
+    activeBoost: activeBoost.value, lastUpdated: serverTimestamp(),
+  };
+  try { await setDoc(gameStateRef, state, { merge: true }); }
+  catch (error) { console.error("게임 데이터 저장 오류:", error); }
+};
+
+const listenToGameSettings = () => {
+  const configRef = doc(db, "configuration", "gameSettings");
+  onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      gameSettings.saltMineRate = data.saltMineRate || 1000;
+      gameSettings.deepSeaRate = data.deepSeaRate || 100000;
+      gameSettings.goldenSaltExchangeRate = data.goldenSaltExchangeRate || 1;
+    }
+  });
+};
+
+const gameTick = () => {
+  salt.value += boostedPerSecond.value;
+  if (isBoostActive.value) {
+    const remaining = activeBoost.value.expiresAt.toDate().getTime() - new Date().getTime();
+    if (remaining <= 0) {
+      activeBoost.value = null;
+      logEvent("채굴 부스트 효과가 종료되었습니다.");
+    } else {
+      const minutes = Math.floor((remaining / 1000 / 60) % 60);
+      const seconds = Math.floor((remaining / 1000) % 60);
+      boostTimeRemaining.value = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  }
+};
+
+const mineSalt = () => {
+  salt.value += boostedPerClick.value;
+  if (Math.random() < 0.01) {
+    gold.value += 1;
+    logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
+  }
+};
+
+const buyUpgrade = (itemId) => {
+  const item = shopItems.value.find((i) => i.id === itemId);
+  if (salt.value < item.cost) return;
+  salt.value -= item.cost;
+  upgrades[itemId] = (upgrades[itemId] || 0) + 1;
+  if (item.gps) perSecond.value += item.gps;
+  if (item.type === "click") perClick.value += item.add;
+  logEvent(`'${item.name}' 업그레이드 구매!`);
+};
+
+const sellSalt = async () => {
+  if (!currentUser.value || isSelling.value) return;
+
+  const saltToSell = Math.floor(salt.value);
+  if (saltToSell < gameSettings.saltMineRate) {
+    return alert(`${gameSettings.saltMineRate.toLocaleString()}개 이상의 소금만 판매할 수 있습니다.`);
+  }
+
+  isSelling.value = true;
+  try {
+    await saveGame(); 
+
+    const sellSaltForPoints = httpsCallable(functions, "sellSaltForPoints");
+    const result = await sellSaltForPoints({ amountToSell: saltToSell });
+    const { awardedPoints, soldSalt } = result.data;
+    
+    salt.value -= soldSalt;
+    
+    logEvent(`소금 ${soldSalt.toLocaleString()}개를 판매하여 <strong>${awardedPoints.toLocaleString()} SaltMate 포인트</strong>를 획득했습니다!`);
+    alert(`소금 ${soldSalt.toLocaleString()}개를 판매하여 ${awardedPoints.toLocaleString()} SaltMate 포인트를 획득했습니다!`);
+  } catch (error) {
+    console.error("소금 판매 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isSelling.value = false;
+  }
+};
+
+const exchangeGold = async () => {
+  if (!currentUser.value || gold.value < 1 || isExchanging.value) return;
+  if (!confirm(`황금 소금 1개를 ${gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
+  
+  isExchanging.value = true;
+  try {
     const prepareExchange = httpsCallable(functions, "prepareGoldenSaltExchange");
     const prepareResult = await prepareExchange();
     const { exchangeToken } = prepareResult.data;
 
-    if (!exchangeToken) {
-      throw new Error("교환 토큰을 받지 못했습니다.");
-    }
+    if (!exchangeToken) throw new Error("교환 토큰을 받지 못했습니다.");
 
-    // 화면에 즉시 반영
-    this.gold -= 1; 
+    gold.value -= 1;
 
-    // 2단계: 교환 실행 함수 호출
     const executeExchange = httpsCallable(functions, "executeGoldenSaltExchange");
     const executeResult = await executeExchange({ exchangeToken });
     const { awardedPoints } = executeResult.data;
 
-    this.logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
+    logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
     alert(`황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`);
 
   } catch (error) {
     console.error("황금 소금 교환 오류:", error);
-    // 실패 시 롤백 (화면에만)
-    this.gold += 1;
+    gold.value += 1;
     alert(`오류: ${error.message}`);
   } finally {
-    this.isExchanging = false;
+    isExchanging.value = false;
   }
-},
+};
 
+// --- 라이프사이클 훅 ---
+onMounted(() => {
+  authUnsubscribe = onAuthStateChanged(auth, (user) => {
+    resetGameState();
+    if (user) {
+      currentUser.value = user;
+      gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
+      loadGame();
+      listenToGameSettings();
+    } else {
+      currentUser.value = null;
+      logEvent("게임 데이터를 저장하고 불러오려면 로그인이 필요합니다.");
+    }
+  });
+
+  gameInterval = setInterval(gameTick, 1000);
+  saveInterval = setInterval(saveGame, 15000);
+});
+
+onUnmounted(() => {
+  clearInterval(gameInterval);
+  clearInterval(saveInterval);
+  saveGame();
+  if (authUnsubscribe) authUnsubscribe();
+});
 </script>
 
 <style scoped>
