@@ -333,31 +333,42 @@ export default {
       }
     },
 
-    async exchangeGold() {
-      if (!this.currentUser || this.gold < 1 || this.isExchanging) return;
-      if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
-      this.isExchanging = true;
-      try {
-        const exchangeGoldenSalt = httpsCallable(functions, "exchangeGoldenSalt");
-        const result = await exchangeGoldenSalt();
-        this.gold -= 1; // 화면 즉시 반영
-        const { awardedPoints } = result.data;
-        this.logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
-        alert(`황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`);
-      } catch (error) {
-        console.error("황금 소금 교환 오류:", error);
-        alert(`오류: ${error.message}`);
-      } finally {
-        this.isExchanging = false;
-      }
-    },
-    logEvent(message) {
-      const time = new Date().toLocaleTimeString();
-      this.logs.unshift(`[${time}] ${message}`);
-      if (this.logs.length > 50) this.logs.pop();
-    },
-  },
-};
+async exchangeGold() {
+  if (!this.currentUser || this.gold < 1 || this.isExchanging) return;
+  if (!confirm(`황금 소금 1개를 ${this.gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
+  
+  this.isExchanging = true;
+  try {
+    // 1단계: 교환 준비 함수 호출
+    const prepareExchange = httpsCallable(functions, "prepareGoldenSaltExchange");
+    const prepareResult = await prepareExchange();
+    const { exchangeToken } = prepareResult.data;
+
+    if (!exchangeToken) {
+      throw new Error("교환 토큰을 받지 못했습니다.");
+    }
+
+    // 화면에 즉시 반영
+    this.gold -= 1; 
+
+    // 2단계: 교환 실행 함수 호출
+    const executeExchange = httpsCallable(functions, "executeGoldenSaltExchange");
+    const executeResult = await executeExchange({ exchangeToken });
+    const { awardedPoints } = executeResult.data;
+
+    this.logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
+    alert(`황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`);
+
+  } catch (error) {
+    console.error("황금 소금 교환 오류:", error);
+    // 실패 시 롤백 (화면에만)
+    this.gold += 1;
+    alert(`오류: ${error.message}`);
+  } finally {
+    this.isExchanging = false;
+  }
+},
+
 </script>
 
 <style scoped>
