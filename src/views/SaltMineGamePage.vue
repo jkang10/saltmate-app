@@ -333,24 +333,19 @@ const exchangeGold = async () => {
   
   isExchanging.value = true;
   try {
-    const prepareExchange = httpsCallable(functions, "prepareGoldenSaltExchange");
-    const prepareResult = await prepareExchange();
-    const { exchangeToken } = prepareResult.data;
+    // [핵심] 다시 exchangeGoldenSalt 함수 하나만 호출하도록 변경합니다.
+    const exchangeGoldenSaltFunc = httpsCallable(functions, "exchangeGoldenSalt");
+    const result = await exchangeGoldenSaltFunc();
+    const { awardedPoints } = result.data;
 
-    if (!exchangeToken) throw new Error("교환 토큰을 받지 못했습니다.");
-
-    gold.value -= 1;
-
-    const executeExchange = httpsCallable(functions, "executeGoldenSaltExchange");
-    const executeResult = await executeExchange({ exchangeToken });
-    const { awardedPoints } = executeResult.data;
+    // 성공 시 화면에 즉시 반영
+    gold.value -= 1; 
 
     logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
-    alert(`황금 소금 1개를 사용하여 ${awardedPoints.toLocaleString()} SaltMate를 획득했습니다!`);
+    alert(`성공적으로 교환했습니다: +${awardedPoints.toLocaleString()} SaltMate`);
 
   } catch (error) {
     console.error("황금 소금 교환 오류:", error);
-    gold.value += 1;
     alert(`오류: ${error.message}`);
   } finally {
     isExchanging.value = false;
