@@ -696,7 +696,7 @@ const processBoard = async () => {
   } while (hasMoreMatches);
   
   currentCombo = 0;
-};
+};2025-10-06
 
 const checkAndClearMatches = async () => {
   const matches = findMatchesOnBoard();
@@ -761,6 +761,7 @@ const findMatchesOnBoard = () => {
   const matches = new Set();
   const longH = [], longV = [], shapes = [];
 
+  // 가로 매치 확인 (기존과 동일)
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let line = [r * BOARD_SIZE + c];
@@ -784,6 +785,7 @@ const findMatchesOnBoard = () => {
     }
   }
 
+  // 세로 매치 확인 (기존과 동일)
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let line = [r * BOARD_SIZE + c];
@@ -807,22 +809,37 @@ const findMatchesOnBoard = () => {
     }
   }
   
-for (let r = 0; r < BOARD_SIZE - 2; r++) {
-    for (let c = 0; c < BOARD_SIZE - 2; c++) {
-      const i = r * BOARD_SIZE + c;
-      const p = board.value[i]?.type || board.value[i];
-      if(!p) continue;
+  // [핵심 수정] L, T자 매치 확인 로직 강화
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+        const index = r * BOARD_SIZE + c;
+        const gemType = board.value[index]?.type || board.value[index];
+        if (!gemType) continue;
 
-      const right1 = board.value[i+1]?.type || board.value[i+1];
-      // const right2 = board.value[i+2]?.type || board.value[i+2]; // 이 줄 삭제
-      const down1 = board.value[i+BOARD_SIZE]?.type || board.value[i+BOARD_SIZE];
-      // const down2 = board.value[i+2*BOARD_SIZE]?.type || board.value[i+2*BOARD_SIZE]; // 이 줄 삭제
-      
-      if (p === right1 && p === down1) {
-        if(p === (board.value[i+BOARD_SIZE+1]?.type || board.value[i+BOARD_SIZE+1])) shapes.push({center: i});
-      }
+        // 가로 3개 이상 확인
+        const hMatch = [index];
+        for (let i = c + 1; i < BOARD_SIZE; i++) {
+            const nextIndex = r * BOARD_SIZE + i;
+            const nextType = board.value[nextIndex]?.type || board.value[nextIndex];
+            if (nextType === gemType) hMatch.push(nextIndex); else break;
+        }
+
+        // 세로 3개 이상 확인
+        const vMatch = [index];
+        for (let i = r + 1; i < BOARD_SIZE; i++) {
+            const nextIndex = i * BOARD_SIZE + c;
+            const nextType = board.value[nextIndex]?.type || board.value[nextIndex];
+            if (nextType === gemType) vMatch.push(nextIndex); else break;
+        }
+        
+        // 가로 3개와 세로 3개가 교차하면 shape 매치로 간주
+        if (hMatch.length >= 3 && vMatch.length >= 3) {
+            shapes.push({ center: index });
+            hMatch.forEach(i => matches.add(i));
+            vMatch.forEach(i => matches.add(i));
+        }
     }
-}
+  }
 
   return { all: matches, byType: { longH, longV, shape: shapes } };
 };
