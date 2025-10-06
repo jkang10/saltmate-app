@@ -496,6 +496,26 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
+const buyItem = async (item) => {
+  // 아이템을 구매하는 대신, 사용하기로 선택한 아이템 목록(purchasedItems)에 추가하거나 제거합니다.
+  if (purchasedItems.value.has(item.id)) {
+    purchasedItems.value.delete(item.id);
+  } else {
+    purchasedItems.value.add(item.id);
+  }
+};
+
+const resetGame = async () => {
+  gameState.value = 'ready';
+  sessionId = null;
+  error.value = '';
+  purchasedItems.value.clear();
+  explodingGems.value.clear();
+  await fetchPlayCount();
+  await fetchMissions();
+  await fetchItemCoupons();
+};
+
 const selectGameMode = (mode) => {
   if (mode === 'ranked' && !isRankedPlayable.value) {
     error.value = '랭킹전은 토요일과 일요일에만 참여할 수 있습니다.';
