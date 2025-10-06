@@ -224,7 +224,7 @@ const jackpotEffect = reactive({ active: false, amount: 0 });
 const itemCoupons = reactive({
   SALTPANG_TIME_PLUS_5: 0,
   SALTPANG_SCORE_X2_10S: 0,
-});2025-10-06
+});
 
 // 아이템 관련 상태
 const items = ref([
