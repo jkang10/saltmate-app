@@ -112,11 +112,10 @@
             <p>입장료</p>
             <strong>{{ currentEntryFee }} SaltMate</strong>
           </div>
-          <button @click="startGame" class="game-button" :disabled="isStarting || isBuyingItem">
-            <span v-if="isStarting">입장 중...</span>
-            <span v-else-if="isBuyingItem">구매 중...</span>
-            <span v-else>GAME START</span>
-          </button>
+	<button @click="startGame" class="game-button" :disabled="isStarting">
+	  <span v-if="isStarting">입장 중...</span>
+	  <span v-else>GAME START</span>
+	</button>
         </div>
       </div>
 
@@ -530,10 +529,10 @@ const startGame = async () => {
     }
 
     if (couponsToUse.length > 0) {
-      const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
-      for (const type of couponsToUse) {
-        await useCouponFunc({ couponType: type });
-      }
+	const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
+	for (const type of couponsToUse) {
+	  await useCouponFunc({ couponType: type }); // "couponType"으로 올바르게 수정
+	}
       await fetchItemCoupons();
     }
     
