@@ -696,7 +696,7 @@ const processBoard = async () => {
   } while (hasMoreMatches);
   
   currentCombo = 0;
-};2025-10-06
+};
 
 const checkAndClearMatches = async () => {
   const matches = findMatchesOnBoard();
