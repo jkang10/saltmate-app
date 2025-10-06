@@ -191,8 +191,7 @@
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import soundMatch from '@/assets/sounds/match.mp3';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
 // --- 기본 설정 ---
@@ -489,24 +488,6 @@ const hasInitialMatches = (b) => {
   for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+1]&&b[i]===b[i+2]) return true; }
   for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+BOARD_SIZE]&&b[i]===b[i+2*BOARD_SIZE]) return true; }
   return false;
-};
-
-const buyItem = async (item) => {
-  // 아이템을 구매하는 대신, 사용하기로 선택한 아이템 목록(purchasedItems)에 추가하거나 제거합니다.
-  if (purchasedItems.value.has(item.id)) {
-    purchasedItems.value.delete(item.id);
-  } else {
-    // 쿠폰이 없는 유료 아이템의 경우, SaltMate가 충분한지 미리 확인해볼 수 있습니다. (선택사항)
-    const couponType = item.id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-    if (itemCoupons[couponType] <= 0) {
-      // 이 부분은 필수는 아니지만, 사용자 경험을 위해 추가할 수 있습니다.
-      // if (user.saltmatePoints < item.cost) { 
-      //   error.value = "SaltMate 포인트가 부족합니다.";
-      //   return;
-      // }
-    }
-    purchasedItems.value.add(item.id);
-  }
 };
 
 const selectGameMode = (mode) => {
