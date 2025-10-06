@@ -37,12 +37,15 @@ const isLoading = ref(true);
 
 const fetchPvpRankings = async () => {
   try {
-    // 지난주 랭킹을 가져오기 위해 지난주 월요일 날짜를 계산
+    // [핵심 수정] 오늘 날짜를 기준으로 지난주 월요일 날짜를 계산하는 안정적인 로직
     const today = new Date();
-    const lastSunday = new Date(today);
-    lastSunday.setDate(today.getDate() - today.getDay());
-    const lastMonday = new Date(lastSunday);
-    lastMonday.setDate(lastSunday.getDate() - 6);
+    // 1. 오늘로부터 7일을 뺍니다. (무조건 지난주로 이동)
+    const lastWeek = new Date(today.setDate(today.getDate() - 7));
+    // 2. 지난주의 요일(0=일, 1=월)을 가져옵니다.
+    const dayOfWeek = lastWeek.getDay();
+    // 3. 지난주 날짜에서 (요일-1) 만큼 빼서 월요일 날짜를 정확히 계산합니다. (일요일이면 6을 뺌)
+    const lastMonday = new Date(lastWeek.setDate(lastWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
+    
     const lastWeekId = lastMonday.toISOString().slice(0, 10);
 
     const q = query(
