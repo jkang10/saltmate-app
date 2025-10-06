@@ -104,37 +104,47 @@ export default {
       }
     };
 
-    const useCoupon = async (coupon) => {
-      if (!confirm(`'${formatCouponType(coupon.type)}' 쿠폰을 사용하시겠습니까?`)) return;
-      
-      isUsing.value = coupon.id;
-      try {
-        let funcName = '';
-        let payload = { couponId: coupon.id };
+const useCoupon = async (coupon) => {
+  if (!confirm(`'${formatCouponType(coupon.type)}' 쿠폰을 사용하시겠습니까?`)) return;
+  
+  isUsing.value = coupon.id;
+  try {
+    let funcName = '';
+    let payload = { couponId: coupon.id };
 
-        if (coupon.type === 'SALT_MINE_BOOST') {
-          funcName = 'activateMiningBoost';
-        } else {
-          funcName = 'useItemCoupon';
-        }
+    if (coupon.type === 'SALT_MINE_BOOST') {
+      funcName = 'activateMiningBoost';
+    } else {
+      // '희귀 소금 결정'을 포함한 나머지 모든 아이템 쿠폰은 useItemCoupon을 호출합니다.
+      funcName = 'useItemCoupon';
+    }
 
-        const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
-        const useCouponFunc = httpsCallable(functionsWithRegion, funcName);
-        const result = await useCouponFunc(payload);
-        alert(result.data.message);
+    const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
+    const useCouponFunc = httpsCallable(functionsWithRegion, funcName);
+    const result = await useCouponFunc(payload);
+    alert(result.data.message);
 
-        // 특정 쿠폰 사용 후 페이지 이동 로직
-        if (coupon.type.startsWith('SALT_MINE')) router.push('/salt-mine-game');
-        else if (coupon.type.startsWith('DEEP_SEA')) router.push('/deep-sea-game');
-        else if (coupon.type.startsWith('SALTPANG')) router.push('/salt-pang');
-        
-      } catch (error) {
-        console.error("쿠폰 사용 실패:", error);
-        alert(`오류: ${error.message}`);
-      } finally {
-        isUsing.value = null;
-      }
-    };
+    // [핵심 수정] 쿠폰 종류에 따라 해당하는 게임 페이지로 이동합니다.
+    if (coupon.type === 'ITEM_RARE_SALT') {
+      router.push('/salt-crystal-game');
+    } else if (coupon.type.startsWith('SALT_MINE')) {
+      router.push('/salt-mine-game');
+    } else if (coupon.type.startsWith('DEEP_SEA')) {
+      router.push('/deep-sea-game');
+    } else if (coupon.type.startsWith('SALTPANG')) {
+      router.push('/salt-pang');
+    } else {
+      // 그 외의 경우, 목록을 새로고침합니다.
+      fetchCoupons();
+    }
+    
+  } catch (error) {
+    console.error("쿠폰 사용 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isUsing.value = null;
+  }
+};
 
     // [핵심 추가] 쿠폰 삭제 함수
     const deleteCoupon = async (couponId) => {
