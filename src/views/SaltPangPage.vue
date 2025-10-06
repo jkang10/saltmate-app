@@ -541,19 +541,20 @@ const startGame = async () => {
       await fetchItemCoupons();
     }
     
-    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 추려냅니다.
+    // 2. [핵심 수정] 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 정확히 추려냅니다.
     const paidItems = [...purchasedItems.value].filter(id => {
         const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-        // 해당 쿠폰이 없어야 유료 아이템으로 간주합니다.
-        return itemCoupons[couponType] <= 0;
+        // 이전에 쿠폰이 있었는지 여부(couponsToUse)를 기반으로 유료 아이템을 결정합니다.
+        // couponsToUse에 포함된 타입에 해당하는 id는 paidItems에서 제외됩니다.
+        return !couponsToUse.includes(couponType);
     });
 
-    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록을 함께 보냅니다.
+    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록만 함께 보냅니다.
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession({ gameMode: gameMode.value, items: paidItems });
     sessionId = result.data.sessionId;
     
-    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 ---
+    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 (기존과 동일) ---
     score.value = 0;
     awardedPoints.value = 0;
     board.value = createBoard();
