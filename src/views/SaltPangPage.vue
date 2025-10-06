@@ -690,13 +690,23 @@ const swapAndCheck = async (index1, index2) => {
 
   let matchFound = false;
 
-  if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
-    const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
-    const otherIndex = rainbowIndex === index1 ? index2 : index1;
-    await activateRainbowCombination(rainbowIndex, otherIndex);
-    matchFound = true;
-  } else if (gem1?.special && gem2?.special) {
-    await activateSpecialCombination(index1, index2);
+  if (gem1?.special || gem2?.special) {
+    if (gem1?.special === 'rainbow' || gem2?.special === 'rainbow') {
+        const rainbowIndex = gem1?.special === 'rainbow' ? index1 : index2;
+        const otherIndex = rainbowIndex === index1 ? index2 : index1;
+        await activateRainbowCombination(rainbowIndex, otherIndex);
+    } else if (gem1?.special && gem2?.special) {
+        await activateSpecialCombination(index1, index2);
+    } else {
+        // [핵심 추가] 특수 보석 + 일반 보석 조합 시, 일반 매치 확인 로직도 실행
+        const matches1 = findMatchesAt(index1);
+        const matches2 = findMatchesAt(index2);
+        if (matches1.size < 3 && matches2.size < 3) {
+            // 특수 보석을 움직였지만 아무 매치가 없을 경우
+             const specialIndex = gem1?.special ? index1 : index2;
+             await activateSpecialGems(new Set([specialIndex]));
+        }
+    }
     matchFound = true;
   } else {
     const matches1 = findMatchesAt(index1);
@@ -710,7 +720,7 @@ const swapAndCheck = async (index1, index2) => {
     await processBoard();
   } else {
     await new Promise(r => setTimeout(r, 150));
-    [board.value[index1], board.value[index2]] = [gem1, gem2];
+    [board.value[index1], board.value[index2]] = [gem1, gem2]; // 원위치
     currentCombo = 0;
   }
 
@@ -723,6 +733,7 @@ const swapAndCheck = async (index1, index2) => {
 const processBoard = async () => {
   let hasMoreMatches;
   do {
+    // [핵심 수정] checkAndClearMatches가 연쇄 반응을 일으키는 특수 보석까지 처리하도록 기다립니다.
     hasMoreMatches = await checkAndClearMatches();
     if (hasMoreMatches) {
       await new Promise(r => setTimeout(r, 200));
@@ -988,26 +999,25 @@ const activateSpecialGems = async (indices) => {
 const activateSpecialCombination = async (index1, index2) => {
     const gem1 = board.value[index1];
     const gem2 = board.value[index2];
-    // [수정] 조합의 중심이 되는 위치를 index1으로 통일합니다.
     const r = Math.floor(index1 / BOARD_SIZE);
     const c = index1 % BOARD_SIZE;
     let affectedGems = new Set([index1, index2]);
     
     // 줄무늬 + 폭탄 조합: 가로/세로 3줄 폭발
-    if ((gem1.special.startsWith('striped') && gem2.special === 'bomb') || (gem2.special.startsWith('striped') && gem1.special === 'bomb')) {
+    if ((gem1?.special?.startsWith('striped') && gem2?.special === 'bomb') || (gem2?.special?.startsWith('striped') && gem1?.special === 'bomb')) {
         for (let i = -1; i <= 1; i++) {
             const row = r + i;
             const col = c + i;
-            if(row >= 0 && row < BOARD_SIZE) { // 가로 3줄
+            if(row >= 0 && row < BOARD_SIZE) {
                 for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(row * BOARD_SIZE + j);
             }
-            if(col >= 0 && col < BOARD_SIZE) { // 세로 3줄
+            if(col >= 0 && col < BOARD_SIZE) {
                 for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(j * BOARD_SIZE + col);
             }
         }
     }
     // 폭탄 + 폭탄 조합: 5x5 폭발
-    else if (gem1.special === 'bomb' && gem2.special === 'bomb') {
+    else if (gem1?.special === 'bomb' && gem2?.special === 'bomb') {
         for (let dr = -2; dr <= 2; dr++) {
             for (let dc = -2; dc <= 2; dc++) {
                 const nr = r + dr, nc = c + dc;
@@ -1018,13 +1028,14 @@ const activateSpecialCombination = async (index1, index2) => {
         }
     }
     // 줄무늬 + 줄무늬 조합: 십자(+) 폭발
-    else if (gem1.special.startsWith('striped') && gem2.special.startsWith('striped')) {
+    else if (gem1?.special?.startsWith('striped') && gem2?.special?.startsWith('striped')) {
         for(let i=0; i<BOARD_SIZE; i++) {
             affectedGems.add(r * BOARD_SIZE + i); // 가로 한 줄
             affectedGems.add(i * BOARD_SIZE + c); // 세로 한 줄
         }
     }
 
+    // [핵심 추가] 조합 효과로 터질 보석들을 먼저 clearGems로 처리합니다.
     await clearGems(affectedGems);
 };
 
