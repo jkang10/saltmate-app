@@ -93,11 +93,11 @@
 	    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
 	    <div class="item-icon">{{ item.icon }}</div>
 	    <div class="item-info">
-	      <div class="item-name">{{ item.name }}</div>
-	      <div v-if="getCouponCount(item.id) > 0" class="item-cost coupon">
+	      <div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
 		쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
 	      </div>
-	      <div v-else class="item-cost">{{ item.cost }} SP</div>
+	      <div class="item-cost" v-else>{{ item.cost }} SP</div>
+	      <div class="item-name">{{ item.name }}</div>
 	    </div>
 	    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
 	  </div>
@@ -505,7 +505,6 @@ const selectGameMode = (mode) => {
   gameMode.value = mode;
 };
 
-// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
 const toggleItemSelection = (itemId) => {
   if (purchasedItems.value.has(itemId)) {
     purchasedItems.value.delete(itemId);
@@ -522,7 +521,6 @@ const startGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
 
-    // 1. 사용하기로 선택한 아이템 중 쿠폰으로 사용할 수 있는 것을 먼저 처리합니다.
     const couponsToUse = [];
     if (purchasedItems.value.has('time_plus_5') && itemCoupons.SALTPANG_TIME_PLUS_5 > 0) {
       couponsToUse.push('SALTPANG_TIME_PLUS_5');
@@ -534,24 +532,16 @@ const startGame = async () => {
     if (couponsToUse.length > 0) {
       const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
       for (const type of couponsToUse) {
-        // [핵심 수정] 서버에 couponId 대신 couponType을 전달하도록 수정되어 있으므로,
-        // 이 로직은 서버의 useItemCoupon 함수가 couponType으로 쿠폰을 찾아 사용하도록 구현되어 있어야 합니다.
-        // 이 부분은 이전 수정에서 올바르게 반영되었습니다.
         await useCouponFunc({ couponType: type });
       }
-      // 쿠폰 사용 후 최신 쿠폰 개수를 다시 불러옵니다.
       await fetchItemCoupons();
     }
     
-    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 정확히 추려냅니다.
     const paidItems = [...purchasedItems.value].filter(id => {
         const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-        // 이전에 쿠폰이 있었는지 여부(couponsToUse)를 기반으로 유료 아이템을 결정합니다.
-        // couponsToUse에 포함된 타입에 해당하는 id는 paidItems에서 제외됩니다.
         return !couponsToUse.includes(couponType);
     });
 
-    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록만 함께 보냅니다.
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession({ gameMode: gameMode.value, items: paidItems });
     sessionId = result.data.sessionId;
@@ -576,7 +566,6 @@ const startGame = async () => {
       timer.value = CLASSIC_DURATION;
     }
 
-    // 아이템 효과 적용 (쿠폰 사용분 + 유료 구매분 모두)
     if (purchasedItems.value.has('time_plus_5')) {
       timer.value += 5;
     }
@@ -584,7 +573,7 @@ const startGame = async () => {
       scoreBoostTimeout = setTimeout(() => {
         isScoreBoostActive.value = true;
         setTimeout(() => isScoreBoostActive.value = false, 10000);
-      }, 10000); // 10초 뒤부터 10초간 활성화
+      }, 10000);
     }
     
     await fetchPlayCount(); 
