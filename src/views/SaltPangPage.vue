@@ -499,6 +499,15 @@ const selectGameMode = (mode) => {
   gameMode.value = mode;
 };
 
+// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
+const toggleItemSelection = (itemId) => {
+  if (purchasedItems.value.has(itemId)) {
+    purchasedItems.value.delete(itemId);
+  } else {
+    purchasedItems.value.add(itemId);
+  }
+};
+
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
