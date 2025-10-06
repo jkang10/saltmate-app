@@ -491,29 +491,6 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
-// [신규] 보유한 아이템 쿠폰 개수를 가져오는 함수
-const fetchItemCoupons = async () => {
-  if (!auth.currentUser) return;
-  try {
-    const q = query(
-      collection(db, `users/${auth.currentUser.uid}/coupons`),
-      where('status', '==', 'unused'),
-      where('type', 'in', ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S'])
-    );
-    const snapshot = await getDocs(q);
-    const counts = { SALTPANG_TIME_PLUS_5: 0, SALTPANG_SCORE_X2_10S: 0 };
-    snapshot.forEach(doc => {
-      const coupon = doc.data();
-      if (counts[coupon.type] !== undefined) {
-        counts[coupon.type] += coupon.quantity || 1;
-      }
-    });
-    Object.assign(itemCoupons, counts);
-  } catch (error) {
-    console.error("아이템 쿠폰 정보 로딩 실패:", error);
-  }
-};
-
 const buyItem = async (item) => {
   // 아이템을 구매하는 대신, 사용하기로 선택한 아이템 목록(purchasedItems)에 추가하거나 제거합니다.
   if (purchasedItems.value.has(item.id)) {
