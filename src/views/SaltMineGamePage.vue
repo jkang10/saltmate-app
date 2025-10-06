@@ -333,12 +333,11 @@ const exchangeGold = async () => {
   
   isExchanging.value = true;
   try {
-    // [핵심] 다시 exchangeGoldenSalt 함수 하나만 호출하도록 변경합니다.
     const exchangeGoldenSaltFunc = httpsCallable(functions, "exchangeGoldenSalt");
     const result = await exchangeGoldenSaltFunc();
     const { awardedPoints } = result.data;
 
-    // 성공 시 화면에 즉시 반영
+    // 성공 시 화면에 즉시 반영 (선반영)
     gold.value -= 1; 
 
     logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
