@@ -486,34 +486,60 @@ const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
   if (gameStateUnsubscribe) gameStateUnsubscribe();
+
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      const isFirstLoad = !state.lastUpdated;
+      const isFirstLoad = !state.lastUpdated; // 로컬 state에 마지막 업데이트 시간이 없으면 첫 로딩
+
+      // [핵심 수정 1] 오프라인 보상 로직 안정화
       if (isFirstLoad && dbState.lastUpdated) {
         const secondsDiff = (new Date().getTime() - dbState.lastUpdated.toDate().getTime()) / 1000;
         if (secondsDiff > 0) {
-            const perSecondProd = ((dbState.shop?.rov || 0) * 1 + (dbState.shop?.harvester || 0) * 5);
-            const capacity = (dbState.capacity || 200) + (dbState.shop?.tank || 0) * 300;
-            const offlineProduction = Math.floor(secondsDiff * perSecondProd);
-            if (offlineProduction > 0) {
-              const currentWater = dbState.water || 0;
-              const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
-              const producedAmount = waterAfterOffline - currentWater;
-              if (producedAmount > 0) {
-                addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
-                dbState.water = waterAfterOffline;
+            const shop = dbState.shop || {};
+            const perSecondProd = (shop.rov || 0) * 1 + (shop.harvester || 0) * 5;
+            if (perSecondProd > 0) {
+              const capacity = (dbState.capacity || 200) + (shop.tank || 0) * 300;
+              const offlineProduction = Math.floor(secondsDiff * perSecondProd);
+              
+              if (offlineProduction > 0) {
+                const currentWater = dbState.water || 0;
+                const waterAfterOffline = Math.min(capacity, currentWater + offlineProduction);
+                const producedAmount = waterAfterOffline - currentWater;
+
+                if (producedAmount > 0) {
+                  addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
+                  // dbState 객체를 직접 수정하지 않고, DB에만 업데이트 요청을 보냅니다.
+                  // onSnapshot 리스너가 이 변경을 감지하고 state를 안전하게 업데이트할 것입니다.
+                  setDoc(DB_SAVE_REF, { water: waterAfterOffline }, { merge: true });
+                }
               }
             }
         }
       }
+
+      // [핵심 수정 2] 데이터를 덮어쓰기 전에 필수 필드가 있는지 확인
+      // funds, water, minerals 필드 중 하나라도 dbState에 없다면, 데이터가 불완전한 것으로 간주하고 덮어쓰기를 건너뜁니다.
+      if (dbState.funds === undefined || dbState.water === undefined || dbState.minerals === undefined) {
+        console.warn("Firestore에서 불완전한 게임 데이터를 수신하여 업데이트를 건너뜁니다.", dbState);
+        return; 
+      }
+
       Object.assign(state, dbState);
     } else {
-      Object.assign(state, clone(DEFAULT_STATE));
-      if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
+      // [핵심 수정 3] 문서가 없을 때, 덮어쓰기 전에 한 번 더 확인
+      // 로컬 state에 데이터가 이미 있다면 (예: 잠시 연결이 끊겼다가 다시 연결될 때), 초기화하지 않습니다.
+      if (!state.lastUpdated) {
+        console.log("신규 사용자로 판단되어 해양탐험 게임 데이터를 초기화합니다.");
+        Object.assign(state, clone(DEFAULT_STATE));
+        if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
+      }
     }
     if (!state.seenTutorial) showTutorial.value = true;
-  }, (e) => { console.error("Firestore listen error", e); });
+  }, (e) => { 
+    console.error("Firestore listen error", e); 
+    addLog("데이터 동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", 'error');
+  });
 };
 
 onMounted(() => {
