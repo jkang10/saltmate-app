@@ -650,16 +650,6 @@ const endGame = async () => {
   }
 };
 
-const resetGame = async () => {
-  gameState.value = 'ready';
-  sessionId = null;
-  error.value = '';
-  purchasedItems.value.clear();
-  explodingGems.value.clear();
-  await fetchPlayCount();
-  await fetchMissions();
-};
-
 const handleTouchStart = (index, event) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
   touchStart.index = index;
