@@ -86,22 +86,22 @@
 
         <div class="intro-section item-section">
            <h3 class="section-title"><i class="fas fa-shopping-cart"></i> 아이템 상점</h3>
-	<div class="item-shop">
-	  <div v-for="item in items" :key="item.id" class="item" 
-	       :class="{ purchased: purchasedItems.has(item.id) }" 
-	       @click="toggleItemSelection(item.id)">
-	    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
-	    <div class="item-icon">{{ item.icon }}</div>
-	    <div class="item-info">
-	      <div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
-		쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
-	      </div>
-	      <div class="item-cost" v-else>{{ item.cost }} SP</div>
-	      <div class="item-name">{{ item.name }}</div>
-	    </div>
-	    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
-	  </div>
-	</div>
+<div class="item-shop">
+  <div v-for="item in items" :key="item.id" class="item" 
+       :class="{ purchased: purchasedItems.has(item.id) }" 
+       @click="toggleItemSelection(item.id)">
+    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
+    <div class="item-icon">{{ item.icon }}</div>
+    <div class="item-info">
+      <div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
+        쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
+      </div>
+      <div class="item-cost" v-else>{{ item.cost }} SP</div>
+      <div class="item-name">{{ item.name }}</div>
+    </div>
+    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+  </div>
+</div>	
           <p v-if="gameMode === 'timeAttack'" class="item-notice">
             아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
           </p>
@@ -273,18 +273,6 @@ const isRankedPlayable = computed(() => {
   const today = new Date();
   const day = today.getDay();
   return day === 0 || day === 6;
-});
-
-const currentEntryFee = computed(() => {
-  if (gameMode.value === 'classic') {
-    if (playCount.classic >= 30) return 300;
-    if (playCount.classic >= 15) return 200;
-    return 100;
-  }
-  if (gameMode.value === 'timeAttack') return "400 ~";
-  if (gameMode.value === 'infinite') return 300;
-  if (gameMode.value === 'ranked') return 500;
-  return 100;
 });
 
 // --- 함수 ---
