@@ -507,9 +507,6 @@ const startGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
 
-    const couponsToUseIds = []; // 사용할 쿠폰의 ID를 저장할 배열
-    const usedItemTypes = new Set(); // 사용된 아이템 타입 저장
-
     // 사용할 쿠폰 ID 찾기 (서버에 ID를 보내기 위함)
     // 이 부분은 실제 쿠폰 객체 리스트를 가지고 있다는 가정하에 작성되었습니다.
     // 만약 쿠폰 ID를 모른다면, 기존처럼 couponType을 보내는 useItemCoupon 함수를 먼저 호출해야 합니다.
