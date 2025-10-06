@@ -86,23 +86,23 @@
 
         <div class="intro-section item-section">
            <h3 class="section-title"><i class="fas fa-shopping-cart"></i> 아이템 상점</h3>
-	<div class="item-shop">
-	  <div v-for="item in items" :key="item.id" class="item" 
-	       :class="{ purchased: purchasedItems.has(item.id) }" 
-	       @click="toggleItemSelection(item.id)">
-	    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
-	    <div class="item-icon">{{ item.icon }}</div>
-	    <div class="item-info">
-	      <div class="item-name">{{ item.name }}</div>
-	      <div v-if="getCouponCount(item.id) > 0" class="item-cost coupon">
-		쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
-	      </div>
-	      <div v-else class="item-cost">{{ item.cost }} SP</div>
-	    </div>
-	    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
-	  </div>
-	</div>
-          <p v-if="gameMode === 'timeAttack'" class="item-notice">
+            <div class="item-shop">
+              <div v-for="item in items" :key="item.id" class="item" 
+                   :class="{ purchased: purchasedItems.has(item.id) }" 
+                   @click="toggleItemSelection(item.id)">
+                <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
+                <div class="item-icon">{{ item.icon }}</div>
+                <div class="item-info">
+                  <div class="item-name">{{ item.name }}</div>
+                  <div v-if="getCouponCount(item.id) > 0" class="item-cost coupon">
+                    쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
+                  </div>
+                  <div v-else class="item-cost">{{ item.cost }} SP</div>
+                </div>
+                <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+              </div>
+            </div>
+          <p class="item-notice">
             아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
           </p>
         </div>
@@ -112,9 +112,8 @@
             <p>입장료</p>
             <strong>{{ currentEntryFee }} SaltMate</strong>
           </div>
-          <button @click="startGame" class="game-button" :disabled="isStarting || isBuyingItem">
+          <button @click="startGame" class="game-button" :disabled="isStarting">
             <span v-if="isStarting">입장 중...</span>
-            <span v-else-if="isBuyingItem">구매 중...</span>
             <span v-else>GAME START</span>
           </button>
         </div>
@@ -191,7 +190,8 @@
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";import soundMatch from '@/assets/sounds/match.mp3';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
 // --- 기본 설정 ---
@@ -212,20 +212,17 @@ const movesLeft = ref(INFINITE_MODE_MOVES);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
-const isBuyingItem = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
 const playCount = reactive({ classic: 0, timeAttack: 0 });
 const jackpotEffect = reactive({ active: false, amount: 0 });
 
-// [신규] 보유한 아이템 쿠폰을 저장할 변수
 const itemCoupons = reactive({
   SALTPANG_TIME_PLUS_5: 0,
   SALTPANG_SCORE_X2_10S: 0,
 });
 
-// 아이템 관련 상태
 const items = ref([
   { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150, icon: '⏱️' },
   { id: 'score_x2_10s', name: '10초간 점수 2배', cost: 300, icon: '🚀' },
@@ -233,7 +230,6 @@ const items = ref([
 const purchasedItems = ref(new Set());
 const isScoreBoostActive = ref(false);
 
-// 미션 관련 상태
 const missions = reactive({ daily: [], weekly: [] });
 const gameStats = reactive({
   gemsMatched: {},
@@ -243,16 +239,13 @@ const gameStats = reactive({
 });
 let currentCombo = 0;
 
-// 모바일 스와이프 관련 상태
 const touchStart = reactive({ index: null, x: 0, y: 0 });
 const hasSwiped = ref(false);
 
-// PC 드래그 상태
 const isDragging = ref(false);
 const mouseDownIndex = ref(null);
 const preventClick = ref(false);
 
-// 오디오 관련
 let audioContextStarted = false;
 const isMuted = ref(false);
 const sounds = {
@@ -264,7 +257,6 @@ const sounds = {
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
 
-// 내부 변수
 let timerInterval = null;
 let sessionId = null;
 let scoreBoostTimeout = null;
@@ -278,18 +270,29 @@ const isRankedPlayable = computed(() => {
 });
 
 const currentEntryFee = computed(() => {
+  let itemsCost = 0;
+  purchasedItems.value.forEach(itemId => {
+    const couponType = itemId === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
+    if (itemCoupons[couponType] <= 0) {
+      const item = items.value.find(i => i.id === itemId);
+      if (item) itemsCost += item.cost;
+    }
+  });
+
   if (gameMode.value === 'classic') {
-    if (playCount.classic >= 30) return 300;
-    if (playCount.classic >= 15) return 200;
-    return 100;
+    let baseFee = 100;
+    if (playCount.classic >= 30) baseFee = 300;
+    else if (playCount.classic >= 15) baseFee = 200;
+    return `${baseFee + itemsCost} SaltMate`;
   }
-  if (gameMode.value === 'timeAttack') return "400 ~";
-  if (gameMode.value === 'infinite') return 300;
-  if (gameMode.value === 'ranked') return 500;
-  return 100;
+  if (gameMode.value === 'timeAttack') return `${400 + itemsCost} ~ SaltMate`;
+  if (gameMode.value === 'infinite') return `${300 + itemsCost} SaltMate`;
+  if (gameMode.value === 'ranked') return `${500 + itemsCost} SaltMate`;
+  return `${100 + itemsCost} SaltMate`;
 });
 
 // --- 함수 ---
+
 const handleCellInteraction = (index, eventType) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
   initAudioContext();
@@ -355,13 +358,11 @@ const handleCellInteraction = (index, eventType) => {
   }
 };
 
-// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
 const getCouponCount = (itemId) => {
   const couponType = itemId === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
   return itemCoupons[couponType] || 0;
 };
 
-// [신규] 보유한 아이템 쿠폰 개수를 가져오는 함수
 const fetchItemCoupons = async () => {
   if (!auth.currentUser) return;
   try {
@@ -496,13 +497,23 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
-const buyItem = async (item) => {
-  // 아이템을 구매하는 대신, 사용하기로 선택한 아이템 목록(purchasedItems)에 추가하거나 제거합니다.
-  if (purchasedItems.value.has(item.id)) {
-    purchasedItems.value.delete(item.id);
+const toggleItemSelection = (itemId) => {
+  if (purchasedItems.value.has(itemId)) {
+    purchasedItems.value.delete(itemId);
   } else {
-    purchasedItems.value.add(item.id);
+    purchasedItems.value.add(itemId);
   }
+};
+
+const resetGame = async () => {
+  gameState.value = 'ready';
+  sessionId = null;
+  error.value = '';
+  purchasedItems.value.clear();
+  explodingGems.value.clear();
+  await fetchPlayCount();
+  await fetchMissions();
+  await fetchItemCoupons();
 };
 
 const selectGameMode = (mode) => {
@@ -514,15 +525,6 @@ const selectGameMode = (mode) => {
   gameMode.value = mode;
 };
 
-// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
-const toggleItemSelection = (itemId) => {
-  if (purchasedItems.value.has(itemId)) {
-    purchasedItems.value.delete(itemId);
-  } else {
-    purchasedItems.value.add(itemId);
-  }
-};
-
 const startGame = async () => {
   isStarting.value = true;
   error.value = '';
@@ -531,7 +533,6 @@ const startGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
 
-    // 1. 사용하기로 선택한 아이템 중 쿠폰으로 사용할 수 있는 것을 먼저 처리합니다.
     const couponsToUse = [];
     if (purchasedItems.value.has('time_plus_5') && itemCoupons.SALTPANG_TIME_PLUS_5 > 0) {
       couponsToUse.push('SALTPANG_TIME_PLUS_5');
@@ -543,29 +544,20 @@ const startGame = async () => {
     if (couponsToUse.length > 0) {
       const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
       for (const type of couponsToUse) {
-        // [핵심 수정] 서버에 couponId 대신 couponType을 전달하도록 수정되어 있으므로,
-        // 이 로직은 서버의 useItemCoupon 함수가 couponType으로 쿠폰을 찾아 사용하도록 구현되어 있어야 합니다.
-        // 이 부분은 이전 수정에서 올바르게 반영되었습니다.
         await useCouponFunc({ couponType: type });
       }
-      // 쿠폰 사용 후 최신 쿠폰 개수를 다시 불러옵니다.
       await fetchItemCoupons();
     }
     
-    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 정확히 추려냅니다.
     const paidItems = [...purchasedItems.value].filter(id => {
         const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-        // 이전에 쿠폰이 있었는지 여부(couponsToUse)를 기반으로 유료 아이템을 결정합니다.
-        // couponsToUse에 포함된 타입에 해당하는 id는 paidItems에서 제외됩니다.
         return !couponsToUse.includes(couponType);
     });
 
-    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록만 함께 보냅니다.
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession({ gameMode: gameMode.value, items: paidItems });
     sessionId = result.data.sessionId;
     
-    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 (기존과 동일) ---
     score.value = 0;
     awardedPoints.value = 0;
     board.value = createBoard();
@@ -585,7 +577,6 @@ const startGame = async () => {
       timer.value = CLASSIC_DURATION;
     }
 
-    // 아이템 효과 적용 (쿠폰 사용분 + 유료 구매분 모두)
     if (purchasedItems.value.has('time_plus_5')) {
       timer.value += 5;
     }
@@ -593,7 +584,7 @@ const startGame = async () => {
       scoreBoostTimeout = setTimeout(() => {
         isScoreBoostActive.value = true;
         setTimeout(() => isScoreBoostActive.value = false, 10000);
-      }, 10000); // 10초 뒤부터 10초간 활성화
+      }, 10000);
     }
     
     await fetchPlayCount(); 
@@ -831,7 +822,6 @@ const findMatchesOnBoard = () => {
   const matches = new Set();
   const longH = [], longV = [], shapes = [];
 
-  // 가로 매치 확인 (기존과 동일)
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE - 2; c++) {
       let line = [r * BOARD_SIZE + c];
@@ -855,7 +845,6 @@ const findMatchesOnBoard = () => {
     }
   }
 
-  // 세로 매치 확인 (기존과 동일)
   for (let c = 0; c < BOARD_SIZE; c++) {
     for (let r = 0; r < BOARD_SIZE - 2; r++) {
       let line = [r * BOARD_SIZE + c];
@@ -879,14 +868,12 @@ const findMatchesOnBoard = () => {
     }
   }
   
-  // [핵심 수정] L, T자 매치 확인 로직 강화
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
         const index = r * BOARD_SIZE + c;
         const gemType = board.value[index]?.type || board.value[index];
         if (!gemType) continue;
 
-        // 가로 3개 이상 확인
         const hMatch = [index];
         for (let i = c + 1; i < BOARD_SIZE; i++) {
             const nextIndex = r * BOARD_SIZE + i;
@@ -894,7 +881,6 @@ const findMatchesOnBoard = () => {
             if (nextType === gemType) hMatch.push(nextIndex); else break;
         }
 
-        // 세로 3개 이상 확인
         const vMatch = [index];
         for (let i = r + 1; i < BOARD_SIZE; i++) {
             const nextIndex = i * BOARD_SIZE + c;
@@ -902,7 +888,6 @@ const findMatchesOnBoard = () => {
             if (nextType === gemType) vMatch.push(nextIndex); else break;
         }
         
-        // 가로 3개와 세로 3개가 교차하면 shape 매치로 간주
         if (hMatch.length >= 3 && vMatch.length >= 3) {
             shapes.push({ center: index });
             hMatch.forEach(i => matches.add(i));
@@ -949,10 +934,9 @@ const findMatchesAt = (index) => {
 const clearGems = async (indices) => {
   if (indices.size === 0) return;
   
-  // [수정] 점수 계산 로직 강화
   const scoreMultiplier = isScoreBoostActive.value ? 2 : 1;
-  const comboBonus = currentCombo > 1 ? (currentCombo - 1) * 5 : 0; // 콤보 보너스
-  const specialBonus = indices.size > 5 ? indices.size * 2 : 0; // 특수 아이템 보너스
+  const comboBonus = currentCombo > 1 ? (currentCombo - 1) * 5 : 0;
+  const specialBonus = indices.size > 5 ? indices.size * 2 : 0;
   
   score.value += (indices.size * 10 + comboBonus + specialBonus) * scoreMultiplier;
   
@@ -1020,25 +1004,22 @@ const activateSpecialGems = async (indices) => {
 const activateSpecialCombination = async (index1, index2) => {
     const gem1 = board.value[index1];
     const gem2 = board.value[index2];
-    // [수정] 조합의 중심이 되는 위치를 index1으로 통일합니다.
     const r = Math.floor(index1 / BOARD_SIZE);
     const c = index1 % BOARD_SIZE;
     let affectedGems = new Set([index1, index2]);
     
-    // 줄무늬 + 폭탄 조합: 가로/세로 3줄 폭발
     if ((gem1.special.startsWith('striped') && gem2.special === 'bomb') || (gem2.special.startsWith('striped') && gem1.special === 'bomb')) {
         for (let i = -1; i <= 1; i++) {
             const row = r + i;
             const col = c + i;
-            if(row >= 0 && row < BOARD_SIZE) { // 가로 3줄
+            if(row >= 0 && row < BOARD_SIZE) {
                 for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(row * BOARD_SIZE + j);
             }
-            if(col >= 0 && col < BOARD_SIZE) { // 세로 3줄
+            if(col >= 0 && col < BOARD_SIZE) {
                 for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(j * BOARD_SIZE + col);
             }
         }
     }
-    // 폭탄 + 폭탄 조합: 5x5 폭발
     else if (gem1.special === 'bomb' && gem2.special === 'bomb') {
         for (let dr = -2; dr <= 2; dr++) {
             for (let dc = -2; dc <= 2; dc++) {
@@ -1049,11 +1030,10 @@ const activateSpecialCombination = async (index1, index2) => {
             }
         }
     }
-    // 줄무늬 + 줄무늬 조합: 십자(+) 폭발
     else if (gem1.special.startsWith('striped') && gem2.special.startsWith('striped')) {
         for(let i=0; i<BOARD_SIZE; i++) {
-            affectedGems.add(r * BOARD_SIZE + i); // 가로 한 줄
-            affectedGems.add(i * BOARD_SIZE + c); // 세로 한 줄
+            affectedGems.add(r * BOARD_SIZE + i);
+            affectedGems.add(i * BOARD_SIZE + c);
         }
     }
 
@@ -1107,24 +1087,12 @@ const listenToJackpot = () => {
   });
 };
 
-// [수정] onMounted, resetGame 함수에 쿠폰 정보 로딩 함수 호출 추가
 onMounted(() => {
   fetchPlayCount();
   fetchMissions();
   listenToJackpot();
-  fetchItemCoupons(); // 추가
+  fetchItemCoupons();
 });
-
-const resetGame = async () => {
-  gameState.value = 'ready';
-  sessionId = null;
-  error.value = '';
-  purchasedItems.value.clear();
-  explodingGems.value.clear();
-  await fetchPlayCount();
-  await fetchMissions();
-  await fetchItemCoupons(); // 추가
-};
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
