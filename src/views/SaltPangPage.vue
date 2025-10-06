@@ -534,26 +534,29 @@ const startGame = async () => {
     if (couponsToUse.length > 0) {
       const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
       for (const type of couponsToUse) {
-        // 서버에 쿠폰 사용을 요청합니다.
+        // [핵심 수정] 서버에 couponId 대신 couponType을 전달하도록 수정되어 있으므로,
+        // 이 로직은 서버의 useItemCoupon 함수가 couponType으로 쿠폰을 찾아 사용하도록 구현되어 있어야 합니다.
+        // 이 부분은 이전 수정에서 올바르게 반영되었습니다.
         await useCouponFunc({ couponType: type });
       }
       // 쿠폰 사용 후 최신 쿠폰 개수를 다시 불러옵니다.
       await fetchItemCoupons();
     }
     
-    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 추려냅니다.
+    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 정확히 추려냅니다.
     const paidItems = [...purchasedItems.value].filter(id => {
         const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-        // 해당 쿠폰이 없어야 유료 아이템으로 간주합니다.
-        return itemCoupons[couponType] <= 0;
+        // 이전에 쿠폰이 있었는지 여부(couponsToUse)를 기반으로 유료 아이템을 결정합니다.
+        // couponsToUse에 포함된 타입에 해당하는 id는 paidItems에서 제외됩니다.
+        return !couponsToUse.includes(couponType);
     });
 
-    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록을 함께 보냅니다.
+    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록만 함께 보냅니다.
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     const result = await startSession({ gameMode: gameMode.value, items: paidItems });
     sessionId = result.data.sessionId;
     
-    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 ---
+    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 (기존과 동일) ---
     score.value = 0;
     awardedPoints.value = 0;
     board.value = createBoard();
