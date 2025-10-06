@@ -507,29 +507,34 @@ const startGame = async () => {
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
 
-    const couponsToUse = [];
+    const couponsToUseIds = []; // 사용할 쿠폰의 ID를 저장할 배열
+    const usedItemTypes = new Set(); // 사용된 아이템 타입 저장
+
+    // 사용할 쿠폰 ID 찾기 (서버에 ID를 보내기 위함)
+    // 이 부분은 실제 쿠폰 객체 리스트를 가지고 있다는 가정하에 작성되었습니다.
+    // 만약 쿠폰 ID를 모른다면, 기존처럼 couponType을 보내는 useItemCoupon 함수를 먼저 호출해야 합니다.
+    
+    // --- 추천 수정안 ---
+    const usedCouponsInfo = [];
     if (purchasedItems.value.has('time_plus_5') && itemCoupons.SALTPANG_TIME_PLUS_5 > 0) {
-      couponsToUse.push('SALTPANG_TIME_PLUS_5');
+      usedCouponsInfo.push({ type: 'SALTPANG_TIME_PLUS_5' });
     }
     if (purchasedItems.value.has('score_x2_10s') && itemCoupons.SALTPANG_SCORE_X2_10S > 0) {
-      couponsToUse.push('SALTPANG_SCORE_X2_10S');
+      usedCouponsInfo.push({ type: 'SALTPANG_SCORE_X2_10S' });
     }
 
-    if (couponsToUse.length > 0) {
-	const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
-	for (const type of couponsToUse) {
-	  await useCouponFunc({ couponType: type }); // "couponType"으로 올바르게 수정
-	}
-      await fetchItemCoupons();
-    }
-    
     const paidItems = [...purchasedItems.value].filter(id => {
         const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
-        return !couponsToUse.includes(couponType);
+        return !usedCouponsInfo.some(c => c.type === couponType);
     });
 
     const startSession = httpsCallable(functions, 'startSaltPangSession');
-    const result = await startSession({ gameMode: gameMode.value, items: paidItems });
+    // 서버로 유료 아이템과 사용한 쿠폰 정보를 함께 전송
+    const result = await startSession({
+      gameMode: gameMode.value,
+      items: paidItems,
+      usedCoupons: usedCouponsInfo
+    });
     sessionId = result.data.sessionId;
     
     // --- 이하 게임 보드 초기화 및 타이머 설정 로직 (기존과 동일) ---
@@ -580,7 +585,7 @@ const startGame = async () => {
       }, 1000);
     }
 
-  } catch (err) {
+   } catch (err) {
     console.error("게임 시작 오류:", err);
     error.value = `게임 시작 실패: ${err.message}`;
     gameState.value = 'ready'; 
