@@ -879,8 +879,12 @@ const findMatchesAt = (index) => {
 const clearGems = async (indices) => {
   if (indices.size === 0) return;
   
-  let scoreMultiplier = isScoreBoostActive.value ? 2 : 1;
-  score.value += indices.size * 10 * scoreMultiplier;
+  // [수정] 점수 계산 로직 강화
+  const scoreMultiplier = isScoreBoostActive.value ? 2 : 1;
+  const comboBonus = currentCombo > 1 ? (currentCombo - 1) * 5 : 0; // 콤보 보너스
+  const specialBonus = indices.size > 5 ? indices.size * 2 : 0; // 특수 아이템 보너스
+  
+  score.value += (indices.size * 10 + comboBonus + specialBonus) * scoreMultiplier;
   
   indices.forEach(index => {
     explodingGems.value.add(index);
@@ -946,19 +950,26 @@ const activateSpecialGems = async (indices) => {
 const activateSpecialCombination = async (index1, index2) => {
     const gem1 = board.value[index1];
     const gem2 = board.value[index2];
+    // [수정] 조합의 중심이 되는 위치를 index1으로 통일합니다.
+    const r = Math.floor(index1 / BOARD_SIZE);
+    const c = index1 % BOARD_SIZE;
     let affectedGems = new Set([index1, index2]);
     
+    // 줄무늬 + 폭탄 조합: 가로/세로 3줄 폭발
     if ((gem1.special.startsWith('striped') && gem2.special === 'bomb') || (gem2.special.startsWith('striped') && gem1.special === 'bomb')) {
-        const r = Math.floor(index1 / BOARD_SIZE);
-        const c = index1 % BOARD_SIZE;
-        for(let i=0; i<BOARD_SIZE; i++) {
-            affectedGems.add(r * BOARD_SIZE + i);
-            affectedGems.add(i * BOARD_SIZE + c);
+        for (let i = -1; i <= 1; i++) {
+            const row = r + i;
+            const col = c + i;
+            if(row >= 0 && row < BOARD_SIZE) { // 가로 3줄
+                for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(row * BOARD_SIZE + j);
+            }
+            if(col >= 0 && col < BOARD_SIZE) { // 세로 3줄
+                for(let j=0; j<BOARD_SIZE; j++) affectedGems.add(j * BOARD_SIZE + col);
+            }
         }
     }
+    // 폭탄 + 폭탄 조합: 5x5 폭발
     else if (gem1.special === 'bomb' && gem2.special === 'bomb') {
-        const r = Math.floor(index1 / BOARD_SIZE);
-        const c = index1 % BOARD_SIZE;
         for (let dr = -2; dr <= 2; dr++) {
             for (let dc = -2; dc <= 2; dc++) {
                 const nr = r + dr, nc = c + dc;
@@ -968,12 +979,11 @@ const activateSpecialCombination = async (index1, index2) => {
             }
         }
     }
+    // 줄무늬 + 줄무늬 조합: 십자(+) 폭발
     else if (gem1.special.startsWith('striped') && gem2.special.startsWith('striped')) {
-        const r = Math.floor(index1 / BOARD_SIZE);
-        const c = index1 % BOARD_SIZE;
         for(let i=0; i<BOARD_SIZE; i++) {
-            affectedGems.add(r * BOARD_SIZE + i);
-            affectedGems.add(i * BOARD_SIZE + c);
+            affectedGems.add(r * BOARD_SIZE + i); // 가로 한 줄
+            affectedGems.add(i * BOARD_SIZE + c); // 세로 한 줄
         }
     }
 
