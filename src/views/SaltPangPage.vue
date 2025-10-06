@@ -505,17 +505,6 @@ const buyItem = async (item) => {
   }
 };
 
-const resetGame = async () => {
-  gameState.value = 'ready';
-  sessionId = null;
-  error.value = '';
-  purchasedItems.value.clear();
-  explodingGems.value.clear();
-  await fetchPlayCount();
-  await fetchMissions();
-  await fetchItemCoupons();
-};
-
 const selectGameMode = (mode) => {
   if (mode === 'ranked' && !isRankedPlayable.value) {
     error.value = '랭킹전은 토요일과 일요일에만 참여할 수 있습니다.';
