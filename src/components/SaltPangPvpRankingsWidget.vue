@@ -37,22 +37,28 @@ const isLoading = ref(true);
 
 const fetchPvpRankings = async () => {
   try {
-    // [핵심 수정] 오늘 날짜를 기준으로 지난주 월요일 날짜를 계산하는 안정적인 로직
-    const today = new Date();
-    // 1. 오늘로부터 7일을 뺍니다. (무조건 지난주로 이동)
-    const lastWeek = new Date(today.setDate(today.getDate() - 7));
-    // 2. 지난주의 요일(0=일, 1=월)을 가져옵니다.
-    const dayOfWeek = lastWeek.getDay();
-    // 3. 지난주 날짜에서 (요일-1) 만큼 빼서 월요일 날짜를 정확히 계산합니다. (일요일이면 6을 뺌)
-    const lastMonday = new Date(lastWeek.setDate(lastWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
+    // [최종 핵심 수정] 한국 표준시(KST)를 기준으로 지난주를 정확히 계산하는 로직
+    const now = new Date();
+    const kstOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+    const kstNow = new Date(now.getTime() + kstOffset);
     
-    const lastWeekId = lastMonday.toISOString().slice(0, 10);
+    // 1. KST 기준 오늘 날짜에서 7일을 뺍니다.
+    const kstLastWeek = new Date(kstNow.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    // 2. KST 기준 지난주의 요일을 가져옵니다. (0=일, 1=월, ...)
+    const dayOfWeek = kstLastWeek.getUTCDay();
+    
+    // 3. KST 기준 지난주 월요일의 날짜를 계산합니다.
+    const kstLastMonday = new Date(kstLastWeek.getTime());
+    kstLastMonday.setUTCDate(kstLastMonday.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    
+    const lastWeekId = kstLastMonday.toISOString().slice(0, 10);
 
-    const q = query(
-      collection(db, `leaderboards/pvp_weekly_wins/${lastWeekId}`),
-      orderBy("rank", "asc"),
-      limit(7)
-    );
+	const q = query(
+	  collection(db, `leaderboards/pvp_weekly_wins/${lastWeekId}`),
+	  orderBy("rank", "asc"),
+	  limit(7)
+	);
     const snapshot = await getDocs(q);
     rankings.value = snapshot.docs.map(doc => doc.data());
   } catch (error) {
