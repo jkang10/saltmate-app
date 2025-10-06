@@ -211,7 +211,6 @@ const movesLeft = ref(INFINITE_MODE_MOVES);
 const selectedCell = ref(null);
 const isProcessing = ref(false);
 const isStarting = ref(false);
-const isBuyingItem = ref(false);
 const error = ref('');
 const awardedPoints = ref(0);
 const explodingGems = ref(new Set()); 
