@@ -107,14 +107,13 @@
             황금 소금 1개를 {{ gameSettings.goldenSaltExchangeRate }} SaltMate로
             교환합니다.
           </p>
-          <button
-            @click="exchangeGold"
-            :disabled="isExchanging || gold < 1"
-            class="boost-button"
-          >
-            <span v-if="isExchanging">교환 중...</span>
-            <span v-else>SaltMate로 교환</span>
-          </button>
+	<button
+	  @click="openExchangeModal" :disabled="isExchanging || gold < 1"
+	  class="boost-button"
+	>
+	  <span v-if="isExchanging">교환 중...</span>
+	  <span v-else>SaltMate로 교환</span>
+	</button>
         </div>
 
         <div class="achievement-card card">
@@ -134,6 +133,32 @@
         </div>
       </aside>
     </main>
+<div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
+  <div class="modal-content card">
+    <header class="modal-header">
+      <h3>황금 소금 교환</h3>
+      <button @click="closeExchangeModal" class="close-button">&times;</button>
+    </header>
+    <div class="modal-body">
+      <p>교환할 황금 소금의 수량을 입력하세요.</p>
+      <div class="exchange-info">
+        <span>보유: {{ gold.toLocaleString() }} 개</span>
+        <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
+      </div>
+      <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
+      <div class="exchange-summary">
+        <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
+      </div>
+    </div>
+    <footer class="modal-footer">
+      <button @click="closeExchangeModal" class="btn-secondary">취소</button>
+      <button @click="executeExchange" :disabled="isExchanging || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
+        <span v-if="isExchanging">교환 중...</span>
+        <span v-else>교환하기</span>
+      </button>
+    </footer>
+  </div>
+</div>
   </div>
 </template>
 
@@ -152,6 +177,8 @@ const perSecond = ref(0);
 const upgrades = reactive({});
 const isSelling = ref(false);
 const isExchanging = ref(false);
+const isExchangeModalVisible = ref(false);
+const exchangeQuantity = ref(1);
 const logs = ref([]);
 const currentUser = ref(null);
 const isLoading = ref(true);
@@ -327,21 +354,34 @@ const sellSalt = async () => {
   }
 };
 
-const exchangeGold = async () => {
-  if (!currentUser.value || gold.value < 1 || isExchanging.value) return;
-  if (!confirm(`황금 소금 1개를 ${gameSettings.goldenSaltExchangeRate} SaltMate로 교환하시겠습니까?`)) return;
+const openExchangeModal = () => {
+  exchangeQuantity.value = 1; // 모달을 열 때마다 수량을 1로 초기화
+  isExchangeModalVisible.value = true;
+};
+
+const closeExchangeModal = () => {
+  isExchangeModalVisible.value = false;
+};
+
+const executeExchange = async () => {
+  if (!currentUser.value || gold.value < exchangeQuantity.value || isExchanging.value || exchangeQuantity.value <= 0) {
+    alert("교환할 수량이 올바르지 않습니다.");
+    return;
+  }
+  if (!confirm(`황금 소금 ${exchangeQuantity.value}개를 교환하시겠습니까?`)) return;
   
   isExchanging.value = true;
   try {
     const exchangeGoldenSaltFunc = httpsCallable(functions, "exchangeGoldenSalt");
-    const result = await exchangeGoldenSaltFunc();
+    // [핵심] 서버에 교환할 수량(quantity)을 함께 보냅니다.
+    const result = await exchangeGoldenSaltFunc({ quantity: exchangeQuantity.value });
     const { awardedPoints } = result.data;
 
-    // 성공 시 화면에 즉시 반영 (선반영)
-    gold.value -= 1; 
+    gold.value -= exchangeQuantity.value; 
 
-    logEvent(`황금 소금 1개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
+    logEvent(`황금 소금 ${exchangeQuantity.value}개를 사용하여 <strong>${awardedPoints.toLocaleString()} SaltMate</strong>를 획득했습니다!`);
     alert(`성공적으로 교환했습니다: +${awardedPoints.toLocaleString()} SaltMate`);
+    closeExchangeModal();
 
   } catch (error) {
     console.error("황금 소금 교환 오류:", error);
@@ -431,4 +471,69 @@ onUnmounted(() => {
 .gold-feature { background-color: #fffbeb; border: 1px solid #fde68a; }
 .feature-desc { font-size: 0.9em; color: #78350f; margin-bottom: 15px; }
 .boost-button { background-color: #f59e0b; color: white; }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modal-content {
+  width: 90%;
+  max-width: 400px;
+  padding: 0;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.modal-header h3 { margin: 0; font-size: 1.2em; }
+.close-button { background: none; border: none; font-size: 1.5em; cursor: pointer; }
+.modal-body { padding: 20px; }
+.exchange-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9em;
+  color: #64748b;
+  margin-bottom: 15px;
+}
+.quantity-input {
+  width: 100%;
+  padding: 10px;
+  font-size: 1.2em;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.exchange-summary {
+  margin-top: 15px;
+  text-align: center;
+  font-size: 1.1em;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+.btn-primary, .btn-secondary {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-primary { background-color: #007bff; color: white; }
+.btn-primary:disabled { background-color: #a0c9ff; }
+.btn-secondary { background-color: #6c757d; color: white; }
 </style>
