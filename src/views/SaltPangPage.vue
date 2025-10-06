@@ -86,14 +86,22 @@
 
         <div class="intro-section item-section">
            <h3 class="section-title"><i class="fas fa-shopping-cart"></i> 아이템 상점</h3>
-           <div class="item-shop">
-            <div v-for="item in items" :key="item.id" class="item" :class="{ purchased: purchasedItems.has(item.id) }" @click="buyItem(item)">
-              <div class="item-icon">{{ item.icon }}</div>
-              <div class="item-name">{{ item.name }}</div>
-              <div class="item-cost">{{ item.cost }} SP</div>
-              <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
-            </div>
-          </div>
+	<div class="item-shop">
+	  <div v-for="item in items" :key="item.id" class="item" 
+	       :class="{ purchased: purchasedItems.has(item.id) }" 
+	       @click="toggleItemSelection(item.id)">
+	    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
+	    <div class="item-icon">{{ item.icon }}</div>
+	    <div class="item-info">
+	      <div class="item-name">{{ item.name }}</div>
+	      <div v-if="getCouponCount(item.id) > 0" class="item-cost coupon">
+		쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
+	      </div>
+	      <div v-else class="item-cost">{{ item.cost }} SP</div>
+	    </div>
+	    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+	  </div>
+	</div>
           <p v-if="gameMode === 'timeAttack'" class="item-notice">
             아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
           </p>
@@ -212,6 +220,12 @@ const explodingGems = ref(new Set());
 const playCount = reactive({ classic: 0, timeAttack: 0 });
 const jackpotEffect = reactive({ active: false, amount: 0 });
 
+// [신규] 보유한 아이템 쿠폰을 저장할 변수
+const itemCoupons = reactive({
+  SALTPANG_TIME_PLUS_5: 0,
+  SALTPANG_SCORE_X2_10S: 0,
+});2025-10-06
+
 // 아이템 관련 상태
 const items = ref([
   { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150, icon: '⏱️' },
@@ -277,7 +291,6 @@ const currentEntryFee = computed(() => {
 });
 
 // --- 함수 ---
-
 const handleCellInteraction = (index, eventType) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
   initAudioContext();
@@ -340,6 +353,29 @@ const handleCellInteraction = (index, eventType) => {
     if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
       swapAndCheck(index1, index2);
     }
+  }
+};
+
+// [신규] 보유한 아이템 쿠폰 개수를 가져오는 함수
+const fetchItemCoupons = async () => {
+  if (!auth.currentUser) return;
+  try {
+    const q = query(
+      collection(db, `users/${auth.currentUser.uid}/coupons`),
+      where('status', '==', 'unused'),
+      where('type', 'in', ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S'])
+    );
+    const snapshot = await getDocs(q);
+    const counts = { SALTPANG_TIME_PLUS_5: 0, SALTPANG_SCORE_X2_10S: 0 };
+    snapshot.forEach(doc => {
+      const coupon = doc.data();
+      if (counts[coupon.type] !== undefined) {
+        counts[coupon.type] += coupon.quantity || 1;
+      }
+    });
+    Object.assign(itemCoupons, counts);
+  } catch (error) {
+    console.error("아이템 쿠폰 정보 로딩 실패:", error);
   }
 };
 
@@ -455,20 +491,44 @@ const hasInitialMatches = (b) => {
   return false;
 };
 
-const buyItem = async (item) => {
-  if (purchasedItems.value.has(item.id) || isBuyingItem.value) return;
-  error.value = '';
-  isBuyingItem.value = true;
+// [신규] 보유한 아이템 쿠폰 개수를 가져오는 함수
+const fetchItemCoupons = async () => {
+  if (!auth.currentUser) return;
   try {
-    const functions = getFunctions(undefined, "asia-northeast3");
-    const purchaseItemFunc = httpsCallable(functions, 'purchaseSaltPangItem');
-    await purchaseItemFunc({ itemId: item.id });
+    const q = query(
+      collection(db, `users/${auth.currentUser.uid}/coupons`),
+      where('status', '==', 'unused'),
+      where('type', 'in', ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S'])
+    );
+    const snapshot = await getDocs(q);
+    const counts = { SALTPANG_TIME_PLUS_5: 0, SALTPANG_SCORE_X2_10S: 0 };
+    snapshot.forEach(doc => {
+      const coupon = doc.data();
+      if (counts[coupon.type] !== undefined) {
+        counts[coupon.type] += coupon.quantity || 1;
+      }
+    });
+    Object.assign(itemCoupons, counts);
+  } catch (error) {
+    console.error("아이템 쿠폰 정보 로딩 실패:", error);
+  }
+};
+
+const buyItem = async (item) => {
+  // 아이템을 구매하는 대신, 사용하기로 선택한 아이템 목록(purchasedItems)에 추가하거나 제거합니다.
+  if (purchasedItems.value.has(item.id)) {
+    purchasedItems.value.delete(item.id);
+  } else {
+    // 쿠폰이 없는 유료 아이템의 경우, SaltMate가 충분한지 미리 확인해볼 수 있습니다. (선택사항)
+    const couponType = item.id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
+    if (itemCoupons[couponType] <= 0) {
+      // 이 부분은 필수는 아니지만, 사용자 경험을 위해 추가할 수 있습니다.
+      // if (user.saltmatePoints < item.cost) { 
+      //   error.value = "SaltMate 포인트가 부족합니다.";
+      //   return;
+      // }
+    }
     purchasedItems.value.add(item.id);
-  } catch (err) {
-    console.error("아이템 구매 오류:", err);
-    error.value = `구매 실패: ${err.message}`;
-  } finally {
-    isBuyingItem.value = false;
   }
 };
 
@@ -488,10 +548,39 @@ const startGame = async () => {
 
   try {
     const functions = getFunctions(undefined, "asia-northeast3");
+
+    // 1. 사용하기로 선택한 아이템 중 쿠폰으로 사용할 수 있는 것을 먼저 처리합니다.
+    const couponsToUse = [];
+    if (purchasedItems.value.has('time_plus_5') && itemCoupons.SALTPANG_TIME_PLUS_5 > 0) {
+      couponsToUse.push('SALTPANG_TIME_PLUS_5');
+    }
+    if (purchasedItems.value.has('score_x2_10s') && itemCoupons.SALTPANG_SCORE_X2_10S > 0) {
+      couponsToUse.push('SALTPANG_SCORE_X2_10S');
+    }
+
+    if (couponsToUse.length > 0) {
+      const useCouponFunc = httpsCallable(functions, 'useItemCoupon');
+      for (const type of couponsToUse) {
+        // 서버에 쿠폰 사용을 요청합니다.
+        await useCouponFunc({ couponType: type });
+      }
+      // 쿠폰 사용 후 최신 쿠폰 개수를 다시 불러옵니다.
+      await fetchItemCoupons();
+    }
+    
+    // 2. 쿠폰으로 사용하지 않고 SaltMate로 구매할 아이템 목록을 추려냅니다.
+    const paidItems = [...purchasedItems.value].filter(id => {
+        const couponType = id === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
+        // 해당 쿠폰이 없어야 유료 아이템으로 간주합니다.
+        return itemCoupons[couponType] <= 0;
+    });
+
+    // 3. 서버에 게임 시작을 요청하며, 유료 아이템 목록을 함께 보냅니다.
     const startSession = httpsCallable(functions, 'startSaltPangSession');
-    const result = await startSession({ gameMode: gameMode.value });
+    const result = await startSession({ gameMode: gameMode.value, items: paidItems });
     sessionId = result.data.sessionId;
     
+    // --- 이하 게임 보드 초기화 및 타이머 설정 로직 ---
     score.value = 0;
     awardedPoints.value = 0;
     board.value = createBoard();
@@ -511,12 +600,15 @@ const startGame = async () => {
       timer.value = CLASSIC_DURATION;
     }
 
-    if (purchasedItems.value.has('time_plus_5') && gameMode.value !== 'infinite') timer.value += 5;
+    // 아이템 효과 적용 (쿠폰 사용분 + 유료 구매분 모두)
+    if (purchasedItems.value.has('time_plus_5')) {
+      timer.value += 5;
+    }
     if (purchasedItems.value.has('score_x2_10s')) {
       scoreBoostTimeout = setTimeout(() => {
         isScoreBoostActive.value = true;
         setTimeout(() => isScoreBoostActive.value = false, 10000);
-      }, 10000);
+      }, 10000); // 10초 뒤부터 10초간 활성화
     }
     
     await fetchPlayCount(); 
@@ -527,7 +619,9 @@ const startGame = async () => {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
         timer.value--;
-        if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) sounds.countdownTick.triggerAttackRelease("C5", "8n");
+        if (timer.value <= 5 && timer.value >= 1 && sounds.countdownTick) {
+            sounds.countdownTick.triggerAttackRelease("C5", "8n");
+        }
         if (timer.value <= 0) {
           if (sounds.countdownEnd) sounds.countdownEnd.triggerAttackRelease("C6", "1n");
           endGame();
@@ -538,6 +632,7 @@ const startGame = async () => {
   } catch (err) {
     console.error("게임 시작 오류:", err);
     error.value = `게임 시작 실패: ${err.message}`;
+    gameState.value = 'ready'; 
   } finally {
     isStarting.value = false;
   }
@@ -1037,11 +1132,24 @@ const listenToJackpot = () => {
   });
 };
 
+// [수정] onMounted, resetGame 함수에 쿠폰 정보 로딩 함수 호출 추가
 onMounted(() => {
   fetchPlayCount();
   fetchMissions();
   listenToJackpot();
+  fetchItemCoupons(); // 추가
 });
+
+const resetGame = async () => {
+  gameState.value = 'ready';
+  sessionId = null;
+  error.value = '';
+  purchasedItems.value.clear();
+  explodingGems.value.clear();
+  await fetchPlayCount();
+  await fetchMissions();
+  await fetchItemCoupons(); // 추가
+};
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
