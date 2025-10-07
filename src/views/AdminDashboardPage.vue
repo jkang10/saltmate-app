@@ -176,6 +176,11 @@
               ><i class="fas fa-chart-pie"></i> 지분관리</router-link
             >
           </li>
+	  <li>
+	<router-link to="/admin-dashboard/auction" class="nav-item">
+	  <i class="fas fa-gavel"></i> 주간 경매 관리
+	</router-link>
+	</li>
           <li>
             <router-link
               to="/admin-dashboard/game-conversion-settings"
