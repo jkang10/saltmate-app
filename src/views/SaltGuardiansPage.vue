@@ -37,20 +37,20 @@
       </div>
 
       <aside class="side-panel">
-        <div class="card lab-section">
-          <h3><i class="fas fa-flask"></i> 수호자 연구소</h3>
-<div class="upgrade-list">
-  <div v-for="upgrade in upgradeItems" :key="upgrade.id" class="upgrade-item">
-    <div class="upgrade-info">
-      <strong>{{ upgrade.name }} (Lv. {{ upgrade.level }})</strong>
-      <small>{{ upgrade.desc }}</small>
+<div class="card lab-section">
+  <h3><i class="fas fa-flask"></i> 수호자 연구소</h3>
+  <div class="upgrade-list">
+    <div v-for="upgrade in upgradeItems" :key="upgrade.id" class="upgrade-item">
+      <div class="upgrade-info">
+        <strong>{{ upgrade.name }} (Lv. {{ upgrade.level }})</strong>
+        <small>{{ upgrade.desc }}</small>
+      </div>
+      <button @click="buyUpgrade(upgrade.id)" :disabled="isProcessing" class="upgrade-button">
+        {{ upgrade.cost.toLocaleString() }} SaltMate
+      </button>
     </div>
-    <button @click="buyUpgrade(upgrade.id)" :disabled="isProcessing" class="upgrade-button">
-      {{ upgrade.cost.toLocaleString() }} SP
-    </button>
   </div>
 </div>
-        </div>
         <div class="card ranking-section">
           <h3><i class="fas fa-trophy"></i> 일일 랭킹 TOP 5</h3>
           <div class="no-data">랭킹 정보를 불러오는 중...</div>
