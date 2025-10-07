@@ -130,7 +130,7 @@ const routes = [
 {
   path: 'auction',
   name: 'AuctionManagement',
-  component: () => import('@/components/admin/AuctionManagementPage.vue')
+  component: () => import('@/components/admin/AuctionManagementPage.vue'),
   meta: { requiresAuth: true },
 }
   {
