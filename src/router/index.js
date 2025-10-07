@@ -234,7 +234,7 @@ const routes = [
     path: '/auction',
     name: 'AuctionPage',
     component: () => import('@/views/AuctionPage.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: '/prediction-betting',
@@ -354,6 +354,11 @@ const routes = [
         name: "AdminNftTypeManagement",
         component: () => import("@/components/admin/NftTypeManagement.vue"),
       },
+	{
+	  path: 'auction', // -> 최종 주소: /admin-dashboard/auction
+	  name: 'AuctionManagement',
+	  component: () => import('@/components/admin/AuctionManagementPage.vue'),
+	},
       {
         path: "equity",
         name: "AdminEquityManagement",
