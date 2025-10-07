@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue'; // watch를 import에 추가
 import { db } from '@/firebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -80,6 +80,16 @@ const couponTypes = ref([
     { id: 'DEEP_SEA_GOLDENTIME', name: '해양심층수 골든타임' },
 ]);
 
+watch(() => nextAuction.couponType, (newType) => {
+  // 쿠폰 종류가 변경되면 세부사항을 초기화합니다.
+  nextAuction.couponDetails = {
+    boostPercentage: null,
+    durationMinutes: null,
+    quantity: null,
+  };
+});
+
+// 기존 requiresQuantity computed 속성을 아래 코드로 교체해주세요.
 const requiresQuantity = computed(() => {
     const types = ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S', 'ITEM_RARE_SALT', 'DEEP_SEA_RESEARCH', 'DEEP_SEA_MINERAL', 'DEEP_SEA_PLANKTON', 'DEEP_SEA_RELIC'];
     return types.includes(nextAuction.couponType);
