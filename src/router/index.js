@@ -132,7 +132,7 @@ const routes = [
   name: 'AuctionManagement',
   component: () => import('@/components/admin/AuctionManagementPage.vue'),
   meta: { requiresAuth: true },
-}
+},
   {
     path: '/qr-scanner',
     name: 'QRCodeScanner',
