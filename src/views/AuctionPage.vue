@@ -147,114 +147,102 @@ const placeBid = async () => {
 </script>
 
 <style scoped>
-/* ... 이전 스타일 내용은 대부분 그대로 유지 ... */
-
-/* 페이지 전체 스타일 */
 .auction-page {
-  text-align: center;
-  background: linear-gradient(180deg, #1b2838 0%, #0f1c2a 100%);
-  color: #e0e0e0;
-  padding-bottom: 50px;
+  padding: 20px;
+  background-color: #f0f2f5; /* [핵심] 다른 페이지와 동일한 밝은 회색 배경 */
 }
-.page-header h1 { color: #fff; }
-.page-header p { color: #a0a0a0; }
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.page-header h1 {
+  color: #1e293b;
+  font-size: 2.5em;
+  margin-bottom: 10px;
+}
+.page-header h1 i {
+  color: #c0392b; /* 경매 아이콘 색상 변경 */
+}
+.page-header p {
+  color: #475569;
+  font-size: 1.1em;
+}
 
-/* 메인 경매 카드 */
 .auction-card {
-  background: rgba(10, 25, 41, 0.8);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 700px;
   margin: 0 auto;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+  text-align: center;
 }
 
-/* 상품 정보 섹션 */
 .prize-section {
   display: flex;
   align-items: center;
   gap: 25px;
   text-align: left;
-  background: rgba(0,0,0,0.2);
-  padding: 25px;
-  border-radius: 15px;
-  margin-bottom: 40px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 30px;
+  margin-bottom: 30px;
 }
 .prize-icon-wrapper {
   font-size: 3.5em;
-  color: #ffd700;
-  text-shadow: 0 0 20px #ffd700;
+  color: #f59e0b; /* 상품 아이콘 색상 변경 */
 }
 .prize-details h2 {
   margin: 0 0 8px;
   font-size: 1.8em;
-  color: #fff;
+  color: #1e293b;
 }
 .prize-details p {
   margin: 0;
-  color: #bdc3c7;
+  color: #64748b;
 }
 
-/* 입찰 핵심 정보 섹션 */
 .bidding-core {
   display: flex;
   flex-direction: column;
   gap: 30px;
 }
 
-/* 최고 입찰가 디스플레이 */
 .highest-bid-display {
-  background: rgba(0,0,0,0.3);
   padding: 30px;
   border-radius: 15px;
   position: relative;
   overflow: hidden;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 .highest-bid-display small {
   display: block;
   margin-bottom: 10px;
-  color: #a0a0a0;
+  color: #64748b;
   font-size: 1.1em;
 }
 .highest-bid-display strong {
   font-size: 3.5em;
   font-weight: 700;
-  color: #ffd700;
-  text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+  color: #c0392b;
+  /* [핵심] 텍스트에 불타는 듯한 애니메이션 효과 추가 */
+  animation: fire-text 2s infinite alternate;
+}
+@keyframes fire-text {
+  from { text-shadow: 0 0 5px #f56565, 0 0 10px #f56565, 0 0 20px #c0392b; }
+  to { text-shadow: 0 0 10px #f6ad55, 0 0 20px #f6ad55, 0 0 30px #f56565; }
 }
 .highest-bid-display span {
   font-size: 1.2em;
   margin-left: 10px;
-  color: #ffd700;
+  color: #c0392b;
   font-weight: 500;
 }
-.bid-aura {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 250px;
-  height: 250px;
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 0%, rgba(255, 215, 0, 0) 65%);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: aura-pulse 3s infinite alternate;
-}
-@keyframes aura-pulse {
-  from { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
-  to { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
-}
 
-/* 카운트다운 타이머 */
-.countdown-timer {
-  background: transparent;
-  padding: 0;
-}
 .countdown-timer h3 {
   margin: 0 0 10px;
   font-size: 1.1em;
-  color: #bdc3c7;
+  color: #64748b;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -263,20 +251,16 @@ const placeBid = async () => {
 .countdown {
   font-size: 2.2em;
   font-weight: bold;
-  color: #e74c3c;
+  color: #1e293b;
   font-family: 'Courier New', Courier, monospace;
-  text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
 }
 
-/* ==================== [핵심 수정] 입찰 폼 영역 스타일 추가 ==================== */
 .bid-action-area {
-  max-width: 400px; /* 폼의 최대 너비를 제한 */
+  max-width: 400px;
   width: 100%;
-  margin: 0 auto; /* 중앙 정렬 */
+  margin: 0 auto;
 }
-/* ============================================================================ */
 
-/* 입찰 폼 */
 .bid-form {
   display: flex;
   flex-direction: column;
@@ -290,21 +274,22 @@ const placeBid = async () => {
   left: 20px;
   top: 50%;
   transform: translateY(-50%);
-  color: #888;
+  color: #94a3b8;
 }
 .bid-form input {
   width: 100%;
   padding: 18px 20px 18px 50px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0,0,0,0.4);
-  color: #fff;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
   border-radius: 12px;
   font-size: 1.2em;
   text-align: center;
 }
 .bid-form input::placeholder {
-  color: #888;
+  color: #94a3b8;
 }
+
 .btn-bid {
   padding: 18px;
   border: none;
@@ -312,32 +297,58 @@ const placeBid = async () => {
   font-size: 1.4em;
   font-weight: bold;
   cursor: pointer;
-  background: linear-gradient(90deg, #f7971e, #ffd200);
-  color: #333;
+  background: linear-gradient(135deg, #e53e3e, #c0392b);
+  color: white;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 .btn-bid:hover:not(:disabled) {
-  transform: scale(1.02);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(192, 57, 43, 0.4);
+}
+/* [핵심] 버튼 클릭 시 물결 퍼지는 애니메이션 효과 */
+.btn-bid::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+@keyframes ripple {
+  0% { transform: scale(0, 0); opacity: 1; }
+  100% { transform: scale(100, 100); opacity: 0; }
+}
+.btn-bid:focus:not(:active)::after {
+  animation: ripple 1s ease-out;
 }
 .btn-bid:disabled {
-  background: #555;
+  background: #94a3b8;
   cursor: not-allowed;
-  color: #999;
+  color: #e2e8f0;
 }
-.error-message { color: #e74c3c; margin-top: 15px; }
+
+.error-message { color: #e53e3e; margin-top: 15px; }
 
 .card-placeholder {
-  background: rgba(10, 25, 41, 0.8);
+  background: #ffffff;
   border-radius: 16px; 
   padding: 50px; 
   box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-  color: #a0a0a0;
+  color: #64748b;
+  max-width: 700px;
+  margin: 0 auto;
 }
 
 .spinner-small {
-  border: 2px solid rgba(0, 0, 0, 0.3);
-  border-top: 2px solid #333;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
   border-radius: 50%;
   width: 20px;
   height: 20px;
@@ -345,7 +356,7 @@ const placeBid = async () => {
   display: inline-block;
 }
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
