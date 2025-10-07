@@ -21,7 +21,12 @@
             <option v-for="coupon in couponTypes" :key="coupon.id" :value="coupon.id">{{ coupon.name }}</option>
           </select>
         </div>
-
+	<div class="form-group-inline">
+	    <div class="form-group" v-if="requiresQuantity">
+		<label>지급 수량 (개)</label>
+		<input type="number" v-model.number="nextAuction.couponDetails.quantity" required min="1" />
+	    </div>
+	</div>
         <div class="form-group-inline" v-if="nextAuction.couponType === 'SALT_MINE_BOOST'">
             <div class="form-group">
                 <label>부스트 비율 (%)</label>
@@ -89,9 +94,20 @@ watch(() => nextAuction.couponType, () => { // [수정] (newType) 파라미터�
   };
 });
 
-// 기존 requiresQuantity computed 속성을 아래 코드로 교체해주세요.
 const requiresQuantity = computed(() => {
-    const types = ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S', 'ITEM_RARE_SALT', 'DEEP_SEA_RESEARCH', 'DEEP_SEA_MINERAL', 'DEEP_SEA_PLANKTON', 'DEEP_SEA_RELIC'];
+    // [핵심 수정] 부스트, 자동판매, 골든타임 쿠폰도 수량 입력이 필요하므로 조건에 추가합니다.
+    const types = [
+        'SALT_MINE_BOOST', 
+        'DEEP_SEA_AUTOSELL', 
+        'DEEP_SEA_GOLDENTIME',
+        'SALTPANG_TIME_PLUS_5', 
+        'SALTPANG_SCORE_X2_10S', 
+        'ITEM_RARE_SALT', 
+        'DEEP_SEA_RESEARCH', 
+        'DEEP_SEA_MINERAL', 
+        'DEEP_SEA_PLANKTON', 
+        'DEEP_SEA_RELIC'
+    ];
     return types.includes(nextAuction.couponType);
 });
 
