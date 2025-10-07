@@ -93,10 +93,15 @@
     <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
     <div class="item-icon">{{ item.icon }}</div>
     <div class="item-info">
-      <div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
-        쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
-      </div>
-      <div class="item-cost" v-else>{{ item.cost }} SP</div>
+<div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
+  <span v-if="purchasedItems.has(item.id)">
+    ✓ 쿠폰 사용됨 ({{ getCouponCount(item.id) - 1 }}개 남음)
+  </span>
+  <span v-else>
+    쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
+  </span>
+</div>
+<div class="item-cost" v-else>{{ item.cost }} SP</div>
       <div class="item-name">{{ item.name }}</div>
     </div>
     <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
@@ -570,12 +575,20 @@ const startGame = async () => {
 
     const startSession = httpsCallable(functions, 'startSaltPangSession');
     // 서버로 유료 아이템과 사용한 쿠폰 정보를 함께 전송
-    const result = await startSession({
-      gameMode: gameMode.value,
-      items: paidItems,
-      usedCoupons: usedCouponsInfo
-    });
-    sessionId = result.data.sessionId;
+	const result = await startSession({
+	  gameMode: gameMode.value,
+	  items: paidItems,
+	  usedCoupons: usedCouponsInfo
+	});
+	sessionId = result.data.sessionId;
+
+	// ▼▼▼ 아래 5줄의 코드를 추가해주세요 ▼▼▼
+	// 로컬 쿠폰 개수를 즉시 차감하여 UI에 반영합니다.
+	usedCouponsInfo.forEach(coupon => {
+	  if (itemCoupons[coupon.type] > 0) {
+	    itemCoupons[coupon.type]--;
+	  }
+	});
     
     // --- 이하 게임 보드 초기화 및 타이머 설정 로직 (기존과 동일) ---
     score.value = 0;
