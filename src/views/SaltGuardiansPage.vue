@@ -61,10 +61,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import { httpsCallable } from "firebase/functions";
-import { auth, db, functions } from "@/firebaseConfig";
-// (이하 필요한 Firebase import 구문 추가)
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { httpsCallable, getFunctions } from "firebase/functions";
+import { auth, db } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 // --- 상태 변수 ---
 const gameCanvas = ref(null);
@@ -75,8 +75,24 @@ const wave = ref(0);
 const awardedPoints = ref(0);
 
 const crystal = reactive({ hp: 100, maxHp: 100, x: 0, y: 0, radius: 30 });
-const player = reactive({ x: 0, y: 0, radius: 20, speed: 5, shootCooldown: 0 });
-const upgrades = reactive({ /* 업그레이드 정보 */ });
+const player = reactive({ x: 0, y: 0, radius: 20, speed: 5, shootCooldown: 0, fireRate: 20, damage: 1 });
+
+// [수정] 업그레이드 데이터 구조화
+const upgrades = reactive({
+  damage: { level: 0, name: '공격력 강화', desc: '발사체 공격력 증가', baseCost: 100 },
+  fireRate: { level: 0, name: '연사 속도 향상', desc: '발사체 발사 속도 증가', baseCost: 150 },
+  crystalHp: { level: 0, name: '결정 내구도 증가', desc: '소금 결정의 최대 HP 증가', baseCost: 120 },
+});
+
+// 업그레이드 비용 계산
+const upgradeItems = computed(() => Object.keys(upgrades).map(id => {
+    const upg = upgrades[id];
+    return {
+        ...upg,
+        id,
+        cost: Math.floor(upg.baseCost * Math.pow(1.5, upg.level))
+    };
+}));
 
 let projectiles = [];
 let monsters = [];
@@ -89,41 +105,71 @@ let animationFrameId = null;
 const startGame = async () => {
   isProcessing.value = true;
   try {
-    // [서버 연동] 입장료 차감 함수 호출 (3단계에서 생성)
-    // const startFunc = httpsCallable(functions, 'startSaltGuardiansGame');
-    // await startFunc();
+    const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
+    const startFunc = httpsCallable(functionsWithRegion, 'startSaltGuardiansGame');
+    await startFunc();
 
-    // 초기화
     score.value = 0;
     wave.value = 1;
     crystal.hp = crystal.maxHp;
     projectiles = [];
     monsters = [];
-    player.shootCooldown = 20; // 초기 발사 딜레이
+    player.shootCooldown = player.fireRate;
 
     gameState.value = 'playing';
     isProcessing.value = false;
+    gameLoop(); // 게임 루프 시작
   } catch (error) {
     alert(`게임 시작 실패: ${error.message}`);
     isProcessing.value = false;
   }
 };
 
-const endGame = () => {
+const endGame = async () => {
+  if (gameState.value === 'ended') return;
   gameState.value = 'ended';
-  // [서버 연동] 점수 전송 및 보상 획득 함수 호출 (3단계에서 생성)
-  // const endFunc = httpsCallable(functions, 'endSaltGuardiansGame');
-  // endFunc({ score: score.value }).then(result => {
-  //   awardedPoints.value = result.data.awardedPoints;
-  // });
+
+  try {
+    const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
+    const endFunc = httpsCallable(functionsWithRegion, 'endSaltGuardiansGame');
+    const result = await endFunc({ score: score.value });
+    awardedPoints.value = result.data.awardedPoints;
+  } catch (error) {
+    console.error("게임 결과 전송 실패:", error);
+  }
+};
+
+const buyUpgrade = async (upgradeId) => {
+    isProcessing.value = true;
+    try {
+        const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
+        const upgradeFunc = httpsCallable(functionsWithRegion, 'upgradeSaltGuardian');
+        await upgradeFunc({ upgradeId });
+        alert('업그레이드 성공!');
+    } catch (error) {
+        alert(`업그레이드 실패: ${error.message}`);
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const applyUpgrades = (upgradeData) => {
+    if(!upgradeData) return;
+    upgrades.damage.level = upgradeData.damage || 0;
+    upgrades.fireRate.level = upgradeData.fireRate || 0;
+    upgrades.crystalHp.level = upgradeData.crystalHp || 0;
+
+    player.damage = 1 + (upgrades.damage.level * 0.2);
+    player.fireRate = Math.max(5, 20 - upgrades.fireRate.level); // 최소 5프레임 딜레이
+    crystal.maxHp = 100 + (upgrades.crystalHp.level * 20);
 };
 
 const spawnMonsters = () => {
   if (monsters.length === 0) {
     wave.value++;
     for (let i = 0; i < wave.value * 2; i++) {
-      const x = Math.random() * gameCanvas.value.width;
-      const y = -30;
+      const x = Math.random() < 0.5 ? 0 - 30 : gameCanvas.value.width + 30;
+      const y = Math.random() * gameCanvas.value.height * 0.6;
       const type = Math.random() > 0.8 ? 'fast' : 'normal';
       monsters.push({
         x, y,
@@ -149,26 +195,24 @@ const createParticles = (x, y, count, color) => {
 };
 
 const gameLoop = () => {
-  if (gameState.value !== 'playing') {
-    if(animationFrameId) cancelAnimationFrame(animationFrameId);
-    return;
-  }
   animationFrameId = requestAnimationFrame(gameLoop);
+  if (gameState.value !== 'playing') return;
   
-  // 그리기
+  const canvas = gameCanvas.value;
+  const dpr = window.devicePixelRatio || 1;
+  
   ctx.fillStyle = 'rgba(27, 40, 56, 0.2)';
-  ctx.fillRect(0, 0, gameCanvas.value.width, gameCanvas.value.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 플레이어 이동 및 발사
   if (keys['ArrowLeft'] && player.x > player.radius) player.x -= player.speed;
-  if (keys['ArrowRight'] && player.x < gameCanvas.value.width - player.radius) player.x += player.speed;
+  if (keys['ArrowRight'] && player.x < canvas.width / dpr - player.radius) player.x += player.speed;
   if (player.shootCooldown > 0) player.shootCooldown--;
   if (player.shootCooldown === 0) {
     projectiles.push({ x: player.x, y: player.y, radius: 5, speed: 7 });
-    player.shootCooldown = 20; // 20프레임마다 발사
+    player.shootCooldown = player.fireRate;
   }
 
-  // 결정 그리기
+  // Draw Crystal
   ctx.beginPath();
   ctx.arc(crystal.x, crystal.y, crystal.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#00d2ff';
@@ -177,23 +221,12 @@ const gameLoop = () => {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // 플레이어 그리기
+  // Draw Player
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#ecf0f1';
   ctx.fill();
 
-  // 발사체 업데이트 및 그리기
-  projectiles.forEach((p, pIndex) => {
-    p.y -= p.speed;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#f1c40f';
-    ctx.fill();
-    if (p.y < 0) projectiles.splice(pIndex, 1);
-  });
-
-  // 파티클(이펙트) 업데이트 및 그리기
   particles.forEach((p, pIndex) => {
     p.x += p.velocity.x;
     p.y += p.velocity.y;
@@ -207,7 +240,15 @@ const gameLoop = () => {
     if (p.alpha <= 0) particles.splice(pIndex, 1);
   });
 
-  // 몬스터 생성 및 업데이트
+  projectiles.forEach((p, pIndex) => {
+    p.y -= p.speed;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#f1c40f';
+    ctx.fill();
+    if (p.y < 0) projectiles.splice(pIndex, 1);
+  });
+
   spawnMonsters();
   monsters.forEach((m, mIndex) => {
     const angle = Math.atan2(crystal.y - m.y, crystal.x - m.x);
@@ -219,7 +260,6 @@ const gameLoop = () => {
     ctx.fillStyle = m.color;
     ctx.fill();
 
-    // 충돌 감지: 몬스터 vs 결정
     const distToCrystal = Math.hypot(m.x - crystal.x, m.y - crystal.y);
     if (distToCrystal - m.radius - crystal.radius < 1) {
       crystal.hp -= 10;
@@ -228,11 +268,10 @@ const gameLoop = () => {
       if (crystal.hp <= 0) endGame();
     }
     
-    // 충돌 감지: 몬스터 vs 발사체
     projectiles.forEach((p, pIndex) => {
       const dist = Math.hypot(p.x - m.x, p.y - m.y);
       if (dist - m.radius - p.radius < 1) {
-        m.hp--;
+        m.hp -= player.damage;
         createParticles(m.x, m.y, 8, '#f1c40f');
         projectiles.splice(pIndex, 1);
         if (m.hp <= 0) {
@@ -255,22 +294,32 @@ onMounted(() => {
   canvas.height = rect.height * dpr;
   ctx.scale(dpr, dpr);
 
-  player.x = canvas.width / dpr / 2;
-  player.y = canvas.height / dpr - 50;
-  crystal.x = canvas.width / dpr / 2;
-  crystal.y = canvas.height / dpr - 50;
+  player.x = rect.width / 2;
+  player.y = rect.height - 50;
+  crystal.x = rect.width / 2;
+  crystal.y = rect.height - 50;
 
-  window.addEventListener('keydown', (e) => keys[e.key] = true);
-  window.addEventListener('keyup', (e) => keys[e.key] = false);
+  window.addEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
+  window.addEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
+
+  if (auth.currentUser) {
+    const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
+    onSnapshot(guardianRef, (docSnap) => {
+        if (docSnap.exists()) {
+            applyUpgrades(docSnap.data().upgrades);
+        }
+    });
+  }
 
   gameLoop();
 });
 
 onUnmounted(() => {
   if(animationFrameId) cancelAnimationFrame(animationFrameId);
-  window.removeEventListener('keydown', (e) => keys[e.key] = true);
-  window.removeEventListener('keyup', (e) => keys[e.key] = false);
+  window.removeEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
+  window.removeEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
 });
+
 </script>
 
 <style scoped>
