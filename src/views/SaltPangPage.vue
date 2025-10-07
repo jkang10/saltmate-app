@@ -1158,7 +1158,7 @@ const resetGame = async () => {
   explodingGems.value.clear();
   await fetchPlayCount();
   await fetchMissions();
-  await fetchItemCoupons(); // 추가
+  // await fetchItemCoupons(); // 이 줄을 삭제 또는 주석 처리
 };
 
 onUnmounted(() => {
