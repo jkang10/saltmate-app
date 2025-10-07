@@ -37,10 +37,6 @@
                 <input type="number" v-model.number="nextAuction.couponDetails.durationMinutes" required min="1" />
             </div>
         </div>
-        <div class="form-group" v-if="requiresQuantity">
-            <label>지급 수량 (개)</label>
-            <input type="number" v-model.number="nextAuction.couponDetails.quantity" required min="1" />
-        </div>
          <div class="form-group" v-if="requiresDuration">
             <label>지속 시간 (분)</label>
             <input type="number" v-model.number="nextAuction.couponDetails.durationMinutes" required min="1" />
