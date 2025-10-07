@@ -235,7 +235,6 @@ const gameLoop = () => {
   if (gameState.value !== 'playing') return;
   
   const canvas = gameCanvas.value;
-  const dpr = window.devicePixelRatio || 1;
   
   ctx.fillStyle = 'rgba(27, 40, 56, 0.2)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
