@@ -33,10 +33,19 @@
               <span>유효기간: ~{{ formatDate(coupon.expiresAt) }}</span>
             </div>
             <div class="button-group">
-              <button @click="useCoupon(coupon)" class="btn btn-use" :disabled="coupon.status !== 'unused' || isUsing === coupon.id">
-                <span v-if="isUsing === coupon.id" class="spinner-small"></span>
-                <span v-else>{{ formatStatus(coupon.status) }}</span>
-              </button>
+<button 
+  @click="useCoupon(coupon)" 
+  class="btn btn-use" 
+  :disabled="coupon.status !== 'unused' || isUsing === coupon.id || isSaltPangItemCoupon(coupon.type)"
+>
+  <span v-if="isUsing === coupon.id" class="spinner-small"></span>
+  <span v-else-if="isSaltPangItemCoupon(coupon.type) && coupon.status === 'unused'">
+    게임에서 사용
+  </span>
+  <span v-else>
+    {{ formatStatus(coupon.status) }}
+  </span>
+</button>
               <!-- [핵심 추가] 삭제 버튼 -->
               <button @click="deleteCoupon(coupon.id)" class="btn btn-delete" v-if="coupon.status !== 'unused'" title="쿠폰 삭제">
                 <i class="fas fa-trash-alt"></i>
@@ -76,6 +85,11 @@ export default {
         DEEP_SEA_PLANKTON: { name: '플랑크톤', icon: 'fas fa-bacterium' },
         DEEP_SEA_RELIC: { name: '고대 유물', icon: 'fas fa-scroll' },
         DEEP_SEA_GOLDENTIME: { name: '해양 골든타임', icon: 'fas fa-star' },
+    };
+
+    // ▼▼▼ 여기에 헬퍼 함수를 추가합니다. ▼▼▼
+    const isSaltPangItemCoupon = (type) => {
+      return ['SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S'].includes(type);
     };
 
     const formatCouponType = (type) => couponDetailsMap[type]?.name || '알 수 없는 쿠폰';
@@ -168,7 +182,8 @@ const useCoupon = async (coupon) => {
     return {
       coupons, isLoading, isUsing,
       formatCouponType, getCouponIcon, formatStatus, formatDate,
-      useCoupon, deleteCoupon
+      useCoupon, deleteCoupon,
+      isSaltPangItemCoupon // <-- 템플릿에서 사용하기 위해 return에 추가
     };
   }
 };
