@@ -1,4 +1,4 @@
-<template>
+2025-10-07<template>
   <div class="guardians-page">
     <header class="page-header">
       <h1><i class="fas fa-shield-alt"></i> 솔트 가디언즈</h1>
@@ -100,6 +100,42 @@ let particles = [];
 let keys = {};
 let ctx = null;
 let animationFrameId = null;
+
+// --- 모바일 터치 상태 ---
+const touchState = reactive({
+  active: false,
+  startX: 0,
+  currentX: 0,
+});
+
+// ▼▼▼ 이 함수들을 추가해주세요 ▼▼▼
+const handleTouchStart = (event) => {
+  if (gameState.value !== 'playing') return;
+  touchState.active = true;
+  touchState.startX = event.touches[0].clientX;
+  touchState.currentX = event.touches[0].clientX;
+};
+
+const handleTouchMove = (event) => {
+  if (!touchState.active || gameState.value !== 'playing') return;
+  touchState.currentX = event.touches[0].clientX;
+
+  // 드래그 거리에 비례하여 플레이어 위치 업데이트
+  const deltaX = touchState.currentX - touchState.startX;
+  const newPlayerX = player.x + deltaX;
+
+  // 캔버스 경계 체크
+  const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
+  player.x = Math.max(player.radius, Math.min(canvasWidth - player.radius, newPlayerX));
+
+  // 다음 이동 계산을 위해 시작점 업데이트
+  touchState.startX = touchState.currentX;
+};
+
+const handleTouchEnd = () => {
+  touchState.active = false;
+};
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 // --- 게임 로직 ---
 const startGame = async () => {
@@ -204,8 +240,9 @@ const gameLoop = () => {
   ctx.fillStyle = 'rgba(27, 40, 56, 0.2)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // 플레이어 이동 (키보드)
   if (keys['ArrowLeft'] && player.x > player.radius) player.x -= player.speed;
-  if (keys['ArrowRight'] && player.x < canvas.width / dpr - player.radius) player.x += player.speed;
+  if (keys['ArrowRight'] && player.x < gameCanvas.value.width / (window.devicePixelRatio || 1) - player.radius) player.x += player.speed;
   if (player.shootCooldown > 0) player.shootCooldown--;
   if (player.shootCooldown === 0) {
     projectiles.push({ x: player.x, y: player.y, radius: 5, speed: 7 });
@@ -299,9 +336,16 @@ onMounted(() => {
   crystal.x = rect.width / 2;
   crystal.y = rect.height - 50;
 
+  // PC 키보드 이벤트 리스너 추가
   window.addEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
   window.addEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
 
+  // 모바일 터치 이벤트 리스너를 캔버스에 직접 추가
+  canvas.addEventListener('touchstart', handleTouchStart);
+  canvas.addEventListener('touchmove', handleTouchMove);
+  canvas.addEventListener('touchend', handleTouchEnd);
+
+  // Firestore에서 사용자의 업그레이드 정보를 실시간으로 가져옴
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
@@ -311,13 +355,24 @@ onMounted(() => {
     });
   }
 
+  // 게임 루프 시작
   gameLoop();
 });
 
 onUnmounted(() => {
   if(animationFrameId) cancelAnimationFrame(animationFrameId);
+  
+  // 키보드 이벤트 리스너 제거
   window.removeEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
   window.removeEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
+
+  // 터치 이벤트 리스너 제거
+  const canvas = gameCanvas.value;
+  if (canvas) {
+    canvas.removeEventListener('touchstart', handleTouchStart);
+    canvas.removeEventListener('touchmove', handleTouchMove);
+    canvas.removeEventListener('touchend', handleTouchEnd);
+  }
 });
 
 </script>
