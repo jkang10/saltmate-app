@@ -51,10 +51,10 @@ const fetchRankings = async () => {
     console.log(`Fetching Salt Guardians rankings for: ${yesterdayId}`);
 
     const q = query(
-      collection(db, `leaderboards/salt_guardians_daily/${yesterdayId}`),
-      orderBy("score", "desc"),
-      limit(7)
-    );
+	  collection(db, `leaderboards/salt_guardians_daily/${yesterdayId}`),
+	  orderBy("score", "desc"),
+	  limit(7)
+	);
     const snapshot = await getDocs(q);
     rankings.value = snapshot.docs.map(doc => doc.data());
     
