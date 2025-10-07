@@ -219,6 +219,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/salt-guardians',
+    name: 'SaltGuardiansPage',
+    component: () => import('@/views/SaltGuardiansPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: "/salt-mine-game",
     name: "SaltMineGamePage",
     component: () => import("@/views/SaltMineGamePage.vue"),

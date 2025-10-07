@@ -126,6 +126,7 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
+	  <SaltGuardiansRankingsWidget />
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>
@@ -306,6 +307,12 @@
 	    <span class="card-enter">시작하기 &rarr;</span>
 	  </div>
 	</router-link>
+	<router-link to="/salt-guardians" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+	  <h3>솔트 가디언즈</h3>
+	  <p>다가오는 위협으로부터 소금 결정을 지켜내세요!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
         </div>
       </main>
 
@@ -367,8 +374,8 @@ import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
 import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
 import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
 import SaltPangPvpRankingsWidget from '@/components/SaltPangPvpRankingsWidget.vue';
+import SaltGuardiansRankingsWidget from '@/components/SaltGuardiansRankingsWidget.vue';
 import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
-
 
 export default {
   name: "DashboardPage",
@@ -387,6 +394,7 @@ export default {
     AnnouncementTicker,
     EnchantRankingsWidget,
     SaltPangPvpRankingsWidget,
+    SaltGuardiansRankingsWidget,
     OnboardingTutorial,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
