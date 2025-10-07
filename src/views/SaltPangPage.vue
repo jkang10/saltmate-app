@@ -275,6 +275,49 @@ const isRankedPlayable = computed(() => {
   return day === 0 || day === 6;
 });
 
+// ▼▼▼ 이 computed 속성 전체를 추가해주세요 ▼▼▼
+const currentEntryFee = computed(() => {
+  let baseFee = 0;
+  // 1. 게임 모드에 따른 기본 입장료를 계산합니다. (index.js 서버 로직과 동일)
+  switch (gameMode.value) {
+    case 'classic':
+      if (playCount.classic >= 30) baseFee = 300;
+      else if (playCount.classic >= 15) baseFee = 200;
+      else baseFee = 100;
+      break;
+    case 'timeAttack':
+      // 서버에서는 config 값을 참조하지만, 클라이언트에서는 우선 하드코딩합니다.
+      // (Tier 1: 10회 기준)
+      if (playCount.timeAttack >= 10) baseFee = 800;
+      else baseFee = 400;
+      break;
+    case 'infinite':
+      baseFee = 300;
+      break;
+    case 'ranked':
+      baseFee = 500;
+      break;
+  }
+
+  let itemsCost = 0;
+  // 2. 선택된 아이템들의 비용을 계산합니다.
+  purchasedItems.value.forEach(itemId => {
+    // 3. 해당 아이템의 쿠폰을 보유하고 있는지 확인합니다.
+    if (getCouponCount(itemId) > 0) {
+      // 쿠폰이 있으면 해당 아이템의 비용은 0입니다.
+      itemsCost += 0;
+    } else {
+      // 쿠폰이 없으면 원래 아이템 가격을 더합니다.
+      const item = items.value.find(i => i.id === itemId);
+      if (item) {
+        itemsCost += item.cost;
+      }
+    }
+  });
+
+  return baseFee + itemsCost;
+});
+
 // --- 함수 ---
 const handleCellInteraction = (index, eventType) => {
   if (isProcessing.value || gameState.value !== 'playing') return;
