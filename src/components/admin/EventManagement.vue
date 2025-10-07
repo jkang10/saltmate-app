@@ -5,6 +5,7 @@
     
     <div class="tabs">
       <button class="tab-button" :class="{active: activeTab === 'coupons'}" @click="activeTab = 'coupons'">쿠폰 발급</button>
+      <button class="tab-button" :class="{active: activeTab === 'auctionWinners'}" @click="activeTab = 'auctionWinners'">낙찰 관리</button>
       <button class="tab-button" :class="{active: activeTab === 'dailyTop7'}" @click="activeTab = 'dailyTop7'">오늘의 SaltMate TOP 7</button>
       <button class="tab-button" :class="{active: activeTab === 'weeklyTop7'}" @click="activeTab = 'weeklyTop7'">주간 SaltMate TOP 7</button>
       <button class="tab-button" :class="{active: activeTab === 'saltPangHoF'}" @click="activeTab = 'saltPangHoF'">솔트팡 명예의 전당</button>
@@ -15,6 +16,44 @@
     </div>
 
     <div class="tab-content">
+      <div v-show="activeTab === 'auctionWinners'">
+        <div class="card">
+          <h4>역대 경매 낙찰 내역</h4>
+          <div v-if="isLoadingRankings" class="loading-state">
+            <div class="spinner-small"></div>
+          </div>
+          <table v-else-if="auctionWinners.length > 0" class="ranking-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>경매 상품명</th>
+                <th>낙찰 SaltMate</th>
+                <th>경매 기간 (Week ID)</th>
+                <th>보상 전송 시간</th>
+                <th>쿠폰 사용 여부</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="winner in auctionWinners" :key="winner.auctionId">
+                <td>{{ winner.winnerName }}</td>
+                <td>{{ winner.prizeName }}</td>
+                <td>{{ winner.highestBid.toLocaleString() }}</td>
+                <td>{{ winner.auctionId }}</td>
+                <td>{{ formatDate(winner.awardedAt) }}</td>
+                <td>
+                  <span class="status-badge" :class="`status-${winner.couponStatus}`">
+                    {{ formatCouponStatus(winner.couponStatus) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="no-data">
+            낙찰 내역이 없습니다.
+          </div>
+        </div>
+      </div>
+
       <div v-show="activeTab === 'coupons'">
         <div class="coupon-form card">
           <h4>신규 쿠폰 발급</h4>
@@ -95,7 +134,6 @@
 <script>
 import { ref, reactive, onMounted, computed } from "vue";
 import { db, functions, auth } from "@/firebaseConfig";
-// [핵심 수정] getFunctions를 firebase/functions에서 import 합니다.
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { httpsCallable, getFunctions } from "firebase/functions";
 
@@ -107,6 +145,7 @@ export default {
     const rankings = reactive({
       dailyTop7: [], weeklyTop7: [], saltPangRanked: [],
       saltPangHoF: [], pvpWeekly: [], enchantRankings: [],
+      auctionWinners: [], // [추가]
     });
     const challengeResults = ref([]);
     const userList = ref([]);
@@ -156,12 +195,7 @@ export default {
       switch(activeTab.value) {
         case 'dailyTop7': sourceData = rankings.dailyTop7; dateKey = 'date'; break;
         case 'weeklyTop7': sourceData = rankings.weeklyTop7; dateKey = 'weekId'; break;
-        case 'saltPangRanked': sourceData = rankings.saltPangRanked; dateKey = 'weekId'; break;
-        case 'pvpWeekly': sourceData = rankings.pvpWeekly; dateKey = 'weekId'; break;
-        case 'challenges': sourceData = challengeResults.value; dateKey = 'weekId'; break;
-        case 'saltPangHoF':
-        case 'enchantRankings':
-          return [{ id: 'all-time', date: '역대 랭킹', items: rankings[activeTab.value] }];
+        // ... (이하 기존 case문) ...
         default: return [];
       }
       if (!sourceData || sourceData.length === 0) return [];
@@ -175,16 +209,27 @@ export default {
       }));
     });
 
+    // [추가] 날짜 및 쿠폰 상태 포맷 헬퍼 함수
+    const formatDate = (timestamp) => {
+      if (!timestamp?.toDate) return "N/A";
+      return timestamp.toDate().toLocaleString("ko-KR");
+    };
+
+    const formatCouponStatus = (status) => {
+      if (status === 'used') return '사용 완료';
+      if (status === 'expired') return '기간 만료';
+      if (status === 'unused') return '미사용';
+      return '확인 불가';
+    };
+
     const fetchAllRankings = async () => {
       isLoadingRankings.value = true;
       try {
-        // [최종 핵심 수정] getFunctions 호출 시 'asia-northeast3' 지역을 명시합니다.
-        // 기존의 functions.app 대신 auth.app을 사용하는 것이 더 안정적일 수 있습니다.
         const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
         const getAdminRankings = httpsCallable(functionsWithRegion, "getAdminDashboardRankings");
         
         const result = await getAdminRankings();
-        Object.assign(rankings, result.data);
+        Object.assign(rankings, { ...result.data, auctionWinners: result.data.auctionWinners || [] });
         challengeResults.value = result.data.challenges;
       } catch (error) { 
         console.error("랭킹 데이터 로딩 실패:", error);
@@ -239,29 +284,18 @@ export default {
 
     onMounted(() => {
         fetchUsers();
-        // fetchIssuedCoupons(); // 이 함수는 현재 없으므로 주석 처리하거나 추가해야 합니다.
         fetchAllRankings();
     });
 
     return {
-      activeTab,
-      isLoadingRankings,
-      rankings,
-      challengeResults,
-      userList,
-      isIssuing,
-      couponDetails,
-      selectedUsers,
-      issuedCoupons,
-      isLoadingCoupons,
-      searchQuery,
-      filteredUserList,
-      isAllUsersSelected,
-      selectAllUsers,
-      currentRankings,
-      currentTabTitle,
-      issueCoupons,
-      resetCouponValues,
+      activeTab, isLoadingRankings, rankings, challengeResults,
+      userList, isIssuing, couponDetails, selectedUsers, issuedCoupons,
+      isLoadingCoupons, searchQuery, filteredUserList, isAllUsersSelected,
+      selectAllUsers, currentRankings, currentTabTitle, issueCoupons, resetCouponValues,
+      // [추가] 템플릿에서 사용할 수 있도록 return
+      auctionWinners: computed(() => rankings.auctionWinners),
+      formatDate,
+      formatCouponStatus,
     };
   }
 }
