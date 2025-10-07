@@ -80,7 +80,7 @@ const couponTypes = ref([
     { id: 'DEEP_SEA_GOLDENTIME', name: '해양심층수 골든타임' },
 ]);
 
-watch(() => nextAuction.couponType, (newType) => {
+watch(() => nextAuction.couponType, () => { // [수정] (newType) 파라미터를 제거합니다.
   // 쿠폰 종류가 변경되면 세부사항을 초기화합니다.
   nextAuction.couponDetails = {
     boostPercentage: null,
