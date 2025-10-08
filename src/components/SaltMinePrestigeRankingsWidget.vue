@@ -38,12 +38,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* [수정] 카드 기본 스타일 및 호버 효과 추가 */
 .prestige-ranking-widget {
-  background: linear-gradient(145deg, #1e293b, #334155);
-  color: #e2e8f0;
-  border: 1px solid #475569;
-  transition: all 0.3s ease; /* 애니메이션 효과를 위한 전환 */
+  /* [핵심 수정] !important를 추가하여 다른 스타일에 덮어쓰이는 것을 방지합니다. */
+  background: linear-gradient(145deg, #1e293b, #334155) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #475569 !important;
+  transition: all 0.3s ease;
 }
 .prestige-ranking-widget:hover {
   transform: translateY(-8px);
