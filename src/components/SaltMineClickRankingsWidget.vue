@@ -7,10 +7,12 @@
     <div v-if="loading" class="loading-spinner"></div>
     <ul v-else-if="rankings.length > 0" class="ranking-list">
       <li v-for="(player, index) in rankings" :key="index" :class="['rank-item', 'rank-' + (index + 1)]">
-        <div class="rank-icon">
-          <i v-if="index === 0" class="fas fa-crown"></i>
-          <span v-else>{{ index + 1 }}</span>
-        </div>
+	<div class="rank-icon">
+	    <i v-if="index === 0" class="fas fa-crown"></i>
+	    <i v-else-if="index === 1" class="fas fa-medal"></i>
+	    <i v-else-if="index === 2" class="fas fa-award"></i>
+	    <span v-else>{{ index + 1 }}</span>
+	</div>
         <span class="player-name">{{ player.userName }}</span>
         <span class="player-clicks">{{ player.totalClicks.toLocaleString() }} <small>클릭</small></span>
       </li>
@@ -41,14 +43,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* [수정] text-glow 키프레임은 더 이상 사용하지 않으므로 삭제하고, background-pan과 spin만 남깁니다. */
 @keyframes background-pan {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}
-@keyframes text-glow {
-  from { text-shadow: 0 0 8px #fff, 0 0 12px #ffc107, 0 0 16px #ff9800; }
-  to { text-shadow: 0 0 16px #fff, 0 0 24px #ffc107, 0 0 32px #ff9800; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -66,27 +65,32 @@ onMounted(async () => {
 }
 
 .widget-header { text-align: center; margin-bottom: 20px; }
+
+/* ▼▼▼ [핵심 수정] 헤더(h3) 스타일 변경 ▼▼▼ */
 .widget-header h3 {
   font-size: 1.8em;
   font-weight: 700;
-  color: #ffc107;
+  color: #fff; /* 색상을 흰색으로 변경 */
   display: flex; align-items: center; justify-content: center; gap: 12px;
-  animation: text-glow 2s infinite alternate;
+  /* text-glow 애니메이션 제거 */
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* 깔끔한 기본 그림자 효과로 대체 */
 }
+/* ▲▲▲ 수정된 부분 끝 ▲▲▲ */
+
 .widget-header p {
   font-size: 0.9em;
   color: #bdc3c7;
   margin-top: 5px;
 }
 
-.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 
 .rank-item {
   display: grid;
   grid-template-columns: 40px 1fr auto;
   gap: 15px;
   align-items: center;
-  padding: 12px 15px;
+  padding: 10px 15px;
   background: linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.1));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -98,27 +102,29 @@ onMounted(async () => {
 }
 
 .rank-icon {
-  font-size: 1.5em;
+  font-size: 1.4em;
   font-weight: bold;
   text-align: center;
 }
-
-.rank-1 .rank-icon { color: #f1c40f; }
-.rank-2 .rank-icon { color: #e0e0e0; font-size: 1.4em; }
-.rank-3 .rank-icon { color: #cd7f32; font-size: 1.3em; }
+.rank-1 .rank-icon { color: #f1c40f; font-size: 1.6em; }
+.rank-2 .rank-icon { color: #e0e0e0; }
+.rank-3 .rank-icon { color: #cd7f32; }
+.rank-icon span {
+  font-size: 1.1rem;
+  color: #94a3b8;
+}
 
 .player-name {
-  font-size: 1.1em;
+  font-size: 1.05em;
   font-weight: 600;
   color: #ecf0f1;
 }
 
 .player-clicks {
-  font-size: 1.4em;
+  font-size: 1.3em;
   font-weight: 700;
   white-space: nowrap;
   
-  /* 클릭 수 텍스트 애니메이션 */
   background: linear-gradient(90deg, #ffeb3b, #ffc107, #ff9800, #ffeb3b);
   background-size: 200% auto;
   -webkit-background-clip: text;
