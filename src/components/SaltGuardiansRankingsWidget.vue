@@ -74,7 +74,6 @@ onMounted(fetchRankings);
 </script>
 
 <style scoped>
-
 .ranking-widget {
   display: flex;
   flex-direction: column;
