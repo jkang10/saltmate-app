@@ -51,10 +51,22 @@
     </div>
   </div>
 </div>
-        <div class="card ranking-section">
-          <h3><i class="fas fa-trophy"></i> 일일 랭킹 TOP 5</h3>
-          <div class="no-data">랭킹 정보를 불러오는 중...</div>
-        </div>
+	<div class="card ranking-section">
+	  <h3><i class="fas fa-trophy"></i> 일일 랭킹 TOP 5</h3>
+	  <div v-if="isLoadingRankings" class="loading-state">
+	    <div class="spinner-small"></div>
+	  </div>
+	  <ul v-else-if="dailyRankings.length > 0" class="ranking-list">
+	    <li v-for="(player, index) in dailyRankings" :key="player.userId" :class="['rank-item', 'rank-' + (index + 1)]">
+	      <div class="rank-badge">{{ index + 1 }}</div>
+	      <span class="player-name">{{ player.userName }}</span>
+	      <span class="player-score">{{ player.score.toLocaleString() }}점</span>
+	    </li>
+	  </ul>
+	  <div v-else class="no-data">
+	    오늘의 랭킹 정보가 아직 없습니다.
+	  </div>
+	</div>
       </aside>
     </main>
   </div>
@@ -65,6 +77,8 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { auth, db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+
 
 // --- 상태 변수 ---
 const gameCanvas = ref(null);
@@ -73,6 +87,10 @@ const isProcessing = ref(false);
 const score = ref(0);
 const wave = ref(0);
 const awardedPoints = ref(0);
+
+// ▼▼▼ 이 두 변수를 추가해주세요 ▼▼▼
+const dailyRankings = ref([]);
+const isLoadingRankings = ref(true);
 
 const crystal = reactive({ hp: 100, maxHp: 100, x: 0, y: 0, radius: 30 });
 const player = reactive({ x: 0, y: 0, radius: 20, speed: 5, shootCooldown: 0, fireRate: 20, damage: 1 });
@@ -172,6 +190,27 @@ const endGame = async () => {
     awardedPoints.value = result.data.awardedPoints;
   } catch (error) {
     console.error("게임 결과 전송 실패:", error);
+  }
+};
+
+// onMounted 함수 바로 아래에, 아래 fetchDailyRankings 함수 전체를 추가해주세요.
+const fetchDailyRankings = async () => {
+  isLoadingRankings.value = true;
+  try {
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const today = new Date(new Date().getTime() + kstOffset).toISOString().slice(0, 10);
+
+    const q = query(
+      collection(db, `leaderboards/salt_guardians_daily/${today}`),
+      orderBy("score", "desc"),
+      limit(5)
+    );
+    const snapshot = await getDocs(q);
+    dailyRankings.value = snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("솔트 가디언즈 일일 랭킹 로딩 오류:", error);
+  } finally {
+    isLoadingRankings.value = false;
   }
 };
 
@@ -348,6 +387,7 @@ onMounted(() => {
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
+    fetchDailyRankings();
         if (docSnap.exists()) {
             applyUpgrades(docSnap.data().upgrades);
         }
