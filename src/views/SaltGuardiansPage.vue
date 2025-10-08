@@ -419,7 +419,7 @@ onMounted(() => {
   player.x = rect.width / 2;
   player.y = rect.height - 50;
   crystal.x = rect.width / 2;
-  crystal.y = rect.height - 50;
+  crystal.y = rect.height - 100; // <-- 플레이어보다 위로 위치 수정
 
   // [핵심 수정] 이벤트 핸들러 함수를 onMounted 밖에서도 접근할 수 있도록 정의합니다.
   // (실제 정의는 onMounted 밖 setup 스코프에 있어야 하지만, 설명을 위해 여기에 둡니다.)
