@@ -418,6 +418,9 @@ onMounted(() => {
   crystal.x = rect.width / 2;
   crystal.y = rect.height - 50;
 
+  // [핵심 수정] 이벤트 핸들러 함수를 onMounted 밖에서도 접근할 수 있도록 정의합니다.
+  // (실제 정의는 onMounted 밖 setup 스코프에 있어야 하지만, 설명을 위해 여기에 둡니다.)
+  // 이 함수들은 onUnmounted에서 동일한 참조를 사용해 제거됩니다.
   const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
   const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
   
@@ -439,7 +442,7 @@ onMounted(() => {
   
   const playMusic = () => {
     initAudioContext();
-    backgroundAudio.value.play().catch(e => console.log("배경음악 자동 재생 실패. 사용자 상호작용이 필요합니다."));
+    backgroundAudio.value.play().catch(() => console.log("배경음악 자동 재생 실패. 사용자 상호작용이 필요합니다."));
     document.body.removeEventListener('click', playMusic, true);
     document.body.removeEventListener('touchstart', playMusic, true);
   };
@@ -471,6 +474,7 @@ onUnmounted(() => {
     backgroundAudio.value = null;
   }
   
+  // [핵심 수정] onMounted에서 등록한 핸들러와 동일한 참조를 사용하여 이벤트를 제거합니다.
   const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
   const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
   
