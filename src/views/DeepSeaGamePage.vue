@@ -23,6 +23,9 @@
         </div>
 
         <div class="collect-area card">
+	  <div v-if="isCollectionBoostActive" class="boost-active-indicator">
+	    <i class="fas fa-bolt"></i> 수집량 2배!
+	  </div>
           <button
             id="collectBtn"
             @click="collectClick"
@@ -272,6 +275,11 @@ import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp, increment } from "firebase/firestore";
 
+// ▼▼▼ 1. 상태 변수 추가 (기존 변수들 아래에) ▼▼▼
+const isCollectionBoostActive = ref(false);
+let collectionBoostTimeout = null;
+// ▲▲▲
+
 const DEFAULT_STATE = {
   water: 0, capacity: 200, minerals: 0, research: 0, funds: 0, plankton: 0, relics: 0,
   shop: {}, achievements: {}, seenTutorial: false, goldenTimeUntil: null,
@@ -382,30 +390,26 @@ const achievements = computed(() => ACH_DEFS.map((ach) => ({ ...ach, unlocked: s
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
 const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
+// ▼▼▼ 2. collectClick 함수 수정 ▼▼▼
 const collectClick = async () => {
-  // ▼▼▼ [핵심 수정] ▼▼▼
   try {
-    // 1. 첫 행동 시, 서버에 데이터가 있는지 먼저 확인합니다.
     if (DB_SAVE_REF) {
-      // onSnapshot은 실시간 리스너이므로, 일회성 확인을 위해 getDoc을 사용합니다.
       const { getDoc } = await import("firebase/firestore");
       const docSnap = await getDoc(DB_SAVE_REF);
-
-      // 2. 데이터가 없으면, 이 시점에 안전하게 초기 데이터를 생성합니다.
       if (!docSnap.exists()) {
         addLog("첫 탐험을 시작합니다! 초기 데이터를 생성합니다.");
         await setDoc(DB_SAVE_REF, { ...clone(DEFAULT_STATE), lastUpdated: serverTimestamp() });
       }
     }
-
-    // 3. 데이터가 있거나 방금 생성되었으므로, 채집 함수를 호출합니다.
-    await callFunction("collectDeepSeaResources");
+    
+    // [핵심] 부스트 상태를 함께 전송합니다.
+    await callFunction("collectDeepSeaResources", { isBoosted: isCollectionBoostActive.value });
 
   } catch (err) {
     addLog(`채집 오류: ${err.message}`);
   }
-  // ▲▲▲ 수정된 부분 끝 ▲▲▲
 };
+// ▲▲▲
 
 const sellResources = async () => {
   try {
@@ -491,7 +495,8 @@ function closeTutorial() {
   if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
 }
 
-async function runEvent() { // async 키워드 추가
+// ▼▼▼ 3. runEvent 함수 수정 ▼▼▼
+async function runEvent() {
   if (Math.random() < 0.2) {
     const eventType = Math.random();
     let msg = "";
@@ -499,7 +504,15 @@ async function runEvent() { // async 키워드 추가
     if (eventType < 0.5) {
       msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
       addLog(msg);
-      // 참고: '10초간 수집량 2배' 기능 또한 현재 구현되어 있지 않습니다.
+      
+      // [핵심] 부스트 활성화 및 10초 타이머 설정
+      isCollectionBoostActive.value = true;
+      if (collectionBoostTimeout) clearTimeout(collectionBoostTimeout); // 기존 타이머 초기화
+      collectionBoostTimeout = setTimeout(() => {
+        isCollectionBoostActive.value = false;
+        addLog("강한 해류가 잠잠해졌습니다.");
+      }, 10000); // 10초
+
     } else {
       msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
       addLog(msg);
@@ -581,6 +594,7 @@ const listenToGame = (user) => {
   });
 };
 
+// ▼▼▼ 4. onMounted 내부의 tickTimer 수정 ▼▼▼
 onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     authUser.value = user;
@@ -613,7 +627,13 @@ onMounted(() => {
   tickTimer = setInterval(() => {
     const delta = (Date.now() - lastTick) / 1000;
     lastTick = Date.now();
-    const production = derived.value.perSecond * delta;
+    let production = derived.value.perSecond * delta; // [수정] let으로 변경
+
+    // [핵심] 부스트 활성화 시 생산량 2배 적용
+    if (isCollectionBoostActive.value) {
+      production *= 2;
+    }
+    
     if (production > 0 && state.water < derived.value.capacity) {
         state.water = Math.min(derived.value.capacity, state.water + production);
     }
@@ -622,14 +642,18 @@ onMounted(() => {
   eventTimer = setInterval(runEvent, 25000);
 });
 
+// ▼▼▼ 5. onUnmounted 함수 수정 ▼▼▼
 onUnmounted(() => {
   clearInterval(tickTimer);
   clearInterval(eventTimer);
   if (goldenTimeInterval) clearInterval(goldenTimeInterval);
+  if (collectionBoostTimeout) clearTimeout(collectionBoostTimeout); // [추가] 타이머 정리
   if (authUnsubscribe) authUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (gameStateUnsubscribe) gameStateUnsubscribe();
 });
+// ▲▲▲
+
 </script>
 
 <style scoped>
@@ -713,4 +737,28 @@ input:checked + .slider:before { transform: translateX(26px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
 @media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; } }
+.collect-area {
+  position: relative; /* 자식 요소의 position: absolute 기준점 */
+}
+
+.boost-active-indicator {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #e67e22;
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.9em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
 </style>
