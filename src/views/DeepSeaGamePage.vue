@@ -382,10 +382,29 @@ const achievements = computed(() => ACH_DEFS.map((ach) => ({ ...ach, unlocked: s
 const isGoldenTimeActive = computed(() => state.goldenTimeUntil && state.goldenTimeUntil.toDate() > new Date());
 const isAbyssalTrenchUnlocked = computed(() => !!state.unlockedZones.abyssal_trench);
 
-const collectClick = () => {
-  callFunction("collectDeepSeaResources").catch(err => {
-      addLog(`채집 오류: ${err.message}`);
-  });
+const collectClick = async () => {
+  // ▼▼▼ [핵심 수정] ▼▼▼
+  try {
+    // 1. 첫 행동 시, 서버에 데이터가 있는지 먼저 확인합니다.
+    if (DB_SAVE_REF) {
+      // onSnapshot은 실시간 리스너이므로, 일회성 확인을 위해 getDoc을 사용합니다.
+      const { getDoc } = await import("firebase/firestore");
+      const docSnap = await getDoc(DB_SAVE_REF);
+
+      // 2. 데이터가 없으면, 이 시점에 안전하게 초기 데이터를 생성합니다.
+      if (!docSnap.exists()) {
+        addLog("첫 탐험을 시작합니다! 초기 데이터를 생성합니다.");
+        await setDoc(DB_SAVE_REF, { ...clone(DEFAULT_STATE), lastUpdated: serverTimestamp() });
+      }
+    }
+
+    // 3. 데이터가 있거나 방금 생성되었으므로, 채집 함수를 호출합니다.
+    await callFunction("collectDeepSeaResources");
+
+  } catch (err) {
+    addLog(`채집 오류: ${err.message}`);
+  }
+  // ▲▲▲ 수정된 부분 끝 ▲▲▲
 };
 
 const sellResources = async () => {
@@ -472,13 +491,33 @@ function closeTutorial() {
   if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { seenTutorial: true }, { merge: true });
 }
 
-function runEvent() {
+async function runEvent() { // async 키워드 추가
   if (Math.random() < 0.2) {
     const eventType = Math.random();
     let msg = "";
-    if (eventType < 0.5) msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
-    else msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
-    addLog(msg);
+
+    if (eventType < 0.5) {
+      msg = "이벤트: 강한 해류 발견! 10초간 수집량 2배!";
+      addLog(msg);
+      // 참고: '10초간 수집량 2배' 기능 또한 현재 구현되어 있지 않습니다.
+    } else {
+      msg = "이벤트: 희귀 생물 발견! 연구 데이터 +100!";
+      addLog(msg);
+
+      // ▼▼▼ [핵심 수정] 실제 데이터 업데이트 로직 추가 ▼▼▼
+      if (DB_SAVE_REF) { // DB_SAVE_REF가 설정되었는지 확인 (로그인 상태)
+        try {
+          // Firestore의 increment를 사용하여 서버의 값을 안전하게 증가시킵니다.
+          await setDoc(DB_SAVE_REF, {
+            research: increment(100)
+          }, { merge: true });
+        } catch (e) {
+          console.error("연구 데이터 이벤트 보상 저장 실패:", e);
+          addLog("이벤트 보상 저장에 실패했습니다.", 'error');
+        }
+      }
+      // ▲▲▲ 수정된 부분 끝 ▲▲▲
+    }
   }
 }
 
@@ -530,7 +569,7 @@ const listenToGame = (user) => {
       // [핵심 수정 3] 문서가 없을 때, 덮어쓰기 전에 한 번 더 확인
       // 로컬 state에 데이터가 이미 있다면 (예: 잠시 연결이 끊겼다가 다시 연결될 때), 초기화하지 않습니다.
       if (!state.lastUpdated) {
-        console.log("신규 사용자로 판단되어 해양탐험 게임 데이터를 초기화합니다.");
+	console.log("해양탐험 게임 데이터가 아직 없습니다. 첫 채집 시 생성됩니다.");
         Object.assign(state, clone(DEFAULT_STATE));
         if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
       }
