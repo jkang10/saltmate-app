@@ -24,12 +24,12 @@
           </div>
           <div class="stat">
             <span :class="{ 'boosted-text': isBoostActive }"
-              >{{ Math.floor(boostedPerSecond).toLocaleString() }} / 초</span
+              >{{ boostedPerSecond.toLocaleString(undefined, {maximumFractionDigits: 1}) }} / 초</span
             ><small>자동 채굴량</small>
           </div>
           <div class="stat">
             <span :class="{ 'boosted-text': isBoostActive }"
-              >{{ Math.floor(boostedPerClick).toLocaleString() }} / 클릭</span
+              >{{ boostedPerClick.toLocaleString() }} / 클릭</span
             ><small>클릭 채굴량</small>
           </div>
         </div>
@@ -107,15 +107,29 @@
             황금 소금 1개를 {{ gameSettings.goldenSaltExchangeRate }} SaltMate로
             교환합니다.
           </p>
-	<button
-	  @click="openExchangeModal" :disabled="isExchanging || gold < 1"
-	  class="boost-button"
-	>
-	  <span v-if="isExchanging">교환 중...</span>
-	  <span v-else>SaltMate로 교환</span>
-	</button>
+          <button
+            @click="openExchangeModal" :disabled="isExchanging || gold < 1"
+            class="boost-button"
+          >
+            <span v-if="isExchanging">교환 중...</span>
+            <span v-else>SaltMate로 교환</span>
+          </button>
         </div>
-
+        
+        <div v-if="upgrades.robot >= 40 || prestigeLevel > 0" class="card prestige-feature">
+          <h3><i class="fas fa-sync-alt"></i> 환생 시스템</h3>
+          <div v-if="prestigeLevel > 0" class="prestige-info">
+            <span>현재 환생 레벨: <strong>Lv.{{ prestigeLevel }}</strong></span>
+            <span>모든 생산량 보너스: <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}%</strong></span>
+          </div>
+          <p v-if="upgrades.robot >= 40" class="feature-desc">
+            채굴 로봇 40레벨을 달성하여 환생할 수 있습니다. 환생 시 진행 상황이 초기화되고 영구적인 생산량 보너스를 얻습니다.
+          </p>
+          <button v-if="upgrades.robot >= 40" @click="openPrestigeModal" :disabled="isPrestigeProcessing" class="prestige-button">
+            <span v-if="isPrestigeProcessing">처리 중...</span>
+            <span v-else>환생하기</span>
+          </button>
+        </div>
         <div class="achievement-card card">
           <h3>업적</h3>
           <div class="achievement-list">
@@ -133,33 +147,66 @@
         </div>
       </aside>
     </main>
-<div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
-  <div class="modal-content card">
-    <header class="modal-header">
-      <h3>황금 소금 교환</h3>
-      <button @click="closeExchangeModal" class="close-button">&times;</button>
-    </header>
-    <div class="modal-body">
-      <p>교환할 황금 소금의 수량을 입력하세요.</p>
-      <div class="exchange-info">
-        <span>보유: {{ gold.toLocaleString() }} 개</span>
-        <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
-      </div>
-      <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
-      <div class="exchange-summary">
-        <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
+    
+    <div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
+      <div class="modal-content card">
+        <header class="modal-header">
+          <h3>황금 소금 교환</h3>
+          <button @click="closeExchangeModal" class="close-button">&times;</button>
+        </header>
+        <div class="modal-body">
+          <p>교환할 황금 소금의 수량을 입력하세요.</p>
+          <div class="exchange-info">
+            <span>보유: {{ gold.toLocaleString() }} 개</span>
+            <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
+          </div>
+          <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
+          <div class="exchange-summary">
+            <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button @click="closeExchangeModal" class="btn-secondary">취소</button>
+          <button @click="executeExchange" :disabled="isExchanging || !exchangeQuantity || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
+            <span v-if="isExchanging" class="spinner-small"></span>
+            <span v-else>교환하기</span>
+          </button>
+        </footer>
       </div>
     </div>
-    <footer class="modal-footer">
-      <button @click="closeExchangeModal" class="btn-secondary">취소</button>
-      <button @click="executeExchange" :disabled="isExchanging || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
-        <span v-if="isExchanging">교환 중...</span>
-        <span v-else>교환하기</span>
-      </button>
-    </footer>
-  </div>
-</div>
-  </div>
+
+    <div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
+      <div class="modal-content card">
+        <header class="modal-header">
+          <h3><i class="fas fa-sync-alt"></i> 환생 확인</h3>
+          <button @click="closePrestigeModal" class="close-button">&times;</button>
+        </header>
+        <div class="modal-body">
+          <p><strong>정말로 환생하시겠습니까?</strong></p>
+          <p>
+            환생을 진행하면 현재 보유한 모든 소금과 업그레이드가 사라지고 처음부터 다시 시작합니다.
+          </p>
+          <div class="prestige-summary">
+            <div>
+              <span>현재 환생 레벨</span>
+              <strong>Lv.{{ prestigeLevel }} &rarr; Lv.{{ prestigeLevel + 1 }}</strong>
+            </div>
+            <div>
+              <span>총 생산량 보너스</span>
+              <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}% &rarr; +{{ (prestigeBonus * 1.1 - 1) * 100 }}%</strong>
+            </div>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button @click="closePrestigeModal" class="btn-secondary">취소</button>
+          <button @click="executePrestige" :disabled="isPrestigeProcessing" class="btn-primary prestige-confirm">
+            <span v-if="isPrestigeProcessing" class="spinner-small"></span>
+            <span v-else>환생 진행</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+    </div>
 </template>
 
 <script setup>
@@ -187,6 +234,11 @@ const activeBoost = ref(null);
 const boostTimeRemaining = ref("00:00");
 const logBox = ref(null);
 
+// 환생(Prestige) 관련 상태 변수
+const prestigeLevel = ref(0);
+const isPrestigeModalVisible = ref(false);
+const isPrestigeProcessing = ref(false);
+
 let gameStateRef = null;
 let authUnsubscribe = null;
 let gameInterval = null;
@@ -202,9 +254,20 @@ const logEvent = (message) => {
 };
 
 // --- 계산된 속성 ---
+const prestigeBonus = computed(() => {
+  return 1 + (prestigeLevel.value * 0.1); // 환생 레벨당 10% 보너스
+});
+
 const isBoostActive = computed(() => activeBoost.value && activeBoost.value.expiresAt.toDate() > new Date());
-const boostedPerClick = computed(() => isBoostActive.value ? perClick.value * (1 + activeBoost.value.percentage / 100) : perClick.value);
-const boostedPerSecond = computed(() => isBoostActive.value ? perSecond.value * (1 + activeBoost.value.percentage / 100) : perSecond.value);
+
+const boostedPerClick = computed(() => {
+  const boostMultiplier = isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1;
+  return perClick.value * boostMultiplier * prestigeBonus.value;
+});
+const boostedPerSecond = computed(() => {
+  const boostMultiplier = isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1;
+  return perSecond.value * boostMultiplier * prestigeBonus.value;
+});
 
 const SHOP_DEFS = [
   { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
@@ -242,9 +305,16 @@ const resetGameState = () => {
 };
 
 const loadGame = async () => {
-  if (!gameStateRef) return;
+  if (!currentUser.value) return;
   isLoading.value = true;
   try {
+    const userRef = doc(db, "users", currentUser.value.uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      prestigeLevel.value = userSnap.data().saltMinePrestigeLevel || 0;
+    }
+
+    gameStateRef = doc(db, `users/${currentUser.value.uid}/game_state/salt_mine`);
     const docSnap = await getDoc(gameStateRef);
     if (docSnap.exists()) {
       const state = docSnap.data();
@@ -254,8 +324,10 @@ const loadGame = async () => {
       const lastUpdate = state.lastUpdated?.toDate() || new Date();
       const secondsDiff = (new Date().getTime() - lastUpdate.getTime()) / 1000;
       const effectiveSeconds = Math.min(secondsDiff, 24 * 3600);
-      const offlineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
-      if (offlineSalt > 0) logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}%)`);
+      const baseOfflineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
+      const offlineSalt = Math.floor(baseOfflineSalt * prestigeBonus.value);
+
+      if (offlineSalt > 0) logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다! (효율: ${offlineRate * 100}% + 환생 보너스)`);
       
       salt.value = (state.salt || 0) + offlineSalt;
       gold.value = state.gold || 0;
@@ -355,7 +427,7 @@ const sellSalt = async () => {
 };
 
 const openExchangeModal = () => {
-  exchangeQuantity.value = 1; // 모달을 열 때마다 수량을 1로 초기화
+  exchangeQuantity.value = 1;
   isExchangeModalVisible.value = true;
 };
 
@@ -364,7 +436,7 @@ const closeExchangeModal = () => {
 };
 
 const executeExchange = async () => {
-  if (!currentUser.value || gold.value < exchangeQuantity.value || isExchanging.value || exchangeQuantity.value <= 0) {
+  if (!currentUser.value || gold.value < exchangeQuantity.value || isExchanging.value || !exchangeQuantity.value || exchangeQuantity.value <= 0) {
     alert("교환할 수량이 올바르지 않습니다.");
     return;
   }
@@ -373,7 +445,6 @@ const executeExchange = async () => {
   isExchanging.value = true;
   try {
     const exchangeGoldenSaltFunc = httpsCallable(functions, "exchangeGoldenSalt");
-    // [핵심] 서버에 교환할 수량(quantity)을 함께 보냅니다.
     const result = await exchangeGoldenSaltFunc({ quantity: exchangeQuantity.value });
     const { awardedPoints } = result.data;
 
@@ -391,13 +462,42 @@ const executeExchange = async () => {
   }
 };
 
+const openPrestigeModal = () => {
+  isPrestigeModalVisible.value = true;
+};
+
+const closePrestigeModal = () => {
+  isPrestigeModalVisible.value = false;
+};
+
+const executePrestige = async () => {
+  if (!confirm("정말로 환생하시겠습니까? 모든 업그레이드와 소금이 초기화되지만, 영구적인 생산량 보너스를 얻습니다.")) {
+    return;
+  }
+  isPrestigeProcessing.value = true;
+  try {
+    const prestigeSaltMine = httpsCallable(functions, "prestigeSaltMine");
+    await prestigeSaltMine();
+    
+    alert("환생을 완료했습니다! 더욱 강력해진 상태로 다시 시작합니다.");
+    
+    window.location.reload();
+
+  } catch (error) {
+    console.error("환생 오류:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isPrestigeProcessing.value = false;
+    isPrestigeModalVisible.value = false;
+  }
+};
+
 // --- 라이프사이클 훅 ---
 onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     resetGameState();
     if (user) {
       currentUser.value = user;
-      gameStateRef = doc(db, `users/${user.uid}/game_state/salt_mine`);
       loadGame();
       listenToGameSettings();
     } else {
@@ -419,7 +519,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* (스타일은 기존 코드와 동일합니다.) */
+/* (기존 스타일) */
 .boost-active-banner { display: flex; align-items: center; gap: 15px; padding: 15px; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .boost-active-banner i { font-size: 1.8em; }
 .boost-info { display: flex; flex-direction: column; text-align: left; }
@@ -471,69 +571,32 @@ onUnmounted(() => {
 .gold-feature { background-color: #fffbeb; border: 1px solid #fde68a; }
 .feature-desc { font-size: 0.9em; color: #78350f; margin-bottom: 15px; }
 .boost-button { background-color: #f59e0b; color: white; }
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-.modal-content {
-  width: 90%;
-  max-width: 400px;
-  padding: 0;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid #e2e8f0;
-}
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { width: 90%; max-width: 400px; padding: 0; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; }
 .modal-header h3 { margin: 0; font-size: 1.2em; }
 .close-button { background: none; border: none; font-size: 1.5em; cursor: pointer; }
 .modal-body { padding: 20px; }
-.exchange-info {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9em;
-  color: #64748b;
-  margin-bottom: 15px;
-}
-.quantity-input {
-  width: 100%;
-  padding: 10px;
-  font-size: 1.2em;
-  text-align: center;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-sizing: border-box;
-}
-.exchange-summary {
-  margin-top: 15px;
-  text-align: center;
-  font-size: 1.1em;
-}
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 15px 20px;
-  border-top: 1px solid #e2e8f0;
-}
-.btn-primary, .btn-secondary {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-}
+.exchange-info { display: flex; justify-content: space-between; font-size: 0.9em; color: #64748b; margin-bottom: 15px; }
+.quantity-input { width: 100%; padding: 10px; font-size: 1.2em; text-align: center; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+.exchange-summary { margin-top: 15px; text-align: center; font-size: 1.1em; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 15px 20px; border-top: 1px solid #e2e8f0; }
+.btn-primary, .btn-secondary { padding: 8px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
 .btn-primary { background-color: #007bff; color: white; }
 .btn-primary:disabled { background-color: #a0c9ff; }
 .btn-secondary { background-color: #6c757d; color: white; }
+.spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 환생(Prestige) 시스템 관련 스타일 */
+.prestige-feature { background-color: #f0e6ff; border: 1px solid #d8b4fe; text-align: center; }
+.prestige-feature h3 i { color: #9333ea; }
+.prestige-info { display: flex; flex-direction: column; gap: 5px; background-color: #faf5ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 1.1em; }
+.prestige-info strong { color: #9333ea; }
+.prestige-button { width: 100%; padding: 12px; font-size: 1em; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background-color: #9333ea; color: white; }
+.prestige-button:disabled { background-color: #c084fc; }
+.prestige-summary { margin-top: 20px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+.prestige-summary div { display: flex; justify-content: space-between; align-items: center; }
+.prestige-summary strong { font-size: 1.2em; color: #9333ea; }
+.btn-primary.prestige-confirm { background-color: #9333ea; }
 </style>
