@@ -295,17 +295,19 @@ const createParticles = (x, y, count, color) => {
 };
 
 const gameLoop = (timestamp) => {
+  // [핵심 수정] 루프를 계속 이어가기 위해 requestAnimationFrame을 함수 맨 위에 둡니다.
   animationFrameId = requestAnimationFrame(gameLoop);
+
+  // 게임이 'playing' 상태가 아닐 때는 업데이트 로직을 건너뜁니다.
   if (gameState.value !== 'playing') {
-    // 게임이 'playing' 상태가 아닐 때 루프를 계속 호출하지 않도록 정지
-    if(animationFrameId) cancelAnimationFrame(animationFrameId);
+    lastTime = 0; // 다음 게임 시작을 위해 lastTime 초기화
     return;
   }
   
   if (!lastTime) lastTime = timestamp;
-  const deltaTime = (timestamp - lastTime) / 1000; // 초 단위 시간 변화량
+  const deltaTime = (timestamp - lastTime) / 1000;
   lastTime = timestamp;
-  const sixtyFpsFactor = 60 * deltaTime; // 60fps를 기준으로 속도 보정
+  const sixtyFpsFactor = 60 * deltaTime;
 
   const canvas = gameCanvas.value;
   if (!canvas || !ctx) return;
@@ -320,8 +322,9 @@ const gameLoop = (timestamp) => {
   if (keys['ArrowRight'] && player.x < canvasWidth - player.radius) player.x += player.speed * sixtyFpsFactor;
   
   // 발사 쿨다운
-  if (player.shootCooldown > 0) player.shootCooldown -= 1 * sixtyFpsFactor;
-  if (player.shootCooldown <= 0) {
+  if (player.shootCooldown > 0) {
+    player.shootCooldown -= 1 * sixtyFpsFactor;
+  } else {
     projectiles.push({ x: player.x, y: player.y, radius: 5, speed: 7 });
     player.shootCooldown = player.fireRate;
   }
@@ -346,23 +349,25 @@ const gameLoop = (timestamp) => {
     p.x += p.velocity.x * sixtyFpsFactor;
     p.y += p.velocity.y * sixtyFpsFactor;
     p.alpha -= 0.02;
+    if (p.alpha <= 0) particles.splice(pIndex, 1);
+    
     ctx.globalAlpha = p.alpha;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
     ctx.fillStyle = p.color;
     ctx.fill();
     ctx.globalAlpha = 1;
-    if (p.alpha <= 0) particles.splice(pIndex, 1);
   });
 
   // 발사체 업데이트 및 그리기
   projectiles.forEach((p, pIndex) => {
     p.y -= p.speed * sixtyFpsFactor;
+    if (p.y < 0) projectiles.splice(pIndex, 1);
+    
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
     ctx.fillStyle = '#f1c40f';
     ctx.fill();
-    if (p.y < 0) projectiles.splice(pIndex, 1);
   });
 
   // 몬스터 생성 및 업데이트
@@ -377,7 +382,6 @@ const gameLoop = (timestamp) => {
     ctx.fillStyle = m.color;
     ctx.fill();
 
-    // 충돌 감지: 몬스터 vs 결정
     const distToCrystal = Math.hypot(m.x - crystal.x, m.y - crystal.y);
     if (distToCrystal - m.radius - crystal.radius < 1) {
       crystal.hp -= 10;
@@ -386,7 +390,6 @@ const gameLoop = (timestamp) => {
       if (crystal.hp <= 0) endGame();
     }
     
-    // 충돌 감지: 몬스터 vs 발사체
     projectiles.forEach((p, pIndex) => {
       const dist = Math.hypot(p.x - m.x, p.y - m.y);
       if (dist - m.radius - p.radius < 1) {
