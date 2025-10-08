@@ -84,42 +84,33 @@ import { auth, db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
-// 2. 사운드 파일을 직접 import 합니다.
+// 사운드 파일 import
 import guardiansSound1 from '@/assets/sounds/Salt-Guardians-Sound-01.mp3';
 import guardiansSound2 from '@/assets/sounds/Salt-Guardians-Sound-02.mp3';
 import guardiansSound3 from '@/assets/sounds/Salt-Guardians-Sound-03.mp3';
 
-
 // --- 상태 변수 ---
 const gameCanvas = ref(null);
-const gameState = ref('ready'); // ready, playing, ended
+const gameState = ref('ready');
 const isProcessing = ref(false);
 const score = ref(0);
 const wave = ref(0);
 const awardedPoints = ref(0);
-
-// ▼▼▼ 이 두 변수를 추가해주세요 ▼▼▼
 const dailyRankings = ref([]);
 const isLoadingRankings = ref(true);
 
 const crystal = reactive({ hp: 100, maxHp: 100, x: 0, y: 0, radius: 30 });
 const player = reactive({ x: 0, y: 0, radius: 20, speed: 5, shootCooldown: 0, fireRate: 20, damage: 1 });
 
-// [수정] 업그레이드 데이터 구조화
 const upgrades = reactive({
   damage: { level: 0, name: '공격력 강화', desc: '발사체 공격력 증가', baseCost: 100 },
   fireRate: { level: 0, name: '연사 속도 향상', desc: '발사체 발사 속도 증가', baseCost: 150 },
   crystalHp: { level: 0, name: '결정 내구도 증가', desc: '소금 결정의 최대 HP 증가', baseCost: 120 },
 });
 
-// 업그레이드 비용 계산
 const upgradeItems = computed(() => Object.keys(upgrades).map(id => {
     const upg = upgrades[id];
-    return {
-        ...upg,
-        id,
-        cost: Math.floor(upg.baseCost * Math.pow(1.5, upg.level))
-    };
+    return { ...upg, id, cost: Math.floor(upg.baseCost * Math.pow(1.5, upg.level)) };
 }));
 
 let projectiles = [];
@@ -128,25 +119,25 @@ let particles = [];
 let keys = {};
 let ctx = null;
 let animationFrameId = null;
+let lastTime = 0;
 
-// 3. [수정] 오디오 관련 상태 변수를 수정합니다.
 let audioContextStarted = false;
 const isMuted = ref(false);
-const backgroundAudio = ref(null); // Audio 객체를 저장할 ref
+const backgroundAudio = ref(null);
 
-// 4. [신규] 모바일 터치 상태 변수를 수정합니다.
 const touchState = reactive({
   active: false,
-  initialPlayerX: 0, // 터치 시작 시점의 플레이어 위치
-  touchStartX: 0,    // 터치 시작 시점의 손가락 위치
+  initialPlayerX: 0,
+  touchStartX: 0,
 });
 
-let lastTime = 0;
+// [수정] 이벤트 리스너 함수를 setup 스코프로 이동
+const handleKeyDown = (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
+const handleKeyUp = (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
 
 const initAudioContext = async () => {
   if (audioContextStarted) return;
   try {
-    // AudioContext는 실제 오디오 재생 시점에 생성
     audioContextStarted = true;
   } catch (e) { console.error("Audio context start failed:", e); }
 };
@@ -154,19 +145,14 @@ const initAudioContext = async () => {
 const handleTouchStart = (event) => {
   if (gameState.value !== 'playing') return;
   touchState.active = true;
-  touchState.startX = event.touches[0].clientX;
-  touchState.currentX = event.touches[0].clientX;
+  touchState.touchStartX = event.touches[0].clientX;
+  touchState.initialPlayerX = player.x; // [수정] 터치 시작 시점의 플레이어 X좌표 저장
 };
 
-// 7. handleTouchMove 함수를 아래 코드로 교체합니다.
 const handleTouchMove = (event) => {
   if (!touchState.active || gameState.value !== 'playing') return;
-  
-  // 터치 시작점으로부터의 총 이동 거리를 계산합니다.
   const deltaX = event.touches[0].clientX - touchState.touchStartX;
-  // 터치 시작 시점의 플레이어 위치에 이동 거리를 더해 새 위치를 계산합니다.
   const newPlayerX = touchState.initialPlayerX + deltaX;
-
   const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
   player.x = Math.max(player.radius, Math.min(canvasWidth - player.radius, newPlayerX));
 };
@@ -175,7 +161,6 @@ const handleTouchEnd = () => {
   touchState.active = false;
 };
 
-// --- 게임 로직 ---
 const startGame = async () => {
   isProcessing.value = true;
   try {
@@ -184,15 +169,21 @@ const startGame = async () => {
     await startFunc();
 
     score.value = 0;
-    wave.value = 1;
+    wave.value = 0; // [수정] 웨이브를 0으로 시작해야 spawnMonsters에서 1로 증가하며 시작
     crystal.hp = crystal.maxHp;
     projectiles = [];
     monsters = [];
+    particles = [];
     player.shootCooldown = player.fireRate;
 
     gameState.value = 'playing';
     isProcessing.value = false;
-    gameLoop(); // 게임 루프 시작
+    
+    // 게임 루프를 새로 시작하기 전에 lastTime을 초기화
+    lastTime = 0; 
+    if (!animationFrameId) {
+      gameLoop();
+    }
   } catch (error) {
     alert(`게임 시작 실패: ${error.message}`);
     isProcessing.value = false;
@@ -208,23 +199,18 @@ const endGame = async () => {
     const endFunc = httpsCallable(functionsWithRegion, 'endSaltGuardiansGame');
     const result = await endFunc({ score: score.value });
     awardedPoints.value = result.data.awardedPoints;
+    fetchDailyRankings(); // 게임 종료 후 랭킹 갱신
   } catch (error) {
     console.error("게임 결과 전송 실패:", error);
   }
 };
 
-// onMounted 함수 바로 아래에, 아래 fetchDailyRankings 함수 전체를 추가해주세요.
 const fetchDailyRankings = async () => {
   isLoadingRankings.value = true;
   try {
     const kstOffset = 9 * 60 * 60 * 1000;
     const today = new Date(new Date().getTime() + kstOffset).toISOString().slice(0, 10);
-
-    const q = query(
-      collection(db, `leaderboards/salt_guardians_daily/${today}`),
-      orderBy("score", "desc"),
-      limit(5)
-    );
+    const q = query(collection(db, `leaderboards/salt_guardians_daily/${today}`), orderBy("score", "desc"), limit(5));
     const snapshot = await getDocs(q);
     dailyRankings.value = snapshot.docs.map(doc => doc.data());
   } catch (error) {
@@ -253,23 +239,19 @@ const applyUpgrades = (upgradeData) => {
     upgrades.damage.level = upgradeData.damage || 0;
     upgrades.fireRate.level = upgradeData.fireRate || 0;
     upgrades.crystalHp.level = upgradeData.crystalHp || 0;
-
     player.damage = 1 + (upgrades.damage.level * 0.2);
-    player.fireRate = Math.max(5, 20 - upgrades.fireRate.level); // 최소 5프레임 딜레이
+    player.fireRate = Math.max(5, 20 - upgrades.fireRate.level);
     crystal.maxHp = 100 + (upgrades.crystalHp.level * 20);
 };
 
 const spawnMonsters = () => {
   if (monsters.length === 0) {
     wave.value++;
-    
-    // [핵심 수정] 캔버스의 현재 너비를 함수 내부에서 직접 가져옵니다.
     const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
-
+    const canvasHeight = gameCanvas.value.getBoundingClientRect().height;
     for (let i = 0; i < wave.value * 2; i++) {
-      // [핵심 수정] 캔버스 너비를 기준으로 x 좌표를 계산합니다.
       const x = Math.random() < 0.5 ? 0 - 30 : canvasWidth + 30;
-      const y = Math.random() * gameCanvas.value.getBoundingClientRect().height * 0.6;
+      const y = Math.random() * canvasHeight * 0.6;
       const type = Math.random() > 0.8 ? 'fast' : 'normal';
       monsters.push({
         x, y,
@@ -295,12 +277,9 @@ const createParticles = (x, y, count, color) => {
 };
 
 const gameLoop = (timestamp) => {
-  // [핵심 수정] 루프를 계속 이어가기 위해 requestAnimationFrame을 함수 맨 위에 둡니다.
   animationFrameId = requestAnimationFrame(gameLoop);
-
-  // 게임이 'playing' 상태가 아닐 때는 업데이트 로직을 건너뜁니다.
   if (gameState.value !== 'playing') {
-    lastTime = 0; // 다음 게임 시작을 위해 lastTime 초기화
+    lastTime = 0;
     return;
   }
   
@@ -313,15 +292,12 @@ const gameLoop = (timestamp) => {
   if (!canvas || !ctx) return;
   const canvasWidth = canvas.getBoundingClientRect().width;
 
-  // 화면 지우기
   ctx.fillStyle = 'rgba(27, 40, 56, 0.2)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 플레이어 이동 (키보드)
   if (keys['ArrowLeft'] && player.x > player.radius) player.x -= player.speed * sixtyFpsFactor;
   if (keys['ArrowRight'] && player.x < canvasWidth - player.radius) player.x += player.speed * sixtyFpsFactor;
   
-  // 발사 쿨다운
   if (player.shootCooldown > 0) {
     player.shootCooldown -= 1 * sixtyFpsFactor;
   } else {
@@ -329,7 +305,6 @@ const gameLoop = (timestamp) => {
     player.shootCooldown = player.fireRate;
   }
 
-  // 결정 그리기
   ctx.beginPath();
   ctx.arc(crystal.x, crystal.y, crystal.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#00d2ff';
@@ -338,41 +313,47 @@ const gameLoop = (timestamp) => {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // 플레이어 그리기
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#ecf0f1';
   ctx.fill();
 
-  // 파티클(이펙트) 업데이트 및 그리기
-  particles.forEach((p, pIndex) => {
+  // [수정] 역순 for 루프로 변경
+  for (let pIndex = particles.length - 1; pIndex >= 0; pIndex--) {
+    const p = particles[pIndex];
     p.x += p.velocity.x * sixtyFpsFactor;
     p.y += p.velocity.y * sixtyFpsFactor;
     p.alpha -= 0.02;
-    if (p.alpha <= 0) particles.splice(pIndex, 1);
-    
-    ctx.globalAlpha = p.alpha;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  });
+    if (p.alpha <= 0) {
+      particles.splice(pIndex, 1);
+    } else {
+      ctx.globalAlpha = p.alpha;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
 
-  // 발사체 업데이트 및 그리기
-  projectiles.forEach((p, pIndex) => {
+  // [수정] 역순 for 루프로 변경
+  for (let pIndex = projectiles.length - 1; pIndex >= 0; pIndex--) {
+    const p = projectiles[pIndex];
     p.y -= p.speed * sixtyFpsFactor;
-    if (p.y < 0) projectiles.splice(pIndex, 1);
-    
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#f1c40f';
-    ctx.fill();
-  });
+    if (p.y < 0) {
+      projectiles.splice(pIndex, 1);
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#f1c40f';
+      ctx.fill();
+    }
+  }
 
-  // 몬스터 생성 및 업데이트
   spawnMonsters();
-  monsters.forEach((m, mIndex) => {
+  // [수정] 역순 for 루프로 변경
+  for (let mIndex = monsters.length - 1; mIndex >= 0; mIndex--) {
+    const m = monsters[mIndex];
     const angle = Math.atan2(crystal.y - m.y, crystal.x - m.x);
     m.x += Math.cos(angle) * m.speed * sixtyFpsFactor;
     m.y += Math.sin(angle) * m.speed * sixtyFpsFactor;
@@ -388,25 +369,27 @@ const gameLoop = (timestamp) => {
       createParticles(m.x, m.y, m.radius * 2, '#e74c3c');
       monsters.splice(mIndex, 1);
       if (crystal.hp <= 0) endGame();
+      continue; // 몬스터가 제거되었으므로 아래 충돌 검사는 건너뜀
     }
     
-    projectiles.forEach((p, pIndex) => {
+    for (let pIndex = projectiles.length - 1; pIndex >= 0; pIndex--) {
+      const p = projectiles[pIndex];
       const dist = Math.hypot(p.x - m.x, p.y - m.y);
       if (dist - m.radius - p.radius < 1) {
         m.hp -= player.damage;
-        createParticles(m.x, m.y, 8, '#f1c40f');
+        createParticles(p.x, p.y, 8, '#f1c40f');
         projectiles.splice(pIndex, 1);
         if (m.hp <= 0) {
           score.value += 100;
           createParticles(m.x, m.y, m.radius * 2, '#9b59b6');
           monsters.splice(mIndex, 1);
+          break; // 몬스터가 제거되었으므로 더 이상 다른 발사체와 충돌 검사 안 함
         }
       }
-    });
-  });
+    }
+  }
 };
 
-// --- 라이프사이클 훅 ---
 onMounted(() => {
   const canvas = gameCanvas.value;
   ctx = canvas.getContext('2d');
@@ -419,25 +402,16 @@ onMounted(() => {
   player.x = rect.width / 2;
   player.y = rect.height - 50;
   crystal.x = rect.width / 2;
-  crystal.y = rect.height - 100; // <-- 플레이어보다 위로 위치 수정
+  crystal.y = rect.height - 100;
 
-  // [핵심 수정] 이벤트 핸들러 함수를 onMounted 밖에서도 접근할 수 있도록 정의합니다.
-  // (실제 정의는 onMounted 밖 setup 스코프에 있어야 하지만, 설명을 위해 여기에 둡니다.)
-  // 이 함수들은 onUnmounted에서 동일한 참조를 사용해 제거됩니다.
-  const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
-  const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
-  
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+  canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 
-  canvas.addEventListener('touchstart', handleTouchStart);
-  canvas.addEventListener('touchmove', handleTouchMove);
-  canvas.addEventListener('touchend', handleTouchEnd);
-
-  // 배경음악 랜덤 재생
   const soundFiles = [guardiansSound1, guardiansSound2, guardiansSound3];
   const randomSound = soundFiles[Math.floor(Math.random() * soundFiles.length)];
-  
   backgroundAudio.value = new Audio(randomSound);
   backgroundAudio.value.loop = true;
   backgroundAudio.value.volume = 0.3;
@@ -445,7 +419,7 @@ onMounted(() => {
   
   const playMusic = () => {
     initAudioContext();
-    backgroundAudio.value.play().catch(() => console.log("배경음악 자동 재생 실패. 사용자 상호작용이 필요합니다."));
+    backgroundAudio.value.play().catch(() => {});
     document.body.removeEventListener('click', playMusic, true);
     document.body.removeEventListener('touchstart', playMusic, true);
   };
@@ -455,31 +429,23 @@ onMounted(() => {
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
-        if (docSnap.exists()) {
-            applyUpgrades(docSnap.data().upgrades);
-        }
+        if (docSnap.exists()) applyUpgrades(docSnap.data().upgrades);
     });
     fetchDailyRankings();
   }
 
-  // 게임 루프 시작
-  lastTime = 0;
-  gameLoop(0);
+  gameLoop();
 });
 
 onUnmounted(() => {
   if(animationFrameId) cancelAnimationFrame(animationFrameId);
+  animationFrameId = null;
 
-  // 배경음악 정지 및 리소스 해제
   if (backgroundAudio.value) {
     backgroundAudio.value.pause();
     backgroundAudio.value.src = '';
     backgroundAudio.value = null;
   }
-  
-  // [핵심 수정] onMounted에서 등록한 핸들러와 동일한 참조를 사용하여 이벤트를 제거합니다.
-  const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
-  const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
   
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
@@ -491,7 +457,6 @@ onUnmounted(() => {
     canvas.removeEventListener('touchend', handleTouchEnd);
   }
 });
-
 </script>
 
 <style scoped>
