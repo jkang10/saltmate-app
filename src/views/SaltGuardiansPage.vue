@@ -247,9 +247,14 @@ const applyUpgrades = (upgradeData) => {
 const spawnMonsters = () => {
   if (monsters.length === 0) {
     wave.value++;
+    
+    // [핵심 수정] 캔버스의 현재 너비를 함수 내부에서 직접 가져옵니다.
+    const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
+
     for (let i = 0; i < wave.value * 2; i++) {
-      const x = Math.random() < 0.5 ? 0 - 30 : gameCanvas.value.width + 30;
-      const y = Math.random() * gameCanvas.value.height * 0.6;
+      // [핵심 수정] 캔버스 너비를 기준으로 x 좌표를 계산합니다.
+      const x = Math.random() < 0.5 ? 0 - 30 : canvasWidth + 30;
+      const y = Math.random() * gameCanvas.value.getBoundingClientRect().height * 0.6;
       const type = Math.random() > 0.8 ? 'fast' : 'normal';
       monsters.push({
         x, y,
@@ -422,6 +427,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@media (max-width: 768px) {
+  .game-overlay h2 {
+    font-size: 2.5em; /* 'SALT GUARDIANS' 글씨 크기 축소 */
+  }
+  .game-button {
+    padding: 12px 30px;
+    font-size: 1em; /* '도전 시작' 버튼 크기 축소 */
+  }
+  .game-ui {
+    font-size: 1em; /* 게임 중 상단 UI 크기 축소 */
+  }
+  .crystal-hp {
+    width: 120px; /* HP 바 너비 축소 */
+  }
+}
 .ranking-section {
   background: linear-gradient(135deg, #e0eafc, #cfdef3);
 }
