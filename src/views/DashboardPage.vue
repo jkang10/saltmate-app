@@ -122,6 +122,8 @@
           <LeaderboardWidget />
           <WeeklyLeaderboardWidget />
           <SaltPangHallOfFame />
+	  <SaltMinePrestigeRankingsWidget />
+	  <SaltMineClickRankingsWidget />
           <ChallengeRankingsWidget />
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
@@ -376,6 +378,8 @@ import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
 import SaltPangPvpRankingsWidget from '@/components/SaltPangPvpRankingsWidget.vue';
 import SaltGuardiansRankingsWidget from '@/components/SaltGuardiansRankingsWidget.vue';
 import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
+import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
+import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
 
 export default {
   name: "DashboardPage",
@@ -396,6 +400,8 @@ export default {
     SaltPangPvpRankingsWidget,
     SaltGuardiansRankingsWidget,
     OnboardingTutorial,
+    SaltMinePrestigeRankingsWidget,
+    SaltMineClickRankingsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {

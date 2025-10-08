@@ -219,6 +219,7 @@ import { onAuthStateChanged } from "firebase/auth";
 // --- 상태 변수 ---
 const salt = ref(0);
 const gold = ref(0);
+const totalClicks = ref(0); // [추가] 총 클릭 수 상태 변수
 const perClick = ref(1);
 const perSecond = ref(0);
 const upgrades = reactive({});
@@ -298,7 +299,7 @@ const achievements = computed(() => [
 
 // --- 메서드 ---
 const resetGameState = () => {
-  salt.value = 0; gold.value = 0; perClick.value = 1; perSecond.value = 0;
+  salt.value = 0; gold.value = 0; totalClicks.value = 0; // [수정] 클릭 수 초기화 추가
   Object.keys(upgrades).forEach(key => delete upgrades[key]);
   logs.value = []; isLoading.value = true; activeBoost.value = null;
   logEvent("게임에 오신 것을 환영합니다!");
@@ -331,6 +332,7 @@ const loadGame = async () => {
       
       salt.value = (state.salt || 0) + offlineSalt;
       gold.value = state.gold || 0;
+      totalClicks.value = state.totalClicks || 0; // [추가] 클릭 수 불러오기
       perClick.value = state.perClick || 1;
       perSecond.value = state.perSecond || 0;
       Object.assign(upgrades, loadedUpgrades);
@@ -345,9 +347,14 @@ const loadGame = async () => {
 const saveGame = async () => {
   if (!currentUser.value || !gameStateRef || isLoading.value) return;
   const state = {
-    salt: salt.value, gold: gold.value, perClick: perClick.value,
-    perSecond: perSecond.value, upgrades: upgrades,
-    activeBoost: activeBoost.value, lastUpdated: serverTimestamp(),
+    salt: salt.value,
+    gold: gold.value,
+    totalClicks: totalClicks.value, // [추가] 클릭 수 저장
+    perClick: perClick.value,
+    perSecond: perSecond.value,
+    upgrades: upgrades,
+    activeBoost: activeBoost.value,
+    lastUpdated: serverTimestamp(),
   };
   try { await setDoc(gameStateRef, state, { merge: true }); }
   catch (error) { console.error("게임 데이터 저장 오류:", error); }
@@ -382,6 +389,7 @@ const gameTick = () => {
 
 const mineSalt = () => {
   salt.value += boostedPerClick.value;
+  totalClicks.value++; // [추가] 클릭할 때마다 1씩 증가
   if (Math.random() < 0.01) {
     gold.value += 1;
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
