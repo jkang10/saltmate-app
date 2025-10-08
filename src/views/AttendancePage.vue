@@ -31,12 +31,14 @@
         </div>
       </div>
       <div class="rewards-info">
-        <h3>🎁 연속 출석 보상 안내</h3>
-        <ul>
-          <li><strong>7일 연속:</strong> 소금 광산 부스트 20% 쿠폰 + 100 SaltMate</li>
-          <li><strong>15일 연속:</strong> 소금 광산 부스트 60% 쿠폰 + 500 SaltMate</li>
-          <li><strong>30일 연속:</strong> 소금 광산 부스트 100% 쿠폰 + 1,000 SaltMate</li>
-        </ul>
+	<h3>🎁 연속 출석 보상 안내</h3>
+	<ul>
+	  <li><strong>7일 연속:</strong> 소금 광산 부스트 20% 쿠폰 + 100 SaltMate</li>
+	  <li><strong>15일 연속:</strong> 소금 광산 부스트 60% 쿠폰 + 500 SaltMate</li>
+	  <li><strong>30일 연속:</strong> 소금 광산 부스트 100% 쿠폰 + 1,000 SaltMate</li>
+	  <li><strong>55일 연속:</strong> 소금 광산 부스트 100% 쿠폰 x 2장 + 3,000 SaltMate</li>
+	  <li><strong>90일 연속:</strong> 솔트팡 +5초 x 10장, 점수 2배 x 10장, 광산 부스트 100% x 2장 + 5,000 SaltMate</li>
+	</ul>
       </div>
     </main>
   </div>
@@ -85,9 +87,25 @@ const performCheckIn = async () => {
     if (rewards.consecutiveSaltMate > 0) {
       rewardMessage += `\n- 연속 출석 보상: ${rewards.consecutiveSaltMate} SaltMate`;
     }
-    if (rewards.coupon) {
-      rewardMessage += `\n- 특별 보상: 소금 광산 부스트 ${rewards.coupon.boostPercentage}% 쿠폰`;
+
+    // ▼▼▼ [핵심 수정] 단일 coupon -> 복수 coupons 처리 로직으로 변경 ▼▼▼
+    if (rewards.coupons && rewards.coupons.length > 0) {
+      rewardMessage += `\n- 특별 보상:`;
+      const couponSummary = rewards.coupons.reduce((summary, coupon) => {
+        let name = '';
+        if (coupon.type === 'SALT_MINE_BOOST') name = `광산 부스트 ${coupon.boostPercentage}%`;
+        else if (coupon.type === 'SALTPANG_TIME_PLUS_5') name = '솔트팡 +5초';
+        else if (coupon.type === 'SALTPANG_SCORE_X2_10S') name = '솔트팡 점수 2배';
+        
+        if(name) summary[name] = (summary[name] || 0) + (coupon.quantity || 1);
+        return summary;
+      }, {});
+      
+      for(const name in couponSummary) {
+        rewardMessage += `\n  • ${name} x ${couponSummary[name]}장`;
+      }
     }
+    // ▲▲▲ 수정된 부분 끝 ▲▲▲
     alert(rewardMessage);
 
     await fetchAttendanceData(); // 데이터 새로고침
