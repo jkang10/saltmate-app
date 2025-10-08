@@ -5,13 +5,39 @@
       <p>가장 많이 환생한 불멸의 광부들</p>
     </div>
     <div v-if="loading" class="loading-spinner"></div>
-    <ul v-else-if="rankings.length > 0" class="ranking-list">
-      <li v-for="(player, index) in rankings" :key="index" :class="['rank-item', 'rank-' + (index + 1)]">
-        <div class="rank-badge">{{ index + 1 }}</div>
-        <span class="player-name">{{ player.userName }}</span>
-        <span class="player-level">Lv.{{ player.prestigeLevel }}</span>
-      </li>
-    </ul>
+    <div v-else-if="rankings.length > 0" class="ranking-container">
+      <div class="podium">
+        <div v-if="rankings[1]" class="podium-item rank-2">
+          <div class="player-info">
+            <div class="rank-icon" v-html="getRankIcon(1)"></div>
+            <div class="player-name">{{ rankings[1].userName }}</div>
+            <div class="player-level">Lv.{{ rankings[1].prestigeLevel }}</div>
+          </div>
+        </div>
+        <div v-if="rankings[0]" class="podium-item rank-1">
+          <div class="player-info">
+            <div class="rank-icon" v-html="getRankIcon(0)"></div>
+            <div class="player-name">{{ rankings[0].userName }}</div>
+            <div class="player-level">Lv.{{ rankings[0].prestigeLevel }}</div>
+          </div>
+        </div>
+        <div v-if="rankings[2]" class="podium-item rank-3">
+          <div class="player-info">
+            <div class="rank-icon" v-html="getRankIcon(2)"></div>
+            <div class="player-name">{{ rankings[2].userName }}</div>
+            <div class="player-level">Lv.{{ rankings[2].prestigeLevel }}</div>
+          </div>
+        </div>
+      </div>
+
+      <ul v-if="rankings.length > 3" class="lower-ranks">
+        <li v-for="(player, index) in rankings.slice(3)" :key="player.userName">
+          <span class="rank">{{ index + 4 }}</span>
+          <span class="name">{{ player.userName }}</span>
+          <span class="level">Lv.{{ player.prestigeLevel }}</span>
+        </li>
+      </ul>
+    </div>
     <p v-else class="no-data">아직 환생한 유저가 없습니다.</p>
   </div>
 </template>
@@ -23,6 +49,14 @@ import { functions } from "@/firebaseConfig";
 
 const rankings = ref([]);
 const loading = ref(true);
+
+// 아이콘을 가져오는 헬퍼 함수
+const getRankIcon = (index) => {
+  if (index === 0) return '<i class="fas fa-crown"></i>';
+  if (index === 1) return '<i class="fas fa-medal"></i>';
+  if (index === 2) return '<i class="fas fa-award"></i>';
+  return '';
+};
 
 onMounted(async () => {
   try {
@@ -39,76 +73,94 @@ onMounted(async () => {
 
 <style scoped>
 .prestige-ranking-widget {
-  /* [핵심 수정] !important를 추가하여 다른 스타일에 덮어쓰이는 것을 방지합니다. */
   background: linear-gradient(145deg, #1e293b, #334155) !important;
   color: #e2e8f0 !important;
   border: 1px solid #475569 !important;
   transition: all 0.3s ease;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 .prestige-ranking-widget:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
-
-.widget-header { text-align: center; margin-bottom: 20px; }
+.widget-header {
+  margin-bottom: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 15px;
+}
 .widget-header h3 {
-  font-size: 1.6em;
+  margin: 0;
+  font-size: 1.3em;
   color: #f1c40f;
   text-shadow: 0 0 10px #f1c40f;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
 }
-.widget-header p { font-size: 0.9em; color: #94a3b8; margin-top: 5px; }
-.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.rank-item {
+.widget-header p { font-size: 0.9em; color: #94a3b8; margin: 5px 0 0; }
+
+.podium {
   display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  height: 180px;
+  margin-bottom: 20px;
+}
+.podium-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 15px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  justify-content: center; 
+  border-radius: 10px;
+  width: 30%;
+  border-top-width: 4px;
+  border-top-style: solid;
 }
-.rank-badge {
-  font-weight: bold;
+.player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  width: 100%;
+}
+.rank-icon { font-size: 2em; margin-bottom: 8px; }
+.player-name { 
+  font-weight: bold; 
   font-size: 1.1em;
-  width: 30px;
+  color: #fff;
+  text-overflow: ellipsis; 
+  overflow: hidden; 
+  white-space: nowrap; 
+  width: 100%;
   text-align: center;
-  color: #cbd5e1;
 }
+.player-level { font-size: 1.3em; font-weight: 700; font-family: monospace; }
 
-/* [수정] 플레이어 이름 가독성 향상 */
-.player-name {
-  flex-grow: 1;
-  font-weight: 600; /* 글씨를 더 굵게 */
-  color: #fff; /* 더 밝은 흰색으로 변경 */
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* 그림자 효과로 입체감 부여 */
-}
-.player-level { font-weight: bold; font-size: 1.2em; color: #f1c40f; }
+/* 순위별 스타일 */
+.rank-1 { height: 100%; order: 2; background: rgba(255, 215, 0, 0.15); border-color: #ffd700; animation: pulse-gold 2s infinite; }
+.rank-1 .rank-icon :deep(.fa-crown) { color: #ffd700; }
+.rank-1 .player-level { color: #ffd700; }
 
-/* [수정] 1위 뱃지에 특별한 애니메이션 효과 추가 */
-.rank-1 .rank-badge {
-  color: #f1c40f;
-  animation: pulse-gold 2s infinite;
-}
-.rank-2 .rank-badge { color: #e0e0e0; }
-.rank-3 .rank-badge { color: #cd7f32; }
+.rank-2 { height: 80%; order: 1; background: rgba(192, 192, 192, 0.15); border-color: #c0c0c0; }
+.rank-2 .rank-icon :deep(.fa-medal) { color: #c0c0c0; }
 
-.no-data { text-align: center; color: #94a3b8; }
-.loading-spinner {
-  margin: 20px auto; /* 가운데 정렬 */
-  display: block; /* 인라인 블록 -> 블록으로 변경 */
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #f1c40f; /* 스피너 색상 통일 */
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
+.rank-3 { height: 60%; order: 3; background: rgba(205, 127, 50, 0.15); border-color: #cd7f32; }
+.rank-3 .rank-icon :deep(.fa-award) { color: #cd7f32; }
+
+/* 4위 이하 목록 스타일 */
+.lower-ranks { list-style: none; padding: 0; margin: 15px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px; }
+.lower-ranks li { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 5px; }
+.lower-ranks .rank { font-weight: bold; text-align: center; color: #95a5a6; }
+.lower-ranks .name { font-weight: 500; } 
+.lower-ranks .level { font-family: monospace; }
+
+.loading-spinner, .no-data { text-align: center; padding: 20px; color: #95a5a6; }
+.loading-spinner { border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* 1위 뱃지 애니메이션 키프레임 */
 @keyframes pulse-gold {
-  0% { transform: scale(1); text-shadow: 0 0 5px #f1c40f; }
-  50% { transform: scale(1.1); text-shadow: 0 0 15px #f1c40f; }
-  100% { transform: scale(1); text-shadow: 0 0 5px #f1c40f; }
+  0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.7); }
+  100% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
 }
 </style>

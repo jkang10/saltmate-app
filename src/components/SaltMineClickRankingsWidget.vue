@@ -41,17 +41,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* [수정] 카드 기본 스타일 및 호버 효과 추가 */
 .click-ranking-widget {
   background-color: #e7f1ff;
   border: 1px solid #b3d4ff;
-  transition: all 0.3s ease; /* 애니메이션 효과를 위한 전환 */
+  transition: all 0.3s ease;
 }
 .click-ranking-widget:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
-
 .widget-header { text-align: center; margin-bottom: 15px; }
 .widget-header h3 {
   font-size: 1.6em;
@@ -59,19 +57,23 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: center; gap: 10px;
 }
 .ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+
+/* [핵심 수정] li 요소를 flex 대신 grid로 변경하여 간격을 조절합니다. */
 li {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto; /* 아이콘(auto) - 이름(나머지공간) - 클릭수(auto) */
+  gap: 10px; /* 요소들 사이의 간격 */
   align-items: baseline;
   padding: 10px;
   background-color: #fff;
   border-radius: 8px;
 }
-.rank-icon { font-size: 1.5em; margin-right: 10px; }
-.player-name { flex-grow: 1; font-size: 1.1em; font-weight: 600; color: #333; }
-.player-clicks { font-size: 1.2em; font-weight: bold; color: #007bff; }
+.rank-icon { font-size: 1.5em; }
+.player-name { font-size: 1.1em; font-weight: 600; color: #333; }
+.player-clicks { font-size: 1.2em; font-weight: bold; color: #007bff; white-space: nowrap; }
 .player-clicks small { font-size: 0.8em; color: #666; }
+
 .no-data { text-align: center; padding: 20px; color: #666; }
-/* [수정] 스피너 스타일 추가 */
 .loading-spinner {
   margin: 20px auto;
   display: block;
