@@ -163,6 +163,14 @@ const handleTouchEnd = () => {
 
 const startGame = async () => {
   isProcessing.value = true;
+  
+  // ▼▼▼ [핵심 수정] 이 부분을 추가해주세요 ▼▼▼
+  // 모바일 브라우저의 자동재생 정책으로 인해 사용자 상호작용(클릭) 시점에 오디오를 시작합니다.
+  if (backgroundAudio.value && !isMuted.value) {
+    initAudioContext();
+    backgroundAudio.value.play().catch(e => console.error("배경음악 재생 실패:", e));
+  }
+  // ▲▲▲ 여기까지 추가 ▲▲▲
   try {
     const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
     const startFunc = httpsCallable(functionsWithRegion, 'startSaltGuardiansGame');
@@ -193,6 +201,13 @@ const startGame = async () => {
 const endGame = async () => {
   if (gameState.value === 'ended') return;
   gameState.value = 'ended';
+
+    // ▼▼▼ [핵심 수정] 음악 정지 코드를 추가합니다 ▼▼▼
+  if (backgroundAudio.value) {
+    backgroundAudio.value.pause();
+    backgroundAudio.value.currentTime = 0; // 음악을 처음부터 다시 시작하도록 설정
+  }
+  // ▲▲▲ 여기까지 추가 ▲▲▲
 
   try {
     const functionsWithRegion = getFunctions(auth.app, "asia-northeast3");
@@ -417,15 +432,7 @@ onMounted(() => {
   backgroundAudio.value.volume = 0.3;
   backgroundAudio.value.muted = isMuted.value;
   
-  const playMusic = () => {
-    initAudioContext();
-    backgroundAudio.value.play().catch(() => {});
-    document.body.removeEventListener('click', playMusic, true);
-    document.body.removeEventListener('touchstart', playMusic, true);
-  };
-  document.body.addEventListener('click', playMusic, true);
-  document.body.addEventListener('touchstart', playMusic, true);
-  
+
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
