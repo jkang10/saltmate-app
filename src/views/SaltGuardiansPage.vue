@@ -78,11 +78,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue'; // computed 제거
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { auth, db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+
+// 2. 사운드 파일을 직접 import 합니다.
+import guardiansSound1 from '@/assets/sounds/Salt-Guardians-Sound-01.mp3';
+import guardiansSound2 from '@/assets/sounds/Salt-Guardians-Sound-02.mp3';
+import guardiansSound3 from '@/assets/sounds/Salt-Guardians-Sound-03.mp3';
 
 
 // --- 상태 변수 ---
@@ -124,14 +129,40 @@ let keys = {};
 let ctx = null;
 let animationFrameId = null;
 
-// --- 모바일 터치 상태 ---
+// 3. [수정] 오디오 관련 상태 변수를 수정합니다.
+let audioContextStarted = false;
+const isMuted = ref(false);
+const backgroundAudio = ref(null); // Audio 객체를 저장할 ref
+
+// 4. [신규] 모바일 터치 상태 변수를 수정합니다.
 const touchState = reactive({
   active: false,
-  startX: 0,
-  currentX: 0,
+  initialPlayerX: 0, // 터치 시작 시점의 플레이어 위치
+  touchStartX: 0,    // 터치 시작 시점의 손가락 위치
 });
 
-// ▼▼▼ 이 함수들을 추가해주세요 ▼▼▼
+let lastTime = 0;
+
+// 6. playSound, initAudioContext, toggleMute 함수를 아래 코드로 교체합니다.
+const playSound = (soundKey) => {
+  // (이 함수는 현재 게임에서 사용되지 않으므로 비워두거나 효과음 추가 시 구현)
+};
+
+const initAudioContext = async () => {
+  if (audioContextStarted) return;
+  try {
+    // AudioContext는 실제 오디오 재생 시점에 생성
+    audioContextStarted = true;
+  } catch (e) { console.error("Audio context start failed:", e); }
+};
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (backgroundAudio.value) {
+    backgroundAudio.value.muted = isMuted.value;
+  }
+};
+
 const handleTouchStart = (event) => {
   if (gameState.value !== 'playing') return;
   touchState.active = true;
@@ -139,26 +170,22 @@ const handleTouchStart = (event) => {
   touchState.currentX = event.touches[0].clientX;
 };
 
+// 7. handleTouchMove 함수를 아래 코드로 교체합니다.
 const handleTouchMove = (event) => {
   if (!touchState.active || gameState.value !== 'playing') return;
-  touchState.currentX = event.touches[0].clientX;
+  
+  // 터치 시작점으로부터의 총 이동 거리를 계산합니다.
+  const deltaX = event.touches[0].clientX - touchState.touchStartX;
+  // 터치 시작 시점의 플레이어 위치에 이동 거리를 더해 새 위치를 계산합니다.
+  const newPlayerX = touchState.initialPlayerX + deltaX;
 
-  // 드래그 거리에 비례하여 플레이어 위치 업데이트
-  const deltaX = touchState.currentX - touchState.startX;
-  const newPlayerX = player.x + deltaX;
-
-  // 캔버스 경계 체크
   const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
   player.x = Math.max(player.radius, Math.min(canvasWidth - player.radius, newPlayerX));
-
-  // 다음 이동 계산을 위해 시작점 업데이트
-  touchState.startX = touchState.currentX;
 };
 
 const handleTouchEnd = () => {
   touchState.active = false;
 };
-// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 // --- 게임 로직 ---
 const startGame = async () => {
@@ -279,25 +306,39 @@ const createParticles = (x, y, count, color) => {
   }
 };
 
-const gameLoop = () => {
+const gameLoop = (timestamp) => {
   animationFrameId = requestAnimationFrame(gameLoop);
-  if (gameState.value !== 'playing') return;
+  if (gameState.value !== 'playing') {
+    // 게임이 'playing' 상태가 아닐 때 루프를 계속 호출하지 않도록 정지
+    if(animationFrameId) cancelAnimationFrame(animationFrameId);
+    return;
+  }
   
+  if (!lastTime) lastTime = timestamp;
+  const deltaTime = (timestamp - lastTime) / 1000; // 초 단위 시간 변화량
+  lastTime = timestamp;
+  const sixtyFpsFactor = 60 * deltaTime; // 60fps를 기준으로 속도 보정
+
   const canvas = gameCanvas.value;
-  
+  if (!canvas || !ctx) return;
+  const canvasWidth = canvas.getBoundingClientRect().width;
+
+  // 화면 지우기
   ctx.fillStyle = 'rgba(27, 40, 56, 0.2)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // 플레이어 이동 (키보드)
-  if (keys['ArrowLeft'] && player.x > player.radius) player.x -= player.speed;
-  if (keys['ArrowRight'] && player.x < gameCanvas.value.width / (window.devicePixelRatio || 1) - player.radius) player.x += player.speed;
-  if (player.shootCooldown > 0) player.shootCooldown--;
-  if (player.shootCooldown === 0) {
+  if (keys['ArrowLeft'] && player.x > player.radius) player.x -= player.speed * sixtyFpsFactor;
+  if (keys['ArrowRight'] && player.x < canvasWidth - player.radius) player.x += player.speed * sixtyFpsFactor;
+  
+  // 발사 쿨다운
+  if (player.shootCooldown > 0) player.shootCooldown -= 1 * sixtyFpsFactor;
+  if (player.shootCooldown <= 0) {
     projectiles.push({ x: player.x, y: player.y, radius: 5, speed: 7 });
     player.shootCooldown = player.fireRate;
   }
 
-  // Draw Crystal
+  // 결정 그리기
   ctx.beginPath();
   ctx.arc(crystal.x, crystal.y, crystal.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#00d2ff';
@@ -306,15 +347,16 @@ const gameLoop = () => {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Draw Player
+  // 플레이어 그리기
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#ecf0f1';
   ctx.fill();
 
+  // 파티클(이펙트) 업데이트 및 그리기
   particles.forEach((p, pIndex) => {
-    p.x += p.velocity.x;
-    p.y += p.velocity.y;
+    p.x += p.velocity.x * sixtyFpsFactor;
+    p.y += p.velocity.y * sixtyFpsFactor;
     p.alpha -= 0.02;
     ctx.globalAlpha = p.alpha;
     ctx.beginPath();
@@ -325,8 +367,9 @@ const gameLoop = () => {
     if (p.alpha <= 0) particles.splice(pIndex, 1);
   });
 
+  // 발사체 업데이트 및 그리기
   projectiles.forEach((p, pIndex) => {
-    p.y -= p.speed;
+    p.y -= p.speed * sixtyFpsFactor;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
     ctx.fillStyle = '#f1c40f';
@@ -334,17 +377,19 @@ const gameLoop = () => {
     if (p.y < 0) projectiles.splice(pIndex, 1);
   });
 
+  // 몬스터 생성 및 업데이트
   spawnMonsters();
   monsters.forEach((m, mIndex) => {
     const angle = Math.atan2(crystal.y - m.y, crystal.x - m.x);
-    m.x += Math.cos(angle) * m.speed;
-    m.y += Math.sin(angle) * m.speed;
+    m.x += Math.cos(angle) * m.speed * sixtyFpsFactor;
+    m.y += Math.sin(angle) * m.speed * sixtyFpsFactor;
 
     ctx.beginPath();
     ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
     ctx.fillStyle = m.color;
     ctx.fill();
 
+    // 충돌 감지: 몬스터 vs 결정
     const distToCrystal = Math.hypot(m.x - crystal.x, m.y - crystal.y);
     if (distToCrystal - m.radius - crystal.radius < 1) {
       crystal.hp -= 10;
@@ -353,6 +398,7 @@ const gameLoop = () => {
       if (crystal.hp <= 0) endGame();
     }
     
+    // 충돌 감지: 몬스터 vs 발사체
     projectiles.forEach((p, pIndex) => {
       const dist = Math.hypot(p.x - m.x, p.y - m.y);
       if (dist - m.radius - p.radius < 1) {
@@ -384,38 +430,65 @@ onMounted(() => {
   crystal.x = rect.width / 2;
   crystal.y = rect.height - 50;
 
-  // PC 키보드 이벤트 리스너 추가
-  window.addEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
-  window.addEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
+  const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
+  const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
+  
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
 
-  // 모바일 터치 이벤트 리스너를 캔버스에 직접 추가
   canvas.addEventListener('touchstart', handleTouchStart);
   canvas.addEventListener('touchmove', handleTouchMove);
   canvas.addEventListener('touchend', handleTouchEnd);
 
-  // Firestore에서 사용자의 업그레이드 정보를 실시간으로 가져옴
+  // 배경음악 랜덤 재생
+  const soundFiles = [guardiansSound1, guardiansSound2, guardiansSound3];
+  const randomSound = soundFiles[Math.floor(Math.random() * soundFiles.length)];
+  
+  backgroundAudio.value = new Audio(randomSound);
+  backgroundAudio.value.loop = true;
+  backgroundAudio.value.volume = 0.3;
+  backgroundAudio.value.muted = isMuted.value;
+  
+  const playMusic = () => {
+    initAudioContext();
+    backgroundAudio.value.play().catch(e => console.log("배경음악 자동 재생 실패. 사용자 상호작용이 필요합니다."));
+    document.body.removeEventListener('click', playMusic, true);
+    document.body.removeEventListener('touchstart', playMusic, true);
+  };
+  document.body.addEventListener('click', playMusic, true);
+  document.body.addEventListener('touchstart', playMusic, true);
+  
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
-    fetchDailyRankings();
         if (docSnap.exists()) {
             applyUpgrades(docSnap.data().upgrades);
         }
     });
+    fetchDailyRankings();
   }
 
   // 게임 루프 시작
-  gameLoop();
+  lastTime = 0;
+  gameLoop(0);
 });
 
 onUnmounted(() => {
   if(animationFrameId) cancelAnimationFrame(animationFrameId);
-  
-  // 키보드 이벤트 리스너 제거
-  window.removeEventListener('keydown', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; });
-  window.removeEventListener('keyup', (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; });
 
-  // 터치 이벤트 리스너 제거
+  // 배경음악 정지 및 리소스 해제
+  if (backgroundAudio.value) {
+    backgroundAudio.value.pause();
+    backgroundAudio.value.src = '';
+    backgroundAudio.value = null;
+  }
+  
+  const handleKeyDown = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = true; };
+  const handleKeyUp = (e) => { if(e.key === 'ArrowLeft' || e.key === 'ArrowRight') keys[e.key] = false; };
+  
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
+
   const canvas = gameCanvas.value;
   if (canvas) {
     canvas.removeEventListener('touchstart', handleTouchStart);
