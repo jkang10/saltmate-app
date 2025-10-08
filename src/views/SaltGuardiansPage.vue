@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'; // computed 제거
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { auth, db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -143,24 +143,12 @@ const touchState = reactive({
 
 let lastTime = 0;
 
-// 6. playSound, initAudioContext, toggleMute 함수를 아래 코드로 교체합니다.
-const playSound = (soundKey) => {
-  // (이 함수는 현재 게임에서 사용되지 않으므로 비워두거나 효과음 추가 시 구현)
-};
-
 const initAudioContext = async () => {
   if (audioContextStarted) return;
   try {
     // AudioContext는 실제 오디오 재생 시점에 생성
     audioContextStarted = true;
   } catch (e) { console.error("Audio context start failed:", e); }
-};
-
-const toggleMute = () => {
-  isMuted.value = !isMuted.value;
-  if (backgroundAudio.value) {
-    backgroundAudio.value.muted = isMuted.value;
-  }
 };
 
 const handleTouchStart = (event) => {
