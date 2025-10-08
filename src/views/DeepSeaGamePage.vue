@@ -534,6 +534,7 @@ async function runEvent() {
   }
 }
 
+// 초기화 방지 적용되어있음
 const listenToGame = (user) => {
   if (!user || !db) return;
   DB_SAVE_REF = doc(db, `users/${user.uid}/game_state/deep_sea_exploration`);
@@ -542,9 +543,8 @@ const listenToGame = (user) => {
   gameStateUnsubscribe = onSnapshot(DB_SAVE_REF, (docSnap) => {
     if (docSnap.exists()) {
       const dbState = docSnap.data();
-      const isFirstLoad = !state.lastUpdated; // 로컬 state에 마지막 업데이트 시간이 없으면 첫 로딩
+      const isFirstLoad = !state.lastUpdated;
 
-      // [핵심 수정 1] 오프라인 보상 로직 안정화
       if (isFirstLoad && dbState.lastUpdated) {
         const secondsDiff = (new Date().getTime() - dbState.lastUpdated.toDate().getTime()) / 1000;
         if (secondsDiff > 0) {
@@ -561,8 +561,6 @@ const listenToGame = (user) => {
 
                 if (producedAmount > 0) {
                   addLog(`오프라인 동안 ${fmt(producedAmount)} L의 심층수를 채집했습니다.`);
-                  // dbState 객체를 직접 수정하지 않고, DB에만 업데이트 요청을 보냅니다.
-                  // onSnapshot 리스너가 이 변경을 감지하고 state를 안전하게 업데이트할 것입니다.
                   setDoc(DB_SAVE_REF, { water: waterAfterOffline }, { merge: true });
                 }
               }
@@ -570,23 +568,19 @@ const listenToGame = (user) => {
         }
       }
 
-      // [핵심 수정 2] 데이터를 덮어쓰기 전에 필수 필드가 있는지 확인
-      // funds, water, minerals 필드 중 하나라도 dbState에 없다면, 데이터가 불완전한 것으로 간주하고 덮어쓰기를 건너뜁니다.
       if (dbState.funds === undefined || dbState.water === undefined || dbState.minerals === undefined) {
         console.warn("Firestore에서 불완전한 게임 데이터를 수신하여 업데이트를 건너뜁니다.", dbState);
         return; 
       }
 
       Object.assign(state, dbState);
+
     } else {
-      // [핵심 수정 3] 문서가 없을 때, 덮어쓰기 전에 한 번 더 확인
-      // 로컬 state에 데이터가 이미 있다면 (예: 잠시 연결이 끊겼다가 다시 연결될 때), 초기화하지 않습니다.
-      if (!state.lastUpdated) {
-	console.log("해양탐험 게임 데이터가 아직 없습니다. 첫 채집 시 생성됩니다.");
-        Object.assign(state, clone(DEFAULT_STATE));
-        if (DB_SAVE_REF) setDoc(DB_SAVE_REF, { ...state, lastUpdated: serverTimestamp() });
-      }
+      // [최종 수정] 데이터가 없어도 여기서 초기화하지 않습니다.
+      // collectClick 함수가 첫 클릭 시 안전하게 데이터를 생성하므로 이 블록은 비워둡니다.
+      console.log("해양탐험 게임 데이터가 아직 없습니다. 첫 채집 시 생성됩니다.");
     }
+
     if (!state.seenTutorial) showTutorial.value = true;
   }, (e) => { 
     console.error("Firestore listen error", e); 
