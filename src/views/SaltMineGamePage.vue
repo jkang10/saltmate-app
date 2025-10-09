@@ -205,6 +205,7 @@
       </button>
     </footer>
   </div>
+ </div>
 </div>
 
 </template>
