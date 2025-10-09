@@ -229,6 +229,7 @@ const isExchangeModalVisible = ref(false);
 const exchangeQuantity = ref(1);
 const logs = ref([]);
 const currentUser = ref(null);
+const userProfile = ref(null); // ▼▼▼ 이 줄을 추가해주세요 ▼▼▼
 const isLoading = ref(true);
 const gameSettings = reactive({ saltMineRate: 1000, deepSeaRate: 100000, goldenSaltExchangeRate: 1 });
 const activeBoost = ref(null);
@@ -305,8 +306,14 @@ const workshopItems = computed(() => {
     let canCraft = isUnlocked;
     const ingredients = recipe.ingredients.map(ing => {
       let current = 0;
-      if (ing.type === 'salt_mine') current = ing.resource === 'salt' ? salt.value : gold.value;
-      else if (ing.type === 'deep_sea') current = deepSeaState[ing.resource] || 0;
+      if (ing.type === 'salt_mine') {
+        current = ing.resource === 'salt' ? salt.value : gold.value;
+      } else if (ing.type === 'deep_sea') {
+        current = deepSeaState[ing.resource] || 0;
+      } else if (ing.type === 'global') {
+        // ▼▼▼ [핵심 수정] 이 블록이 추가되었습니다 ▼▼▼
+        current = userProfile.value ? (userProfile.value[ing.resource] || 0) : 0;
+      }
       
       const hasEnough = current >= ing.amount;
       if (!hasEnough) canCraft = false;
@@ -346,7 +353,10 @@ const loadGame = async () => {
   try {
     const userRef = doc(db, "users", currentUser.value.uid);
     const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) prestigeLevel.value = userSnap.data().saltMinePrestigeLevel || 0;
+    if (userSnap.exists()) {
+      userProfile.value = userSnap.data(); // [수정] userProfile에 전체 데이터 저장
+      prestigeLevel.value = userProfile.value.saltMinePrestigeLevel || 0;
+    }
 
     gameStateRef = doc(db, `users/${currentUser.value.uid}/game_state/salt_mine`);
     const docSnap = await getDoc(gameStateRef);
@@ -546,7 +556,17 @@ onUnmounted(() => {
 
 <style scoped>
 
-/* (기존 스타일) */
+/* ▼▼▼ [핵심 수정] 아래 두 개의 h3 스타일 규칙을 추가합니다. ▼▼▼ */
+/* '업그레이드 상점'과 '제작 공방' 제목 공통 스타일 */
+.shop-card h3,
+.workshop-feature h3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* (기존 스타일 코드) */
 .sidebar-tabs { display: flex; margin-bottom: 15px; background-color: #e2e8f0; border-radius: 8px; padding: 5px; }
 .sidebar-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }
 .sidebar-tabs button.active { background-color: #fff; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -561,11 +581,19 @@ onUnmounted(() => {
 .recipe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .lock-reason { font-size: 0.8em; color: #dc3545; }
 .ingredient-list { list-style: none; padding: 10px; margin: 0 0 10px 0; background: #f8fafc; border-radius: 6px; font-size: 0.9em; }
-.ingredient-list li { color: #dc3545; }
+.ingredient-list li { 
+  color: #dc3545;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .ingredient-list li.sufficient { color: #28a745; }
 .craft-button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 .craft-button:disabled { background-color: #a0c9ff; }
-/* (기존 스타일) */
+.shortcut-btn { padding: 3px 8px; font-size: 0.8em; font-weight: bold; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; transition: background-color 0.2s; }
+.shortcut-btn:hover { background-color: #5a6268; }
+
+/* (기존 나머지 스타일) */
 .boost-active-banner { display: flex; align-items: center; gap: 15px; padding: 15px; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .boost-active-banner i { font-size: 1.8em; }
 .boost-info { display: flex; flex-direction: column; text-align: left; }
@@ -589,11 +617,11 @@ onUnmounted(() => {
 .mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
 .mine-button:hover { transform: scale(1.05); }
 .log-card { padding: 20px; }
-.log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
+/* .log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; } */
 .log-box { height: 150px; overflow-y: auto; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 0.9em; color: #334155; }
 .game-sidebar { display: flex; flex-direction: column; gap: 20px; }
 .shop-card, .sell-card, .achievement-card { padding: 20px; }
-.shop-card h3, .sell-card h3, .achievement-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
+.shop-card h3, .sell-card h3, .achievement-card h3, .log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
 .shop-items { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 10px; }
 .shop-item { display: flex; align-items: center; gap: 15px; background-color: #f8fafc; padding: 10px; border-radius: 8px; }
 .item-icon { font-size: 1.8em; color: #ffd166; width: 40px; text-align: center; }
@@ -636,6 +664,7 @@ onUnmounted(() => {
 
 /* 환생(Prestige) 시스템 관련 스타일 */
 .prestige-feature { background-color: #f0e6ff; border: 1px solid #d8b4fe; text-align: center; }
+.prestige-feature h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .prestige-feature h3 i { color: #9333ea; }
 .prestige-info { display: flex; flex-direction: column; gap: 5px; background-color: #faf5ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 1.1em; }
 .prestige-info strong { color: #9333ea; }
@@ -645,4 +674,17 @@ onUnmounted(() => {
 .prestige-summary div { display: flex; justify-content: space-between; align-items: center; }
 .prestige-summary strong { font-size: 1.2em; color: #9333ea; }
 .btn-primary.prestige-confirm { background-color: #9333ea; }
+
+/* '제작 공방' 탭 강조 효과 */
+@keyframes glow-effect {
+  0%, 100% {
+    box-shadow: 0 0 3px #a78bfa, 0 0 6px #a78bfa, inset 0 0 2px #a78bfa;
+  }
+  50% {
+    box-shadow: 0 0 8px #c4b5fd, 0 0 15px #c4b5fd, inset 0 0 2px #c4b5fd;
+  }
+}
+.workshop-tab-btn.active {
+  animation: glow-effect 2.5s infinite;
+}
 </style>
