@@ -157,11 +157,64 @@
       </aside>
     </main>
 
-    <div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
+<div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
+  <div class="modal-content card">
+    <header class="modal-header">
+      <h3>황금 소금 교환</h3>
+      <button @click="closeExchangeModal" class="close-button">&times;</button>
+    </header>
+    <div class="modal-body">
+      <p>교환할 황금 소금의 수량을 입력하세요.</p>
+      <div class="exchange-info">
+        <span>보유: {{ gold.toLocaleString() }} 개</span>
+        <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
       </div>
-    <div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
+      <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
+      <div class="exchange-summary">
+        <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
       </div>
+    </div>
+    <footer class="modal-footer">
+      <button @click="closeExchangeModal" class="btn-secondary">취소</button>
+      <button @click="executeExchange" :disabled="isProcessing || !exchangeQuantity || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
+        <span v-if="isProcessing" class="spinner-small"></span>
+        <span v-else>교환하기</span>
+      </button>
+    </footer>
   </div>
+</div>
+
+<div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
+  <div class="modal-content card">
+    <header class="modal-header">
+      <h3><i class="fas fa-sync-alt"></i> 환생 확인</h3>
+      <button @click="closePrestigeModal" class="close-button">&times;</button>
+    </header>
+    <div class="modal-body">
+      <p><strong>정말로 환생하시겠습니까?</strong></p>
+      <p>
+        환생을 진행하면 현재 보유한 모든 소금과 업그레이드가 사라지고 처음부터 다시 시작합니다.
+      </p>
+      <div class="prestige-summary">
+        <div>
+          <span>현재 환생 레벨</span>
+          <strong>Lv.{{ prestigeLevel }} &rarr; Lv.{{ prestigeLevel + 1 }}</strong>
+        </div>
+        <div>
+          <span>총 생산량 보너스</span>
+          <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}% &rarr; +{{ (prestigeBonus * 1.1 - 1) * 100 }}%</strong>
+        </div>
+      </div>
+    </div>
+    <footer class="modal-footer">
+      <button @click="closePrestigeModal" class="btn-secondary">취소</button>
+      <button @click="executePrestige" :disabled="isProcessing" class="btn-primary prestige-confirm">
+        <span v-if="isProcessing" class="spinner-small"></span>
+        <span v-else>환생 진행</span>
+      </button>
+    </footer>
+  </div>
+</div>
 </template>
 
 <script setup>
