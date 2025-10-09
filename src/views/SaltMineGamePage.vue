@@ -29,6 +29,37 @@
           </div>
           <div class="stat">
             <span :class="{ 'boosted-text': isBoostActive }"
+              >{{ boostedPerC<template>
+  <div class="page-container" :style="mineAreaStyle">
+    <header class="page-header">
+      <h1><i class="fas fa-gem"></i> 소금 광산</h1>
+      <p class="description">
+        소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!
+      </p>
+    </header>
+
+    <main class="game-layout">
+      <div class="game-main">
+        <div v-if="isBoostActive" class="boost-active-banner card">
+          <i class="fas fa-rocket"></i>
+          <div class="boost-info">
+            <span>채굴 부스트 활성 중! (+{{ activeBoost.percentage }}%)</span>
+            <small>남은 시간: {{ boostTimeRemaining }}</small>
+          </div>
+        </div>
+
+        <div class="top-stats">
+          <div class="stat">
+            <span>{{ Math.floor(salt).toLocaleString() }}</span
+            ><small>보유 소금</small>
+          </div>
+          <div class="stat">
+            <span :class="{ 'boosted-text': isBoostActive }"
+              >{{ boostedPerSecond.toLocaleString(undefined, {maximumFractionDigits: 1}) }} / 초</span
+            ><small>자동 채굴량</small>
+          </div>
+          <div class="stat">
+            <span :class="{ 'boosted-text': isBoostActive }"
               >{{ boostedPerClick.toLocaleString() }} / 클릭</span
             ><small>클릭 채굴량</small>
           </div>
@@ -140,16 +171,44 @@
         <div v-if="activeTab === 'skins'" class="card skins-feature">
           <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
           <div class="skins-section">
-            <h4>곡괭이 스킨</h4>
+            <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
             <div class="skins-grid">
-              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item">
+              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
                 <div class="skin-preview"><i :class="skin.iconClass"></i></div>
                 <div class="skin-name">{{ skin.name }}</div>
-                <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>장착 중</button>
-                <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">장착하기</button>
-                <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
-                  {{ skin.price }} <i :class="skin.currency === 'gold' ? 'fas fa-medal' : 'fas fa-gifts'"></i>
-                </button>
+                <div class="skin-status">
+                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+                    <i class="fas fa-check"></i> 장착 중
+                  </button>
+                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+                    장착하기
+                  </button>
+                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+                    <span>{{ skin.price.toLocaleString() }}</span>
+                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="skins-section">
+            <h4><i class="fas fa-image"></i> 광산 배경 스킨</h4>
+            <div class="skins-grid">
+              <div v-for="skin in skinShopItems.background" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+                <div class="skin-preview background-preview" :style="{ backgroundImage: `url(${skin.imageUrl})` }"></div>
+                <div class="skin-name">{{ skin.name }}</div>
+                 <div class="skin-status">
+                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+                    <i class="fas fa-check"></i> 적용 중
+                  </button>
+                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+                    적용하기
+                  </button>
+                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+                    <span>{{ skin.price.toLocaleString() }}</span>
+                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -157,65 +216,66 @@
       </aside>
     </main>
 
-<div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
-  <div class="modal-content card">
-    <header class="modal-header">
-      <h3>황금 소금 교환</h3>
-      <button @click="closeExchangeModal" class="close-button">&times;</button>
-    </header>
-    <div class="modal-body">
-      <p>교환할 황금 소금의 수량을 입력하세요.</p>
-      <div class="exchange-info">
-        <span>보유: {{ gold.toLocaleString() }} 개</span>
-        <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
-      </div>
-      <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
-      <div class="exchange-summary">
-        <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
+    <div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
+      <div class="modal-content card">
+        <header class="modal-header">
+          <h3>황금 소금 교환</h3>
+          <button @click="closeExchangeModal" class="close-button">&times;</button>
+        </header>
+        <div class="modal-body">
+          <p>교환할 황금 소금의 수량을 입력하세요.</p>
+          <div class="exchange-info">
+            <span>보유: {{ gold.toLocaleString() }} 개</span>
+            <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
+          </div>
+          <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
+          <div class="exchange-summary">
+            <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button @click="closeExchangeModal" class="btn-secondary">취소</button>
+          <button @click="executeExchange" :disabled="isProcessing || !exchangeQuantity || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
+            <span v-if="isProcessing" class="spinner-small"></span>
+            <span v-else>교환하기</span>
+          </button>
+        </footer>
       </div>
     </div>
-    <footer class="modal-footer">
-      <button @click="closeExchangeModal" class="btn-secondary">취소</button>
-      <button @click="executeExchange" :disabled="isProcessing || !exchangeQuantity || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
-        <span v-if="isProcessing" class="spinner-small"></span>
-        <span v-else>교환하기</span>
-      </button>
-    </footer>
-  </div>
-</div>
 
-<div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
-  <div class="modal-content card">
-    <header class="modal-header">
-      <h3><i class="fas fa-sync-alt"></i> 환생 확인</h3>
-      <button @click="closePrestigeModal" class="close-button">&times;</button>
-    </header>
-    <div class="modal-body">
-      <p><strong>정말로 환생하시겠습니까?</strong></p>
-      <p>
-        환생을 진행하면 현재 보유한 모든 소금과 업그레이드가 사라지고 처음부터 다시 시작합니다.
-      </p>
-      <div class="prestige-summary">
-        <div>
-          <span>현재 환생 레벨</span>
-          <strong>Lv.{{ prestigeLevel }} &rarr; Lv.{{ prestigeLevel + 1 }}</strong>
+    <div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
+      <div class="modal-content card">
+        <header class="modal-header">
+          <h3><i class="fas fa-sync-alt"></i> 환생 확인</h3>
+          <button @click="closePrestigeModal" class="close-button">&times;</button>
+        </header>
+        <div class="modal-body">
+          <p><strong>정말로 환생하시겠습니까?</strong></p>
+          <p>
+            환생을 진행하면 현재 보유한 모든 소금과 업그레이드가 사라지고 처음부터 다시 시작합니다.
+          </p>
+          <div class="prestige-summary">
+            <div>
+              <span>현재 환생 레벨</span>
+              <strong>Lv.{{ prestigeLevel }} &rarr; Lv.{{ prestigeLevel + 1 }}</strong>
+            </div>
+            <div>
+              <span>총 생산량 보너스</span>
+              <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}% &rarr; +{{ (prestigeBonus * 1.1 - 1) * 100 }}%</strong>
+            </div>
+          </div>
         </div>
-        <div>
-          <span>총 생산량 보너스</span>
-          <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}% &rarr; +{{ (prestigeBonus * 1.1 - 1) * 100 }}%</strong>
-        </div>
+        <footer class="modal-footer">
+          <button @click="closePrestigeModal" class="btn-secondary">취소</button>
+          <button @click="executePrestige" :disabled="isProcessing" class="btn-primary prestige-confirm">
+            <span v-if="isProcessing" class="spinner-small"></span>
+            <span v-else>환생 진행</span>
+          </button>
+        </footer>
       </div>
     </div>
-    <footer class="modal-footer">
-      <button @click="closePrestigeModal" class="btn-secondary">취소</button>
-      <button @click="executePrestige" :disabled="isProcessing" class="btn-primary prestige-confirm">
-        <span v-if="isProcessing" class="spinner-small"></span>
-        <span v-else>환생 진행</span>
-      </button>
-    </footer>
   </div>
-</div>
-</div> </template>
+</template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
@@ -284,8 +344,6 @@ const skinShopItems = computed(() => {
 const currentPickaxeIcon = computed(() => {
   const equippedSkin = availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
   if (equippedSkin) return equippedSkin.iconClass;
-
-  // (기존 폴백 로직은 동일)
   if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
   if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
   if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
@@ -340,7 +398,6 @@ const fetchRecipesAndResources = async () => {
     const recipeQuery = query(collection(db, "craftingRecipes"), orderBy("unlockLevel"));
     const recipeSnap = await getDocs(recipeQuery);
     recipes.value = recipeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
     const deepSeaRef = doc(db, `users/${currentUser.value.uid}/game_state/deep_sea_exploration`);
     const deepSeaSnap = await getDoc(deepSeaRef);
     if (deepSeaSnap.exists()) Object.assign(deepSeaState, deepSeaSnap.data());
