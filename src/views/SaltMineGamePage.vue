@@ -545,72 +545,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심] 탭 및 제작 공방, 제목 정렬 관련 스타일 수정 및 추가 ▼▼▼ */
-@keyframes glow-effect {
-  0%, 100% {
-    box-shadow: 0 0 5px #a78bfa, 0 0 10px #a78bfa, inset 0 0 2px #a78bfa;
-  }
-  50% {
-    box-shadow: 0 0 15px #c4b5fd, 0 0 25px #c4b5fd, inset 0 0 2px #c4b5fd;
-  }
-}
-.sidebar-tabs { display: flex; margin-bottom: 15px; background-color: #e2e8f0; border-radius: 8px; padding: 5px; }
-.sidebar-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }
-.sidebar-tabs button.active { background-color: #fff; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-/* '제작 공방' 탭 강조 효과 */
-.workshop-tab-btn {
-  position: relative;
-  overflow: hidden;
-}
-.workshop-tab-btn.active {
-  animation: glow-effect 2.5s infinite;
-}
-
-/* '업그레이드 상점'과 '제작 공방' 제목 공통 스타일 */
-.shop-card h3,
-.workshop-feature h3 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.workshop-feature { background-color: #f8fafc; border: 1px solid #e2e8f0; }
-.workshop-feature h3 i { color: #475569; }
-.workshop-upgrade-section { text-align: center; padding: 15px; background-color: #fff; border-radius: 8px; margin-bottom: 20px; }
-.upgrade-button { width: 100%; padding: 10px; background-color: #334155; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.upgrade-button small { display: block; font-size: 0.8em; opacity: 0.8; }
-.recipe-list { display: flex; flex-direction: column; gap: 15px; max-height: 400px; overflow-y: auto; }
-.recipe-item { padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
-.recipe-item.locked { opacity: 0.6; background: #f1f5f9; }
-.recipe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.lock-reason { font-size: 0.8em; color: #dc3545; }
-.ingredient-list { list-style: none; padding: 10px; margin: 0 0 10px 0; background: #f8fafc; border-radius: 6px; font-size: 0.9em; }
-.ingredient-list li { 
-  color: #dc3545;
-  display: flex; /* [추가] Flexbox 레이아웃 적용 */
-  justify-content: space-between; /* [추가] 요소들을 양 끝으로 분산 */
-  align-items: center; /* [추가] 수직 중앙 정렬 */
-}
-.ingredient-list li.sufficient { color: #28a745; }
-.craft-button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.craft-button:disabled { background-color: #a0c9ff; }
-
-/* [신규] 바로가기 버튼 스타일 */
-.shortcut-btn {
-  padding: 3px 8px;
-  font-size: 0.8em;
-  font-weight: bold;
-  background-color: #6c757d;
-  color: white;
-  text-decoration: none;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-.shortcut-btn:hover {
-  background-color: #5a6268;
-}
 /* (기존 스타일) */
 .sidebar-tabs { display: flex; margin-bottom: 15px; background-color: #e2e8f0; border-radius: 8px; padding: 5px; }
 .sidebar-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }

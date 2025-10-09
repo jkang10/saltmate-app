@@ -154,7 +154,10 @@ onUnmounted(() => {
     font-size: 1.2em; 
     font-weight: bold; 
 }
-
+.click-ranking-widget:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
 /* --- [핵심 수정] 1등 스타일 강화 --- */
 .rank-1 { 
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));

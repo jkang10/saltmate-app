@@ -174,8 +174,10 @@ onMounted(fetchRankings);
   50% { opacity: 1; }
   100% { transform: translate(-50%, -50%) rotate(180deg) scale(1.5); opacity: 0; }
 }
-
-
+.click-ranking-widget:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
 /* 2등, 3등 및 나머지 스타일 */
 .rank-2 { height: 80%; order: 1; background: rgba(192, 192, 192, 0.15); border-color: #c0c0c0; }
 .rank-2 .rank-icon :deep(.fa-medal) { color: #c0c0c0; }
