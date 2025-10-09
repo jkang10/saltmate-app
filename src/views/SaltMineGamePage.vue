@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="page-container" :style="mineAreaStyle">
     <header class="page-header">
       <h1><i class="fas fa-gem"></i> 소금 광산</h1>
       <p class="description">
@@ -54,6 +54,7 @@
         <div class="sidebar-tabs">
           <button @click="activeTab = 'upgrades'" :class="{ active: activeTab === 'upgrades' }">업그레이드</button>
           <button @click="activeTab = 'workshop'" :class="{ active: activeTab === 'workshop' }" class="workshop-tab-btn">제작 공방</button>
+          <button @click="activeTab = 'skins'" :class="{ active: activeTab === 'skins' }">꾸미기</button>
         </div>
 
         <div v-if="activeTab === 'upgrades'">
@@ -61,29 +62,22 @@
             <h3><i class="fas fa-shopping-cart"></i> 업그레이드 상점</h3>
             <div class="shop-items">
               <div v-for="item in shopItems" :key="item.id" class="shop-item">
-                <div class="item-icon">
-                  <i :class="item.icon"></i>
-                </div>
+                <div class="item-icon"><i :class="item.icon"></i></div>
                 <div class="item-info">
                   <strong>{{ item.name }}</strong>
                   <small>{{ item.desc }} (보유: {{ upgrades[item.id] || 0 }})</small>
                 </div>
-                <button @click="buyUpgrade(item.id)" :disabled="salt < item.cost" class="buy-upgrade-button">
-                  {{ item.cost.toLocaleString() }}
-                </button>
+                <button @click="buyUpgrade(item.id)" :disabled="salt < item.cost" class="buy-upgrade-button">{{ item.cost.toLocaleString() }}</button>
               </div>
             </div>
           </div>
-
           <div class="sell-card card">
             <h3>소금 판매소</h3>
             <p>현재 시세: <strong>{{ gameSettings.saltMineRate.toLocaleString() }} 소금 = 1 SaltMate</strong></p>
             <button @click="sellSalt" :disabled="isProcessing || salt < gameSettings.saltMineRate" class="sell-button">
-              <span v-if="isProcessing">판매 중...</span>
-              <span v-else>모두 판매하기</span>
+              <span v-if="isProcessing">판매 중...</span><span v-else>모두 판매하기</span>
             </button>
           </div>
-
           <div class="sell-card card gold-feature">
             <h3>황금 소금 교환소</h3>
             <div class="gold-salt-display">
@@ -92,24 +86,20 @@
             </div>
             <p class="feature-desc">황금 소금 1개를 {{ gameSettings.goldenSaltExchangeRate }} SaltMate로 교환합니다.</p>
             <button @click="openExchangeModal" :disabled="isProcessing || gold < 1" class="boost-button">
-              <span v-if="isProcessing">교환 중...</span>
-              <span v-else>SaltMate로 교환</span>
+              <span v-if="isProcessing">교환 중...</span><span v-else>SaltMate로 교환</span>
             </button>
           </div>
-
           <div v-if="upgrades.robot >= 40 || prestigeLevel > 0" class="card prestige-feature">
             <h3><i class="fas fa-sync-alt"></i> 환생 시스템</h3>
             <div v-if="prestigeLevel > 0" class="prestige-info">
               <span>현재 환생 레벨: <strong>Lv.{{ prestigeLevel }}</strong></span>
               <span>모든 생산량 보너스: <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}%</strong></span>
             </div>
-            <p v-if="upgrades.robot >= 40" class="feature-desc">채굴 로봇 40레벨을 달성하여 환생할 수 있습니다. 환생 시 진행 상황이 초기화되고 영구적인 생산량 보너스를 얻습니다.</p>
+            <p v-if="upgrades.robot >= 40" class="feature-desc">채굴 로봇 40레벨을 달성하여 환생할 수 있습니다.</p>
             <button v-if="upgrades.robot >= 40" @click="openPrestigeModal" :disabled="isProcessing" class="prestige-button">
-              <span v-if="isProcessing">처리 중...</span>
-              <span v-else>환생하기</span>
+              <span v-if="isProcessing">처리 중...</span><span v-else>환생하기</span>
             </button>
           </div>
-
           <div class="achievement-card card">
             <h3>업적</h3>
             <div class="achievement-list">
@@ -138,10 +128,29 @@
               </div>
               <ul class="ingredient-list">
                 <li v-for="(ing, i) in recipe.ingredients" :key="i" :class="{ sufficient: ing.hasEnough }">
-                  {{ ing.name }}: {{ ing.current.toLocaleString() }} / {{ ing.amount.toLocaleString() }}
+                  <span>{{ ing.name }}: {{ ing.current.toLocaleString() }} / {{ ing.amount.toLocaleString() }}</span>
+                  <router-link v-if="!ing.hasEnough && ing.shortcut" :to="ing.shortcut" class="shortcut-btn">이동</router-link>
                 </li>
               </ul>
               <button @click="executeCraft(recipe.id)" :disabled="!recipe.canCraft || isProcessing" class="craft-button">제작</button>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="activeTab === 'skins'" class="card skins-feature">
+          <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
+          <div class="skins-section">
+            <h4>곡괭이 스킨</h4>
+            <div class="skins-grid">
+              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item">
+                <div class="skin-preview"><i :class="skin.iconClass"></i></div>
+                <div class="skin-name">{{ skin.name }}</div>
+                <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>장착 중</button>
+                <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">장착하기</button>
+                <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+                  {{ skin.price }} <i :class="skin.currency === 'gold' ? 'fas fa-medal' : 'fas fa-gifts'"></i>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -149,68 +158,13 @@
     </main>
 
     <div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
-      <div class="modal-content card">
-        <header class="modal-header">
-          <h3>황금 소금 교환</h3>
-          <button @click="closeExchangeModal" class="close-button">&times;</button>
-        </header>
-        <div class="modal-body">
-          <p>교환할 황금 소금의 수량을 입력하세요.</p>
-          <div class="exchange-info">
-            <span>보유: {{ gold.toLocaleString() }} 개</span>
-            <span>교환 비율: 1개 = {{ gameSettings.goldenSaltExchangeRate }} SaltMate</span>
-          </div>
-          <input type="number" v-model.number="exchangeQuantity" min="1" :max="gold" class="quantity-input" placeholder="수량 입력">
-          <div class="exchange-summary">
-            <p>예상 획득량: <strong>{{ (exchangeQuantity * gameSettings.goldenSaltExchangeRate).toLocaleString() }} SaltMate</strong></p>
-          </div>
-        </div>
-        <footer class="modal-footer">
-          <button @click="closeExchangeModal" class="btn-secondary">취소</button>
-          <button @click="executeExchange" :disabled="isProcessing || !exchangeQuantity || exchangeQuantity <= 0 || exchangeQuantity > gold" class="btn-primary">
-            <span v-if="isProcessing" class="spinner-small"></span>
-            <span v-else>교환하기</span>
-          </button>
-        </footer>
       </div>
-    </div>
-
     <div v-if="isPrestigeModalVisible" class="modal-overlay" @click.self="closePrestigeModal">
-      <div class="modal-content card">
-        <header class="modal-header">
-          <h3><i class="fas fa-sync-alt"></i> 환생 확인</h3>
-          <button @click="closePrestigeModal" class="close-button">&times;</button>
-        </header>
-        <div class="modal-body">
-          <p><strong>정말로 환생하시겠습니까?</strong></p>
-          <p>
-            환생을 진행하면 현재 보유한 모든 소금과 업그레이드가 사라지고 처음부터 다시 시작합니다.
-          </p>
-          <div class="prestige-summary">
-            <div>
-              <span>현재 환생 레벨</span>
-              <strong>Lv.{{ prestigeLevel }} &rarr; Lv.{{ prestigeLevel + 1 }}</strong>
-            </div>
-            <div>
-              <span>총 생산량 보너스</span>
-              <strong>+{{ ((prestigeBonus - 1) * 100).toFixed(0) }}% &rarr; +{{ (prestigeBonus * 1.1 - 1) * 100 }}%</strong>
-            </div>
-          </div>
-        </div>
-        <footer class="modal-footer">
-          <button @click="closePrestigeModal" class="btn-secondary">취소</button>
-          <button @click="executePrestige" :disabled="isProcessing" class="btn-primary prestige-confirm">
-            <span v-if="isProcessing" class="spinner-small"></span>
-            <span v-else>환생 진행</span>
-          </button>
-        </footer>
       </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-// ... 기존 <script setup> 내용은 모두 동일하므로 생략 ...
 import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebaseConfig";
@@ -218,46 +172,23 @@ import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, or
 import { onAuthStateChanged } from "firebase/auth";
 
 // --- 상태 변수 ---
-const salt = ref(0);
-const gold = ref(0);
-const totalClicks = ref(0);
-const perClick = ref(1);
-const perSecond = ref(0);
+const salt = ref(0), gold = ref(0), totalClicks = ref(0), perClick = ref(1), perSecond = ref(0);
 const upgrades = reactive({});
-const isProcessing = ref(false);
-const isExchangeModalVisible = ref(false);
-const exchangeQuantity = ref(1);
-const logs = ref([]);
-const currentUser = ref(null);
-const userProfile = ref(null); // ▼▼▼ 이 줄을 추가해주세요 ▼▼▼
-const isLoading = ref(true);
-const gameSettings = reactive({ saltMineRate: 1000, deepSeaRate: 100000, goldenSaltExchangeRate: 1 });
-const activeBoost = ref(null);
-const boostTimeRemaining = ref("00:00");
-const logBox = ref(null);
-
-// 환생(Prestige) 관련 상태 변수
-const prestigeLevel = ref(0);
-const isPrestigeModalVisible = ref(false);
-
-// 제작 공방 관련 상태 변수
-const activeTab = ref('upgrades');
-const workshopLevel = ref(1);
-const recipes = ref([]);
+const isProcessing = ref(false), isExchangeModalVisible = ref(false), exchangeQuantity = ref(1);
+const logs = ref([]), currentUser = ref(null), userProfile = ref(null), isLoading = ref(true);
+const gameSettings = reactive({ saltMineRate: 1000, goldenSaltExchangeRate: 1 });
+const activeBoost = ref(null), boostTimeRemaining = ref("00:00"), logBox = ref(null);
+const prestigeLevel = ref(0), isPrestigeModalVisible = ref(false);
+const activeTab = ref('upgrades'), workshopLevel = ref(1), recipes = ref([]);
 const deepSeaState = reactive({ funds: 0, water: 0, research: 0, minerals: 0, plankton: 0, relics: 0 });
-
-let gameStateRef = null;
-let authUnsubscribe = null;
-let gameInterval = null;
-let saveInterval = null;
+const availableSkins = ref([]), ownedSkins = ref([]), equippedSkins = reactive({ pickaxe: null, background: null });
+let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
 // --- 헬퍼 함수 ---
 const logEvent = (message) => {
   logs.value.unshift(message);
   if (logs.value.length > 50) logs.value.pop();
-  nextTick(() => {
-    if (logBox.value) logBox.value.scrollTop = 0;
-  });
+  nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
 };
 
 // --- 계산된 속성 ---
@@ -274,17 +205,7 @@ const SHOP_DEFS = [
   { id: "offline_miner_1", name: "기본 자동 채굴", baseCost: 1000000, desc: "오프라인 채굴 효율 +10% (최대 100%)", icon: "fas fa-power-off" },
 ];
 
-const shopItems = computed(() => SHOP_DEFS.map((item) => ({
-  ...item,
-  cost: Math.ceil(item.baseCost * Math.pow(item.id.startsWith("offline") ? 2.5 : 1.6, upgrades[item.id] || 0)),
-})));
-
-const currentPickaxeIcon = computed(() => {
-  if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
-  if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
-  if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
-  return "fas fa-hammer";
-});
+const shopItems = computed(() => SHOP_DEFS.map((item) => ({...item, cost: Math.ceil(item.baseCost * Math.pow(item.id.startsWith("offline") ? 2.5 : 1.6, upgrades[item.id] || 0))})));
 
 const achievements = computed(() => [
   { id: "salt_1000", name: "초보 광부", desc: "소금 1,000개 모으기", icon: "⛏️", unlocked: salt.value >= 1000 },
@@ -294,11 +215,33 @@ const achievements = computed(() => [
 ]);
 
 const workshopUpgradeCost = computed(() => 500000 * Math.pow(2, workshopLevel.value - 1));
+const resourceNames = { salt: '소금', gold: '황금 소금', funds: '해양 자금', water: '심층수', research: '연구 데이터', minerals: '희귀 미네랄', plankton: '플랑크톤', relics: '고대 유물', saltmatePoints: 'SaltMate' };
 
-const resourceNames = {
-  salt: '소금', gold: '황금 소금', funds: '해양 자금', water: '심층수', research: '연구 데이터',
-  minerals: '희귀 미네랄', plankton: '플랑크톤', relics: '고대 유물', saltmatePoints: 'SaltMate'
-};
+const skinShopItems = computed(() => {
+  const allItems = { pickaxe: [], background: [] };
+  availableSkins.value.forEach(skin => {
+    let status = 'forsale';
+    if (ownedSkins.value.includes(skin.id)) status = 'owned';
+    if (equippedSkins[skin.type] === skin.id) status = 'equipped';
+    if (allItems[skin.type]) allItems[skin.type].push({ ...skin, status });
+  });
+  return allItems;
+});
+
+const currentPickaxeIcon = computed(() => {
+  const equippedSkin = availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
+  if (equippedSkin) return equippedSkin.iconClass;
+  if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
+  if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
+  if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
+  return "fas fa-hammer";
+});
+
+const mineAreaStyle = computed(() => {
+  const equippedSkin = availableSkins.value.find(s => s.id === equippedSkins.background);
+  if (equippedSkin && equippedSkin.imageUrl) return { backgroundImage: `url(${equippedSkin.imageUrl})` };
+  return {};
+});
 
 const workshopItems = computed(() => {
   return recipes.value.map(recipe => {
@@ -306,18 +249,11 @@ const workshopItems = computed(() => {
     let canCraft = isUnlocked;
     const ingredients = recipe.ingredients.map(ing => {
       let current = 0;
-      if (ing.type === 'salt_mine') {
-        current = ing.resource === 'salt' ? salt.value : gold.value;
-      } else if (ing.type === 'deep_sea') {
-        current = deepSeaState[ing.resource] || 0;
-      } else if (ing.type === 'global') {
-        // ▼▼▼ [핵심 수정] 이 블록이 추가되었습니다 ▼▼▼
-        current = userProfile.value ? (userProfile.value[ing.resource] || 0) : 0;
-      }
-      
+      if (ing.type === 'salt_mine') current = ing.resource === 'salt' ? salt.value : gold.value;
+      else if (ing.type === 'deep_sea') current = deepSeaState[ing.resource] || 0;
+      else if (ing.type === 'global') current = userProfile.value ? (userProfile.value[ing.resource] || 0) : 0;
       const hasEnough = current >= ing.amount;
       if (!hasEnough) canCraft = false;
-
       return { ...ing, name: resourceNames[ing.resource] || ing.resource, current: Math.floor(current), hasEnough };
     });
     return { ...recipe, ingredients, isUnlocked, canCraft };
@@ -330,8 +266,17 @@ const resetGameState = () => {
   perClick.value = 1; perSecond.value = 0;
   Object.keys(upgrades).forEach(key => delete upgrades[key]);
   logs.value = []; isLoading.value = true; activeBoost.value = null;
-  workshopLevel.value = 1;
+  workshopLevel.value = 1; ownedSkins.value = [];
+  Object.assign(equippedSkins, { pickaxe: null, background: null });
   logEvent("게임에 오신 것을 환영합니다!");
+};
+
+const fetchSkins = async () => {
+  try {
+    const q = query(collection(db, "cosmetics"));
+    const snapshot = await getDocs(q);
+    availableSkins.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) { console.error("스킨 목록 로딩 실패:", error); }
 };
 
 const fetchRecipesAndResources = async () => {
@@ -354,10 +299,9 @@ const loadGame = async () => {
     const userRef = doc(db, "users", currentUser.value.uid);
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
-      userProfile.value = userSnap.data(); // [수정] userProfile에 전체 데이터 저장
+      userProfile.value = userSnap.data();
       prestigeLevel.value = userProfile.value.saltMinePrestigeLevel || 0;
     }
-
     gameStateRef = doc(db, `users/${currentUser.value.uid}/game_state/salt_mine`);
     const docSnap = await getDoc(gameStateRef);
     if (docSnap.exists()) {
@@ -370,9 +314,7 @@ const loadGame = async () => {
       const effectiveSeconds = Math.min(secondsDiff, 24 * 3600);
       const baseOfflineSalt = Math.floor(effectiveSeconds * (state.perSecond || 0) * offlineRate);
       const offlineSalt = Math.floor(baseOfflineSalt * prestigeBonus.value);
-
-      if (offlineSalt > 0) logEvent(`오프라인 상태에서 <strong>${offlineSalt.toLocaleString()}</strong>개의 소금을 채굴했습니다!`);
-      
+      if (offlineSalt > 0) logEvent(`오프라인에서 <strong>${offlineSalt.toLocaleString()}</strong> 소금 채굴!`);
       salt.value = (state.salt || 0) + offlineSalt;
       gold.value = state.gold || 0;
       totalClicks.value = state.totalClicks || 0;
@@ -381,9 +323,10 @@ const loadGame = async () => {
       Object.assign(upgrades, loadedUpgrades);
       activeBoost.value = state.activeBoost || null;
       workshopLevel.value = state.workshopLevel || 1;
+      ownedSkins.value = state.ownedSkins || [];
+      Object.assign(equippedSkins, state.equippedSkins || {});
     } else {
-      workshopLevel.value = 1;
-      logEvent("데이터가 없습니다. 새로운 게임을 시작합니다!");
+      logEvent("새로운 게임을 시작합니다!");
     }
   } catch (error) { console.error("게임 데이터 로딩 오류:", error); } 
   finally { isLoading.value = false; }
@@ -395,6 +338,7 @@ const saveGame = async () => {
     salt: salt.value, gold: gold.value, totalClicks: totalClicks.value,
     perClick: perClick.value, perSecond: perSecond.value, upgrades: upgrades,
     activeBoost: activeBoost.value, workshopLevel: workshopLevel.value,
+    ownedSkins: ownedSkins.value, equippedSkins: equippedSkins,
     lastUpdated: serverTimestamp(),
   };
   try { await setDoc(gameStateRef, state, { merge: true }); }
@@ -487,7 +431,21 @@ const executeCraft = async (recipeId) => {
   } catch (error) { alert(`오류: ${error.message}`); }
   finally { isProcessing.value = false; }
 };
-
+const executePurchase = async (skinId) => {
+  isProcessing.value = true;
+  try {
+    const purchaseCosmetic = httpsCallable(functions, "purchaseCosmetic");
+    await purchaseCosmetic({ cosmeticId: skinId });
+    ownedSkins.value.push(skinId);
+    alert("스킨을 구매했습니다!");
+  } catch (error) { alert(`구매 실패: ${error.message}`); } 
+  finally { isProcessing.value = false; }
+};
+const equipSkin = async (skin) => {
+  equippedSkins[skin.type] = skin.id;
+  await saveGame();
+  alert(`${skin.name} 스킨을 장착했습니다.`);
+};
 const openExchangeModal = () => { isExchangeModalVisible.value = true; };
 const closeExchangeModal = () => { isExchangeModalVisible.value = false; };
 const executeExchange = async () => {
@@ -538,6 +496,7 @@ onMounted(() => {
       loadGame();
       listenToGameSettings();
       fetchRecipesAndResources();
+      fetchSkins();
     } else {
       currentUser.value = null;
       logEvent("로그인이 필요합니다.");
