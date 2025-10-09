@@ -43,7 +43,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* [수정] text-glow 키프레임은 더 이상 사용하지 않으므로 삭제하고, background-pan과 spin만 남깁니다. */
 @keyframes background-pan {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -58,6 +57,11 @@ onMounted(async () => {
   border: 1px solid #5a6a8a !important;
   color: #fff !important;
   transition: all 0.3s ease;
+  
+  /* [수정] 위젯 내부에 전체적인 여백을 추가하여 하단 공간을 확보합니다. */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 .click-ranking-widget:hover {
   transform: translateY(-8px);
@@ -66,16 +70,13 @@ onMounted(async () => {
 
 .widget-header { text-align: center; margin-bottom: 20px; }
 
-/* ▼▼▼ [핵심 수정] 헤더(h3) 스타일 변경 ▼▼▼ */
 .widget-header h3 {
   font-size: 1.8em;
   font-weight: 700;
-  color: #fff; /* 색상을 흰색으로 변경 */
+  color: #fff;
   display: flex; align-items: center; justify-content: center; gap: 12px;
-  /* text-glow 애니메이션 제거 */
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* 깔끔한 기본 그림자 효과로 대체 */
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
-/* ▲▲▲ 수정된 부분 끝 ▲▲▲ */
 
 .widget-header p {
   font-size: 0.9em;
@@ -83,14 +84,26 @@ onMounted(async () => {
   margin-top: 5px;
 }
 
-.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  
+  /* [수정] 리스트 아이템 사이의 간격을 줄여 세로 길이를 줄입니다. */
+  gap: 8px;
+}
 
 .rank-item {
   display: grid;
   grid-template-columns: 40px 1fr auto;
   gap: 15px;
   align-items: center;
-  padding: 10px 15px;
+  
+  /* [수정] 각 아이템의 상하 패딩을 줄여 세로 길이를 줄입니다. */
+  padding: 8px 15px;
+  
   background: linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.1));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
