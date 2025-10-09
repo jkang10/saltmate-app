@@ -154,10 +154,22 @@ onUnmounted(() => {
     font-size: 1.2em; 
     font-weight: bold; 
 }
+.click-ranking-widget {
+  background: linear-gradient(-45deg, #1a2333, #3a4a6d, #1a2333, #536286) !important;
+  background-size: 400% 400% !important;
+  animation: background-pan 15s ease infinite;
+  border: 1px solid #5a6a8a !important;
+  color: #fff !important;
+  transition: all 0.3s ease;
+  
+  /* [수정] 위젯 내부에 전체적인 여백을 추가하여 하단 공간을 확보합니다. */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
 .click-ranking-widget:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-}
 /* --- [핵심 수정] 1등 스타일 강화 --- */
 .rank-1 { 
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));
