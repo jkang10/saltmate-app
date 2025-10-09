@@ -101,8 +101,15 @@ onUnmounted(() => {
     display: flex; 
     flex-direction: column; 
     box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
-    overflow: hidden; /* [신규] 빛나는 효과를 위해 추가 */
-    position: relative; /* [신규] 빛나는 효과를 위해 추가 */
+    overflow: hidden;
+    position: relative;
+    transition: all 0.3s ease; /* [추가] 부드러운 애니메이션 효과를 위해 추가 */
+}
+
+/* [추가] 마우스 호버 시 위로 이동하고 그림자 효과를 강화 */
+.widget-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 .widget-header { 
     text-align: center; 
