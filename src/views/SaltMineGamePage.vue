@@ -284,6 +284,8 @@ const skinShopItems = computed(() => {
 const currentPickaxeIcon = computed(() => {
   const equippedSkin = availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
   if (equippedSkin) return equippedSkin.iconClass;
+
+  // (기존 폴백 로직은 동일)
   if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
   if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
   if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
@@ -698,5 +700,12 @@ onUnmounted(() => {
 }
 .workshop-tab-btn.active {
   animation: glow-effect 2.5s infinite;
+}
+/* [신규] '광산 꾸미기' 제목 중앙 정렬 스타일 */
+.skins-feature h3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 </style>
