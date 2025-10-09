@@ -29,37 +29,6 @@
           </div>
           <div class="stat">
             <span :class="{ 'boosted-text': isBoostActive }"
-              >{{ boostedPerC<template>
-  <div class="page-container" :style="mineAreaStyle">
-    <header class="page-header">
-      <h1><i class="fas fa-gem"></i> 소금 광산</h1>
-      <p class="description">
-        소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!
-      </p>
-    </header>
-
-    <main class="game-layout">
-      <div class="game-main">
-        <div v-if="isBoostActive" class="boost-active-banner card">
-          <i class="fas fa-rocket"></i>
-          <div class="boost-info">
-            <span>채굴 부스트 활성 중! (+{{ activeBoost.percentage }}%)</span>
-            <small>남은 시간: {{ boostTimeRemaining }}</small>
-          </div>
-        </div>
-
-        <div class="top-stats">
-          <div class="stat">
-            <span>{{ Math.floor(salt).toLocaleString() }}</span
-            ><small>보유 소금</small>
-          </div>
-          <div class="stat">
-            <span :class="{ 'boosted-text': isBoostActive }"
-              >{{ boostedPerSecond.toLocaleString(undefined, {maximumFractionDigits: 1}) }} / 초</span
-            ><small>자동 채굴량</small>
-          </div>
-          <div class="stat">
-            <span :class="{ 'boosted-text': isBoostActive }"
               >{{ boostedPerClick.toLocaleString() }} / 클릭</span
             ><small>클릭 채굴량</small>
           </div>
