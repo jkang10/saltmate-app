@@ -668,17 +668,24 @@ onUnmounted(() => {
 .stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
 .stat span { font-size: 1.5em; font-weight: bold; color: #1e293b; }
 .stat small { display: block; color: #64748b; font-size: 0.9em; margin-top: 5px; }
+.mine-area {
+  /* [수정] Flexbox를 사용하여 내부 요소를 정렬합니다. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+}
 .mine-area .mine-visual {
-  display: flex; /* Flexbox 활성화 */
-  justify-content: center; /* 가로 중앙 정렬 */
-  align-items: center; /* 세로 중앙 정렬 */
-  height: 120px; /* 적절한 높이 유지 (필요 시 조정) */
+  /* [수정] 기존 스타일을 유지하되, 일부 속성을 조정합니다. */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
   font-size: 5em;
-  text-align: center; 
   color: #34495e;
   margin-bottom: 20px;
-  /* background-color: #f8fafc;  // 필요없으므로 삭제 또는 주석 처리 */
   border-radius: 10px;
+  /* text-align은 flex 자식 요소에는 직접적인 영향을 주지 않으므로 삭제 가능 */
 }
 @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
 .mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
