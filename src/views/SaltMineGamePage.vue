@@ -139,27 +139,30 @@
         
         <div v-if="activeTab === 'skins'" class="card skins-feature">
           <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
-          <div class="skins-section">
-            <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
-            <div class="skins-grid">
-              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
-                <div class="skin-preview"><i :class="skin.iconClass"></i></div>
-                <div class="skin-name">{{ skin.name }}</div>
-                <div class="skin-status">
-                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
-                    <i class="fas fa-check"></i> 장착 중
-                  </button>
-                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
-                    장착하기
-                  </button>
-                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
-                    <span>{{ skin.price.toLocaleString() }}</span>
-                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+<div class="skins-section">
+  <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
+  <div class="skins-grid">
+    <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+
+      <div class="skin-preview">
+        <img :src="skin.imageUrl" :alt="skin.name" class="skin-image">
+      </div>
+      <div class="skin-name">{{ skin.name }}</div>
+      <div class="skin-status">
+        <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+          <i class="fas fa-check"></i> 장착 중
+        </button>
+        <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+          장착하기
+        </button>
+        <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+          <span>{{ skin.price.toLocaleString() }}</span>
+          <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
           <div class="skins-section">
             <h4><i class="fas fa-image"></i> 광산 배경 스킨</h4>
             <div class="skins-grid">
@@ -784,11 +787,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100px;
+  height: 140px; /* [수정] 이미지 표시를 위해 세로 높이 증가 */
   font-size: 3em;
   color: #475569;
   background-color: #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
+}
+/* [신규] 이미지 스타일 추가 */
+.skin-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* 이미지가 잘리지 않고 비율에 맞게 표시됨 */
 }
 .background-preview {
   background-size: cover;
