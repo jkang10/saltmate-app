@@ -34,14 +34,14 @@
           </div>
         </div>
 
-<div class="mine-area card">
-  <div class="mine-visual">
-    <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
-    <i v-else :class="currentPickaxeIcon"></i>
-    </div>
-  <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-  <button @click="mineSalt" class="mine-button">채굴하기</button>
-</div>
+        <div class="mine-area card">
+          <div class="mine-visual">
+            <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
+            <i v-else :class="currentPickaxeIcon"></i>
+          </div>
+          <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
+          <button @click="mineSalt" class="mine-button">채굴하기</button>
+        </div>
 
         <div class="log-card card">
           <h3>이벤트 로그</h3>
@@ -51,23 +51,25 @@
         </div>
       </div>
 
-<aside class="game-sidebar">
-  <div class="sidebar-tabs desktop-tabs">
-    <button @click="activeTab = 'upgrades'" :class="{ active: activeTab === 'upgrades' }">업그레이드</button>
-    <button @click="activeTab = 'workshop'" :class="{ active: activeTab === 'workshop' }" class="workshop-tab-btn">제작 공방</button>
-    <button @click="activeTab = 'skins'" :class="{ active: activeTab === 'skins' }">꾸미기</button>
-  </div>
-	<div class="sidebar-tabs mobile-dropdown">
-	  <div class="active-tab-display" @click="toggleDropdown">
-	    <span>{{ activeTabName }}</span>
-	    <i class="fas fa-caret-down"></i>
-	  </div>
-	  <div class="dropdown-menu" v-if="isDropdownOpen">
-	    <button @click="selectTab('upgrades')">업그레이드</button>
-	    <button @click="selectTab('workshop')">제작 공방</button>
-	    <button @click="selectTab('skins')">꾸미기</button>
-	  </div>
-	</div>
+      <aside class="game-sidebar">
+        <div class="sidebar-tabs desktop-tabs">
+          <button @click="activeTab = 'upgrades'" :class="{ active: activeTab === 'upgrades' }">업그레이드</button>
+          <button @click="activeTab = 'workshop'" :class="{ active: activeTab === 'workshop' }" class="workshop-tab-btn">제작 공방</button>
+          <button @click="activeTab = 'skins'" :class="{ active: activeTab === 'skins' }">꾸미기</button>
+        </div>
+
+        <div class="sidebar-tabs mobile-dropdown">
+          <div class="active-tab-display" @click="toggleDropdown">
+            <span>{{ activeTabName }}</span>
+            <i class="fas fa-caret-down"></i>
+          </div>
+          <div class="dropdown-menu" v-if="isDropdownOpen">
+            <button @click="selectTab('upgrades')">업그레이드</button>
+            <button @click="selectTab('workshop')">제작 공방</button>
+            <button @click="selectTab('skins')">꾸미기</button>
+          </div>
+        </div>
+
         <div v-if="activeTab === 'upgrades'">
           <div class="shop-card card">
             <h3><i class="fas fa-shopping-cart"></i> 업그레이드 상점</h3>
@@ -150,37 +152,36 @@
         
         <div v-if="activeTab === 'skins'" class="card skins-feature">
           <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
-<div class="skins-section">
-  <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
-  <div class="skins-grid">
-    <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
-
-      <div class="skin-preview">
-        <img :src="skin.imageUrl" :alt="skin.name" class="skin-image">
-      </div>
-      <div class="skin-name">{{ skin.name }}</div>
-      <div class="skin-status">
-        <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
-          <i class="fas fa-check"></i> 장착 중
-        </button>
-        <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
-          장착하기
-        </button>
-        <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
-          <span>{{ skin.price.toLocaleString() }}</span>
-          <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+          <div class="skins-section">
+            <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
+            <div class="skins-grid">
+              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+                <div class="skin-preview">
+                  <img :src="skin.imageUrl" :alt="skin.name" class="skin-image">
+                </div>
+                <div class="skin-name">{{ skin.name }}</div>
+                <div class="skin-status">
+                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+                    <i class="fas fa-check"></i> 장착 중
+                  </button>
+                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+                    장착하기
+                  </button>
+                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+                    <span>{{ skin.price.toLocaleString() }}</span>
+                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="skins-section">
             <h4><i class="fas fa-image"></i> 광산 배경 스킨</h4>
             <div class="skins-grid">
               <div v-for="skin in skinShopItems.background" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
                 <div class="skin-preview background-preview" :style="{ backgroundImage: `url(${skin.imageUrl})` }"></div>
                 <div class="skin-name">{{ skin.name }}</div>
-                  <div class="skin-status">
+                 <div class="skin-status">
                   <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
                     <i class="fas fa-check"></i> 적용 중
                   </button>
@@ -196,7 +197,7 @@
             </div>
           </div>
         </div>
-        </aside>
+      </aside>
     </main>
 
     <div v-if="isExchangeModalVisible" class="modal-overlay" @click.self="closeExchangeModal">
@@ -278,6 +279,7 @@ const prestigeLevel = ref(0), isPrestigeModalVisible = ref(false);
 const activeTab = ref('upgrades'), workshopLevel = ref(1), recipes = ref([]);
 const deepSeaState = reactive({ funds: 0, water: 0, research: 0, minerals: 0, plankton: 0, relics: 0 });
 const availableSkins = ref([]), ownedSkins = ref([]), equippedSkins = reactive({ pickaxe: null, background: null });
+const isDropdownOpen = ref(false);
 let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
 // --- 헬퍼 함수 ---
@@ -287,10 +289,7 @@ const logEvent = (message) => {
   nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
 };
 
-// ▼▼▼ [신규] 드롭다운 관련 상태 변수 추가 ▼▼▼
-const isDropdownOpen = ref(false);
-
-// ▼▼▼ [신규] 현재 탭 이름을 한글로 보여주기 위한 computed 속성 ▼▼▼
+// --- 계산된 속성 ---
 const activeTabName = computed(() => {
   if (activeTab.value === 'upgrades') return '업그레이드';
   if (activeTab.value === 'workshop') return '제작 공방';
@@ -298,17 +297,6 @@ const activeTabName = computed(() => {
   return '';
 });
 
-// ▼▼▼ [신규] 드롭다운 토글 및 선택 함수 추가 ▼▼▼
-const toggleDropdown = () => {
-  isDropdownOpen.value = !isDropdownOpen.value;
-};
-
-const selectTab = (tabName) => {
-  activeTab.value = tabName;
-  isDropdownOpen.value = false;
-};
-
-// --- 계산된 속성 ---
 const prestigeBonus = computed(() => 1 + (prestigeLevel.value * 0.1));
 const isBoostActive = computed(() => activeBoost.value && activeBoost.value.expiresAt.toDate() > new Date());
 const boostedPerClick = computed(() => perClick.value * (isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1) * prestigeBonus.value);
@@ -345,16 +333,12 @@ const skinShopItems = computed(() => {
   return allItems;
 });
 
-// ▼▼▼ [신규] 장착된 곡괭이 스킨 정보를 찾는 computed 속성 추가 ▼▼▼
 const equippedPickaxeSkin = computed(() => {
   if (!equippedSkins.pickaxe) return null;
   return availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
 });
 
-// ▼▼▼ [수정] currentPickaxeIcon computed 속성을 아래와 같이 수정 ▼▼▼
 const currentPickaxeIcon = computed(() => {
-  // 스킨이 장착되었을 때는 위의 equippedPickaxeSkin이 사용되므로,
-  // 여기서는 스킨이 없을 때의 기본 아이콘만 결정합니다.
   if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
   if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
   if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
@@ -385,6 +369,9 @@ const workshopItems = computed(() => {
 });
 
 // --- 메서드 ---
+const toggleDropdown = () => { isDropdownOpen.value = !isDropdownOpen.value; };
+const selectTab = (tabName) => { activeTab.value = tabName; isDropdownOpen.value = false; };
+
 const resetGameState = () => {
   salt.value = 0; gold.value = 0; totalClicks.value = 0;
   perClick.value = 1; perSecond.value = 0;
@@ -611,6 +598,7 @@ const executePrestige = async () => {
 };
 
 // --- 라이프사이클 훅 ---
+// --- 라이프사이클 훅 ---
 onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     resetGameState();
@@ -628,194 +616,48 @@ onMounted(() => {
   gameInterval = setInterval(gameTick, 1000);
   saveInterval = setInterval(saveGame, 15000);
 });
+
 onUnmounted(() => {
   clearInterval(gameInterval);
   clearInterval(saveInterval);
   saveGame();
   if (authUnsubscribe) authUnsubscribe();
 });
+
 </script>
 
 <style scoped>
-
-/* ▼▼▼ [핵심 수정] 아래 두 개의 h3 스타일 규칙을 추가합니다. ▼▼▼ */
-/* '업그레이드 상점'과 '제작 공방' 제목 공통 스타일 */
-.shop-card h3,
-.workshop-feature h3 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-/* (기존 스타일 코드) */
-/* ▼▼▼ [신규] 모바일 드롭다운 스타일 ▼▼▼ */
-.sidebar-tabs.mobile-dropdown {
-  display: none; /* 데스크톱에서는 숨김 */
-  position: relative;
-  margin-bottom: 15px;
-}
-.active-tab-display {
-  background-color: #fff;
-  border: 1px solid #e2e8f0;
-  padding: 12px 15px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background-color: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  margin-top: 5px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  z-index: 10;
-}
-.dropdown-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 12px 15px;
-  background: none;
-  border: none;
-  font-weight: 500;
-  cursor: pointer;
-}
-.dropdown-menu button:hover {
-  background-color: #f8fafc;
-}
-/* ▲▲▲ */
-
-.workshop-feature { background-color: #f8fafc; border: 1px solid #e2e8f0; }
-.workshop-feature h3 i { color: #475569; }
-.workshop-upgrade-section { text-align: center; padding: 15px; background-color: #fff; border-radius: 8px; margin-bottom: 20px; }
-.upgrade-button { width: 100%; padding: 10px; background-color: #334155; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.upgrade-button small { display: block; font-size: 0.8em; opacity: 0.8; }
-.recipe-list { display: flex; flex-direction: column; gap: 15px; max-height: 400px; overflow-y: auto; }
-.recipe-item { padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
-.recipe-item.locked { opacity: 0.6; background: #f1f5f9; }
-.recipe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.lock-reason { font-size: 0.8em; color: #dc3545; }
-.ingredient-list { list-style: none; padding: 10px; margin: 0 0 10px 0; background: #f8fafc; border-radius: 6px; font-size: 0.9em; }
-.ingredient-list li { 
-  color: #dc3545;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.ingredient-list li.sufficient { color: #28a745; }
-.craft-button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.craft-button:disabled { background-color: #a0c9ff; }
-.shortcut-btn { padding: 3px 8px; font-size: 0.8em; font-weight: bold; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; transition: background-color 0.2s; }
-.shortcut-btn:hover { background-color: #5a6268; }
-
-/* (기존 나머지 스타일) */
+/* (기존 스타일) */
 .boost-active-banner { display: flex; align-items: center; gap: 15px; padding: 15px; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .boost-active-banner i { font-size: 1.8em; }
 .boost-info { display: flex; flex-direction: column; text-align: left; }
 .boost-info span { font-weight: bold; }
 .boosted-text { color: #28a745; font-weight: bold; }
-.page-container { max-width: 1100px; margin: 70px auto 20px; padding: 20px; background-color: #f0f2f5; border-radius: 15px; }
+.page-container { max-width: 1100px; margin: 70px auto 20px; padding: 20px; background-color: #f0f2f5; border-radius: 15px; background-size: cover; background-position: center; }
 .page-header { text-align: center; margin-bottom: 30px; }
 .page-header h1 { 
-  color: #ffd166; /* 제목 글씨 색상을 아이콘과 동일한 노란색으로 변경 */
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* 어두운 배경에서 돋보이도록 그림자 효과 추가 */
+  color: #ffd166;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 .page-header p { 
-  color: #ffd166; /* [수정] 설명 글씨 색상을 노란색 계열로 변경 */
-  text-shadow: 0 1px 3px rgba(0,0,0,0.5); /* 그림자 효과 추가 */
+  color: #ffd166;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 .page-header h1 i { color: #ffd166; }
 .game-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
-/* ▼▼▼ [핵심 수정] 기존 미디어 쿼리를 아래 코드로 교체해주세요 ▼▼▼ */
-@media (max-width: 900px) {
-  .game-layout {
-    /* 2단 그리드 -> 1단(세로) 그리드로 변경 */
-    grid-template-columns: 1fr;
-  }
-
-  .page-container {
-    padding: 15px; /* 페이지 전체 여백 조정 */
-  }
-
-  .top-stats {
-    /* 3열 그리드 -> 1단(세로) 그리드로 변경 */
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .stat {
-    padding: 12px 15px; /* 내부 여백 조정 */
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 1.1em; /* 폰트 크기 조정 */
-  }
-
-  .stat span {
-    font-size: 1.2em;
-  }
-
-  .stat small {
-    margin-top: 0;
-  }
-
-  .mine-area {
-    padding: 25px; /* 채굴 영역 여백 조정 */
-  }
-
-  .mine-visual {
-    height: 100px;
-    font-size: 4em;
-  }
-
-  .mine-button {
-    font-size: 1.1em; /* 채굴 버튼 크기 조정 */
-  }
-
-  /* 사이드바 카드들의 내부 여백 축소 */
-  .shop-card, .sell-card, .achievement-card, .prestige-feature, .workshop-feature, .skins-feature {
-    padding: 15px;
-  }
-
-  /* 탭 버튼 폰트 크기 조정 */
-  .sidebar-tabs button {
-    font-size: 0.9em;
-    padding: 10px 5px;
-  }
-  /* 기존 탭 숨기고, 드롭다운 표시 */
-  .sidebar-tabs {
-    display: none;
-  }
-  .sidebar-tabs.mobile-dropdown {
-    display: block;
-  }
-  /* 업그레이드 아이템 목록 여백 조정 */
-  .shop-item {
-    padding: 8px;
-    gap: 10px;
-  }
 .game-main { display: flex; flex-direction: column; gap: 20px; }
 .top-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 .stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
 .stat span { font-size: 1.5em; font-weight: bold; color: #1e293b; }
 .stat small { display: block; color: #64748b; font-size: 0.9em; margin-top: 5px; }
+
 .mine-area {
-  /* [수정] Flexbox를 사용하여 내부 요소를 정렬합니다. */
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 40px;
 }
-.mine-area .mine-visual {
-  /* [수정] 기존 스타일을 유지하되, 일부 속성을 조정합니다. */
+.mine-visual {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -824,13 +666,12 @@ onUnmounted(() => {
   color: #34495e;
   margin-bottom: 20px;
   border-radius: 10px;
-  /* text-align은 flex 자식 요소에는 직접적인 영향을 주지 않으므로 삭제 가능 */
 }
 @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
 .mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
 .mine-button:hover { transform: scale(1.05); }
 .log-card { padding: 20px; }
-/* .log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; } */
+.log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
 .log-box { height: 150px; overflow-y: auto; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 0.9em; color: #334155; }
 .game-sidebar { display: flex; flex-direction: column; gap: 20px; }
 .shop-card, .sell-card, .achievement-card { padding: 20px; }
@@ -855,12 +696,12 @@ onUnmounted(() => {
 .achievement-item.unlocked { background-color: #d1fae5; color: #065f46; opacity: 1; }
 .ach-icon { font-size: 1.2em; }
 .card {
-  background-color: rgba(255, 255, 255, 0.75); /* [수정] 흰색(255,255,255)에 75% 불투명도 적용 (25% 투명) */
+  background-color: rgba(255, 255, 255, 0.85);
   border-radius: 15px;
   padding: 25px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   margin-bottom: 20px;
-  backdrop-filter: blur(5px); /* [선택] 뒤 배경이 투명하게 보일 때 약간의 블러 효과를 줘서 가독성을 높일 수 있습니다. */
+  backdrop-filter: blur(5px);
 }
 .gold-feature { background-color: #fffbeb; border: 1px solid #fde68a; }
 .feature-desc { font-size: 0.9em; color: #78350f; margin-bottom: 15px; }
@@ -881,8 +722,6 @@ onUnmounted(() => {
 .btn-secondary { background-color: #6c757d; color: white; }
 .spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* 환생(Prestige) 시스템 관련 스타일 */
 .prestige-feature { background-color: #f0e6ff; border: 1px solid #d8b4fe; text-align: center; }
 .prestige-feature h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .prestige-feature h3 i { color: #9333ea; }
@@ -894,146 +733,55 @@ onUnmounted(() => {
 .prestige-summary div { display: flex; justify-content: space-between; align-items: center; }
 .prestige-summary strong { font-size: 1.2em; color: #9333ea; }
 .btn-primary.prestige-confirm { background-color: #9333ea; }
-.pickaxe-skin-image {
-  max-width: 80px; /* 이미지 크기 조정 */
-  max-height: 80px;
-  object-fit: contain;
-  animation: bounce 2s infinite; /* 기존 아이콘과 동일한 애니메이션 적용 */
-}
-/* '제작 공방' 탭 강조 효과 */
-@keyframes glow-effect {
-  0%, 100% {
-    box-shadow: 0 0 3px #a78bfa, 0 0 6px #a78bfa, inset 0 0 2px #a78bfa;
-  }
-  50% {
-    box-shadow: 0 0 8px #c4b5fd, 0 0 15px #c4b5fd, inset 0 0 2px #c4b5fd;
-  }
-}
-.workshop-tab-btn.active {
-  animation: glow-effect 2.5s infinite;
-}
-/* ▼▼▼ [핵심] 기존 꾸미기 관련 스타일을 아래 코드로 교체 ▼▼▼ */
-.skins-feature h3 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
+.pickaxe-skin-image { max-width: 80px; max-height: 80px; object-fit: contain; animation: bounce 2s infinite; }
+@keyframes glow-effect { 0%, 100% { box-shadow: 0 0 3px #a78bfa, 0 0 6px #a78bfa, inset 0 0 2px #a78bfa; } 50% { box-shadow: 0 0 8px #c4b5fd, 0 0 15px #c4b5fd, inset 0 0 2px #c4b5fd; } }
+.workshop-tab-btn.active { animation: glow-effect 2.5s infinite; }
+.shop-card h3, .workshop-feature h3, .skins-feature h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .skins-feature h3 i { color: #8e44ad; }
-.skins-section { 
-  margin-top: 25px; 
-}
-.skins-section h4 { 
-  font-size: 1.2em;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #334155;
-  justify-content: center; /* [추가] 제목을 중앙 정렬합니다. */
-}
-.skins-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 20px;
-}
-.skin-item {
-  display: flex;
-  flex-direction: column;
-  background-color: #ffffff;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-.skin-item:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-}
-.skin-item.equipped {
-  border-color: #9333ea;
-  box-shadow: 0 0 15px rgba(147, 51, 234, 0.4);
-}
-.skin-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 140px; /* [수정] 이미지 표시를 위해 세로 높이 증가 */
-  font-size: 3em;
-  color: #475569;
-  background-color: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
-}
-/* [신규] 이미지 스타일 추가 */
-.skin-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain; /* 이미지가 잘리지 않고 비율에 맞게 표시됨 */
-}
-.background-preview {
-  background-size: cover;
-  background-position: center;
-}
-.skin-name {
-  font-size: 1em;
-  font-weight: 600;
-  text-align: center;
-  padding: 12px 8px;
-  flex-grow: 1;
-  color: #1e293b;
-}
-.skin-status {
-  padding: 10px;
-  background-color: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-  width: 100%;
-  box-sizing: border-box;
-}
-.skin-btn {
-  width: 100%;
-  padding: 8px;
-  font-size: 0.9em;
-  border: none;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
+.skins-section { margin-top: 25px; }
+.skins-section h4 { font-size: 1.2em; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; color: #334155; justify-content: center; }
+.skins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; }
+.skin-item { display: flex; flex-direction: column; background-color: #ffffff; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; transition: all 0.3s ease; }
+.skin-item:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+.skin-item.equipped { border-color: #9333ea; box-shadow: 0 0 15px rgba(147, 51, 234, 0.4); }
+.skin-preview { display: flex; align-items: center; justify-content: center; height: 140px; font-size: 3em; color: #475569; background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; padding: 10px; box-sizing: border-box; }
+.skin-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+.background-preview { background-size: cover; background-position: center; }
+.skin-name { font-size: 1em; font-weight: 600; text-align: center; padding: 12px 8px; flex-grow: 1; color: #1e293b; }
+.skin-status { padding: 10px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; width: 100%; box-sizing: border-box; }
+.skin-btn { width: 100%; padding: 8px; font-size: 0.9em; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .skin-btn.purchase { background-color: #007bff; color: white; }
 .skin-btn.equip { background-color: #28a745; color: white; }
 .skin-btn:disabled { background-color: #6c757d; color: white; cursor: not-allowed; opacity: 0.8; }
 .gold-icon { color: #ffd166; }
 .blue-icon { color: #8ecdfb; }
-/* 데스크톱에서는 기존 탭 스타일 유지 */
+
+.sidebar-tabs.mobile-dropdown { display: none; position: relative; margin-bottom: 15px; }
+.active-tab-display { background-color: #fff; border: 1px solid #e2e8f0; padding: 12px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.dropdown-menu { position: absolute; top: 100%; left: 0; right: 0; background-color: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 10; }
+.dropdown-menu button { display: block; width: 100%; text-align: left; padding: 12px 15px; background: none; border: none; font-weight: 500; cursor: pointer; }
+.dropdown-menu button:hover { background-color: #f8fafc; }
+
+@media (max-width: 900px) {
+  .game-layout { grid-template-columns: 1fr; }
+  .page-container { padding: 15px; }
+  .top-stats { grid-template-columns: 1fr; gap: 10px; }
+  .stat { padding: 12px 15px; display: flex; justify-content: space-between; align-items: baseline; font-size: 1.1em; }
+  .stat span { font-size: 1.2em; }
+  .stat small { margin-top: 0; }
+  .mine-area { padding: 25px; }
+  .mine-visual { height: 100px; font-size: 4em; }
+  .mine-button { font-size: 1.1em; }
+  .shop-card, .sell-card, .achievement-card, .prestige-feature, .workshop-feature, .skins-feature { padding: 15px; }
+  
+  .sidebar-tabs.desktop-tabs { display: none; }
+  .sidebar-tabs.mobile-dropdown { display: block; }
+}
+
 @media (min-width: 901px) {
-  .sidebar-tabs { 
-    display: flex; 
-    margin-bottom: 15px; 
-    background-color: #e2e8f0; 
-    border-radius: 8px; 
-    padding: 5px; 
-  }
-  .sidebar-tabs button { 
-    flex: 1; padding: 10px; 
-    border: none; 
-    background-color: transparent; 
-    cursor: pointer; 
-    font-weight: bold; 
-    border-radius: 6px; 
-    transition: all 0.3s ease; 
-    color: #475569; 
-  }
-  .sidebar-tabs button.active { 
-    background-color: #fff; 
-    color: #1e293b; 
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-  }
+  .sidebar-tabs.mobile-dropdown { display: none; }
+  .sidebar-tabs.desktop-tabs { display: flex; margin-bottom: 15px; background-color: #e2e8f0; border-radius: 8px; padding: 5px; }
+  .sidebar-tabs.desktop-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }
+  .sidebar-tabs.desktop-tabs button.active { background-color: #fff; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 }
 </style>
