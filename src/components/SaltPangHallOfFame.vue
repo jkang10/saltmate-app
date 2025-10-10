@@ -171,4 +171,44 @@ onMounted(fetchHallOfFame);
 @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes crown-glow { from { transform: scale(1); } to { transform: scale(1.2); } }
 @keyframes shine-animation { 0% { left: -50%; width: 0; } 50% { left: 100%; width: 100%; } 100% { left: 100%; width: 0; } }
+/* ▼▼▼ [핵심 추가] 모바일 반응형 레이아웃을 위한 미디어 쿼리 ▼▼▼ */
+@media (max-width: 900px) {
+  .game-layout {
+    /* 2단 그리드 -> 1단(세로) 그리드로 변경 */
+    grid-template-columns: 1fr;
+  }
+
+  .page-container {
+    padding: 10px; /* 페이지 전체 여백 축소 */
+  }
+
+  .top-stats {
+    grid-template-columns: 1fr; /* 통계 위젯을 세로로 쌓음 */
+    gap: 10px;
+  }
+
+  .stat {
+    padding: 10px;
+    display: flex; /* 내부 요소들을 가로로 배치 */
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .stat span {
+    font-size: 1.3em;
+  }
+
+  .stat small {
+    margin-top: 0;
+  }
+
+  .mine-area {
+    padding: 20px;
+  }
+
+  .mine-visual {
+    height: 100px; /* 아이콘/이미지 영역 높이 축소 */
+    font-size: 4em;
+  }
+}
 </style>
