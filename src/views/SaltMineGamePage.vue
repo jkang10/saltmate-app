@@ -137,51 +137,53 @@
           </div>
         </div>
         
-        <div v-if="activeTab === 'skins'" class="card skins-feature">
-          <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
-          <div class="skins-section">
-            <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
-            <div class="skins-grid">
-              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
-                <div class="skin-preview"><i :class="skin.iconClass"></i></div>
-                <div class="skin-name">{{ skin.name }}</div>
-                <div class="skin-status">
-                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
-                    <i class="fas fa-check"></i> 장착 중
-                  </button>
-                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
-                    장착하기
-                  </button>
-                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
-                    <span>{{ skin.price.toLocaleString() }}</span>
-                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="skins-section">
-            <h4><i class="fas fa-image"></i> 광산 배경 스킨</h4>
-            <div class="skins-grid">
-              <div v-for="skin in skinShopItems.background" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
-                <div class="skin-preview background-preview" :style="{ backgroundImage: `url(${skin.imageUrl})` }"></div>
-                <div class="skin-name">{{ skin.name }}</div>
-                 <div class="skin-status">
-                  <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
-                    <i class="fas fa-check"></i> 적용 중
-                  </button>
-                  <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
-                    적용하기
-                  </button>
-                  <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
-                    <span>{{ skin.price.toLocaleString() }}</span>
-                    <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+
+  <h3><i class="fas fa-paint-brush"></i> 광산 꾸미기</h3>
+
+  <div class="skins-section">
+    <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
+    <div class="skins-grid">
+      <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+        <div class="skin-preview"><i :class="skin.iconClass"></i></div>
+        <div class="skin-name">{{ skin.name }}</div>
+        <div class="skin-status">
+          <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+            <i class="fas fa-check"></i> 장착 중
+          </button>
+          <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+            장착하기
+          </button>
+          <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+            <span>{{ skin.price.toLocaleString() }}</span>
+            <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+          </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="skins-section">
+    <h4><i class="fas fa-image"></i> 광산 배경 스킨</h4>
+    <div class="skins-grid">
+      <div v-for="skin in skinShopItems.background" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+        <div class="skin-preview background-preview" :style="{ backgroundImage: `url(${skin.imageUrl})` }"></div>
+        <div class="skin-name">{{ skin.name }}</div>
+          <div class="skin-status">
+          <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
+            <i class="fas fa-check"></i> 적용 중
+          </button>
+          <button v-else-if="skin.status === 'owned'" @click="equipSkin(skin)" class="skin-btn equip">
+            적용하기
+          </button>
+          <button v-else @click="executePurchase(skin.id)" class="skin-btn purchase" :disabled="isProcessing">
+            <span>{{ skin.price.toLocaleString() }}</span>
+            <i :class="skin.currency === 'gold' ? 'fas fa-medal gold-icon' : 'fas fa-gifts blue-icon'"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
       </aside>
     </main>
 
@@ -733,11 +735,103 @@ onUnmounted(() => {
 .workshop-tab-btn.active {
   animation: glow-effect 2.5s infinite;
 }
-/* [신규] '광산 꾸미기' 제목 중앙 정렬 스타일 */
+/* ▼▼▼ [핵심] 기존 꾸미기 관련 스타일을 아래 코드로 교체 ▼▼▼ */
 .skins-feature h3 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
 }
+.skins-feature h3 i { color: #8e44ad; }
+
+.skins-section { 
+  margin-top: 25px; 
+}
+.skins-section h4 { 
+  font-size: 1.2em;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+}
+
+.skins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 20px;
+}
+
+.skin-item {
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.skin-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+.skin-item.equipped {
+  border-color: #9333ea;
+  box-shadow: 0 0 15px rgba(147, 51, 234, 0.4);
+}
+
+.skin-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  font-size: 3em;
+  color: #475569;
+  background-color: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+.background-preview {
+  background-size: cover;
+  background-position: center;
+}
+
+.skin-name {
+  font-size: 1em;
+  font-weight: 600;
+  text-align: center;
+  padding: 12px 8px;
+  flex-grow: 1;
+  color: #1e293b;
+}
+
+.skin-status {
+  padding: 10px;
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.skin-btn {
+  width: 100%;
+  padding: 8px;
+  font-size: 0.9em;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.skin-btn.purchase { background-color: #007bff; color: white; }
+.skin-btn.equip { background-color: #28a745; color: white; }
+.skin-btn:disabled { background-color: #6c757d; color: white; cursor: not-allowed; opacity: 0.8; }
+.gold-icon { color: #ffd166; }
+.blue-icon { color: #8ecdfb; }
 </style>
