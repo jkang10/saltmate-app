@@ -649,7 +649,7 @@ onUnmounted(() => {
   text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* 어두운 배경에서 돋보이도록 그림자 효과 추가 */
 }
 .page-header p { 
-  color: #e2e8f0; /* 설명 글씨 색상을 밝은 회색으로 변경 */
+  color: #ffd166; /* [수정] 설명 글씨 색상을 노란색 계열로 변경 */
   text-shadow: 0 1px 3px rgba(0,0,0,0.5); /* 그림자 효과 추가 */
 }
 .page-header h1 i { color: #ffd166; }
