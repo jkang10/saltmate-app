@@ -34,13 +34,14 @@
           </div>
         </div>
 
-        <div class="mine-area card">
-          <div class="mine-visual">
-            <i :class="currentPickaxeIcon"></i>
-          </div>
-          <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-          <button @click="mineSalt" class="mine-button">채굴하기</button>
-        </div>
+<div class="mine-area card">
+  <div class="mine-visual">
+    <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
+    <i v-else :class="currentPickaxeIcon"></i>
+    </div>
+  <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
+  <button @click="mineSalt" class="mine-button">채굴하기</button>
+</div>
 
         <div class="log-card card">
           <h3>이벤트 로그</h3>
@@ -313,9 +314,16 @@ const skinShopItems = computed(() => {
   return allItems;
 });
 
+// ▼▼▼ [신규] 장착된 곡괭이 스킨 정보를 찾는 computed 속성 추가 ▼▼▼
+const equippedPickaxeSkin = computed(() => {
+  if (!equippedSkins.pickaxe) return null;
+  return availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
+});
+
+// ▼▼▼ [수정] currentPickaxeIcon computed 속성을 아래와 같이 수정 ▼▼▼
 const currentPickaxeIcon = computed(() => {
-  const equippedSkin = availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
-  if (equippedSkin) return equippedSkin.iconClass;
+  // 스킨이 장착되었을 때는 위의 equippedPickaxeSkin이 사용되므로,
+  // 여기서는 스킨이 없을 때의 기본 아이콘만 결정합니다.
   if ((upgrades["robot"] || 0) > 0) return "fas fa-robot";
   if ((upgrades["drill"] || 0) > 0) return "fas fa-tools";
   if ((upgrades["miner"] || 0) > 0) return "fas fa-cogs";
@@ -723,7 +731,12 @@ onUnmounted(() => {
 .prestige-summary div { display: flex; justify-content: space-between; align-items: center; }
 .prestige-summary strong { font-size: 1.2em; color: #9333ea; }
 .btn-primary.prestige-confirm { background-color: #9333ea; }
-
+.pickaxe-skin-image {
+  max-width: 80px; /* 이미지 크기 조정 */
+  max-height: 80px;
+  object-fit: contain;
+  animation: bounce 2s infinite; /* 기존 아이콘과 동일한 애니메이션 적용 */
+}
 /* '제작 공방' 탭 강조 효과 */
 @keyframes glow-effect {
   0%, 100% {
