@@ -784,4 +784,171 @@ onUnmounted(() => {
   .sidebar-tabs.desktop-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }
   .sidebar-tabs.desktop-tabs button.active { background-color: #fff; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 }
+/* ▼▼▼ [핵심] 기존 제작 공방 관련 스타일을 아래 코드로 교체 ▼▼▼ */
+.workshop-feature {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.workshop-feature h3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.workshop-feature h3 i {
+  color: #475569;
+}
+
+.workshop-upgrade-section {
+  text-align: center;
+  padding: 20px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+.workshop-upgrade-section p {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-weight: 500;
+  color: #334155;
+}
+.upgrade-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #334155;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.1em;
+  transition: all 0.3s ease;
+}
+.upgrade-button:hover:not(:disabled) {
+  background-color: #1e293b;
+  transform: translateY(-2px);
+}
+.upgrade-button small {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.8;
+  font-weight: normal;
+}
+
+.recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+.recipe-item {
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.recipe-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+.recipe-item.locked {
+  opacity: 0.7;
+  background: #f1f5f9;
+}
+.recipe-item.locked:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.recipe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.recipe-header strong {
+  font-size: 1.15em;
+  color: #1e293b;
+}
+.lock-reason {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #ef4444;
+  background-color: #fee2e2;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.ingredient-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 15px 0;
+  font-size: 0.9em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ingredient-list li { 
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: #ef4444; /* 기본 (부족) 색상 */
+}
+.ingredient-list li::before {
+  content: '❌';
+  margin-right: 8px;
+}
+.ingredient-list li.sufficient {
+  color: #16a34a; /* 충족 시 색상 */
+}
+.ingredient-list li.sufficient::before {
+  content: '✅';
+}
+
+.craft-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.05em;
+  transition: all 0.2s ease;
+}
+.craft-button:hover:not(:disabled) {
+  background-color: #0b5ed7;
+  transform: scale(1.02);
+}
+.craft-button:disabled {
+  background-color: #a0c9ff;
+  cursor: not-allowed;
+}
+
+.shortcut-btn {
+  padding: 4px 10px;
+  font-size: 0.85em;
+  font-weight: bold;
+  background-color: #6c757d;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: background-color 0.2s;
+}
+.shortcut-btn:hover {
+  background-color: #5a6268;
+}
+/* ▲▲▲ */
 </style>
