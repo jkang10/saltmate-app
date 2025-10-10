@@ -674,6 +674,7 @@ onUnmounted(() => {
   align-items: center; /* 세로 중앙 정렬 */
   height: 120px; /* 적절한 높이 유지 (필요 시 조정) */
   font-size: 5em;
+  text-align: center; 
   color: #34495e;
   margin-bottom: 20px;
   /* background-color: #f8fafc;  // 필요없으므로 삭제 또는 주석 처리 */
@@ -708,7 +709,7 @@ onUnmounted(() => {
 .achievement-item.unlocked { background-color: #d1fae5; color: #065f46; opacity: 1; }
 .ach-icon { font-size: 1.2em; }
 .card {
-  background-color: rgba(255, 255, 255, 0.85); /* [수정] 흰색(255,255,255)에 85% 불투명도 적용 (15% 투명) */
+  background-color: rgba(255, 255, 255, 0.75); /* [수정] 흰색(255,255,255)에 75% 불투명도 적용 (25% 투명) */
   border-radius: 15px;
   padding: 25px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -785,14 +786,13 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   color: #334155;
+  justify-content: center; /* [추가] 제목을 중앙 정렬합니다. */
 }
-
 .skins-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 20px;
 }
-
 .skin-item {
   display: flex;
   flex-direction: column;
@@ -811,7 +811,6 @@ onUnmounted(() => {
   border-color: #9333ea;
   box-shadow: 0 0 15px rgba(147, 51, 234, 0.4);
 }
-
 .skin-preview {
   display: flex;
   align-items: center;
@@ -832,7 +831,6 @@ onUnmounted(() => {
   background-size: cover;
   background-position: center;
 }
-
 .skin-name {
   font-size: 1em;
   font-weight: 600;
@@ -841,7 +839,6 @@ onUnmounted(() => {
   flex-grow: 1;
   color: #1e293b;
 }
-
 .skin-status {
   padding: 10px;
   background-color: #f8fafc;
@@ -849,7 +846,6 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
 }
-
 .skin-btn {
   width: 100%;
   padding: 8px;
