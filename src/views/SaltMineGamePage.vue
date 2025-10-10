@@ -668,8 +668,17 @@ onUnmounted(() => {
 .stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
 .stat span { font-size: 1.5em; font-weight: bold; color: #1e293b; }
 .stat small { display: block; color: #64748b; font-size: 0.9em; margin-top: 5px; }
-.mine-area { text-align: center; padding: 40px; }
-.mine-visual { font-size: 4em; margin-bottom: 15px; animation: bounce 2s infinite; color: #1e293b; }
+.mine-area .mine-visual {
+  display: flex; /* Flexbox 활성화 */
+  justify-content: center; /* 가로 중앙 정렬 */
+  align-items: center; /* 세로 중앙 정렬 */
+  height: 120px; /* 적절한 높이 유지 (필요 시 조정) */
+  font-size: 5em;
+  color: #34495e;
+  margin-bottom: 20px;
+  /* background-color: #f8fafc;  // 필요없으므로 삭제 또는 주석 처리 */
+  border-radius: 10px;
+}
 @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
 .mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
 .mine-button:hover { transform: scale(1.05); }
@@ -698,7 +707,14 @@ onUnmounted(() => {
 .achievement-item { background-color: #e2e8f0; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; opacity: 0.5; transition: all 0.3s; }
 .achievement-item.unlocked { background-color: #d1fae5; color: #065f46; opacity: 1; }
 .ach-icon { font-size: 1.2em; }
-.card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.card {
+  background-color: rgba(255, 255, 255, 0.85); /* [수정] 흰색(255,255,255)에 85% 불투명도 적용 (15% 투명) */
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+  backdrop-filter: blur(5px); /* [선택] 뒤 배경이 투명하게 보일 때 약간의 블러 효과를 줘서 가독성을 높일 수 있습니다. */
+}
 .gold-feature { background-color: #fffbeb; border: 1px solid #fde68a; }
 .feature-desc { font-size: 0.9em; color: #78350f; margin-bottom: 15px; }
 .boost-button { background-color: #f59e0b; color: white; }
