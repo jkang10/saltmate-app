@@ -99,26 +99,26 @@ onMounted(fetchHallOfFame);
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px; /* [수정] 간격을 살짝 줄여 7개가 들어갈 공간 확보 */
   flex-grow: 1;
   justify-content: center;
 }
 .ranking-list li {
   display: flex;
   align-items: center;
-  padding: 10px;
+  padding: 8px 10px; /* [수정] 상하 패딩을 줄임 */
   border-radius: 8px;
   background-color: rgba(255, 255, 255, 0.05);
-  font-size: 1.1em;
+  font-size: 1.05em; /* [수정] 폰트 크기 살짝 줄임 */
   position: relative;
   overflow: hidden;
 }
 .rank-badge {
-  width: 35px;
+  width: 30px; /* [수정] 뱃지 너비 살짝 줄임 */
   font-weight: bold;
-  font-size: 1.2em;
+  font-size: 1.1em;
   text-align: center;
-  margin-right: 15px;
+  margin-right: 12px; /* [수정] 여백 살짝 줄임 */
 }
 .player-name {
   flex-grow: 1;
@@ -127,6 +127,7 @@ onMounted(fetchHallOfFame);
 .player-score {
   font-weight: bold;
   color: #fff;
+  font-family: monospace; /* [추가] 숫자 폰트 통일 */
 }
 .rank-1 {
   background: linear-gradient(-45deg, #f1c40f, #e67e22, #f39c12, #f1c40f);
@@ -159,10 +160,11 @@ onMounted(fetchHallOfFame);
 }
 .rank-2 { background-color: rgba(192, 192, 192, 0.2); }
 .rank-3 { background-color: rgba(205, 127, 50, 0.2); }
+.rank-2 .rank-badge { color: #c0c0c0; } /* [추가] 2,3위 뱃지 색상 */
+.rank-3 .rank-badge { color: #cd7f32; }
 .rank-2, .rank-3 { color: #fff; }
 
-/* [핵심 추가] 4, 5위 스타일 */
-.rank-4, .rank-5 {
+.rank-4, .rank-5, .rank-6, .rank-7 {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
