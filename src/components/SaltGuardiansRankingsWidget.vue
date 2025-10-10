@@ -77,7 +77,7 @@ onMounted(fetchRankings);
 .ranking-widget {
   display: flex;
   flex-direction: column;
-  padding: 30px;
+  padding: 25px; /* [수정] 전체적인 패딩을 살짝 줄임 */
   background: linear-gradient(145deg, #ffffff, #f0f2f5);
   border-radius: 15px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
@@ -88,23 +88,22 @@ onMounted(fetchRankings);
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
 }
 .card-icon {
-  font-size: 2.2em;
+  font-size: 2em; /* [수정] 아이콘 크기 살짝 줄임 */
   color: #3498db;
-  margin-bottom: 15px;
+  margin-bottom: 10px; /* [수정] 여백 줄임 */
   text-align: center;
 }
 .ranking-widget h3 {
-  font-size: 1.8em;
+  font-size: 1.6em; /* [수정] 제목 크기 살짝 줄임 */
   color: #2c3e50;
-  margin-bottom: 20px;
+  margin-bottom: 15px; /* [수정] 여백 줄임 */
   text-align: center;
   position: relative;
   padding-bottom: 10px;
-  /* [핵심 수정] flexbox를 사용하여 제목과 뱃지를 정렬합니다. */
   display: flex;
-  flex-direction: column; /* 세로로 쌓음 */
-  align-items: center;   /* 가운데 정렬 */
-  gap: 8px;              /* 제목과 뱃지 사이 간격 */
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 .ranking-widget h3::after {
   content: '';
@@ -112,7 +111,7 @@ onMounted(fetchRankings);
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  width: 60px;
+  width: 50px; /* [수정] 밑줄 길이 줄임 */
   height: 3px;
   background-color: #3498db;
   border-radius: 2px;
@@ -123,16 +122,12 @@ onMounted(fetchRankings);
   padding: 4px 10px;
   border-radius: 15px;
   font-size: 0.7em;
-  /* [핵심 수정] 위치 관련 속성 제거 (flexbox가 처리) */
-  /* margin-left: 8px; */
-  /* vertical-align: middle; */
 }
 
-/* --- 이하 스타일은 기존과 동일 --- */
 .loading-state, .no-data {
   flex-grow: 1; display: flex; flex-direction: column;
   justify-content: center; align-items: center;
-  font-style: italic; color: #7f8c8d; min-height: 150px;
+  color: #7f8c8d; min-height: 150px;
 }
 .no-data i { font-size: 2em; color: #bdc3c7; margin-bottom: 10px; }
 .no-data p { margin: 5px 0; font-size: 1.1em; }
@@ -146,21 +141,39 @@ onMounted(fetchRankings);
   margin-bottom: 10px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+
+.ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* [수정] 아이템 간격을 12px -> 8px로 줄여 전체 높이 축소 */
+}
 .rank-item {
-  display: flex; align-items: center; background: #f8f9fa; padding: 12px 15px;
-  border-radius: 10px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease; overflow: hidden; position: relative; border: 1px solid #e0e6ed;
+  display: flex;
+  align-items: center;
+  background: #f8f9fa;
+  padding: 10px 12px; /* [수정] 아이템 상하 패딩을 12px -> 10px으로 줄임 */
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #e0e6ed;
 }
 .rank-item:hover { transform: translateX(5px); box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08); background: #e9f0f7; }
+
 .rank-badge {
-  width: 35px; height: 35px; display: flex; justify-content: center;
-  align-items: center; font-weight: bold; font-size: 1.2em;
+  width: 30px; height: 30px; /* [수정] 뱃지 크기를 35px -> 30px으로 줄임 */
+  display: flex; justify-content: center;
+  align-items: center; font-weight: bold; font-size: 1.1em; /* [수정] 폰트 크기 조정 */
   color: #7f8c8d; background-color: #ecf0f1; border-radius: 50%;
-  margin-right: 15px; flex-shrink: 0; position: relative;
+  margin-right: 12px; /* [수정] 오른쪽 여백 조정 */
+  flex-shrink: 0; position: relative;
   z-index: 2; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
-.rank-badge .fas { font-size: 1.4em; }
+.rank-badge .fas { font-size: 1.2em; } /* [수정] 아이콘 크기 조정 */
 .rank-1 .rank-badge {
   background: linear-gradient(45deg, #FFD700, #FFC72C);
   color: #8B4513; box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
@@ -195,11 +208,11 @@ onMounted(fetchRankings);
 }
 .player-info { flex-grow: 1; display: flex; justify-content: space-between; align-items: center; }
 .player-name {
-  font-weight: 600; color: #34495e; font-size: 1.05em;
+  font-weight: 600; color: #34495e; font-size: 1.0em; /* [수정] 폰트 크기 살짝 줄임 */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .player-score {
-  font-weight: bold; color: #2980b9; font-size: 1.1em;
+  font-weight: bold; color: #2980b9; font-size: 1.05em; /* [수정] 폰트 크기 살짝 줄임 */
   margin-left: 10px; flex-shrink: 0;
 }
 </style>
