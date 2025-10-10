@@ -52,12 +52,22 @@
       </div>
 
 <aside class="game-sidebar">
-        <div class="sidebar-tabs">
-          <button @click="activeTab = 'upgrades'" :class="{ active: activeTab === 'upgrades' }">업그레이드</button>
-          <button @click="activeTab = 'workshop'" :class="{ active: activeTab === 'workshop' }" class="workshop-tab-btn">제작 공방</button>
-          <button @click="activeTab = 'skins'" :class="{ active: activeTab === 'skins' }">꾸미기</button>
-        </div>
-
+  <div class="sidebar-tabs desktop-tabs">
+    <button @click="activeTab = 'upgrades'" :class="{ active: activeTab === 'upgrades' }">업그레이드</button>
+    <button @click="activeTab = 'workshop'" :class="{ active: activeTab === 'workshop' }" class="workshop-tab-btn">제작 공방</button>
+    <button @click="activeTab = 'skins'" :class="{ active: activeTab === 'skins' }">꾸미기</button>
+  </div>
+	<div class="sidebar-tabs mobile-dropdown">
+	  <div class="active-tab-display" @click="toggleDropdown">
+	    <span>{{ activeTabName }}</span>
+	    <i class="fas fa-caret-down"></i>
+	  </div>
+	  <div class="dropdown-menu" v-if="isDropdownOpen">
+	    <button @click="selectTab('upgrades')">업그레이드</button>
+	    <button @click="selectTab('workshop')">제작 공방</button>
+	    <button @click="selectTab('skins')">꾸미기</button>
+	  </div>
+	</div>
         <div v-if="activeTab === 'upgrades'">
           <div class="shop-card card">
             <h3><i class="fas fa-shopping-cart"></i> 업그레이드 상점</h3>
@@ -275,6 +285,27 @@ const logEvent = (message) => {
   logs.value.unshift(message);
   if (logs.value.length > 50) logs.value.pop();
   nextTick(() => { if (logBox.value) logBox.value.scrollTop = 0; });
+};
+
+// ▼▼▼ [신규] 드롭다운 관련 상태 변수 추가 ▼▼▼
+const isDropdownOpen = ref(false);
+
+// ▼▼▼ [신규] 현재 탭 이름을 한글로 보여주기 위한 computed 속성 ▼▼▼
+const activeTabName = computed(() => {
+  if (activeTab.value === 'upgrades') return '업그레이드';
+  if (activeTab.value === 'workshop') return '제작 공방';
+  if (activeTab.value === 'skins') return '꾸미기';
+  return '';
+});
+
+// ▼▼▼ [신규] 드롭다운 토글 및 선택 함수 추가 ▼▼▼
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value;
+};
+
+const selectTab = (tabName) => {
+  activeTab.value = tabName;
+  isDropdownOpen.value = false;
 };
 
 // --- 계산된 속성 ---
@@ -618,9 +649,50 @@ onUnmounted(() => {
 }
 
 /* (기존 스타일 코드) */
-.sidebar-tabs { display: flex; margin-bottom: 15px; background-color: #e2e8f0; border-radius: 8px; padding: 5px; }
-.sidebar-tabs button { flex: 1; padding: 10px; border: none; background-color: transparent; cursor: pointer; font-weight: bold; border-radius: 6px; transition: all 0.3s ease; color: #475569; }
-.sidebar-tabs button.active { background-color: #fff; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+/* ▼▼▼ [신규] 모바일 드롭다운 스타일 ▼▼▼ */
+.sidebar-tabs.mobile-dropdown {
+  display: none; /* 데스크톱에서는 숨김 */
+  position: relative;
+  margin-bottom: 15px;
+}
+.active-tab-display {
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 12px 15px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-top: 5px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  z-index: 10;
+}
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 15px;
+  background: none;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dropdown-menu button:hover {
+  background-color: #f8fafc;
+}
+/* ▲▲▲ */
+
 .workshop-feature { background-color: #f8fafc; border: 1px solid #e2e8f0; }
 .workshop-feature h3 i { color: #475569; }
 .workshop-upgrade-section { text-align: center; padding: 15px; background-color: #fff; border-radius: 8px; margin-bottom: 20px; }
@@ -718,13 +790,18 @@ onUnmounted(() => {
     font-size: 0.9em;
     padding: 10px 5px;
   }
-
+  /* 기존 탭 숨기고, 드롭다운 표시 */
+  .sidebar-tabs {
+    display: none;
+  }
+  .sidebar-tabs.mobile-dropdown {
+    display: block;
+  }
   /* 업그레이드 아이템 목록 여백 조정 */
   .shop-item {
     padding: 8px;
     gap: 10px;
   }
-}
 .game-main { display: flex; flex-direction: column; gap: 20px; }
 .top-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 .stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
@@ -934,4 +1011,29 @@ onUnmounted(() => {
 .skin-btn:disabled { background-color: #6c757d; color: white; cursor: not-allowed; opacity: 0.8; }
 .gold-icon { color: #ffd166; }
 .blue-icon { color: #8ecdfb; }
+/* 데스크톱에서는 기존 탭 스타일 유지 */
+@media (min-width: 901px) {
+  .sidebar-tabs { 
+    display: flex; 
+    margin-bottom: 15px; 
+    background-color: #e2e8f0; 
+    border-radius: 8px; 
+    padding: 5px; 
+  }
+  .sidebar-tabs button { 
+    flex: 1; padding: 10px; 
+    border: none; 
+    background-color: transparent; 
+    cursor: pointer; 
+    font-weight: bold; 
+    border-radius: 6px; 
+    transition: all 0.3s ease; 
+    color: #475569; 
+  }
+  .sidebar-tabs button.active { 
+    background-color: #fff; 
+    color: #1e293b; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+  }
+}
 </style>
