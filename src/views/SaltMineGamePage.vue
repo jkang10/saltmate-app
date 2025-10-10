@@ -641,8 +641,14 @@ onUnmounted(() => {
 .boosted-text { color: #28a745; font-weight: bold; }
 .page-container { max-width: 1100px; margin: 70px auto 20px; padding: 20px; background-color: #f0f2f5; border-radius: 15px; }
 .page-header { text-align: center; margin-bottom: 30px; }
-.page-header h1 { color: #1e293b; }
-.page-header p { color: #475569; }
+.page-header h1 { 
+  color: #ffd166; /* 제목 글씨 색상을 아이콘과 동일한 노란색으로 변경 */
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* 어두운 배경에서 돋보이도록 그림자 효과 추가 */
+}
+.page-header p { 
+  color: #e2e8f0; /* 설명 글씨 색상을 밝은 회색으로 변경 */
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5); /* 그림자 효과 추가 */
+}
 .page-header h1 i { color: #ffd166; }
 .game-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
 @media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; } }
