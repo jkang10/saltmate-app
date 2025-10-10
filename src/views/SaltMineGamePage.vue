@@ -662,7 +662,69 @@ onUnmounted(() => {
 }
 .page-header h1 i { color: #ffd166; }
 .game-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
-@media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; } }
+/* ▼▼▼ [핵심 수정] 기존 미디어 쿼리를 아래 코드로 교체해주세요 ▼▼▼ */
+@media (max-width: 900px) {
+  .game-layout {
+    /* 2단 그리드 -> 1단(세로) 그리드로 변경 */
+    grid-template-columns: 1fr;
+  }
+
+  .page-container {
+    padding: 15px; /* 페이지 전체 여백 조정 */
+  }
+
+  .top-stats {
+    /* 3열 그리드 -> 1단(세로) 그리드로 변경 */
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat {
+    padding: 12px 15px; /* 내부 여백 조정 */
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 1.1em; /* 폰트 크기 조정 */
+  }
+
+  .stat span {
+    font-size: 1.2em;
+  }
+
+  .stat small {
+    margin-top: 0;
+  }
+
+  .mine-area {
+    padding: 25px; /* 채굴 영역 여백 조정 */
+  }
+
+  .mine-visual {
+    height: 100px;
+    font-size: 4em;
+  }
+
+  .mine-button {
+    font-size: 1.1em; /* 채굴 버튼 크기 조정 */
+  }
+
+  /* 사이드바 카드들의 내부 여백 축소 */
+  .shop-card, .sell-card, .achievement-card, .prestige-feature, .workshop-feature, .skins-feature {
+    padding: 15px;
+  }
+
+  /* 탭 버튼 폰트 크기 조정 */
+  .sidebar-tabs button {
+    font-size: 0.9em;
+    padding: 10px 5px;
+  }
+
+  /* 업그레이드 아이템 목록 여백 조정 */
+  .shop-item {
+    padding: 8px;
+    gap: 10px;
+  }
+}
 .game-main { display: flex; flex-direction: column; gap: 20px; }
 .top-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 .stat { background-color: #ffffff; padding: 15px; border-radius: 10px; text-align: center; }
