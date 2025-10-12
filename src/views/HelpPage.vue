@@ -80,12 +80,24 @@ const sections = ref([
         <li><strong>아이템 강화:</strong> SaltMate를 소모하여 아이템의 강화 레벨을 높이는 콘텐츠입니다. 강화 레벨이 높을수록 특별한 혜택을 받을 수 있습니다.</li>
       </ul>
 
-      <h4 class="menu-category">게임 존: 퍼즐 및 대전</h4>
-      <ul>
-        <li><strong>솔트팡:</strong> 같은 모양의 보석을 3개 이상 맞춰 터뜨리는 클래식 매치-3 퍼즐 게임입니다.</li>
-        <li><strong>솔트팡 1 vs 1 대전:</strong> 다른 사용자와 실시간으로 솔트팡 대결을 펼쳐 승리 보상을 획득하는 PvP(Player vs Player) 콘텐츠입니다.</li>
-        <li><strong>숨은그림찾기:</strong> 제한 시간 내에 복잡한 그림 속에 숨겨진 특정 물건들을 모두 찾아내는 게임입니다.</li>
-      </ul>
+<h4 class="menu-category">게임 존: 퍼즐 및 대전</h4>
+<ul>
+  <li><strong>솔트팡:</strong> 같은 모양의 보석을 3개 이상 맞춰 터뜨리는 클래식 매치-3 퍼즐 게임입니다.</li>
+  <li><strong>솔트팡 1 vs 1 대전:</strong> 다른 사용자와 실시간으로 솔트팡 대결을 펼쳐 승리 보상을 획득하는 PvP(Player vs Player) 콘텐츠입니다.</li>
+
+  <li>
+    <strong>솔트 가디언즈</strong>
+    <p style="margin-top: 5px; margin-bottom: 5px;">
+      쉴 새 없이 몰려오는 오염수 몬스터들로부터 '정화의 소금 결정'을 지켜내는 짜릿한 디펜스 게임입니다. 당신의 빠른 순발력과 판단력으로 최고 점수에 도전하고, 일일 랭킹의 최강자가 되어보세요!
+    </p>
+    <ul>
+      <li><strong>게임 목표:</strong> 화면 아래의 '정화의 소금 결정'이 파괴되지 않도록, 좌우로 움직이며 몬스터를 처치해야 합니다.</li>
+      <li><strong>성장과 전략:</strong> 게임을 통해 얻은 SaltMate 포인트로 '수호자 연구소'에서 <strong>공격력, 연사 속도, 결정 내구도</strong>를 영구적으로 업그레이드할 수 있습니다. 어떤 능력치를 먼저 강화할지 전략적으로 선택하는 것이 고득점의 핵심입니다.</li>
+      <li><strong>매력 포인트:</strong> 매일매일 초기화되는 <strong>일일 랭킹</strong>을 통해 다른 유저들과 점수 경쟁을 펼칠 수 있습니다. 어제의 랭커를 꺾고 오늘의 TOP 7에 이름을 올려 특별한 명예와 자부심을 느껴보세요!</li>
+    </ul>
+  </li>
+  <li><strong>숨은그림찾기:</strong> 제한 시간 내에 복잡한 그림 속에 숨겨진 특정 물건들을 모두 찾아내는 게임입니다.</li>
+</ul>
 
       <h4 class="menu-category">게임 존: 베팅 및 미니게임</h4>
       <ul>
@@ -96,6 +108,50 @@ const sections = ref([
         <li><strong>하이로우:</strong> 제시된 숫자보다 다음 숫자가 높을지(High) 낮을지(Low) 예측하는 간단한 베팅 게임입니다.</li>
         <li><strong>가위바위보:</strong> 컴퓨터를 상대로 가위바위보 대결을 펼쳐 승리 시 보상을 받는 게임입니다.</li>
         <li><strong>랭킹 예측:</strong> '솔트팡 랭킹전'의 최종 순위(1~3위)를 예측하여 베팅하고, 예측 성공 시 높은 배당률의 보상을 받는 콘텐츠입니다.</li>
+      </ul>
+    `
+  },
+  {
+    id: 'deep-sea-guide',
+    title: '해양심층수 가이드',
+    content: `
+      <p>'해양심층수 탐험'에서는 기본 자원인 '심층수' 외에도, 장비 업그레이드나 아이템 제작에 사용되는 다양한 희귀 자원을 획득할 수 있습니다.</p>
+      <p>모든 희귀 자원은 자동 생산으로는 얻을 수 없으며, 반드시 <strong>'채집' 버튼을 직접 클릭</strong>해야만 정해진 확률에 따라 발견할 수 있습니다.</p>
+      
+      <h4 class="menu-category">자원별 획득처 및 기본 확률</h4>
+      <ul>
+        <li>
+          <strong>연구 데이터 🔬</strong>
+          <ul>
+            <li><strong>기본 해역:</strong> 8% 확률로 1개 획득</li>
+            <li><strong>심해 해구:</strong> 15% 확률로 <strong>2개</strong> 획득</li>
+          </ul>
+        </li>
+        <li>
+          <strong>희귀 미네랄 💎</strong>
+          <ul>
+            <li><strong>기본 해역 & 열수 분출구:</strong> 5% 확률로 1개 획득</li>
+            <li><strong>심해 해구:</strong> 10% 확률로 <strong>2개</strong> 획득</li>
+          </ul>
+        </li>
+        <li>
+          <strong>플랑크톤 🦠</strong>
+          <ul>
+            <li><strong>산호초 군락:</strong> 1% 확률로 1개 획득 (산호초 군락에서만 발견)</li>
+          </ul>
+        </li>
+        <li>
+          <strong>고대 유물 📜</strong>
+          <ul>
+            <li><strong>열수 분출구:</strong> 0.1%의 매우 희귀한 확률로 1개 획득</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h4 class="menu-category">발견 확률을 높이는 방법</h4>
+      <ul>
+          <li><strong>연구소 업그레이드:</strong> '업그레이드 상점'에서 '연구소'를 업그레이드할 때마다 모든 희귀 자원 발견 확률이 영구적으로 <strong>2%</strong>씩 증가합니다. (곱연산 보너스)</li>
+          <li><strong>골든타임 활성화 (강력 추천):</strong> 100 SaltMate를 사용하여 '골든타임'을 활성화하면, 10분 동안 모든 희귀 자원 발견 확률이 <strong>5배</strong>로 폭발적으로 증가합니다. 고대 유물처럼 희귀한 자원을 노릴 때 가장 효과적입니다.</li>
       </ul>
     `
   },
@@ -149,7 +205,7 @@ onUnmounted(() => {
 .help-nav {
   position: sticky;
   top: 90px;
-  width: 220px; /* 너비 약간 증가 */
+  width: 220px;
   align-self: flex-start;
 }
 .help-nav ul { list-style: none; padding: 0; margin: 0; }
@@ -161,7 +217,7 @@ onUnmounted(() => {
   border-radius: 6px;
   font-weight: 500;
   transition: all 0.2s;
-  border-left: 3px solid transparent; /* 활성 상태 표시를 위함 */
+  border-left: 3px solid transparent;
 }
 .help-nav a:hover { background-color: #e9ecef; }
 .help-nav a.active {
@@ -175,7 +231,6 @@ onUnmounted(() => {
 .help-content h2 { margin-top: 0; padding-bottom: 15px; border-bottom: 2px solid #eee; }
 .help-content ul { padding-left: 20px; line-height: 1.8; }
 .help-content li { margin-bottom: 12px; }
-/* [핵심 추가] 메뉴 카테고리 제목 스타일 */
 .help-content .menu-category {
   margin-top: 25px;
   margin-bottom: 15px;

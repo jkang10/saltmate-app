@@ -10,31 +10,8 @@
       <section class="forum-list card glassmorphism">
         <h2><i class="fas fa-list-alt"></i> 게시판</h2>
         <ul>
-          <li><router-link to="/community/notices">공지사항</router-link></li>
-          <li><router-link to="/community/payment_requests">구독/등급 입금승인요청</router-link></li>
-          <li><router-link to="/community/bug_reports">버그 알리기</router-link></li>
-          <li>
-            <router-link to="/community/nft-bids">NFT 입찰 정보</router-link>
-          </li>
-          <li>
-            <router-link to="/community/equity-info"
-              >지분 공지 정보</router-link
-            >
-          </li>
-          <li>
-            <router-link to="/community/salt-tech"
-              >소금 기술 이야기</router-link
-            >
-          </li>
-          <li>
-            <router-link to="/community/solein-tech"
-              >스마트 솔레인 테크</router-link
-            >
-          </li>
-          <li>
-            <router-link to="/community/deep-sea-water"
-              >해양 심층수</router-link
-            >
+          <li v-for="cat in categories" :key="cat.id">
+            <router-link :to="`/community/${cat.id}`">{{ cat.name }}</router-link>
           </li>
         </ul>
       </section>
@@ -46,27 +23,35 @@
   </div>
 </template>
 
-<script>
-// [수정] setup 스크립트를 제거하여 단순 템플릿 컴포넌트로 변경
-// 이제 각 게시판의 로직은 자식 라우트 컴포넌트(BoardPage.vue 등)에서 처리합니다.
-export default {
-  name: "CommunityPage",
-};
+<script setup>
+import { ref } from 'vue';
+
+// ref를 사용하여 카테고리 목록을 반응형 데이터로 관리
+const categories = ref([
+  { id: 'notices', name: '공지사항' },
+  { id: 'requests', name: '구독/등급 입금승인요청' },
+  { id: 'bugs', name: '버그 알리기' },
+  { id: 'freeboard', name: '자유게시판' }, // 자유게시판 추가
+  { id: 'nft-bids', name: 'NFT 입찰 정보' },
+  { id: 'equity-info', name: '지분 공지 정보' },
+  { id: 'salt-tech', name: '소금 기술 이야기' },
+  { id: 'solein-tech', name: '스마트 솔레인 테크' },
+  { id: 'deep-sea-water', name: '해양 심층수' },
+]);
 </script>
 
 <style scoped>
-/* (기존 스타일과 동일) */
 .community-page {
   padding: 20px;
   max-width: 1200px;
-  margin: 30px auto;
+  margin: 70px auto 40px; /* 상단 navbar와의 간격 확보 */
 }
 .page-header {
   text-align: center;
   margin-bottom: 40px;
 }
 .page-header h1 {
-  font-size: 3em;
+  font-size: 2.5em;
   color: #333;
   margin-bottom: 10px;
 }
@@ -78,6 +63,7 @@ export default {
   display: grid;
   grid-template-columns: 250px 1fr;
   gap: 30px;
+  align-items: flex-start;
 }
 @media (max-width: 992px) {
   .community-main {
@@ -106,35 +92,39 @@ export default {
 .forum-list ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 .forum-list ul li {
   margin-bottom: 10px;
 }
-.forum-list ul li a,
-.forum-list ul li.coming-soon {
+.forum-list ul li a {
   display: block;
   padding: 12px 15px;
   text-decoration: none;
   color: #555;
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: #f8f9fa;
   border-radius: 8px;
   transition:
     background-color 0.3s ease,
-    color 0.3s ease;
+    color 0.3s ease,
+    transform 0.2s ease;
   font-weight: 500;
+  border-left: 3px solid transparent;
 }
-.forum-list ul li a:hover,
-.forum-list ul li a.router-link-exact-active { /* 현재 활성화된 링크 스타일 */
-  background-color: rgba(0, 123, 255, 0.1);
+.forum-list ul li a:hover {
+  background-color: #e9ecef;
+  transform: translateX(3px);
+}
+.forum-list ul li a.router-link-active { /* 현재 활성화된 링크 스타일 */
+  background-color: #e7f1ff;
   color: #007bff;
   font-weight: bold;
+  border-left-color: #007bff;
 }
 .card {
-  background: rgba(255, 255, 255, 0.3);
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
 }
 </style>
