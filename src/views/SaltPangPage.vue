@@ -166,16 +166,16 @@
                 <div class="gem-special-effect"></div>
               </div>
             </transition>
-  <transition name="obstacle-fade">
-    <div v-if="cell && cell.obstacle === 'ice'" class="obstacle-overlay">
-      <img :src="`/gems/gem_ice_${cell.type}.png`" class="obstacle-image" alt="Ice">
-    </div>
-  </transition>
-  <transition name="obstacle-fade">
-    <div v-if="cell && cell.obstacle === 'chain'" class="obstacle-overlay">
-      <img :src="`/gems/gem_chain_${cell.type}.png`" class="obstacle-image" alt="Chain">
-    </div>
-  </transition>
+<transition name="obstacle-fade">
+  <div v-if="cell && cell.obstacle === 'ice'" class="obstacle-overlay">
+    <img :src="`/game_assets/gems/gem_ice_${cell.type}.png`" class="obstacle-image" alt="Ice">
+  </div>
+</transition>
+<transition name="obstacle-fade">
+  <div v-if="cell && cell.obstacle === 'chain'" class="obstacle-overlay">
+    <img :src="`/game_assets/gems/gem_chain_${cell.type}.png`" class="obstacle-image" alt="Chain">
+  </div>
+</transition>
           </div>
         </div>
         <div v-if="isScoreBoostActive" class="score-boost-overlay">
