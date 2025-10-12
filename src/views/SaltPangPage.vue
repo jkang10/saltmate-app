@@ -166,6 +166,16 @@
                 <div class="gem-special-effect"></div>
               </div>
             </transition>
+  <transition name="obstacle-fade">
+    <div v-if="cell && cell.obstacle === 'ice'" class="obstacle-overlay">
+      <img :src="`/gems/gem_ice_${cell.type}.png`" class="obstacle-image" alt="Ice">
+    </div>
+  </transition>
+  <transition name="obstacle-fade">
+    <div v-if="cell && cell.obstacle === 'chain'" class="obstacle-overlay">
+      <img :src="`/gems/gem_chain_${cell.type}.png`" class="obstacle-image" alt="Chain">
+    </div>
+  </transition>
           </div>
         </div>
         <div v-if="isScoreBoostActive" class="score-boost-overlay">
@@ -517,18 +527,35 @@ const createBoard = () => {
   let newBoard;
   do { 
     newBoard = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => {
-      if (Math.random() < 0.005) return 6;
-      return Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+      const type = Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
+      const gem = { type };
+
+      // 일정 확률로 장애물 추가 (클래식/랭킹 모드, 웨이브 3 이상 등 조건 추가 가능)
+      if (['classic', 'ranked'].includes(gameMode.value) && Math.random() < 0.15) {
+        gem.obstacle = Math.random() < 0.5 ? 'ice' : 'chain';
+      }
+      return gem;
     });
   } while (hasInitialMatches(newBoard)); 
   return newBoard;
 };
+// ▲▲▲
 
 const hasInitialMatches = (b) => {
-  for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+1]&&b[i]===b[i+2]) return true; }
-  for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { const i=r*BOARD_SIZE+c; if (b[i]&&b[i]===b[i+BOARD_SIZE]&&b[i]===b[i+2*BOARD_SIZE]) return true; }
+  // 장애물이 없는 셀만 검사하도록 수정
+  const isMatchable = (gem) => gem && !gem.obstacle;
+  
+  for (let r=0; r<BOARD_SIZE; r++) for (let c=0; c<BOARD_SIZE-2; c++) { 
+    const i=r*BOARD_SIZE+c; 
+    if (isMatchable(b[i]) && isMatchable(b[i+1]) && isMatchable(b[i+2]) && b[i].type===b[i+1].type&&b[i].type===b[i+2].type) return true;
+  }
+  for (let c=0; c<BOARD_SIZE; c++) for (let r=0; r<BOARD_SIZE-2; r++) { 
+    const i=r*BOARD_SIZE+c; 
+    if (isMatchable(b[i]) && isMatchable(b[i+BOARD_SIZE]) && isMatchable(b[i+2*BOARD_SIZE]) && b[i].type===b[i+BOARD_SIZE].type&&b[i].type===b[i+2*BOARD_SIZE].type) return true;
+  }
   return false;
 };
+// ▲▲▲
 
 const selectGameMode = (mode) => {
   if (mode === 'ranked' && !isRankedPlayable.value) {
@@ -723,6 +750,15 @@ const handleTouchEnd = () => {
 
 const swapAndCheck = async (index1, index2) => {
   if (isProcessing.value) return;
+  
+  const gem1 = board.value[index1];
+  const gem2 = board.value[index2];
+
+  // [수정] 얼음 블록은 움직일 수 없도록 방지
+  if (gem1?.obstacle === 'ice' || gem2?.obstacle === 'ice') {
+      return;
+  }
+
   isProcessing.value = true;
   selectedCell.value = null;
 
@@ -733,9 +769,6 @@ const swapAndCheck = async (index1, index2) => {
     }
     movesLeft.value--;
   }
-
-  const gem1 = board.value[index1];
-  const gem2 = board.value[index2];
 
   const r1 = Math.floor(index1 / BOARD_SIZE);
   const r2 = Math.floor(index2 / BOARD_SIZE);
@@ -754,11 +787,9 @@ const swapAndCheck = async (index1, index2) => {
     } else if (gem1?.special && gem2?.special) {
         await activateSpecialCombination(index1, index2);
     } else {
-        // [핵심 추가] 특수 보석 + 일반 보석 조합 시, 일반 매치 확인 로직도 실행
         const matches1 = findMatchesAt(index1);
         const matches2 = findMatchesAt(index2);
         if (matches1.size < 3 && matches2.size < 3) {
-            // 특수 보석을 움직였지만 아무 매치가 없을 경우
              const specialIndex = gem1?.special ? index1 : index2;
              await activateSpecialGems(new Set([specialIndex]));
         }
@@ -805,7 +836,46 @@ const processBoard = async () => {
 
 const checkAndClearMatches = async () => {
   const matches = findMatchesOnBoard();
-  if (matches.all.size === 0) return false;
+  
+  // [신규] 장애물 제거 로직
+  const obstaclesToClear = new Set();
+  matches.all.forEach(index => {
+    const r = Math.floor(index / BOARD_SIZE);
+    const c = index % BOARD_SIZE;
+    // 매치된 보석 주변의 장애물을 제거 대상으로 추가
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+          const adjIndex = nr * BOARD_SIZE + nc;
+          const adjGem = board.value[adjIndex];
+          if (adjGem?.obstacle) {
+            obstaclesToClear.add(adjIndex);
+          }
+        }
+      }
+    }
+  });
+
+  // 쇠사슬은 매치에 포함되면 바로 제거
+  matches.all.forEach(index => {
+    if (board.value[index]?.obstacle === 'chain') {
+      obstaclesToClear.add(index);
+    }
+  });
+
+  if (matches.all.size === 0 && obstaclesToClear.size === 0) return false;
+
+  // 장애물 제거
+  obstaclesToClear.forEach(index => {
+    if (board.value[index]) {
+      board.value[index].obstacle = null;
+    }
+  });
+  
+  if (matches.all.size === 0) return true; // 장애물만 제거된 경우
 
   playSound('match');
   currentCombo++;
@@ -1401,5 +1471,27 @@ onUnmounted(() => {
 @keyframes text-glow {
   from { text-shadow: 0 0 10px #ffd700, 0 0 20px #ffd700, 0 0 30px #f7971e; }
   to { text-shadow: 0 0 20px #ffd700, 0 0 30px #f7971e, 0 0 40px #f7971e; }
+}
+.obstacle-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* 클릭 방해하지 않도록 설정 */
+  z-index: 10;
+}
+.obstacle-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.obstacle-fade-enter-active,
+.obstacle-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.obstacle-fade-enter-from,
+.obstacle-fade-leave-to {
+  opacity: 0;
 }
 </style>
