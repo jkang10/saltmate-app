@@ -34,14 +34,14 @@
           </div>
         </div>
 
-        <div class="mine-area card">
-          <div class="mine-visual">
-            <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
-            <i v-else :class="currentPickaxeIcon"></i>
-          </div>
-          <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-          <button @click="mineSalt" class="mine-button">채굴하기</button>
-        </div>
+<div class="mine-area card">
+  <div class="mine-visual">
+    <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
+    <i v-else :class="currentPickaxeIcon"></i>
+  </div>
+  <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
+  <button @click="mineSalt" class="mine-button" :disabled="isMiningCooldown">채굴하기</button>
+</div>
 
         <div class="log-card card">
           <h3>이벤트 로그</h3>
@@ -280,6 +280,8 @@ const activeTab = ref('upgrades'), workshopLevel = ref(1), recipes = ref([]);
 const deepSeaState = reactive({ funds: 0, water: 0, research: 0, minerals: 0, plankton: 0, relics: 0 });
 const availableSkins = ref([]), ownedSkins = ref([]), equippedSkins = reactive({ pickaxe: null, background: null });
 const isDropdownOpen = ref(false);
+// ▼▼▼ [신규] 채굴 버튼 쿨다운 상태 변수 추가 ▼▼▼
+const isMiningCooldown = ref(false);
 let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
 // --- 헬퍼 함수 ---
@@ -483,12 +485,24 @@ const gameTick = () => {
 };
 
 const mineSalt = () => {
+  // 쿨다운 중이면 함수를 즉시 종료
+  if (isMiningCooldown.value) return;
+
+  // 쿨다운 시작
+  isMiningCooldown.value = true;
+
+  // 기존 채굴 로직 (그대로 유지)
   salt.value += boostedPerClick.value;
   totalClicks.value++;
   if (Math.random() < 0.01) {
     gold.value += 1;
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
   }
+
+  // 100ms (0.1초) 후에 쿨다운 해제
+  setTimeout(() => {
+    isMiningCooldown.value = false;
+  }, 100); 
 };
 
 const buyUpgrade = (itemId) => {
