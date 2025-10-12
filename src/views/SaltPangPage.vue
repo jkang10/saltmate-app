@@ -22,7 +22,22 @@
           </div>
         </div>
 
-        <h2 class="main-title">게임 설정</h2>
+        <div class="intro-section level-section">
+          <h3 class="section-title"><i class="fas fa-star"></i> 나의 솔트팡 레벨</h3>
+          <div class="level-display">
+            <span class="level-badge">Lv.{{ saltPangLevel }}</span>
+            <div class="xp-bar">
+              <div class="xp-fill" :style="{ width: `${(saltPangXp / (saltPangLevel * 1000)) * 100}%` }"></div>
+            </div>
+            <span class="xp-text">{{ saltPangXp.toLocaleString() }} / {{ (saltPangLevel * 1000).toLocaleString() }} XP</span>
+          </div>
+        </div>
+
+        <div v-if="currentEvent" class="intro-section event-section">
+          <h3 class="section-title"><i class="fas fa-bullhorn"></i> 진행중인 이벤트</h3>
+          <h4>{{ currentEvent.eventName }}</h4>
+          <p>이벤트 기간 동안 특별 보너스가 적용됩니다!</p>
+        </div>
         
         <div class="intro-section mission-section">
           <h3 class="section-title"><i class="fas fa-tasks"></i> 오늘의 미션</h3>
@@ -86,30 +101,20 @@
 
         <div class="intro-section item-section">
            <h3 class="section-title"><i class="fas fa-shopping-cart"></i> 아이템 상점</h3>
-<div class="item-shop">
-  <div v-for="item in items" :key="item.id" class="item" 
-       :class="{ purchased: purchasedItems.has(item.id) }" 
-       @click="toggleItemSelection(item.id)">
-    <input type="checkbox" :checked="purchasedItems.has(item.id)" class="item-checkbox" @click.stop>
-    <div class="item-icon">{{ item.icon }}</div>
-    <div class="item-info">
-<div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
-  <span v-if="purchasedItems.has(item.id)">
-    ✓ 쿠폰 사용됨 ({{ getCouponCount(item.id) - 1 }}개 남음)
-  </span>
-  <span v-else>
-    쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)
-  </span>
-</div>
-<div class="item-cost" v-else>{{ item.cost }} SP</div>
-      <div class="item-name">{{ item.name }}</div>
-    </div>
-    <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
-  </div>
-</div>	
-          <p v-if="gameMode === 'timeAttack'" class="item-notice">
-            아이템을 클릭하면 잠시 후 녹색 체크(✓)가 표시됩니다.
-          </p>
+            <div class="item-shop">
+              <div v-for="item in items" :key="item.id" class="item" :class="{ purchased: purchasedItems.has(item.id) }" @click="toggleItemSelection(item.id)">
+                <div class="item-icon">{{ item.icon }}</div>
+                <div class="item-info">
+                  <div class="item-name">{{ item.name }}</div>
+                  <div class="item-cost coupon" v-if="getCouponCount(item.id) > 0">
+                    <span v-if="purchasedItems.has(item.id)">✓ 쿠폰 사용됨 ({{ getCouponCount(item.id) - 1 }}개 남음)</span>
+                    <span v-else>쿠폰 사용 ({{ getCouponCount(item.id) }}개 보유)</span>
+                  </div>
+                  <div class="item-cost" v-else>{{ item.cost }} SP</div>
+                </div>
+                <div v-if="purchasedItems.has(item.id)" class="purchased-badge">✓</div>
+              </div>
+            </div>	
         </div>
 
         <div class="start-info">
@@ -117,10 +122,10 @@
             <p>입장료</p>
             <strong>{{ currentEntryFee }} SaltMate</strong>
           </div>
-	<button @click="startGame" class="game-button" :disabled="isStarting">
-	  <span v-if="isStarting">입장 중...</span>
-	  <span v-else>GAME START</span>
-	</button>
+          <button @click="startGame" class="game-button" :disabled="isStarting">
+            <span v-if="isStarting">입장 중...</span>
+            <span v-else>GAME START</span>
+          </button>
         </div>
       </div>
 
@@ -133,54 +138,52 @@
           </button>
           <div class="stat-item">점수: <strong>{{ score.toLocaleString() }}</strong></div>
         </div>
-        <div
-          class="game-board"
-          :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }"
-        >
-          <div
-            v-for="(cell, index) in board"
-            :key="index"
-            class="cell"
-            :class="{ selected: selectedCell === index }"
-            
-            @mousedown="handleCellInteraction(index, 'down')"
-            @mouseup="handleCellInteraction(index, 'up')"
-            @mouseenter="handleCellInteraction(index, 'enter')"
-            @dragstart.prevent
-
-            @touchstart.prevent="handleTouchStart(index, $event)"
-            @touchmove="handleTouchMove($event)"
-            @touchend="handleTouchEnd()"
-          >
-            <transition name="gem-fall">
-              <div v-if="cell !== null" class="gem-image-wrapper" :class="getSpecialGemClass(cell)">
-                <img
-                  :src="getGemImage(cell)"
-                  class="gem-image"
-                  :class="{ 
-                    'clearing': explodingGems.has(index),
-                    'special-clear': explodingGems.has(index) && explodingGems.size >= 4
-                  }"
-                  alt="Gem"
-                />
-                <div class="gem-special-effect"></div>
-              </div>
-            </transition>
-<transition name="obstacle-fade">
-  <div v-if="cell && cell.obstacle === 'ice'" class="obstacle-overlay">
-    <img :src="`/game_assets/gems/gem_ice_${cell.type}.png`" class="obstacle-image" alt="Ice">
-  </div>
-</transition>
-<transition name="obstacle-fade">
-  <div v-if="cell && cell.obstacle === 'chain'" class="obstacle-overlay">
-    <img :src="`/game_assets/gems/gem_chain_${cell.type}.png`" class="obstacle-image" alt="Chain">
-  </div>
-</transition>
+        <div class="game-board-wrapper">
+          <div class="game-board" :style="{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }">
+            <div
+              v-for="(cell, index) in board"
+              :key="index"
+              class="cell"
+              :class="{ selected: selectedCell === index }"
+              @click="activeBooster === 'hammer' ? onCellClickWithHammer(index) : handleCellInteraction(index, 'click')"
+              @mousedown="handleCellInteraction(index, 'down')"
+              @mouseup="handleCellInteraction(index, 'up')"
+              @mouseenter="handleCellInteraction(index, 'enter')"
+              @dragstart.prevent
+              @touchstart.prevent="handleTouchStart(index, $event)"
+              @touchmove="handleTouchMove($event)"
+              @touchend="handleTouchEnd()"
+            >
+              <transition name="gem-fall">
+                <div v-if="cell !== null" class="gem-image-wrapper" :class="getSpecialGemClass(cell)">
+                  <img :src="getGemImage(cell)" class="gem-image" :class="{ 'clearing': explodingGems.has(index) }" alt="Gem" />
+                  <div class="gem-special-effect"></div>
+                </div>
+              </transition>
+              <transition name="obstacle-fade">
+                <div v-if="cell && cell.obstacle === 'ice'" class="obstacle-overlay">
+                  <img :src="`/game_assets/gems/gem_ice_${cell.type}.png`" class="obstacle-image" alt="Ice">
+                </div>
+              </transition>
+              <transition name="obstacle-fade">
+                <div v-if="cell && cell.obstacle === 'chain'" class="obstacle-overlay">
+                  <img :src="`/game_assets/gems/gem_chain_${cell.type}.png`" class="obstacle-image" alt="Chain">
+                </div>
+              </transition>
+            </div>
+          </div>
+          <div class="ingame-boosters">
+            <button @click="useBooster('hammer')" :disabled="boosters.hammer < 1 || isProcessing" class="booster-btn" :class="{ active: activeBooster === 'hammer' }">
+              <i class="fas fa-hammer"></i>
+              <span>{{ boosters.hammer }}</span>
+            </button>
+            <button @click="useBooster('shuffle')" :disabled="boosters.shuffle < 1 || isProcessing" class="booster-btn">
+              <i class="fas fa-random"></i>
+              <span>{{ boosters.shuffle }}</span>
+            </button>
           </div>
         </div>
-        <div v-if="isScoreBoostActive" class="score-boost-overlay">
-          SCORE x2!
-        </div>
+        <div v-if="isScoreBoostActive" class="score-boost-overlay">SCORE x2!</div>
       </div>
       
       <div v-if="gameState === 'ended'" class="game-overlay">
@@ -205,201 +208,52 @@
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";import soundMatch from '@/assets/sounds/match.mp3';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
 
-// --- 기본 설정 ---
-const BOARD_SIZE = 8;
-const NUM_GEM_TYPES = 5;
-const CLASSIC_DURATION = 60;
-const TIME_ATTACK_DURATION = 30;
-const INFINITE_MODE_MOVES = 30;
-
-// --- 상태 변수 ---
-const jackpotAmount = ref(0);
-const gameState = ref('ready');
-const gameMode = ref('classic');
-const board = ref([]);
-const score = ref(0);
-const timer = ref(CLASSIC_DURATION);
-const movesLeft = ref(INFINITE_MODE_MOVES);
-const selectedCell = ref(null);
-const isProcessing = ref(false);
-const isStarting = ref(false);
-const error = ref('');
-const awardedPoints = ref(0);
-const explodingGems = ref(new Set()); 
-const playCount = reactive({ classic: 0, timeAttack: 0 });
-const jackpotEffect = reactive({ active: false, amount: 0 });
-
-// [신규] 보유한 아이템 쿠폰을 저장할 변수
-const itemCoupons = reactive({
-  SALTPANG_TIME_PLUS_5: 0,
-  SALTPANG_SCORE_X2_10S: 0,
-});
-
-// 아이템 관련 상태
+const BOARD_SIZE = 8, NUM_GEM_TYPES = 5, CLASSIC_DURATION = 60, TIME_ATTACK_DURATION = 30, INFINITE_MODE_MOVES = 30;
+const jackpotAmount = ref(0), gameState = ref('ready'), gameMode = ref('classic'), board = ref([]);
+const score = ref(0), timer = ref(CLASSIC_DURATION), movesLeft = ref(INFINITE_MODE_MOVES);
+const selectedCell = ref(null), isProcessing = ref(false), isStarting = ref(false), error = ref('');
+const awardedPoints = ref(0), explodingGems = ref(new Set()), playCount = reactive({ classic: 0, timeAttack: 0 });
+const jackpotEffect = reactive({ active: false, amount: 0 }), saltPangLevel = ref(1), saltPangXp = ref(0);
+const itemCoupons = reactive({ SALTPANG_TIME_PLUS_5: 0, SALTPANG_SCORE_X2_10S: 0 });
 const items = ref([
   { id: 'time_plus_5', name: '+5초 시간 추가', cost: 150, icon: '⏱️' },
   { id: 'score_x2_10s', name: '10초간 점수 2배', cost: 300, icon: '🚀' },
 ]);
-const purchasedItems = ref(new Set());
-const isScoreBoostActive = ref(false);
-
-// 미션 관련 상태
-const missions = reactive({ daily: [], weekly: [] });
-const gameStats = reactive({
-  gemsMatched: {},
-  maxCombo: 0,
-  jackpotGemsMatched: 0,
-  playCount: 0,
-});
+const purchasedItems = ref(new Set()), isScoreBoostActive = ref(false), missions = reactive({ daily: [], weekly: [] });
+const gameStats = reactive({ gemsMatched: {}, maxCombo: 0, jackpotGemsMatched: 0, playCount: 0 });
 let currentCombo = 0;
-
-// 모바일 스와이프 관련 상태
-const touchStart = reactive({ index: null, x: 0, y: 0 });
-const hasSwiped = ref(false);
-
-// PC 드래그 상태
-const isDragging = ref(false);
-const mouseDownIndex = ref(null);
-const preventClick = ref(false);
-
-// 오디오 관련
+const touchStart = reactive({ index: null, x: 0, y: 0 }), hasSwiped = ref(false);
+const isDragging = ref(false), mouseDownIndex = ref(null), preventClick = ref(false);
 let audioContextStarted = false;
-const isMuted = ref(false);
-const sounds = {
-  match: new Audio(soundMatch),
-  background: new Audio(soundBgm),
-  countdownTick: null,
-  countdownEnd: null,
-};
+const isMuted = ref(false), sounds = { match: new Audio(soundMatch), background: new Audio(soundBgm) };
 sounds.background.loop = true;
 sounds.background.volume = 0.3;
+let timerInterval = null, sessionId = null, scoreBoostTimeout = null, lastMoveDirection = 'h';
+const boosters = reactive({ hammer: 0, shuffle: 0 }), activeBooster = ref(null), currentEvent = ref(null);
 
-// 내부 변수
-let timerInterval = null;
-let sessionId = null;
-let scoreBoostTimeout = null;
-let lastMoveDirection = 'h';
-
-// --- 계산된 속성 ---
-const isRankedPlayable = computed(() => {
-  const today = new Date();
-  const day = today.getDay();
-  return day === 0 || day === 6;
-});
-
-// ▼▼▼ 이 computed 속성 전체를 추가해주세요 ▼▼▼
+const isRankedPlayable = computed(() => { const day = new Date().getDay(); return day === 0 || day === 6; });
 const currentEntryFee = computed(() => {
   let baseFee = 0;
-  // 1. 게임 모드에 따른 기본 입장료를 계산합니다. (index.js 서버 로직과 동일)
   switch (gameMode.value) {
-    case 'classic':
-      if (playCount.classic >= 30) baseFee = 300;
-      else if (playCount.classic >= 15) baseFee = 200;
-      else baseFee = 100;
-      break;
-    case 'timeAttack':
-      // 서버에서는 config 값을 참조하지만, 클라이언트에서는 우선 하드코딩합니다.
-      // (Tier 1: 10회 기준)
-      if (playCount.timeAttack >= 10) baseFee = 800;
-      else baseFee = 400;
-      break;
-    case 'infinite':
-      baseFee = 300;
-      break;
-    case 'ranked':
-      baseFee = 500;
-      break;
+    case 'classic': baseFee = playCount.classic >= 30 ? 300 : playCount.classic >= 15 ? 200 : 100; break;
+    case 'timeAttack': baseFee = playCount.timeAttack >= 10 ? 800 : 400; break;
+    case 'infinite': baseFee = 300; break;
+    case 'ranked': baseFee = 500; break;
   }
-
   let itemsCost = 0;
-  // 2. 선택된 아이템들의 비용을 계산합니다.
   purchasedItems.value.forEach(itemId => {
-    // 3. 해당 아이템의 쿠폰을 보유하고 있는지 확인합니다.
-    if (getCouponCount(itemId) > 0) {
-      // 쿠폰이 있으면 해당 아이템의 비용은 0입니다.
-      itemsCost += 0;
-    } else {
-      // 쿠폰이 없으면 원래 아이템 가격을 더합니다.
+    if (getCouponCount(itemId) <= 0) {
       const item = items.value.find(i => i.id === itemId);
-      if (item) {
-        itemsCost += item.cost;
-      }
+      if (item) itemsCost += item.cost;
     }
   });
-
   return baseFee + itemsCost;
 });
 
-// --- 함수 ---
-const handleCellInteraction = (index, eventType) => {
-  if (isProcessing.value || gameState.value !== 'playing') return;
-  initAudioContext();
-
-  const clickedGem = board.value[index];
-
-  if (eventType === 'down') {
-    mouseDownIndex.value = index;
-    isDragging.value = true;
-    preventClick.value = false;
-    if (clickedGem?.special === 'rainbow') {
-      selectedCell.value = index;
-      return;
-    }
-  } 
-  else if (eventType === 'up') {
-    if (preventClick.value) {
-      isDragging.value = false;
-      mouseDownIndex.value = null;
-      return;
-    }
-    
-    isDragging.value = false;
-    mouseDownIndex.value = null;
-
-    if (selectedCell.value === index) {
-      selectedCell.value = null;
-      return;
-    }
-
-    if (selectedCell.value !== null) {
-      const r1 = Math.floor(selectedCell.value / BOARD_SIZE);
-      const c1 = selectedCell.value % BOARD_SIZE;
-      const r2 = Math.floor(index / BOARD_SIZE);
-      const c2 = index % BOARD_SIZE;
-      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
-        swapAndCheck(selectedCell.value, index);
-      } else {
-        selectedCell.value = index;
-      }
-    } else {
-      selectedCell.value = index;
-    }
-  } 
-  else if (eventType === 'enter') {
-    if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
-
-    preventClick.value = true; 
-    const index1 = mouseDownIndex.value;
-    const index2 = index;
-
-    isDragging.value = false;
-    mouseDownIndex.value = null;
-
-    const r1 = Math.floor(index1 / BOARD_SIZE);
-    const c1 = index1 % BOARD_SIZE;
-    const r2 = Math.floor(index2 / BOARD_SIZE);
-    const c2 = index2 % BOARD_SIZE;
-    
-    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
-      swapAndCheck(index1, index2);
-    }
-  }
-};
-
-// ▼▼▼ 이 함수 전체를 추가해주세요 ▼▼▼
 const getCouponCount = (itemId) => {
   const couponType = itemId === 'time_plus_5' ? 'SALTPANG_TIME_PLUS_5' : 'SALTPANG_SCORE_X2_10S';
   return itemCoupons[couponType] || 0;
@@ -433,18 +287,16 @@ const getGemImage = (gem) => {
   try {
     const type = typeof gem === 'object' ? gem.type : gem;
     return require(`@/assets/gems/gem_${type}.png`);
-  } catch (e) {
-    return require(`@/assets/logo.png`); 
-  }
+  } catch (e) { return require(`@/assets/logo.png`); }
 };
 
 const getSpecialGemClass = (gem) => {
-    if(typeof gem !== 'object' || !gem.special) return '';
-    if(gem.special === 'striped-h') return 'striped-h';
-    if(gem.special === 'striped-v') return 'striped-v';
-    if(gem.special === 'bomb') return 'bomb';
-    if(gem.special === 'rainbow') return 'rainbow';
-    return '';
+  if(typeof gem !== 'object' || !gem.special) return '';
+  if(gem.special === 'striped-h') return 'striped-h';
+  if(gem.special === 'striped-v') return 'striped-v';
+  if(gem.special === 'bomb') return 'bomb';
+  if(gem.special === 'rainbow') return 'rainbow';
+  return '';
 };
 
 const triggerJackpotEffect = (amount) => {
@@ -554,7 +406,6 @@ const hasInitialMatches = (b) => {
   }
   return false;
 };
-// ▲▲▲
 
 const selectGameMode = (mode) => {
   if (mode === 'ranked' && !isRankedPlayable.value) {
@@ -1211,14 +1062,6 @@ const listenToJackpot = () => {
   });
 };
 
-// [수정] onMounted, resetGame 함수에 쿠폰 정보 로딩 함수 호출 추가
-onMounted(() => {
-  fetchPlayCount();
-  fetchMissions();
-  listenToJackpot();
-  fetchItemCoupons(); // 추가
-});
-
 const resetGame = async () => {
   gameState.value = 'ready';
   sessionId = null;
@@ -1229,6 +1072,142 @@ const resetGame = async () => {
   await fetchMissions();
   // await fetchItemCoupons(); // 이 줄을 삭제 또는 주석 처리
 };
+
+const handleCellInteraction = (index, eventType) => {
+  if (isProcessing.value || gameState.value !== 'playing') return;
+  initAudioContext();
+
+  const clickedGem = board.value[index];
+
+  if (eventType === 'down') {
+    mouseDownIndex.value = index;
+    isDragging.value = true;
+    preventClick.value = false;
+    if (clickedGem?.special === 'rainbow') {
+      selectedCell.value = index;
+      return;
+    }
+  } 
+  else if (eventType === 'up') {
+    if (preventClick.value) {
+      isDragging.value = false;
+      mouseDownIndex.value = null;
+      return;
+    }
+    
+    isDragging.value = false;
+    mouseDownIndex.value = null;
+
+    if (selectedCell.value === index) {
+      selectedCell.value = null;
+      return;
+    }
+
+    if (selectedCell.value !== null) {
+      const r1 = Math.floor(selectedCell.value / BOARD_SIZE);
+      const c1 = selectedCell.value % BOARD_SIZE;
+      const r2 = Math.floor(index / BOARD_SIZE);
+      const c2 = index % BOARD_SIZE;
+      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+        swapAndCheck(selectedCell.value, index);
+      } else {
+        selectedCell.value = index;
+      }
+    } else {
+      selectedCell.value = index;
+    }
+  } 
+  else if (eventType === 'enter') {
+    if (!isDragging.value || mouseDownIndex.value === null || mouseDownIndex.value === index) return;
+
+    preventClick.value = true; 
+    const index1 = mouseDownIndex.value;
+    const index2 = index;
+
+    isDragging.value = false;
+    mouseDownIndex.value = null;
+
+    const r1 = Math.floor(index1 / BOARD_SIZE);
+    const c1 = index1 % BOARD_SIZE;
+    const r2 = Math.floor(index2 / BOARD_SIZE);
+    const c2 = index2 % BOARD_SIZE;
+    
+    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+      swapAndCheck(index1, index2);
+    }
+  }
+};
+
+const useBooster = async (boosterType) => {
+  if (boosters[boosterType] < 1 || isProcessing.value) return;
+  
+  if (boosterType === 'hammer') {
+    activeBooster.value = 'hammer';
+  } else if (boosterType === 'shuffle') {
+    isProcessing.value = true;
+    try {
+      const useFunc = httpsCallable(functions, 'useSaltPangBooster');
+      await useFunc({ boosterType });
+      boosters.shuffle--;
+      shuffleBoard();
+    } catch (error) { alert(`오류: ${error.message}`); }
+    finally { isProcessing.value = false; }
+  }
+};
+
+const shuffleBoard = () => {
+  const gemsToShuffle = board.value.map((gem, index) => ({ gem, index })).filter(item => item.gem && !item.gem.obstacle);
+  const gemItems = gemsToShuffle.map(item => item.gem);
+  for (let i = gemItems.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [gemItems[i], gemItems[j]] = [gemItems[j], gemItems[i]];
+  }
+  gemsToShuffle.forEach((item, i) => { board.value[item.index] = gemItems[i]; });
+};
+
+const onCellClickWithHammer = async (index) => {
+  if (isProcessing.value) return;
+  isProcessing.value = true;
+  try {
+    const useFunc = httpsCallable(functions, 'useSaltPangBooster');
+    await useFunc({ boosterType: 'hammer' });
+    boosters.hammer--;
+    await clearGems(new Set([index]));
+    await processBoard();
+  } catch (error) { alert(`오류: ${error.message}`); }
+  finally {
+    activeBooster.value = null;
+    isProcessing.value = false;
+  }
+};
+
+onMounted(() => {
+  listenToJackpot();
+  fetchPlayCount();
+  fetchMissions();
+  fetchItemCoupons();
+
+  const eventRef = doc(db, "configuration", "saltPangEvent");
+  onSnapshot(eventRef, (docSnap) => {
+    if (docSnap.exists() && docSnap.data().isActive && docSnap.data().endDate.toDate() > new Date()) {
+      currentEvent.value = docSnap.data();
+    } else {
+      currentEvent.value = null;
+    }
+  });
+
+  if(auth.currentUser) {
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    onSnapshot(userRef, (docSnap) => {
+      if(docSnap.exists()){
+        const userData = docSnap.data();
+        saltPangLevel.value = userData.saltPangLevel || 1;
+        saltPangXp.value = userData.saltPangXp || 0;
+        Object.assign(boosters, userData.saltPangBoosters || { hammer: 0, shuffle: 0 });
+      }
+    });
+  }
+});
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
@@ -1493,4 +1472,24 @@ onUnmounted(() => {
 .obstacle-fade-leave-to {
   opacity: 0;
 }
+.level-section { text-align: center; }
+.level-display { display: flex; align-items: center; gap: 15px; }
+.level-badge { font-weight: bold; font-size: 1.2em; background-color: #007bff; color: white; padding: 5px 10px; border-radius: 15px; }
+.xp-bar { flex-grow: 1; height: 12px; background-color: #e9ecef; border-radius: 6px; overflow: hidden; }
+.xp-fill { height: 100%; background: linear-gradient(90deg, #ffd700, #fca5f1); transition: width 0.5s ease; }
+.xp-text { font-size: 0.9em; font-weight: 500; }
+
+.game-board-wrapper { display: flex; align-items: flex-start; gap: 10px; }
+.ingame-boosters { display: flex; flex-direction: column; gap: 10px; }
+.booster-btn {
+  width: 50px; height: 50px; border: 2px solid #ccc; border-radius: 8px;
+  background-color: #f8f9fa; font-size: 1.5em; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.booster-btn span { font-size: 0.7em; font-weight: bold; }
+.booster-btn.active { border-color: #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+.booster-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.event-section { background-color: #fff3cd; border: 1px solid #ffeeba; text-align: center; }
+.event-section h4 { color: #856404; }
 </style>
