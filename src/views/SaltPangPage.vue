@@ -530,8 +530,8 @@ const createBoard = () => {
       const type = Math.floor(Math.random() * NUM_GEM_TYPES) + 1;
       const gem = { type };
 
-      // 일정 확률로 장애물 추가 (클래식/랭킹 모드, 웨이브 3 이상 등 조건 추가 가능)
-      if (['classic', 'ranked'].includes(gameMode.value) && Math.random() < 0.15) {
+      // [수정] 모든 게임 모드에서 장애물이 나타나도록 조건 변경
+      if (Math.random() < 0.15) {
         gem.obstacle = Math.random() < 0.5 ? 'ice' : 'chain';
       }
       return gem;
@@ -539,7 +539,6 @@ const createBoard = () => {
   } while (hasInitialMatches(newBoard)); 
   return newBoard;
 };
-// ▲▲▲
 
 const hasInitialMatches = (b) => {
   // 장애물이 없는 셀만 검사하도록 수정
