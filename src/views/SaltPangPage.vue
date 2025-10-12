@@ -207,7 +207,7 @@
 <script setup>
 import { ref, onUnmounted, onMounted, computed, reactive } from 'vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db, auth } from "@/firebaseConfig";
+import { db, auth, functions } from "@/firebaseConfig";
 import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 import soundMatch from '@/assets/sounds/match.mp3';
 import soundBgm from '@/assets/sounds/bgm.mp3';
