@@ -27,14 +27,16 @@ import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 const isLoading = ref(true);
 const rankings = ref([]);
 
-// ▼▼▼ [핵심 수정] '지난주'의 weekId를 계산하는 로직으로 변경 ▼▼▼
+// ▼▼▼ [핵심 수정] '지난주'의 weekId를 더 안정적으로 계산하는 로직으로 변경 ▼▼▼
 const lastWeekId = computed(() => {
-  const today = new Date();
-  const lastMonday = new Date(today);
-  // 오늘 날짜에서 (오늘 요일 + 6)일을 빼서 지난주 월요일을 계산합니다.
-  // 예: 월요일(1) -> 13 - (1+6) = 6일 -> 6일 전인 지난주 월요일
-  // 예: 일요일(0) -> 12 - (0+6) = 6일 -> 6일 전인 지난주 월요일
-  lastMonday.setDate(today.getDate() - (today.getDay() + 6) % 7);
+  const now = new Date();
+  // 오늘이 월요일이든 아니든, 어제로 날짜를 돌리면 항상 '지난주'에 속하게 됨
+  const yesterday = new Date(now.setDate(now.getDate() - 1));
+  const dayOfWeek = yesterday.getDay(); // 0=일, 1=월, ..., 6=토
+  // 해당 주의 월요일을 계산
+  const diff = yesterday.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+  const lastMonday = new Date(yesterday.setDate(diff));
+  
   return lastMonday.toISOString().slice(0, 10);
 });
 // ▲▲▲
