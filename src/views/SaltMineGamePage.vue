@@ -155,11 +155,17 @@
           <div class="skins-section">
             <h4><i class="fas fa-hammer"></i> 곡괭이 스킨</h4>
             <div class="skins-grid">
-              <div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
-                <div class="skin-preview">
-                  <img :src="skin.imageUrl" :alt="skin.name" class="skin-image">
-                </div>
-                <div class="skin-name">{{ skin.name }}</div>
+	<div v-for="skin in skinShopItems.pickaxe" :key="skin.id" class="skin-item" :class="{ equipped: skin.status === 'equipped' }">
+	  <div class="skin-preview">
+	    <img :src="skin.imageUrl" :alt="skin.name" class="skin-image">
+	  </div>
+	  <div class="skin-name">{{ skin.name }}</div>
+
+	  <div v-if="skin.bonus" class="skin-bonus-info">
+	    <small v-if="skin.bonus.perClickPercent">+클릭 채굴량 {{ skin.bonus.perClickPercent }}%</small>
+	    <small v-if="skin.bonus.perSecondPercent">+자동 채굴량 {{ skin.bonus.perSecondPercent }}%</small>
+	    <small v-if="skin.bonus.goldChancePercent">+황금소금 확률 {{ skin.bonus.goldChancePercent }}%</small>
+	  </div>
                 <div class="skin-status">
                   <button v-if="skin.status === 'equipped'" class="skin-btn" disabled>
                     <i class="fas fa-check"></i> 장착 중
@@ -299,10 +305,30 @@ const activeTabName = computed(() => {
   return '';
 });
 
+// [신규] 장착된 스킨의 보너스 효과를 계산하는 computed 속성
+const skinBonus = computed(() => {
+  const bonus = { perClickPercent: 0, perSecondPercent: 0, goldChancePercent: 0 };
+  const equippedPickaxe = availableSkins.value.find(s => s.id === equippedSkins.pickaxe);
+  if (equippedPickaxe && equippedPickaxe.bonus) {
+    Object.assign(bonus, equippedPickaxe.bonus);
+  }
+  return bonus;
+});
+
 const prestigeBonus = computed(() => 1 + (prestigeLevel.value * 0.1));
 const isBoostActive = computed(() => activeBoost.value && activeBoost.value.expiresAt.toDate() > new Date());
-const boostedPerClick = computed(() => perClick.value * (isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1) * prestigeBonus.value);
-const boostedPerSecond = computed(() => perSecond.value * (isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1) * prestigeBonus.value);
+// [수정] boostedPerClick과 boostedPerSecond 계산식에 스킨 보너스 추가
+const boostedPerClick = computed(() => {
+  const base = perClick.value * (1 + skinBonus.value.perClickPercent / 100);
+  const boostMultiplier = isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1;
+  return base * boostMultiplier * prestigeBonus.value;
+});
+
+const boostedPerSecond = computed(() => {
+  const base = perSecond.value * (1 + skinBonus.value.perSecondPercent / 100);
+  const boostMultiplier = isBoostActive.value ? (1 + activeBoost.value.percentage / 100) : 1;
+  return base * boostMultiplier * prestigeBonus.value;
+});
 
 const SHOP_DEFS = [
   { id: "miner", name: "자동 채굴기", baseCost: 50, gps: 1, desc: "초당 +1 소금", icon: "fas fa-cogs" },
@@ -484,25 +510,22 @@ const gameTick = () => {
   }
 };
 
+// [수정] mineSalt 함수에서 황금 소금 발견 확률에 보너스 추가
 const mineSalt = () => {
-  // 쿨다운 중이면 함수를 즉시 종료
   if (isMiningCooldown.value) return;
-
-  // 쿨다운 시작
   isMiningCooldown.value = true;
 
-  // 기존 채굴 로직 (그대로 유지)
   salt.value += boostedPerClick.value;
   totalClicks.value++;
-  if (Math.random() < 0.01) {
+  
+  // 기본 확률 1% + 스킨 보너스 확률
+  const goldFindChance = 0.01 + (skinBonus.value.goldChancePercent / 100);
+  if (Math.random() < goldFindChance) {
     gold.value += 1;
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
   }
 
-  // 100ms (0.1초) 후에 쿨다운 해제
-  setTimeout(() => {
-    isMiningCooldown.value = false;
-  }, 100); 
+  setTimeout(() => { isMiningCooldown.value = false; }, 100); 
 };
 
 const buyUpgrade = (itemId) => {
@@ -821,5 +844,16 @@ onUnmounted(() => {
 
 @media (min-width: 901px) {
   .sidebar-tabs.mobile-dropdown { display: none; }
+}
+.skin-bonus-info {
+  font-size: 0.8em;
+  color: #007bff;
+  font-weight: bold;
+  text-align: center;
+  padding: 5px 0;
+  min-height: 30px; /* 공간 확보 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 </style>
