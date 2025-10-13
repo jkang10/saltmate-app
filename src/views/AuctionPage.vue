@@ -72,13 +72,16 @@ let unsubscribe = null;
 let countdownInterval = null;
 
 const getWeekId = () => {
-    const now = new Date();
-    const kstOffset = 9 * 60 * 60 * 1000;
-    const kstNow = new Date(now.getTime() + kstOffset);
-    const dayOfWeek = kstNow.getUTCDay();
-    const monday = new Date(kstNow);
-    monday.setUTCDate(kstNow.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    return monday.toISOString().slice(0,10);
+  const now = new Date();
+  // KST는 UTC+9
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  // getUTCDay()를 사용. 0=일, 1=월...
+  const dayOfWeek = kstNow.getUTCDay();
+  // 월요일까지 며칠을 빼야 하는지 계산 (일요일은 6일 전, 화요일은 1일 전)
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(kstNow);
+  monday.setUTCDate(kstNow.getUTCDate() + diff);
+  return monday.toISOString().slice(0, 10);
 };
 
 const isAuctionActive = computed(() => {
