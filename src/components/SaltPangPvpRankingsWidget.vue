@@ -1,110 +1,109 @@
 <template>
-  <div class="pvp-rankings-widget feature-card">
+  <div class="widget-card pvp-rank-widget">
     <div class="widget-header">
-      <div class="card-icon"><i class="fas fa-fist-raised"></i></div>
-      <h3>주간 대전 랭킹 TOP 7</h3>
+      <h4><i class="fas fa-fist-raised"></i> 주간 대전 랭킹 TOP 7</h4>
     </div>
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner-small"></div>
-    </div>
-    <ul v-else-if="rankings.length > 0" class="ranking-list">
-      <li
-        v-for="(player, index) in rankings"
-        :key="player.userId"
-        :class="['rank-' + (index + 1)]"
-      >
-        <div class="rank-badge">
-          <i v-if="index === 0" class="fas fa-crown"></i>
-          <span v-else>{{ index + 1 }}</span>
-        </div>
-        <span class="player-name">{{ player.userName }}</span>
-        <span class="player-score">{{ player.wins.toLocaleString() }}승</span>
-      </li>
-    </ul>
-    <div v-else class="no-data">
-      지난 주 랭킹이 없습니다.
+    <div class="widget-body">
+      <div v-if="isLoading" class="loading-spinner"></div>
+      <ul v-else-if="rankings.length > 0" class="ranking-list">
+        <li v-for="(player, index) in rankings" :key="player.userId" :class="['rank-item', 'rank-' + (index + 1)]">
+          <span class="rank">{{ index + 1 }}</span>
+          <span class="name">{{ player.userName }}</span>
+          <span class="wins">{{ player.wins }}승</span>
+        </li>
+      </ul>
+      <div v-else class="no-data">
+        <p>지난주 랭킹 데이터가 없습니다.</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { db } from '@/firebaseConfig';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
-const rankings = ref([]);
 const isLoading = ref(true);
+const rankings = ref([]);
 
-const fetchPvpRankings = async () => {
+// ▼▼▼ [핵심 수정] '지난주'의 weekId를 계산하는 로직으로 변경 ▼▼▼
+const lastWeekId = computed(() => {
+  const today = new Date();
+  const lastMonday = new Date(today);
+  // 오늘 날짜에서 (오늘 요일 + 6)일을 빼서 지난주 월요일을 계산합니다.
+  // 예: 월요일(1) -> 13 - (1+6) = 6일 -> 6일 전인 지난주 월요일
+  // 예: 일요일(0) -> 12 - (0+6) = 6일 -> 6일 전인 지난주 월요일
+  lastMonday.setDate(today.getDate() - (today.getDay() + 6) % 7);
+  return lastMonday.toISOString().slice(0, 10);
+});
+// ▲▲▲
+
+const fetchRankings = async () => {
+  isLoading.value = true;
   try {
-    // [최종 핵심 수정] 한국 표준시(KST)를 기준으로 지난주를 정확히 계산하는 로직
-    const now = new Date();
-    const kstOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
-    const kstNow = new Date(now.getTime() + kstOffset);
-    
-    // 1. KST 기준 오늘 날짜에서 7일을 뺍니다.
-    const kstLastWeek = new Date(kstNow.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    // 2. KST 기준 지난주의 요일을 가져옵니다. (0=일, 1=월, ...)
-    const dayOfWeek = kstLastWeek.getUTCDay();
-    
-    // 3. KST 기준 지난주 월요일의 날짜를 계산합니다.
-    const kstLastMonday = new Date(kstLastWeek.getTime());
-    kstLastMonday.setUTCDate(kstLastMonday.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    
-    const lastWeekId = kstLastMonday.toISOString().slice(0, 10);
-
-	const q = query(
-	  collection(db, `leaderboards/pvp_weekly_wins/${lastWeekId}`),
-	  orderBy("rank", "asc"),
-	  limit(7)
-	);
+    const q = query(
+      collection(db, `leaderboards/pvp_weekly_wins/${lastWeekId.value}`),
+      orderBy("rank", "asc"),
+      limit(7)
+    );
     const snapshot = await getDocs(q);
     rankings.value = snapshot.docs.map(doc => doc.data());
   } catch (error) {
-    console.error("주간 대전 랭킹 로딩 오류:", error);
+    console.error("주간 대전 랭킹 로딩 실패:", error);
   } finally {
     isLoading.value = false;
   }
 };
 
-onMounted(fetchPvpRankings);
+onMounted(fetchRankings);
 </script>
 
 <style scoped>
-.pvp-rankings-widget {
-  background: linear-gradient(135deg, #485461, #28313b) !important;
-  color: #ecf0f1;
+.widget-card {
+  background: linear-gradient(135deg, #485461 0%, #28313b 100%);
+  color: #fff;
+  border-radius: 15px;
   padding: 20px;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
 }
-.widget-header {
-  display: flex; align-items: center; gap: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding-bottom: 15px; margin-bottom: 15px;
+.widget-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
-.widget-header .card-icon { font-size: 1.8em; color: #e74c3c; }
-.widget-header h3 { font-size: 1.4em; margin: 0; color: #fff; }
-.loading-state, .no-data { flex-grow: 1; display: flex; justify-content: center; align-items: center; font-style: italic; color: #bdc3c7; }
-.spinner-small { border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; justify-content: center; }
-.ranking-list li { display: flex; align-items: center; padding: 10px; border-radius: 8px; background-color: rgba(255, 255, 255, 0.05); font-size: 1.1em; position: relative; overflow: hidden; }
-.rank-badge { width: 35px; font-weight: bold; font-size: 1.2em; text-align: center; margin-right: 15px; }
-.player-name { flex-grow: 1; color: #fff; }
-.player-score { font-weight: bold; color: #fff; }
-.rank-1 {
-  background: linear-gradient(-45deg, #e74c3c, #c0392b, #e74c3c, #c0392b);
-  background-size: 400% 400%; animation: gradient-animation 5s ease infinite;
-  color: #fff; font-weight: bold; border: 2px solid #fff; box-shadow: 0 0 15px #e74c3c;
+.widget-header { 
+  text-align: center; 
+  border-bottom: 1px solid rgba(255,255,255,0.2); 
+  padding-bottom: 10px; 
+  margin-bottom: 15px; 
 }
-.rank-1::before { content: ''; position: absolute; top: -50%; left: -50%; width: 0; height: 200%; background: rgba(255, 255, 255, 0.4); transform: rotate(45deg); animation: shine-animation 3s infinite linear; }
-.rank-1 .rank-badge { color: #fff; text-shadow: 0 0 5px #000; animation: crown-glow 2s infinite alternate; }
-.rank-2 { background-color: rgba(192, 192, 192, 0.2); }
-.rank-3 { background-color: rgba(205, 127, 50, 0.2); }
-.rank-2, .rank-3 { color: #fff; }
-@keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-@keyframes crown-glow { from { transform: scale(1); } to { transform: scale(1.2); } }
-@keyframes shine-animation { 0% { left: -50%; width: 0; } 50% { left: 100%; width: 100%; } 100% { left: 100%; width: 0; } }
+.widget-header h4 { 
+  margin: 0; 
+  font-size: 1.3em; 
+  font-weight: 700; 
+}
+.ranking-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px;}
+.rank-item { 
+  display: grid; 
+  grid-template-columns: 30px 1fr auto; 
+  gap: 15px; 
+  align-items: center; 
+  padding: 8px 10px; 
+  border-radius: 8px; 
+  transition: background-color 0.2s; 
+  background-color: rgba(255,255,255,0.05);
+}
+.rank-item:hover { background-color: rgba(255,255,255,0.1); }
+.rank { font-weight: bold; font-size: 1.1em; text-align: center; color: #bdc3c7; }
+.name { font-weight: 500; font-size: 1.05em; }
+.wins { font-family: monospace; font-size: 1.1em; font-weight: bold; }
+
+.rank-1 .rank { color: #f1c40f; }
+.rank-2 .rank { color: #c0c0c0; }
+.rank-3 .rank { color: #cd7f32; }
+
+.loading-spinner, .no-data { text-align: center; padding: 30px 0; color: #bdc3c7; }
 </style>
