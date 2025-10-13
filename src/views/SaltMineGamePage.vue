@@ -34,13 +34,14 @@
           </div>
         </div>
 
-<div class="mine-area card">
+<div class="mine-area card" @click="triggerClickEffect">
   <div class="mine-visual">
     <img v-if="equippedPickaxeSkin" :src="equippedPickaxeSkin.imageUrl" :alt="equippedPickaxeSkin.name" class="pickaxe-skin-image">
     <i v-else :class="currentPickaxeIcon"></i>
+    <div class="click-effect" :class="{ 'animate': isClickAnimating }"></div>
   </div>
   <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-  <button @click="mineSalt" class="mine-button" :disabled="isMiningCooldown">채굴하기</button>
+  <button @click.stop="mineSalt" class="mine-button" :disabled="isMiningCooldown">채굴하기</button>
 </div>
 
         <div class="log-card card">
@@ -288,6 +289,10 @@ const availableSkins = ref([]), ownedSkins = ref([]), equippedSkins = reactive({
 const isDropdownOpen = ref(false);
 // ▼▼▼ [신규] 채굴 버튼 쿨다운 상태 변수 추가 ▼▼▼
 const isMiningCooldown = ref(false);
+
+// ▼▼▼ [신규] 클릭 이펙트 상태 변수 추가 ▼▼▼
+const isClickAnimating = ref(false);
+
 let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
 // --- 헬퍼 함수 ---
@@ -510,6 +515,20 @@ const gameTick = () => {
   }
 };
 
+// ▼▼▼ [신규] 클릭 이펙트 트리거 함수 추가 ▼▼▼
+const triggerClickEffect = () => {
+  if (isMiningCooldown.value) return;
+  
+  // 채굴 로직 실행
+  mineSalt();
+  
+  // 애니메이션 트리거
+  isClickAnimating.value = true;
+  setTimeout(() => {
+    isClickAnimating.value = false;
+  }, 300); // 애니메이션 시간과 일치
+};
+
 // [수정] mineSalt 함수에서 황금 소금 발견 확률에 보너스 추가
 const mineSalt = () => {
   if (isMiningCooldown.value) return;
@@ -698,13 +717,21 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 120px;
+  height: 150px; /* 높이 증가 */
   font-size: 5em;
   color: #34495e;
   margin-bottom: 20px;
   border-radius: 10px;
+  position: relative; /* 클릭 이펙트 기준점 */
+  cursor: pointer; /* 클릭 가능함을 표시 */
+  animation: swing 2.5s ease-in-out infinite; /* 기본 애니메이션 변경 */
 }
-@keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
+@keyframes swing {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(8deg); }
+  75% { transform: rotate(-8deg); }
+  100% { transform: rotate(0deg); }
+}
 .mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
 .mine-button:hover { transform: scale(1.05); }
 .log-card { padding: 20px; }
@@ -770,7 +797,12 @@ onUnmounted(() => {
 .prestige-summary div { display: flex; justify-content: space-between; align-items: center; }
 .prestige-summary strong { font-size: 1.2em; color: #9333ea; }
 .btn-primary.prestige-confirm { background-color: #9333ea; }
-.pickaxe-skin-image { max-width: 80px; max-height: 80px; object-fit: contain; animation: bounce 2s infinite; }
+.pickaxe-skin-image {
+  max-width: 120px; /* 이미지 크기 증가 */
+  max-height: 120px;
+  object-fit: contain;
+  /* animation 속성은 부모(.mine-visual)가 담당하므로 삭제 */
+}
 @keyframes glow-effect { 0%, 100% { box-shadow: 0 0 3px #a78bfa, 0 0 6px #a78bfa, inset 0 0 2px #a78bfa; } 50% { box-shadow: 0 0 8px #c4b5fd, 0 0 15px #c4b5fd, inset 0 0 2px #c4b5fd; } }
 .workshop-tab-btn.active { animation: glow-effect 2.5s infinite; }
 .shop-card h3, .workshop-feature h3, .skins-feature h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
@@ -856,4 +888,22 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
 }
+/* ▼▼▼ [신규] 클릭 이펙트 스타일 추가 ▼▼▼ */
+.click-effect {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  background-image: radial-gradient(circle, rgba(255, 215, 0, 0.7) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: scale(0);
+  opacity: 0;
+}
+.click-effect.animate {
+  animation: click-burst 0.3s ease-out;
+}
+@keyframes click-burst {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+/* ▲▲▲ */
 </style>
