@@ -24,7 +24,7 @@
       </button>
     </div>
 
-    <div v-if="matchId && gameState.players">
+    <div v-else-if="matchId && gameState.players">
       <main class="arena-container">
         <div class="player-area opponent">
           <div class="player-info">
@@ -71,7 +71,7 @@
         </div>
       </footer>
     </div>
-  </div>
+    </div>
 </template>
 
 <script setup>
