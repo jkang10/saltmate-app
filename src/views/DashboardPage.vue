@@ -315,12 +315,6 @@
 	  <p>다가오는 위협으로부터 소금 결정을 지켜내세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
-	<router-link to="/salt-arena" class="feature-card game">
-	  <div class="card-icon"><i class="fas fa-chess-rook"></i></div>
-	  <h3>솔트 아레나</h3>
-	  <p>실시간 전략 대결을 펼치고 트로피를 획득하세요!</p>
-	  <span class="card-enter">입장하기 &rarr;</span>
-	</router-link>
         </div>
       </main>
 
