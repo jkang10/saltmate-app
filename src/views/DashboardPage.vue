@@ -167,6 +167,12 @@
             <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
             <span class="card-enter">입장하기 &rarr;</span>
           </router-link>
+          <router-link to="/my-assets" class="feature-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+            <div class="card-icon" style="color: white;"><i class="fas fa-wallet"></i></div>
+            <h3>나의 통합 자산</h3>
+            <p>포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
+            <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
+          </router-link>
           <router-link to="/network-tree" class="feature-card">
             <div class="card-icon"><i class="fas fa-sitemap"></i></div>
             <h3>나의 추천 네트워크</h3>
