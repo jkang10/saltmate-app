@@ -1,362 +1,1190 @@
 <template>
-  <div class="assets-container">
-    <header class="page-header">
-      <h1><i class="fas fa-wallet"></i> 나의 통합 자산 현황</h1>
-      <p>보유 중인 모든 재화와 아이템을 한눈에 확인하고 관리하세요.</p>
-    </header>
+  <div>
+    <OnboardingTutorial :run="shouldRunTutorial" @complete="onTutorialComplete" />
 
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>자산 정보를 불러오는 중입니다...</p>
-    </div>
-    <div v-else-if="error" class="error-state">
-      <p>{{ error }}</p>
-    </div>
-
-    <main v-else class="assets-grid">
-      <section class="asset-card main-assets">
-        <h2 class="card-title"><i class="fas fa-coins"></i> 주요 자산</h2>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">SaltMate 포인트</span>
-            <span class="item-value highlight">{{ (userProfile.saltmatePoints || 0).toLocaleString() }} S</span>
-          </div>
+    <AnnouncementTicker />
+    <div class="dashboard-container" style="padding-top: 0; gap: 0;">
+      <DailyQuestsWidget />
+      <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
+        <p>
+          <i class="fas fa-trophy"></i>
+          축하합니다! <strong>{{ latestJackpotWinner.userName }}</strong> 님께서 솔트팡 잭팟
+          <strong>{{ latestJackpotWinner.amount.toLocaleString() }} SaltMate</strong>에 당첨되셨습니다!
+        </p>
+      </section>
+      <section v-if="notices.length > 0" class="notice-section card">
+        <div class="notice-header">
+          <h3><i class="fas fa-bullhorn"></i> 공지사항</h3>
+          <router-link to="/community/notices" class="more-link">더보기</router-link>
         </div>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">현금성 수익</span>
-            <span class="item-value">{{ (userProfile.cashBalance || 0).toLocaleString() }} 원</span>
-          </div>
-        </div>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">거래용 소금</span>
-            <span class="item-value">{{ (userProfile.saltBalance || 0).toLocaleString() }} 개</span>
-          </div>
-          <router-link to="/salt-trader" class="btn-action">거래소 이동</router-link>
-        </div>
+        <ul class="notice-list">
+          <li v-for="notice in notices" :key="notice.id">
+            <router-link :to="`/community/post/${notice.id}`" class="notice-link">
+              <span class="notice-title">{{ notice.title }}</span>
+              <span class="notice-date">{{ formatDate(notice.createdAt) }}</span>
+            </router-link>
+          </li>
+        </ul>
       </section>
 
-      <section class="asset-card game-assets">
-        <h2 class="card-title"><i class="fas fa-gamepad"></i> 게임 재화</h2>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">소금광산 - 채굴한 소금</span>
-            <span class="item-value">{{ (saltMineState.salt || 0).toLocaleString() }} 개</span>
+      <main class="dashboard-content">
+	<section class="performance-card card user-info-widget">
+          <div class="card-header">
+            <h3><i class="fas fa-crown"></i> 나의 등급 및 수익 현황</h3>
+            <span :class="['tier-badge', getTierClass(userProfile?.tier)]">{{ userProfile?.tier }}</span>
           </div>
-          <button @click="convertSaltToPoints" class="btn-action">SaltMate로 전환</button>
-        </div>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">소금광산 - 황금 소금</span>
-            <span class="item-value">{{ (saltMineState.gold || 0).toLocaleString() }} 개</span>
+          <div class="investment-info">
+            <span>나의 구독 원금</span>
+            <strong>{{ (userProfile?.investmentAmount || 0).toLocaleString() }} 원</strong>
           </div>
-          <button @click="convertGoldenSaltToPoints" class="btn-action">SaltMate로 전환</button>
-        </div>
-         <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">해양탐사 - 자금</span>
-            <span class="item-value">{{ (deepSeaState.funds || 0).toLocaleString() }}</span>
-          </div>
-          <button @click="convertFundsToPoints" class="btn-action">SaltMate로 전환</button>
-        </div>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">해양탐사 - 심층수</span>
-            <span class="item-value">{{ (deepSeaState.water || 0).toLocaleString() }} L</span>
-          </div>
-        </div>
-        <div class="asset-item">
-          <div class="item-info">
-            <span class="item-name">해양탐사 - 희귀 미네랄</span>
-            <span class="item-value">{{ (deepSeaState.minerals || 0).toLocaleString() }} 개</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="asset-card token-assets">
-        <h2 class="card-title"><i class="fas fa-database"></i> 보유 토큰</h2>
-        <div class="asset-item">
-          <img src="@/assets/COBS.png" alt="COBS" class="token-icon" />
-          <div class="item-info">
-            <span class="item-name">COBS</span>
-            <span class="item-value">{{ (userProfile.tokens?.cobs || 0).toLocaleString() }}</span>
-          </div>
-        </div>
-        <div class="asset-item">
-          <img src="@/assets/BND_LOGO.png" alt="BND" class="token-icon" />
-          <div class="item-info">
-            <span class="item-name">BND</span>
-            <span class="item-value">{{ (userProfile.tokens?.bnd || 0).toLocaleString() }}</span>
-          </div>
-        </div>
-        <div class="asset-item">
-          <img src="@/assets/SSC_LOGO.png" alt="SSC" class="token-icon" />
-          <div class="item-info">
-            <span class="item-name">SSC</span>
-            <span class="item-value">{{ (userProfile.tokens?.ssc || 0).toLocaleString() }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="asset-card coupon-assets">
-        <h2 class="card-title"><i class="fas fa-ticket-alt"></i> 보유 쿠폰 ({{ coupons.length }}개)</h2>
-        <div v-if="coupons.length > 0" class="coupon-list">
-          <div v-for="coupon in coupons" :key="coupon.id" class="coupon-item">
-            <div class="coupon-info">
-              <strong class="coupon-desc">{{ coupon.description }}</strong>
-              <span class="coupon-expiry">유효기간: {{ formatDate(coupon.expiresAt) }}</span>
+          <div class="performance-body">
+            <h4>
+              수익 사이클 ({{ cycleProgress.toFixed(1) }}% / {{ (marketingPlan?.cycleCapMultiplier || 3) * 100 }}%)
+            </h4>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" :style="{ width: cycleProgress + '%' }">
+                <i class="fas fa-running running-man"></i>
+              </div>
             </div>
-            <span class="coupon-type">{{ coupon.type }}</span>
+            <div class="progress-labels">
+              <span class="current-earnings clickable" @click="openCycleEarningsModal">
+                {{ (userProfile?.currentCycleEarnings || 0).toLocaleString() }} 원
+              </span>
+              <span class="cycle-cap">
+                달성 목표: {{ (userProfile?.cycleCap || 0).toLocaleString() }} 원
+              </span>
+            </div>
           </div>
+          <div class="balances">
+            <div class="balance-item cash" @click="openHistoryModal('CASH')">
+              <label><i class="fas fa-wallet"></i> 현금성 수익</label>
+              <span>{{ (userProfile?.cashBalance || 0).toLocaleString() }}</span>
+              <small>원</small>
+              <div class="withdrawal-action">
+                <button class="withdrawal-button" :disabled="!isWithdrawalEnabled" @click.stop="openWithdrawalModal">
+                  출금 신청하기
+                </button>
+                <small v-if="!isWithdrawalEnabled" class="withdrawal-notice">
+                  신청 가능 시간: 매주 화 09:00-17:00
+                </small>
+              </div>
+            </div>
+            <div class="balance-item saltmate" @click="openHistoryModal('SALTMATE')">
+              <div class="balance-content">
+                <div class="balance-label">
+                  <i class="fas fa-gifts"></i> 솔트메이트
+                </div>
+                <div class="balance-value">
+                  {{ (userProfile?.saltmatePoints || 0).toLocaleString() }}
+                </div>
+                <div class="balance-unit">SaltMate</div>
+              </div>
+              <div class="shimmer-effect"></div>
+            </div>
+          </div>
+
+          <div class="subscription-status-card" :class="subscriptionStatusClass">
+            <div class="status-header">
+              <i class="fas fa-calendar-alt"></i>
+              <h4>월간 구독 현황</h4>
+            </div>
+            <div v-if="!userProfile?.nextPaymentDueDate">
+              <p>구독 정보 로딩 중...</p>
+            </div>
+            <div v-else-if="userProfile?.subscriptionStatus === 'active'">
+              <p>
+                다음 결제일까지 <strong>{{ daysUntilPayment }}일</strong> 남았습니다.
+              </p>
+              <button @click="requestPayment" class="btn-pay" :disabled="isRequestingPayment">
+                <span v-if="isRequestingPayment" class="spinner-small"></span>
+                <span v-else>월간 구독 미리 결제하기</span>
+              </button>
+            </div>
+            <div v-else-if="userProfile?.subscriptionStatus === 'overdue'">
+              <p><strong>결제일이 지났습니다.</strong></p>
+              <p class="warning-text">
+                일부 기능이 제한됩니다. 지금 바로 결제해주세요.
+              </p>
+              <button @click="requestPayment" class="btn-pay urgent" :disabled="isRequestingPayment">
+                <span v-if="isRequestingPayment" class="spinner-small"></span>
+                <span v-else>지금 결제하기</span>
+              </button>
+            </div>
+          </div>
+          <div class="upgrade-action">
+            <button @click="openUpgradeModal" class="upgrade-button" :disabled="userProfile?.tier === '승인대기중'">
+              <i class="fas fa-arrow-up"></i> 등급 추가 구매
+            </button>
+          </div>
+        </section>
+
+        <div class="dashboard-grid">
+	<LiveGameFeed class="live-feed-widget" />
+          <LeaderboardWidget />
+          <WeeklyLeaderboardWidget />
+          <SaltPangHallOfFame />
+	  <SaltMinePrestigeRankingsWidget />
+	  <SaltMineClickRankingsWidget />
+          <ChallengeRankingsWidget />
+          <SaltPangRankedWidget />
+	  <SaltPangPvpRankingsWidget />
+	  <EnchantRankingsWidget />
+	  <SaltGuardiansRankingsWidget />
+          <router-link to="/attendance" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
+            <h3>매일매일 출석체크</h3>
+            <p>매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/qr-scanner" class="feature-card qr-scanner">
+            <div class="card-icon"><i class="fas fa-qrcode"></i></div>
+            <h3>센터 방문 QR 인증</h3>
+            <p>센터에 방문하여 QR코드를 스캔하고 1,000 SaltMate를 획득하세요!</p>
+            <span class="card-enter">인증하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-tokens" class="feature-card tokens">
+            <div class="card-icon"><i class="fas fa-coins"></i></div>
+            <h3>보유 토큰 현황</h3>
+            <p>COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.</p>
+            <div class="token-glance">
+              <div class="token-item">
+                <img src="@/assets/COBS.png" alt="COBS" />
+                <span>{{ (userProfile?.tokens?.cobs || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/BND_LOGO.png" alt="BND" />
+                <span>{{ (userProfile?.tokens?.bnd || 0).toLocaleString() }}</span>
+              </div>
+              <div class="token-item">
+                <img src="@/assets/SSC_LOGO.png" alt="SSC" />
+                <span>{{ (userProfile?.tokens?.ssc || 0).toLocaleString() }}</span>
+              </div>
+            </div>
+            <span class="card-enter">자세히 보기 &rarr;</span>
+          </router-link>
+          <router-link to="/nft-marketplace" class="feature-card nft">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>NFT 마켓플레이스</h3>
+            <p>보유한 NFT를 확인하고 멤버십 혜택을 누리세요.</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-assets" class="feature-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+            <div class="card-icon" style="color: white;"><i class="fas fa-wallet"></i></div>
+            <h3>나의 통합 자산</h3>
+            <p style="color: white; opacity: 0.9;">포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
+            <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
+          </router-link>
+          <router-link to="/network-tree" class="feature-card">
+            <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+            <h3>나의 추천 네트워크</h3>
+            <p>나의 하위 추천 라인을 시각적으로 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-equity" class="feature-card equity">
+            <div class="card-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3>지분 정보</h3>
+            <p>나의 공장 지분 현황과 관련 정보를 확인합니다.</p>
+            <span class="card-enter">확인하기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-events" class="feature-card events">
+            <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+            <h3>이벤트 공간</h3>
+            <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+          <router-link to="/mall" class="feature-card mall">
+            <div class="card-icon"><i class="fas fa-store"></i></div>
+            <h3>솔트메이트 몰</h3>
+            <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+            <span class="card-enter">둘러보기 &rarr;</span>
+          </router-link>
+          <router-link to="/my-investments" class="feature-card revenue">
+            <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+            <h3>내 수익 현황</h3>
+            <p>기간별, 종류별 수익 내역을 상세히 확인합니다.</p>
+            <span class="card-enter">분석하기 &rarr;</span>
+          </router-link>
+          <router-link to="/game-zone" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-gamepad"></i></div>
+            <h3>럭키 룰렛</h3>
+            <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/treasure-box" class="feature-card treasure">
+            <div class="card-icon"><i class="fas fa-box"></i></div>
+            <h3>보물상자 열기</h3>
+            <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">참여하기 &rarr;</span>
+          </router-link>
+	  <router-link to="/ladder-game" class="feature-card game">
+	    <div class="card-icon"><i class="fas fa-stream"></i></div>
+	    <h3>사다리타기</h3>
+	    <p>운명의 사다리를 타고 행운의 SaltMate를 획득하세요!</p>
+	    <span class="card-enter">도전하기 &rarr;</span>
+	  </router-link>
+	  <router-link to="/salt-pot-gacha" class="feature-card treasure">
+	    <div class="card-icon"><i class="fas fa-wine-bottle"></i></div>
+	    <h3>소금 항아리</h3>
+	    <p>매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!</p>
+	    <span class="card-enter">열어보기 &rarr;</span>
+	  </router-link>
+          <router-link to="/high-low-game" class="feature-card game">
+            <div class="card-icon">
+              <i class="fas fa-arrow-up"></i><i class="fas fa-arrow-down"></i>
+            </div>
+            <h3>하이로우</h3>
+            <p>다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">도전하기 &rarr;</span>
+          </router-link>
+          <router-link to="/rps-game" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-hand-scissors"></i></div>
+            <h3>가위바위보</h3>
+            <p>컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-game" class="feature-card salt-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 결정 키우기</h3>
+            <p>결정을 클릭하여 키우고 SaltMate 포인트를 수확하세요!</p>
+            <span class="card-enter">플레이 &rarr;</span>
+          </router-link>
+          <router-link to="/salt-mine-game" class="feature-card salt-mine-game">
+            <div class="card-icon"><i class="fas fa-gem"></i></div>
+            <h3>소금 광산</h3>
+            <p>소금을 채굴하고 업그레이드하여 SaltMate 포인트를 획득하세요!</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
+          <router-link to="/deep-sea-game" class="feature-card deep-sea-game">
+            <div class="card-icon"><i class="fas fa-water"></i></div>
+            <h3>해양심층수 탐험</h3>
+            <p>심층수를 채집하고 장비를 업그레이드하여 자금을 모으세요.</p>
+            <span class="card-enter">탐험 시작 &rarr;</span>
+          </router-link>
+	<router-link to="/auction" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-gavel"></i></div>
+	  <h3>주간 경매</h3>
+	  <p>최고가에 도전하여 희귀 아이템을 획득하세요!</p>
+	  <span class="card-enter">입장하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/prediction-betting" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
+	  <h3>랭킹 예측</h3>
+	  <p>솔트팡 랭킹전 우승자를 예측하고 대박을 노리세요!</p>
+	  <span class="card-enter">참여하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/salt-trader" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-exchange-alt"></i></div>
+	  <h3>소금 상인</h3>
+	  <p>변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.</p>
+	  <span class="card-enter">거래하기 &rarr;</span>
+	</router-link>
+
+	<router-link to="/enchanting" class="feature-card">
+	  <div class="card-icon"><i class="fas fa-magic"></i></div>
+	  <h3>아이템 강화</h3>
+	  <p>SaltMate를 사용하여 아이템을 강화하고 더 강해지세요!</p>
+	  <span class="card-enter">강화하기 &rarr;</span>
+	</router-link>
+          <router-link to="/salt-pang" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
+            <h3>솔트팡</h3>
+            <p>같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!</p>
+            <span class="card-enter">게임 시작 &rarr;</span>
+          </router-link>
+	<router-link to="/salt-pang-pvp" class="feature-card game pvp">
+	  <div class="card-icon"><i class="fas fa-fist-raised"></i></div>
+	  <h3>솔트팡 1 vs 1 대전</h3>
+	  <p>다른 유저와 실시간으로 솔트팡 대결을 펼치고 승리 보상을 획득하세요!</p>
+	  <span class="card-enter">대전 시작 &rarr;</span>
+	</router-link>
+	<router-link to="/hidden-object" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-search"></i></div>
+	  <h3>숨은그림찾기</h3>
+	  <p>제한 시간 내에 숨겨진 그림을 모두 찾아보세요!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
+	<router-link to="/salt-crystal-game" class="feature-card crystal-game">
+	  <div class="crystal-aura-bg"></div>
+	  <div class="crystal-icon-main">
+	    <i class="fas fa-gem"></i>
+	  </div>
+	  <div class="card-content">
+	    <h3>나만의 소금 결정 키우기</h3>
+	    <p>매일 정성을 들여 당신만의 특별한 보석을 완성해보세요.</p>
+	    <span class="card-enter">시작하기 &rarr;</span>
+	  </div>
+	</router-link>
+	<router-link to="/salt-guardians" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+	  <h3>솔트 가디언즈</h3>
+	  <p>다가오는 위협으로부터 소금 결정을 지켜내세요!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
         </div>
-        <p v-else class="no-items">보유 중인 쿠폰이 없습니다.</p>
-        <router-link to="/my-coupons" class="btn-full-width">쿠폰함 바로가기</router-link>
-      </section>
-    </main>
+      </main>
+
+      <TransactionHistoryModal
+        v-if="historyModal.visible"
+        :balanceType="historyModal.type"
+        :currentBalance="
+          historyModal.type === 'CASH'
+            ? userProfile.cashBalance
+            : userProfile.saltmatePoints
+        "
+        @close="historyModal.visible = false"
+      />
+      <UpgradeTierModal
+        v-if="upgradeModalVisible"
+        @close="upgradeModalVisible = false"
+      />
+      <WithdrawalRequestModal
+        v-if="isWithdrawalModalVisible"
+        :userProfile="userProfile"
+        @close="isWithdrawalModalVisible = false"
+      />
+      <CycleEarningsModal
+        v-if="isCycleModalVisible"
+        @close="isCycleModalVisible = false"
+      />
+    </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
-import { auth, db, functions } from '@/firebaseConfig';
-import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+<script>
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import { auth, db, functions } from "@/firebaseConfig";
+import { httpsCallable, getFunctions } from "firebase/functions";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+} from "firebase/firestore";
+import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
+import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
+import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
+import CycleEarningsModal from "@/components/CycleEarningsModal.vue";
+import LiveGameFeed from "@/components/LiveGameFeed.vue";
+import LeaderboardWidget from "@/components/LeaderboardWidget.vue";
+import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
+import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
+import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
+import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
+import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
+import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
+import SaltPangPvpRankingsWidget from '@/components/SaltPangPvpRankingsWidget.vue';
+import SaltGuardiansRankingsWidget from '@/components/SaltGuardiansRankingsWidget.vue';
+import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
+import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
+import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
+import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
 
-const userProfile = ref({});
-const saltMineState = ref({});
-const deepSeaState = ref({});
-const coupons = ref([]);
-const isLoading = ref(true);
-const error = ref(null);
-
-const fetchAssets = async () => {
-  if (!auth.currentUser) {
-    error.value = "로그인이 필요합니다.";
-    isLoading.value = false;
-    return;
-  }
-  const uid = auth.currentUser.uid;
-
-  try {
-    const userRef = doc(db, "users", uid);
-    const saltMineRef = doc(db, "users", uid, "game_state", "salt_mine");
-    const deepSeaRef = doc(db, "users", uid, "game_state", "deep_sea_exploration");
-    const couponsQuery = query(
-      collection(db, "users", uid, "coupons"),
-      where("status", "==", "unused"),
-      orderBy("expiresAt", "asc")
-    );
-
-    const [userSnap, saltMineSnap, deepSeaSnap, couponsSnap] = await Promise.all([
-      getDoc(userRef),
-      getDoc(saltMineRef),
-      getDoc(deepSeaRef),
-      getDocs(couponsQuery),
-    ]);
-
-    if (userSnap.exists()) userProfile.value = userSnap.data();
-    if (saltMineSnap.exists()) saltMineState.value = saltMineSnap.data();
-    if (deepSeaSnap.exists()) deepSeaState.value = deepSeaSnap.data();
+export default {
+  name: "DashboardPage",
+  components: {
+    TransactionHistoryModal,
+    UpgradeTierModal,
+    WithdrawalRequestModal,
+    CycleEarningsModal,
+    LiveGameFeed,
+    LeaderboardWidget,
+    WeeklyLeaderboardWidget,
+    SaltPangHallOfFame,
+    ChallengeRankingsWidget,
+    SaltPangRankedWidget,
+    AnnouncementTicker,
+    EnchantRankingsWidget,
+    SaltPangPvpRankingsWidget,
+    SaltGuardiansRankingsWidget,
+    OnboardingTutorial,
+    SaltMinePrestigeRankingsWidget,
+    SaltMineClickRankingsWidget,
+    DailyQuestsWidget,
+  },
+  setup() {
+    const userProfile = ref(null);
+    const loadingUser = ref(true);
+    const error = ref(null);
+    const notices = ref([]);
+    const historyModal = ref({ visible: false, type: "" });
+    const upgradeModalVisible = ref(false);
+    const isWithdrawalModalVisible = ref(false);
+    const isCycleModalVisible = ref(false);
+    const marketingPlan = ref(null);
+    const isRequestingPayment = ref(false);
+    const latestJackpotWinner = ref(null);
     
-    coupons.value = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let unsubscribe = null;
+    let unsubscribeJackpot = null;
 
-  } catch (e) {
-    console.error("자산 정보 조회 오류:", e);
-    error.value = "자산 정보를 불러오는 데 실패했습니다.";
-  } finally {
-    isLoading.value = false;
-  }
-};
+    const shouldRunTutorial = ref(false);
 
-const callGameFunction = async (functionName, data, successMessage) => {
-  if (!confirm(successMessage.confirm)) return;
-  try {
-    const func = httpsCallable(functions, functionName);
-    const result = await func(data);
-    alert(successMessage.success(result.data));
-    await fetchAssets(); // 데이터 새로고침
-  } catch (e) {
-    console.error(`${functionName} 호출 오류:`, e);
-    alert(`오류: ${e.message}`);
-  }
-};
-
-const convertSaltToPoints = () => {
-  const amountToSell = prompt("SaltMate 포인트로 전환할 소금의 양을 입력하세요.", saltMineState.value.salt || 0);
-  if (amountToSell) {
-    callGameFunction('sellSaltForPoints', { amountToSell: Number(amountToSell) }, {
-      confirm: `${Number(amountToSell).toLocaleString()}개의 소금을 SaltMate 포인트로 전환하시겠습니까?`,
-      success: (data) => `${data.soldSalt.toLocaleString()}개의 소금이 ${data.awardedPoints.toLocaleString()} SaltMate 포인트로 전환되었습니다!`
+    const cycleProgress = computed(() => {
+      if (!userProfile.value || !userProfile.value.cycleCap || userProfile.value.cycleCap === 0) return 0;
+      return Math.min((userProfile.value.currentCycleEarnings / userProfile.value.cycleCap) * 100, 100);
     });
-  }
-};
 
-const convertGoldenSaltToPoints = () => {
-  const quantity = prompt("전환할 황금 소금의 개수를 입력하세요.", saltMineState.value.gold || 1);
-   if (quantity) {
-    callGameFunction('exchangeGoldenSalt', { quantity: Number(quantity) }, {
-      confirm: `황금 소금 ${Number(quantity).toLocaleString()}개를 SaltMate 포인트로 전환하시겠습니까?`,
-      success: (data) => `황금 소금이 ${data.awardedPoints.toLocaleString()} SaltMate 포인트로 전환되었습니다!`
+    const isWithdrawalEnabled = computed(() => {
+      const now = new Date();
+      const day = now.getDay();
+      const hour = now.getHours();
+      return day === 2 && hour >= 9 && hour < 17;
     });
-  }
-};
 
-const convertFundsToPoints = () => {
-  callGameFunction('sellDeepSeaFunds', {}, {
-    confirm: `해양탐사 자금을 SaltMate 포인트로 전환하시겠습니까?`,
-    success: (data) => `자금 ${data.soldFunds.toLocaleString()}이 ${data.awardedPoints.toLocaleString()} SaltMate 포인트로 전환되었습니다!`
-  });
-};
+    const daysUntilPayment = computed(() => {
+      if (!userProfile.value?.nextPaymentDueDate) return "N/A";
+      const dueDate = userProfile.value.nextPaymentDueDate.toDate();
+      const today = new Date();
+      dueDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      const diffTime = dueDate.getTime() - today.getTime();
+      return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    });
 
-const formatDate = (timestamp) => {
-  if (!timestamp?.toDate) return "N/A";
-  return timestamp.toDate().toLocaleDateString("ko-KR");
-};
+    const subscriptionStatusClass = computed(() => {
+      if (!userProfile.value?.subscriptionStatus) return "";
+      return `status-${userProfile.value.subscriptionStatus}`;
+    });
 
-onMounted(fetchAssets);
+    const listenToLatestJackpot = () => {
+      const q = query(collection(db, "saltPangJackpotWins"), orderBy("wonAt", "desc"), limit(1));
+      unsubscribeJackpot = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          latestJackpotWinner.value = snapshot.docs[0].data();
+        }
+      });
+    };
+
+    const requestPayment = async () => {
+      if (!confirm("월간 구독료(만원의 행복) 결제를 요청하시겠습니까? 관리자 확인 후 승인 처리됩니다.")) return;
+      isRequestingPayment.value = true;
+      try {
+        const requestMonthlyPayment = httpsCallable(functions, "requestMonthlyPayment");
+        await requestMonthlyPayment();
+        alert("결제 요청이 완료되었습니다. 관리자가 승인하면 구독 상태가 갱신됩니다.");
+      } catch (e) {
+        console.error("월간 결제 요청 오류:", e);
+        alert(`오류가 발생했습니다: ${e.message}`);
+      } finally {
+        isRequestingPayment.value = false;
+      }
+    };
+
+    const listenToUserProfile = (uid) => {
+      loadingUser.value = true;
+      const userRef = doc(db, "users", uid);
+      unsubscribe = onSnapshot(userRef,
+        (docSnap) => {
+          if (docSnap.exists()) {
+            userProfile.value = docSnap.data();
+            if (!userProfile.value.hasCompletedTutorial) {
+              shouldRunTutorial.value = true;
+            }
+          } else {
+            error.value = "사용자 프로필을 찾을 수 없습니다.";
+          }
+          loadingUser.value = false;
+        },
+        (e) => {
+          console.error("프로필 실시간 수신 실패:", e);
+          error.value = "프로필 로딩에 실패했습니다.";
+          loadingUser.value = false;
+        }
+      );
+    };
+
+    const fetchMarketingPlan = async () => {
+      const planRef = doc(db, "configuration", "marketingPlan");
+      const docSnap = await getDoc(planRef);
+      if (docSnap.exists()) {
+        marketingPlan.value = docSnap.data();
+      }
+    };
+
+    const fetchNotices = async () => {
+      try {
+        const q = query(collection(db, "posts"), where("category", "==", "notices"), orderBy("createdAt", "desc"), limit(3));
+        const querySnapshot = await getDocs(q);
+        notices.value = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.error("공지사항 로딩 오류:", e);
+      }
+    };
+
+    const formatDate = (timestamp) => {
+      if (!timestamp?.toDate) return "";
+      return timestamp.toDate().toLocaleDateString("ko-KR");
+    };
+
+    const getTierClass = (tier) => {
+      if (!tier) return "default";
+      if (tier === "승인대기중") return "pending";
+      return tier.toLowerCase();
+    };
+    
+    const openHistoryModal = (type) => {
+      historyModal.value.type = type;
+      historyModal.value.visible = true;
+    };
+    const openUpgradeModal = () => { upgradeModalVisible.value = true; };
+    const openWithdrawalModal = () => { isWithdrawalModalVisible.value = true; };
+    const openCycleEarningsModal = () => { isCycleModalVisible.value = true; };
+    
+    const onTutorialComplete = async () => {
+      shouldRunTutorial.value = false;
+      try {
+        const functionsWithRegion = getFunctions(undefined, "asia-northeast3");
+        const markComplete = httpsCallable(functionsWithRegion, 'markTutorialAsCompleted');
+        await markComplete();
+        if(userProfile.value) userProfile.value.hasCompletedTutorial = true;
+      } catch (e) {
+        console.error("Failed to mark tutorial as complete:", e);
+      }
+    };
+
+    onMounted(() => {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          listenToUserProfile(user.uid);
+          fetchMarketingPlan();
+          fetchNotices();
+          listenToLatestJackpot();
+        } else {
+          loadingUser.value = false;
+        }
+      });
+    });
+
+    onUnmounted(() => {
+      if (unsubscribe) unsubscribe();
+      if (unsubscribeJackpot) unsubscribeJackpot();
+    });
+
+    return {
+      userProfile, loadingUser, error, notices, historyModal, upgradeModalVisible,
+      isWithdrawalModalVisible, isCycleModalVisible, marketingPlan, isRequestingPayment,
+      latestJackpotWinner,
+      cycleProgress, isWithdrawalEnabled, daysUntilPayment, subscriptionStatusClass,
+      requestPayment, formatDate, getTierClass, openHistoryModal, openUpgradeModal,
+      openWithdrawalModal, openCycleEarningsModal,
+      shouldRunTutorial,
+      onTutorialComplete,
+    };
+  },
+};
 </script>
 
 <style scoped>
-.assets-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 70px auto 20px;
-}
-.page-header {
+.feature-card.crystal-game {
+  background: linear-gradient(145deg, #1e2a3a, #3b506c);
+  color: #fff;
+  justify-content: center;
+  align-items: center;
   text-align: center;
-  margin-bottom: 40px;
+  padding: 30px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
-.page-header h1 {
-  font-size: 2.5em;
+.feature-card.crystal-game:hover {
+  box-shadow: 0 15px 40px rgba(45, 74, 109, 0.4);
+}
+.crystal-icon-main {
+  font-size: 4em;
+  color: #fff;
+  margin-bottom: 20px;
+  text-shadow: 0 0 25px rgba(255, 255, 255, 0.7);
+  animation: float-icon 5s ease-in-out infinite;
+  z-index: 2;
+}
+@keyframes float-icon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.crystal-aura-bg {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(137, 247, 254, 0.3) 0%, rgba(102, 166, 255, 0) 70%);
+  border-radius: 50%;
+  animation: aura-pulse 4s infinite alternate;
+  z-index: 0;
+}
+@keyframes aura-pulse {
+  from { transform: scale(0.9); opacity: 0.7; }
+  to { transform: scale(1.1); opacity: 1; }
+}
+.feature-card.crystal-game .card-content {
+  z-index: 1;
+}
+.feature-card.crystal-game h3 {
+  font-size: 1.8em;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.feature-card.crystal-game p {
+  color: #c9d6e4;
+  font-size: 1.05em;
+}
+.feature-card.crystal-game .card-enter {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+.feature-card.crystal-game:hover .card-enter {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.feature-card.pvp .card-icon {
+  color: #e74c3c;
+}
+.feature-card.revenue .card-icon {
+  color: #dc3545;
+}
+.feature-card.tokens .card-icon {
+  color: #ffc107;
+}
+
+/* [핵심 추가] QR 스캐너 카드 아이콘 색상 스타일 */
+.feature-card.qr-scanner .card-icon {
+  color: #007bff; /* 파란색 계열 아이콘 */
+}
+/* [핵심 추가] 잭팟 당첨 전광판 스타일 */
+.jackpot-winner-card {
+  padding: 20px 25px;
+  margin-bottom: 30px;
+  text-align: center;
+  background: linear-gradient(90deg, #f7971e, #ffd200);
+  color: #333;
+  font-size: 1.2em;
+  font-weight: 500;
+  animation: glow 2s infinite alternate;
+}
+.jackpot-winner-card p {
+  margin: 0;
+}
+@keyframes glow {
+  from { box-shadow: 0 0 10px #f7971e; }
+  to { box-shadow: 0 0 25px #ffd200; }
+}
+.subscription-status-card {
+  margin-top: 25px;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid hsla(0, 0%, 100%, 0.3);
+  background: hsla(0, 0%, 100%, 0.1);
+  transition: all 0.3s ease;
+}
+.subscription-status-card.status-overdue {
+  background: hsla(0, 80%, 60%, 0.2);
+  border-color: hsla(0, 80%, 70%, 0.5);
+}
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
 }
-.page-header p {
+.status-header h4 {
+  margin: 0;
   font-size: 1.1em;
-  color: #666;
 }
-.loading-state, .error-state {
-  text-align: center;
-  padding: 50px;
-  font-size: 1.2em;
+.subscription-status-card p {
+  margin: 0 0 15px 0;
+  font-size: 1.05em;
 }
-.spinner {
-  /* ... (spinner styles) ... */
+.warning-text {
+  font-size: 0.9em !important;
+  opacity: 0.9;
 }
-.assets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 30px;
+.btn-pay {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: #17a2b8;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
-.asset-card {
-  background: #fff;
-  border-radius: 15px;
-  padding: 25px;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+.btn-pay.urgent {
+  background-color: #dc3545;
 }
-.card-title {
-  font-size: 1.5em;
-  margin: 0 0 20px 0;
-  padding-bottom: 15px;
+.btn-pay:disabled {
+  background-color: #5a6268;
+  cursor: not-allowed;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.feature-card.game .card-icon {
+  color: #e74c3c;
+}
+.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+.clickable:hover {
+  color: #aed6f1;
+}
+.dashboard-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 10px auto 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.notice-section {
+  padding: 20px 25px;
+  margin-bottom: 30px;
+}
+.notice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
   border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+.notice-header h3 {
+  margin: 0;
+  font-size: 1.4em;
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.asset-item {
+.more-link {
+  font-size: 0.9em;
+  color: #007bff;
+  text-decoration: none;
+  font-weight: bold;
+}
+.notice-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.notice-link {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 5px;
+  text-decoration: none;
+  color: #333;
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+.notice-link:hover {
+  background-color: #f8f9fa;
+}
+.notice-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+.notice-date {
+  color: #888;
+  flex-shrink: 0;
+}
+.card {
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+.performance-card {
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  color: #fff;
+  padding: 25px;
+}
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid hsla(0, 0%, 100%, 0.3);
+  padding-bottom: 15px;
+  margin-bottom: 20px;
 }
-.asset-item:last-child {
-  border-bottom: none;
-}
-.item-info {
+.card-header h3 {
+  font-size: 1.5em;
+  margin: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
-.item-name {
+.tier-badge {
   font-size: 1em;
-  color: #555;
-  margin-bottom: 5px;
-}
-.item-value {
-  font-size: 1.4em;
   font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+.tier-badge:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+.tier-badge.pending {
+  background: linear-gradient(135deg, #ffc107, #ff9800);
   color: #333;
 }
-.item-value.highlight {
-  color: #007bff;
+.tier-badge.bronze {
+  background: linear-gradient(135deg, #cd7f32, #a0522d);
 }
-.btn-action {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 20px;
-  cursor: pointer;
+.tier-badge.premium {
+  background: linear-gradient(135deg, #c0c0c0, #a9a9a9);
+}
+.tier-badge.vip {
+  background: linear-gradient(135deg, #ffd700, #f0c000);
+}
+.tier-badge.vvip {
+  background: linear-gradient(135deg, #e5e5e5, #b8b8b8);
+  text-shadow: 0 0 5px #fff;
+}
+.tier-badge.infinite {
+  background: linear-gradient(135deg, #4d4d4d, #1a1a1a);
+  text-shadow: 0 0 8px #fff;
+}
+.investment-info {
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  background: hsla(0, 0%, 100%, 0.1);
+  border-radius: 8px;
+}
+.investment-info span {
+  opacity: 0.9;
+  margin-right: 10px;
+  font-size: 1.1em;
+}
+.investment-info strong {
+  font-size: 1.3em;
+  font-weight: 700;
+}
+.performance-body h4 {
+  font-size: 1.1em;
+  margin-bottom: 10px;
   font-weight: 500;
-  text-decoration: none;
-  transition: background-color 0.2s;
 }
-.btn-action:hover {
-  background-color: #0056b3;
+.progress-bar-container {
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  height: 24px;
+  overflow: hidden;
+  position: relative;
 }
-.token-icon {
-  width: 40px;
-  height: 40px;
-  margin-right: 15px;
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #17a2b8, #28a745);
+  border-radius: 20px;
+  transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
-.coupon-list {
-  max-height: 300px;
-  overflow-y: auto;
+.running-man {
+  color: white;
+  font-size: 1.2em;
+  margin-right: 10px;
+  animation: running-animation 0.7s infinite alternate;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
-.coupon-item {
+@keyframes running-animation {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+.progress-labels {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 5px;
-  border-bottom: 1px solid #f0f0f0;
+  margin-top: 8px;
+  font-size: 0.9em;
+  opacity: 0.9;
 }
-.coupon-info {
+.balances {
+  margin-top: 25px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  text-align: center;
+}
+.balance-item {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.balance-item:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+.balance-item.cash label {
+  display: block;
+  font-size: 1em;
+  margin-bottom: 8px;
+  opacity: 0.8;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.balance-item.cash span {
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1;
+}
+.balance-item.cash small {
+  font-size: 1em;
+  margin-left: 5px;
+}
+.balance-item.saltmate {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 20px;
+  transition: all 0.3s ease;
+}
+.balance-item.saltmate:hover {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 15px 30px rgba(118, 75, 162, 0.5);
+}
+.balance-content {
+  text-align: center;
+  z-index: 1;
+}
+.balance-label {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1em;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-bottom: 15px;
+}
+.balance-value {
+  font-size: 2.8em;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.balance-unit {
+  font-size: 1.2em;
+  font-weight: 500;
+  opacity: 0.9;
+  letter-spacing: 1px;
+  margin-top: 5px;
+}
+.shimmer-effect {
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 75%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-25deg);
+  animation: shimmer 5s infinite;
+}
+@keyframes shimmer {
+  100% {
+    left: 150%;
+  }
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+  margin-top: 30px;
+}
+.feature-card {
   display: flex;
   flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  padding: 30px;
+  border-radius: 15px;
+  background-color: #fff;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  position: relative;
+  min-height: 220px;
 }
-.coupon-desc {
-  font-weight: bold;
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
-.coupon-expiry {
-  font-size: 0.8em;
-  color: #777;
+.card-icon {
+  font-size: 2.5em;
+  margin-bottom: 15px;
 }
-.coupon-type {
-  font-size: 0.8em;
+.feature-card h3 {
+  font-size: 1.6em;
+  margin: 0 0 10px;
+}
+.feature-card p {
+  font-size: 1em;
+  color: #666;
+  line-height: 1.5;
+  flex-grow: 1;
+}
+.card-enter {
+  font-weight: 700;
+  color: #007bff;
+  align-self: flex-end;
+  transition: color 0.3s ease;
+}
+.feature-card:hover .card-enter {
+  color: #0056b3;
+}
+.feature-card.equity .card-icon {
+  color: #fd7e14;
+}
+.feature-card.events .card-icon {
+  color: #28a745;
+}
+.feature-card.mall .card-icon {
+  color: #6f42c1;
+}
+.feature-card.nft .card-icon {
+  color: #17a2b8;
+}
+.feature-card.revenue .card-icon {
+  color: #dc3545;
+}
+.feature-card.tokens .card-icon {
+  color: #ffc107;
+}
+.token-glance {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+.token-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.1em;
+}
+.token-item img {
+  height: 24px;
+}
+.upgrade-action {
+  margin-top: 20px;
+  text-align: center;
+}
+.upgrade-button {
+  background-color: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.upgrade-button:disabled {
   background-color: #e9ecef;
-  padding: 3px 8px;
-  border-radius: 10px;
-  color: #495057;
+  color: #6c757d;
+  cursor: not-allowed;
 }
-.no-items {
-  text-align: center;
-  color: #888;
-  padding: 20px 0;
+.upgrade-button:hover:not(:disabled) {
+  background-color: #e0a800;
+  transform: translateY(-2px);
 }
-.btn-full-width {
-  display: block;
+.withdrawal-action {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid hsla(0, 0%, 100%, 0.2);
+}
+.withdrawal-button {
   width: 100%;
-  text-align: center;
   background-color: #28a745;
   color: white;
-  padding: 12px;
+  border: none;
+  padding: 10px;
   border-radius: 8px;
-  text-decoration: none;
   font-weight: bold;
-  margin-top: 20px;
-  transition: background-color 0.2s;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.btn-full-width:hover {
-  background-color: #218838;
+.withdrawal-button:disabled {
+  background-color: #5a6268;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.withdrawal-notice {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.8em;
+  opacity: 0.9;
+  text-align: center;
+}
+.feature-card.treasure .card-icon {
+  color: #e67e22;
+}
+.feature-card.salt-game .card-icon {
+  color: #3498db;
+}
+.feature-card.salt-mine-game .card-icon {
+  color: #ffd166;
+}
+.feature-card.deep-sea-game .card-icon {
+  color: #17a2b8;
+}
+@media (max-width: 768px) {
+  .balances {
+    grid-template-columns: 1fr; /* 화면이 좁아지면 1개의 열(세로 배치)로 변경 */
+  }
 }
 </style>
