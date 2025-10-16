@@ -1200,4 +1200,5 @@ export default {
 }
 .dashboard-container {
   padding: 20px; /* 기존 padding-top: 0; gap: 0;
+}
 </style>
