@@ -1198,4 +1198,6 @@ export default {
     grid-template-columns: 1fr; /* 화면이 좁아지면 1개의 열(세로 배치)로 변경 */
   }
 }
+.dashboard-container {
+  padding: 20px; /* 기존 padding-top: 0; gap: 0;
 </style>
