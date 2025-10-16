@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "@/firebaseConfig";
-import LadderGamePage from "../views/LadderGamePage.vue"; // [이 줄 추가]
-import SaltPotGachaPage from "../views/SaltPotGachaPage.vue"; // [이 줄 추가]
+import LadderGamePage from "../views/LadderGamePage.vue";
+import SaltPotGachaPage from "../views/SaltPotGachaPage.vue";
 import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
+import MyAssetsPage from "../views/MyAssetsPage.vue";
 
 const routes = [
   {
