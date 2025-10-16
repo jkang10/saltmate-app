@@ -13,7 +13,7 @@
             <span v-else>{{ index + 1 }}</span>
           </span>
           <span class="name">{{ player.username }}</span>
-          <span class="score">{{ player.score.toLocaleString() }} 점</span>
+          <span class="score">{{ (player.score || 0).toLocaleString() }} 점</span>
         </li>
       </ul>
       <div v-else class="no-data">
@@ -27,14 +27,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'; // onUnmounted 추가
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { db } from '@/firebaseConfig';
-// [수정] onSnapshot을 추가로 import 합니다.
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 const isLoading = ref(true);
 const rankings = ref([]);
-let unsubscribe = null; // [신규] 실시간 리스너를 해제하기 위한 변수
+let unsubscribe = null;
 
 const getMonday = (d) => {
   d = new Date(d);
@@ -62,7 +61,6 @@ const getRankClass = (index) => {
   return '';
 };
 
-// [핵심 수정] fetchRankings 함수를 실시간으로 데이터를 수신하는 로직으로 변경합니다.
 const listenToRankings = () => {
   isLoading.value = true;
   
@@ -72,7 +70,6 @@ const listenToRankings = () => {
     limit(3)
   );
   
-  // onSnapshot을 사용하여 데이터 변경을 실시간으로 감지합니다.
   unsubscribe = onSnapshot(q, (snapshot) => {
     rankings.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     isLoading.value = false;
@@ -84,7 +81,6 @@ const listenToRankings = () => {
 
 onMounted(listenToRankings);
 
-// [신규] 컴포넌트가 사라질 때 실시간 리스너를 정리하여 메모리 누수를 방지합니다.
 onUnmounted(() => {
     if(unsubscribe) {
         unsubscribe();
@@ -103,10 +99,9 @@ onUnmounted(() => {
     box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
     overflow: hidden;
     position: relative;
-    transition: all 0.3s ease; /* [추가] 부드러운 애니메이션 효과를 위해 추가 */
+    transition: all 0.3s ease;
 }
 
-/* [추가] 마우스 호버 시 위로 이동하고 그림자 효과를 강화 */
 .widget-card:hover {
     transform: translateY(-8px);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
@@ -162,7 +157,6 @@ onUnmounted(() => {
     font-weight: bold; 
 }
 
-/* --- [핵심 수정] 1등 스타일 강화 --- */
 .rank-1 { 
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));
     box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.3);
@@ -173,7 +167,7 @@ onUnmounted(() => {
     text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
 }
 .rank .fa-crown { 
-    color: #ffd700; /* 금색 */
+    color: #ffd700;
     animation: crown-glow 2s ease-in-out infinite;
 }
 
@@ -182,7 +176,6 @@ onUnmounted(() => {
     50% { filter: drop-shadow(0 0 10px #ffed8a); }
 }
 
-/* --- 나머지 순위 스타일 (기존과 동일) --- */
 .rank-2 .rank { color: #c0c0c0; }
 .rank-3 .rank { color: #cd7f32; }
 
