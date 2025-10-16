@@ -3,7 +3,7 @@
     <OnboardingTutorial :run="shouldRunTutorial" @complete="onTutorialComplete" />
 
     <AnnouncementTicker />
-<div class="dashboard-container" style="padding-top: 0; gap: 0;">
+   <div class="dashboard-container" style="padding-top: 0; gap: 0;">
       <DailyQuestsWidget />
       <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
         <p>
@@ -387,6 +387,7 @@ import SaltGuardiansRankingsWidget from '@/components/SaltGuardiansRankingsWidge
 import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
 import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
+import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
 
 export default {
   name: "DashboardPage",
@@ -409,6 +410,7 @@ export default {
     OnboardingTutorial,
     SaltMinePrestigeRankingsWidget,
     SaltMineClickRankingsWidget,
+    DailyQuestsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
