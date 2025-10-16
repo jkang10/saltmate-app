@@ -12,7 +12,7 @@
     </div>
     <div v-else class="quest-list">
       <div v-for="quest in quests" :key="quest.id" class="quest-item">
-        <router-link :to="quest.link" class="quest-info">
+        <router-link :to="quest.link || '/'" class="quest-info">
           <div class="quest-text">
             <strong>{{ quest.title }}</strong>
             <small>{{ quest.description }}</small>
@@ -59,7 +59,8 @@ const fetchQuests = async () => {
     isLoading.value = true;
     const getDailyQuests = httpsCallable(functions, 'getDailyQuests');
     const result = await getDailyQuests();
-    quests.value = result.data;
+    // [데이터 안전장치] result.data가 배열이 아닐 경우 빈 배열로 처리
+    quests.value = Array.isArray(result.data) ? result.data : [];
   } catch (e) {
     console.error("오늘의 퀘스트 로딩 오류:", e);
     error.value = "추천 활동을 불러오는 데 실패했습니다.";
