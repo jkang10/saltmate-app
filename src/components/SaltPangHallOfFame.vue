@@ -18,7 +18,7 @@
           <span v-else>{{ index + 1 }}</span>
         </div>
         <span class="player-name">{{ player.username }}</span>
-        <span class="player-score">{{ player.score.toLocaleString() }}점</span>
+        <span class="player-score">{{ (player.score || 0).toLocaleString() }}점</span>
       </li>
     </ul>
     <div v-else class="no-data">
@@ -99,26 +99,26 @@ onMounted(fetchHallOfFame);
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px; /* [수정] 간격을 살짝 줄여 7개가 들어갈 공간 확보 */
+  gap: 8px;
   flex-grow: 1;
   justify-content: center;
 }
 .ranking-list li {
   display: flex;
   align-items: center;
-  padding: 8px 10px; /* [수정] 상하 패딩을 줄임 */
+  padding: 8px 10px;
   border-radius: 8px;
   background-color: rgba(255, 255, 255, 0.05);
-  font-size: 1.05em; /* [수정] 폰트 크기 살짝 줄임 */
+  font-size: 1.05em;
   position: relative;
   overflow: hidden;
 }
 .rank-badge {
-  width: 30px; /* [수정] 뱃지 너비 살짝 줄임 */
+  width: 30px;
   font-weight: bold;
   font-size: 1.1em;
   text-align: center;
-  margin-right: 12px; /* [수정] 여백 살짝 줄임 */
+  margin-right: 12px;
 }
 .player-name {
   flex-grow: 1;
@@ -127,7 +127,7 @@ onMounted(fetchHallOfFame);
 .player-score {
   font-weight: bold;
   color: #fff;
-  font-family: monospace; /* [추가] 숫자 폰트 통일 */
+  font-family: monospace;
 }
 .rank-1 {
   background: linear-gradient(-45deg, #f1c40f, #e67e22, #f39c12, #f1c40f);
@@ -160,7 +160,7 @@ onMounted(fetchHallOfFame);
 }
 .rank-2 { background-color: rgba(192, 192, 192, 0.2); }
 .rank-3 { background-color: rgba(205, 127, 50, 0.2); }
-.rank-2 .rank-badge { color: #c0c0c0; } /* [추가] 2,3위 뱃지 색상 */
+.rank-2 .rank-badge { color: #c0c0c0; }
 .rank-3 .rank-badge { color: #cd7f32; }
 .rank-2, .rank-3 { color: #fff; }
 
@@ -171,22 +171,20 @@ onMounted(fetchHallOfFame);
 @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes crown-glow { from { transform: scale(1); } to { transform: scale(1.2); } }
 @keyframes shine-animation { 0% { left: -50%; width: 0; } 50% { left: 100%; width: 100%; } 100% { left: 100%; width: 0; } }
-/* ▼▼▼ [핵심 추가] 모바일 반응형 레이아웃을 위한 미디어 쿼리 ▼▼▼ */
 @media (max-width: 900px) {
   .game-layout {
-    /* 2단 그리드 -> 1단(세로) 그리드로 변경 */
     grid-template-columns: 1fr;
   }
   .page-container {
-    padding: 10px; /* 페이지 전체 여백 축소 */
+    padding: 10px;
   }
   .top-stats {
-    grid-template-columns: 1fr; /* 통계 위젯을 세로로 쌓음 */
+    grid-template-columns: 1fr;
     gap: 10px;
   }
   .stat {
     padding: 10px;
-    display: flex; /* 내부 요소들을 가로로 배치 */
+    display: flex;
     justify-content: space-between;
     align-items: baseline;
   }
@@ -200,7 +198,7 @@ onMounted(fetchHallOfFame);
     padding: 20px;
   }
   .mine-visual {
-    height: 100px; /* 아이콘/이미지 영역 높이 축소 */
+    height: 100px;
     font-size: 4em;
   }
 }

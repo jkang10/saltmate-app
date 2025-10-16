@@ -10,6 +10,9 @@
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
     </div>
+    <div v-else-if="quests.length === 0" class="no-data">
+      <p>🎉 오늘은 추천 활동이 없거나, 모두 완료하셨습니다!</p>
+    </div>
     <div v-else class="quest-list">
       <div v-for="quest in quests" :key="quest.id" class="quest-item">
         <router-link :to="quest.link || '/'" class="quest-info">
@@ -59,7 +62,6 @@ const fetchQuests = async () => {
     isLoading.value = true;
     const getDailyQuests = httpsCallable(functions, 'getDailyQuests');
     const result = await getDailyQuests();
-    // [데이터 안전장치] result.data가 배열이 아닐 경우 빈 배열로 처리
     quests.value = Array.isArray(result.data) ? result.data : [];
   } catch (e) {
     console.error("오늘의 퀘스트 로딩 오류:", e);
@@ -91,6 +93,20 @@ onMounted(fetchQuests);
 </script>
 
 <style scoped>
+/* ▼▼▼ [핵심 수정] .no-data 스타일 추가 ▼▼▼ */
+.no-data {
+  text-align: center;
+  padding: 20px;
+  color: #555;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+}
+.no-data p {
+  margin: 0;
+  font-weight: 500;
+}
+/* ▲▲▲ 수정 끝 ▲▲▲ */
+
 .quests-widget {
   padding: 20px 25px;
   margin-bottom: 30px;
