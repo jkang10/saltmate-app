@@ -19,10 +19,10 @@
           </div>
           <div class="quest-progress">
             <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: `${Math.min((quest.progress / quest.target) * 100, 100)}%` }"></div>
+              <div class="progress-fill" :style="{ width: `${Math.min(((quest.progress || 0) / quest.target) * 100, 100)}%` }"></div>
             </div>
             <span class="progress-label">
-              {{ quest.progress.toLocaleString() }} / {{ quest.target.toLocaleString() }}
+              {{ (quest.progress || 0).toLocaleString() }} / {{ (quest.target || 0).toLocaleString() }}
             </span>
           </div>
         </router-link>
