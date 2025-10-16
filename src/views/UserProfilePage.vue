@@ -123,7 +123,6 @@
 
 <script>
 // [핵심 추가] computed를 vue에서 import합니다.
-import { computed } from "vue";
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import ChangePasswordModal from "@/components/ChangePasswordModal.vue";
