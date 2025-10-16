@@ -3,7 +3,8 @@
     <OnboardingTutorial :run="shouldRunTutorial" @complete="onTutorialComplete" />
 
     <AnnouncementTicker />
-    <div class="dashboard-container">
+<div class="dashboard-container" style="padding-top: 0; gap: 0;">
+      <DailyQuestsWidget />
       <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
         <p>
           <i class="fas fa-trophy"></i>
@@ -1199,6 +1200,6 @@ export default {
   }
 }
 .dashboard-container {
-  padding: 20px; /* 기존 padding-top: 0; gap: 0;
+padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 추가했으므로 여기는 유지 */
 }
 </style>
