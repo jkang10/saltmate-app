@@ -32,7 +32,7 @@
             </div>
             <div class="info-item">
               <label>소속 센터</label>
-              <span>{{ userProfile.region || "미지정" }}</span>
+              <span>{{ userProfile.centerId || "미지정" }}</span>
             </div>
             <div class="info-item">
               <label>연락처</label>
@@ -76,6 +76,18 @@
           </div>
 
           <div class="detail-card">
+            <h3><i class="fas fa-share-alt"></i> 추천인 링크 공유</h3>
+            <p class="referral-desc">
+              이 링크를 통해 가입한 회원은 나의 추천인으로 등록됩니다.
+            </p>
+            <div class="link-box">
+              <input type="text" :value="referralLink" readonly />
+              <button class="copy-button" @click="copyReferralLink">
+                복사
+              </button>
+            </div>
+          </div>
+          <div class="detail-card">
             <h3><i class="fas fa-cog"></i> 계정 설정</h3>
             <div class="settings-grid">
               <button class="setting-item" @click="openChangePasswordModal">
@@ -110,19 +122,16 @@
 </template>
 
 <script>
+// [핵심 추가] computed를 vue에서 import합니다.
+import { computed } from "vue";
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import ChangePasswordModal from "@/components/ChangePasswordModal.vue";
-// [추가] NotificationSettingsModal import 경로를 확인하고, 없다면 추가합니다.
 import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue"; 
-// [추가] Firebase Messaging 관련 import
 
-
-// [핵심 추가] 서비스 워커를 등록하는 헬퍼 함수
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      // public 폴더에 있는 파일을 정확히 지정합니다.
       const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
       console.log('Service Worker 등록 성공:', registration);
       return registration;
@@ -133,7 +142,6 @@ async function registerServiceWorker() {
   }
   throw new Error('Service workers are not supported in this browser.');
 }
-
 
 export default {
   name: "UserProfilePage",
@@ -149,6 +157,14 @@ export default {
       isPasswordModalVisible: false,
       isNotificationSettingsModalVisible: false,
     };
+  },
+  // [핵심 추가] computed 속성을 추가합니다.
+  computed: {
+    referralLink() {
+      if (!auth.currentUser) return "";
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/signup?ref=${auth.currentUser.uid}`;
+    },
   },
   async created() {
     await this.fetchProfileData();
@@ -187,15 +203,22 @@ export default {
     openChangePasswordModal() {
       this.isPasswordModalVisible = true;
     },
-    // [핵심 수정] openNotificationSettingsModal 함수를 아래 코드로 교체합니다.
     async openNotificationSettingsModal() {
       try {
-        // 모달을 열기 전에 서비스 워커를 먼저 등록합니다.
         await registerServiceWorker();
         this.isNotificationSettingsModalVisible = true;
       } catch (error) {
         alert("알림 서비스를 초기화하는 데 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요.");
       }
+    },
+    // [핵심 추가] 링크 복사 메서드를 추가합니다.
+    copyReferralLink() {
+      navigator.clipboard.writeText(this.referralLink).then(() => {
+        alert("추천인 링크가 복사되었습니다!");
+      }).catch(err => {
+        console.error('링크 복사 실패:', err);
+        alert("링크 복사에 실패했습니다.");
+      });
     },
   },
 };

@@ -24,7 +24,9 @@
       </button>
     </div>
 
-    <div v-if="matchId && gameState.players">
+    <div v-if="matchId && gameState.players" class="game-board-container">
+      <div class="game-timer">{{ Math.floor(gameState.gameTime / 60) }}:{{ String(gameState.gameTime % 60).padStart(2, '0') }}</div>
+      
       <main class="arena-container">
         <div class="player-area opponent">
           <div class="player-info">
@@ -70,12 +72,22 @@
           </div>
         </div>
       </footer>
+
+      <div v-if="gameState.status === 'finished'" class="game-over-overlay">
+        <div class="result-modal">
+          <h2 v-if="gameState.winner === auth.currentUser.uid">승리!</h2>
+          <h2 v-else-if="gameState.winner === 'draw'">무승부</h2>
+          <h2 v-else>패배</h2>
+          <p>트로피 {{ finalTrophyChange >= 0 ? '+' : '' }}{{ finalTrophyChange }}</p>
+          <button @click="goToLobby" class="lobby-button">로비로 돌아가기</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
 import { httpsCallable } from "firebase/functions";
 import { functions, db, auth } from "@/firebaseConfig";
 import { doc, onSnapshot, collection, getDocs } from "firebase/firestore";
@@ -85,91 +97,70 @@ const matchId = ref(null);
 const gameState = reactive({});
 let unsubscribe = null;
 
-const arenaData = reactive({ decks: [], activeDeckIndex: 0, hands: {}, deck: {} });
+const arenaData = reactive({ decks: [], activeDeckIndex: 0 });
 const allCards = reactive({});
 const selectedCardId = ref(null);
+const finalTrophyChange = ref(0);
 
-const selfId = computed(() => auth.currentUser?.uid);
-const self = computed(() => gameState.players?.[selfId.value] || {});
+const self = computed(() => gameState.players?.[auth.currentUser.uid] || {});
 const opponent = computed(() => {
-  const opponentId = Object.keys(gameState.players || {}).find(id => id !== selfId.value);
+  const opponentId = Object.keys(gameState.players || {}).find(id => id !== auth.currentUser.uid);
   return gameState.players?.[opponentId] || {};
 });
 
-const startMatchmaking = async () => {
-  isMatching.value = true;
+watch(() => gameState.status, (newStatus) => {
+  if (newStatus === 'finished') {
+    endGame();
+  }
+});
+
+const startMatchmaking = async () => { isMatching.value = true; try { const startArenaMatch = httpsCallable(functions, 'startArenaMatch'); const result = await startArenaMatch(); if (result.data.success) { matchId.value = result.data.matchId; listenToGame(); } } catch (error) { alert(`매칭 실패: ${error.message}`); } finally { isMatching.value = false; } };
+const listenToGame = () => { if (!matchId.value) return; const matchRef = doc(db, "arenaMatches", matchId.value); unsubscribe = onSnapshot(matchRef, (docSnap) => { if (docSnap.exists()) { Object.assign(gameState, docSnap.data()); } }); };
+const selectCard = (cardId) => { if (self.value.energy >= (allCards[cardId]?.cost || 99)) { selectedCardId.value = selectedCardId.value === cardId ? null : cardId; } };
+const onFieldClick = async (event) => { if (selectedCardId.value === null) return; const field = event.currentTarget.getBoundingClientRect(); const x = ((event.clientX - field.left) / field.width) * 100; const y = ((event.clientY - field.top) / field.height) * 100; if (y < 50) { alert("자신의 진영에만 유닛을 소환할 수 있습니다."); return; } try { const playArenaCard = httpsCallable(functions, 'playArenaCard'); await playArenaCard({ matchId: matchId.value, cardId: selectedCardId.value, position: { x, y } }); selectedCardId.value = null; } catch (error) { alert(`카드 사용 실패: ${error.message}`); } };
+
+const endGame = async () => {
   try {
-    const startArenaMatch = httpsCallable(functions, 'startArenaMatch');
-    const result = await startArenaMatch();
-    if (result.data.success) {
-      matchId.value = result.data.matchId;
-      listenToGame();
-    }
+    const finalizeArenaMatch = httpsCallable(functions, 'finalizeArenaMatch');
+    const result = await finalizeArenaMatch({ 
+      matchId: matchId.value, 
+      result: gameState.winner === auth.currentUser.uid ? 'win' : (gameState.winner === 'draw' ? 'draw' : 'lose')
+    });
+    finalTrophyChange.value = result.data.trophyChange;
   } catch (error) {
-    alert(`매칭 실패: ${error.message}`);
-  } finally {
-    isMatching.value = false;
+    console.error("게임 종료 처리 오류:", error);
   }
 };
 
-const listenToGame = () => {
-  if (!matchId.value) return;
-  const matchRef = doc(db, "arenaMatches", matchId.value);
-  unsubscribe = onSnapshot(matchRef, (docSnap) => {
-    if (docSnap.exists()) {
-      Object.assign(gameState, docSnap.data());
-    }
-  });
-};
-
-const selectCard = (cardId) => {
-  if (self.value.energy >= (allCards[cardId]?.cost || 99)) {
-    selectedCardId.value = selectedCardId.value === cardId ? null : cardId;
-  }
-};
-
-const onFieldClick = async (event) => {
-  if (selectedCardId.value === null) return;
-  
-  const field = event.currentTarget.getBoundingClientRect();
-  const x = ((event.clientX - field.left) / field.width) * 100;
-  const y = ((event.clientY - field.top) / field.height) * 100;
-
-  if (y < 50) {
-    alert("자신의 진영(아래쪽 절반)에만 유닛을 소환할 수 있습니다.");
-    return;
-  }
-  
-  try {
-    const playArenaCard = httpsCallable(functions, 'playArenaCard');
-    await playArenaCard({ matchId: matchId.value, cardId: selectedCardId.value, position: { x, y } });
-    selectedCardId.value = null;
-  } catch (error) {
-    alert(`카드 사용 실패: ${error.message}`);
-  }
+const goToLobby = () => {
+  matchId.value = null;
+  if(unsubscribe) unsubscribe();
+  unsubscribe = null;
 };
 
 onMounted(async () => {
   try {
     const cardsSnap = await getDocs(collection(db, "allCards"));
     cardsSnap.forEach(doc => { allCards[doc.id] = doc.data(); });
-
     const getArenaData = httpsCallable(functions, 'getArenaData');
     const result = await getArenaData();
     Object.assign(arenaData, result.data);
-  } catch (e) {
-    console.error("데이터 로딩 실패:", e);
-  }
+  } catch (e) { console.error("데이터 로딩 실패:", e); }
 });
-
-onUnmounted(() => {
-  if (unsubscribe) unsubscribe();
-});
+onUnmounted(() => { if (unsubscribe) unsubscribe(); });
 </script>
 
 <style scoped>
+/* (이전과 동일한 스타일에 아래 스타일 추가 및 수정) */
 .salt-arena-page { max-width: 500px; margin: 70px auto 20px; background: #34495e; color: #fff; border-radius: 15px; padding: 20px; font-family: sans-serif; }
 .page-header { text-align: center; margin-bottom: 20px; }
+.lobby-container { text-align: center; padding: 30px; }
+.deck-selection { margin-bottom: 20px; }
+.deck-info { background: #eee; padding: 10px; border-radius: 8px; color: #333; }
+.card-tag { background: #ccc; padding: 3px 8px; border-radius: 5px; margin: 2px; display: inline-block; font-size: 0.9em; }
+.match-button { padding: 15px 40px; font-size: 1.2em; font-weight: bold; border: none; border-radius: 10px; background: #28a745; color: white; cursor: pointer; }
+.game-board-container { position: relative; }
+.game-timer { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); color: #fff; padding: 5px 15px; border-radius: 10px; font-size: 1.2em; font-weight: bold; z-index: 10; }
 .arena-container { display: flex; flex-direction: column; background-color: #2c3e50; border-radius: 10px; padding: 10px; }
 .player-area { display: flex; justify-content: space-between; align-items: center; }
 .player-info { text-align: center; }
@@ -183,13 +174,8 @@ onUnmounted(() => {
 .energy-fill { height: 20px; background: linear-gradient(90deg, #8e44ad, #9b59b6); border-radius: 3px; transition: width 0.5s linear; }
 .energy-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; }
 .card-deck { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.card-in-hand { height: 120px; background: #ecf0f1; color: #2c3e50; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #bdc3c7; position: relative; cursor: pointer; }
+.card-in-hand { height: 120px; background: #ecf0f1; color: #2c3e50; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #bdc3c7; position: relative; cursor: pointer; transition: all 0.2s ease; }
 .card-cost { position: absolute; top: 5px; left: 5px; background: #8e44ad; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.lobby-container { text-align: center; padding: 30px; }
-.deck-selection { margin-bottom: 20px; }
-.deck-info { background: #eee; padding: 10px; border-radius: 8px; color: #333; }
-.card-tag { background: #ccc; padding: 3px 8px; border-radius: 5px; margin: 2px; display: inline-block; font-size: 0.9em; }
-.match-button { padding: 15px 40px; font-size: 1.2em; font-weight: bold; border: none; border-radius: 10px; background: #28a745; color: white; cursor: pointer; }
 .spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .unit { position: absolute; transform: translate(-50%, -50%); background: #fff; color: #000; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9em; border: 2px solid #2c3e50; transition: top 1s linear, left 1s linear; }
@@ -198,4 +184,7 @@ onUnmounted(() => {
 .unit-fade-enter-from, .unit-fade-leave-to { opacity: 0; }
 .card-in-hand.selected { border-color: #f1c40f; box-shadow: 0 0 10px #f1c40f; transform: scale(1.05); }
 .card-in-hand:not(.affordable) { opacity: 0.5; cursor: not-allowed; }
+.game-over-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 20; }
+.result-modal { background: #fff; color: #333; padding: 30px; border-radius: 15px; text-align: center; }
+.lobby-button { padding: 10px 20px; background: #007bff; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
 </style>
