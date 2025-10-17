@@ -94,26 +94,20 @@ const checkInteractions = (y, x) => {
   }
 };
 
-// [핵심 추가] 1차원 배열을 2차원 배열로 재구성하는 함수
-const reconstructMaze = (flatData, width, height) => {
-  const newMaze = [];
-  for (let i = 0; i < height; i++) {
-    newMaze.push(flatData.slice(i * width, (i + 1) * width));
-  }
-  return newMaze;
-};
-
 const startGame = async () => {
   try {
     const startMazeGame = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGame();
 
-    // [핵심 수정] 백엔드가 반환하는 데이터 구조에 맞게 수정
-    const { mazeData, mazeWidth, mazeHeight, treasures: receivedTreasures, exit: receivedExit } = result.data;
+    // [핵심 수정] 서버에서 받은 2차원 maze 배열을 직접 사용합니다.
+    const { maze: receivedMaze, treasures: receivedTreasures, exit: receivedExit } = result.data;
     
-    // 1차원 배열을 2차원 배열로 변환
+    // 2차원 배열로부터 직접 가로, 세로 길이를 계산합니다.
+    const mazeHeight = receivedMaze.length;
+    const mazeWidth = receivedMaze[0]?.length || 0;
+    
     mazeDimensions.value = { width: mazeWidth, height: mazeHeight };
-    maze.value = reconstructMaze(mazeData, mazeWidth, mazeHeight);
+    maze.value = receivedMaze; // 2차원 배열을 그대로 할당
 
     treasures.value = receivedTreasures;
     exit.value = receivedExit;
