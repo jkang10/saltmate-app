@@ -78,7 +78,7 @@ const finalResult = ref(null);
 const timeRemaining = ref(300);
 let timerInterval = null;
 
-const CELL_SIZE = 25; // 셀 크기를 25px로 조정
+const CELL_SIZE = 25;
 
 const mazeDimensions = computed(() => ({
   width: maze.value[0]?.length || 0,
