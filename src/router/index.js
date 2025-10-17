@@ -4,6 +4,7 @@ import LadderGamePage from "../views/LadderGamePage.vue";
 import SaltPotGachaPage from "../views/SaltPotGachaPage.vue";
 import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
 import MyAssetsPage from "../views/MyAssetsPage.vue";
+import MazeGamePage from "../views/MazeGamePage.vue";
 
 const routes = [
   {
@@ -170,6 +171,12 @@ const routes = [
     component: () => import('@/views/SaltCrystalPage.vue'),
     meta: { requiresAuth: true }
   },
+{
+  path: "/maze-game",
+  name: "MazeGamePage",
+  component: MazeGamePage,
+  meta: { requiresAuth: true },
+},
   {
     path: '/crystal-hall',
     name: 'CrystalHallPage',

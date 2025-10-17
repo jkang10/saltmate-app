@@ -322,6 +322,12 @@
 	  <p>다가오는 위협으로부터 소금 결정을 지켜내세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
+	<router-link to="/maze-game" class="feature-card game">
+            <div class="card-icon"><i class="fas fa-dungeon"></i></div>
+            <h3>수정 동굴 탈출</h3>
+            <p>매일 바뀌는 미로를 탐험하고 숨겨진 보물을 찾아 탈출하세요!</p>
+            <span class="card-enter">도전하기 &rarr;</span>
+        </router-link>
         </div>
       </main>
 
