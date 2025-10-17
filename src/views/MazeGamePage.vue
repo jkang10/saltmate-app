@@ -34,7 +34,7 @@
           <i class="fas fa-gem"></i> {{ collectedTreasures.length }} / {{ treasures.length }}
         </div>
       </div>
-      <div class="maze-area" :style="mazeAreaStyle">
+      <div class="maze-area" :style="mazeAreaStyle" :class="{ 'torch-active': isTorchActive }">
         <div class="maze-grid" :style="gridStyle">
           <template v-for="(row, y) in maze" :key="y">
             <div
@@ -43,10 +43,36 @@
               :class="getCellClass(cell, y, x)"
             >
               <div v-if="isTreasure(y, x)" class="treasure-item"></div>
+              <div v-if="isTrap(y, x)" :class="`trap-item ${getTrapType(y,x)}`"></div>
             </div>
           </template>
         </div>
-        <div class="player" :style="playerStyle"></div>
+        <div class="player" :style="playerStyle" :class="{'is-stunned': isPlayerStunned}"></div>
+        <div v-if="isCompassActive" class="compass-arrow" :style="compassStyle"></div>
+      </div>
+
+      <div class="tools-hud">
+          <div class="tool-item" :class="{ 'is-drilling': isDrilling }" @click="activateDrillMode">
+              <button :disabled="tools.drill.used || isDrilling">
+                  <i class="fas fa-tools"></i>
+              </button>
+              <span>드릴</span>
+          </div>
+          <div class="tool-item" @click="useCompass">
+              <button :disabled="tools.compass.used">
+                  <i class="fas fa-compass"></i>
+              </button>
+              <span>나침반</span>
+          </div>
+          <div class="tool-item" @click="useTorch">
+              <button :disabled="tools.torch.used">
+                  <i class="fas fa-fire"></i>
+              </button>
+              <span>횃불</span>
+          </div>
+      </div>
+      <div v-if="isDrilling" class="drill-message">
+          <i class="fas fa-exclamation-circle"></i> 파괴할 방향을 선택하세요!
       </div>
 
       <div class="mobile-controls">
@@ -71,7 +97,7 @@
           class="control-btn right"><i class="fas fa-arrow-right"></i>
         </button>
       </div>
-      </div>
+    </div>
 
     <div v-if="gameState === 'cleared'" class="game-state-screen">
       <div class="result-content">
@@ -86,10 +112,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
+// --- 상태 변수 (State Variables) ---
 const isLoading = ref(false);
 const error = ref(null);
 const gameState = ref('ready');
@@ -101,13 +128,22 @@ const exit = ref(null);
 const finalResult = ref(null);
 const timeRemaining = ref(300);
 let timerInterval = null;
-
-// ▼▼▼ [핵심 추가] 연속 이동을 위한 변수 ▼▼▼
 const movementInterval = ref(null);
-// ▲▲▲
+
+const traps = ref([]);
+const isPlayerStunned = ref(false);
+const tools = reactive({
+  compass: { used: false },
+  drill: { used: false },
+  torch: { used: false },
+});
+const isCompassActive = ref(false);
+const isTorchActive = ref(false);
+const isDrilling = ref(false);
 
 const CELL_SIZE = 25;
 
+// --- 계산된 속성 (Computed Properties) ---
 const mazeDimensions = computed(() => ({
   width: maze.value[0]?.length || 0,
   height: maze.value.length || 0,
@@ -130,23 +166,42 @@ const playerStyle = computed(() => ({
   height: `${CELL_SIZE}px`,
 }));
 
+const compassStyle = computed(() => {
+  if (!exit.value) return {};
+  const dy = exit.value.y - playerPos.value.y;
+  const dx = exit.value.x - playerPos.value.x;
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  return {
+    top: `${playerPos.value.y * CELL_SIZE + CELL_SIZE / 2}px`,
+    left: `${playerPos.value.x * CELL_SIZE + CELL_SIZE / 2}px`,
+    transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+  };
+});
+
+// --- 렌더링 헬퍼 함수 ---
 const getCellClass = (cell, y, x) => {
   const isExit = exit.value && exit.value.y === y && exit.value.x === x;
   return { wall: cell === 1, path: cell === 0, exit: isExit };
 };
+const isTreasure = (y, x) => treasures.value.some(t => t.y === y && t.x === x && !collectedTreasures.value.includes(t.id));
+const isTrap = (y, x) => traps.value.some(t => t.y === y && t.x === x);
+const getTrapType = (y, x) => traps.value.find(t => t.y === y && t.x === x)?.type;
 
-const isTreasure = (y, x) => {
-  return treasures.value.some(t => t.y === y && t.x === x && !collectedTreasures.value.includes(t.id));
-};
-
+// --- 게임 로직 함수 ---
 const movePlayer = (direction) => {
   const event = { key: direction, preventDefault: () => {} };
   handleKeyDown(event);
 };
 
 const handleKeyDown = (e) => {
-  if (gameState.value !== 'playing') return;
+  if (gameState.value !== 'playing' || isPlayerStunned.value) return;
   e.preventDefault();
+
+  if (isDrilling.value) {
+    executeDrill(e.key);
+    return;
+  }
+  
   const { y, x } = playerPos.value;
   let newY = y, newX = x;
 
@@ -161,16 +216,14 @@ const handleKeyDown = (e) => {
   }
 };
 
-// ▼▼▼ [핵심 추가] 연속 이동 시작 함수 ▼▼▼
 const startContinuousMove = (direction) => {
-  if (movementInterval.value) return; // 이미 이동 중이면 중복 실행 방지
-  movePlayer(direction); // 즉시 한 번 이동
+  if (movementInterval.value) return;
+  movePlayer(direction);
   movementInterval.value = setInterval(() => {
     movePlayer(direction);
-  }, 120); // 120ms 마다 반복 이동
+  }, 120);
 };
 
-// ▼▼▼ [핵심 추가] 연속 이동 중지 함수 ▼▼▼
 const stopContinuousMove = () => {
   if (movementInterval.value) {
     clearInterval(movementInterval.value);
@@ -183,8 +236,72 @@ const checkInteractions = (y, x) => {
   if (treasure && !collectedTreasures.value.includes(treasure.id)) {
     collectedTreasures.value.push(treasure.id);
   }
+
+  const trap = traps.value.find(t => t.y === y && t.x === x);
+  if (trap) {
+    isPlayerStunned.value = true;
+    setTimeout(() => {
+      isPlayerStunned.value = false;
+    }, 1500);
+  }
+
   if (exit.value && exit.value.y === y && exit.value.x === x) {
     endGame(true);
+  }
+};
+
+const useCompass = () => {
+  if (tools.compass.used) return;
+  tools.compass.used = true;
+  isCompassActive.value = true;
+  setTimeout(() => {
+    isCompassActive.value = false;
+  }, 3000);
+};
+
+const useTorch = () => {
+  if (tools.torch.used) return;
+  tools.torch.used = true;
+  isTorchActive.value = true;
+  setTimeout(() => {
+    isTorchActive.value = false;
+  }, 5000);
+};
+
+const activateDrillMode = () => {
+  if (tools.drill.used) return;
+  isDrilling.value = !isDrilling.value;
+};
+
+const executeDrill = async (direction) => {
+  const { y, x } = playerPos.value;
+  let wallY = y, wallX = x;
+
+  if (direction === 'ArrowUp') wallY--;
+  else if (direction === 'ArrowDown') wallY++;
+  else if (direction === 'ArrowLeft') wallX--;
+  else if (direction === 'ArrowRight') wallX++;
+  else return;
+
+  if (maze.value[wallY]?.[wallX] !== 1) {
+    alert("벽이 아닌 곳에는 드릴을 사용할 수 없습니다.");
+    isDrilling.value = false;
+    return;
+  }
+  
+  isLoading.value = true;
+  isDrilling.value = false;
+  tools.drill.used = true;
+
+  try {
+    const useDrillFunc = httpsCallable(functions, 'useDrill');
+    await useDrillFunc({ y: wallY, x: wallX });
+    maze.value[wallY][wallX] = 0;
+  } catch (err) {
+    error.value = err.message;
+    tools.drill.used = false;
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -192,13 +309,17 @@ const startGame = async () => {
   isLoading.value = true;
   gameState.value = 'loading';
   error.value = null;
+  isPlayerStunned.value = false;
+  Object.assign(tools, { compass: { used: false }, drill: { used: false }, torch: { used: false } });
+
   try {
     const startMazeGame = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGame();
-    const { maze: receivedMaze, treasures: receivedTreasures, exit: receivedExit } = result.data;
+    const { maze: receivedMaze, treasures: receivedTreasures, traps: receivedTraps, exit: receivedExit } = result.data;
     
     maze.value = receivedMaze;
     treasures.value = receivedTreasures;
+    traps.value = receivedTraps;
     exit.value = receivedExit;
     
     playerPos.value = { y: 1, x: 1 };
@@ -212,7 +333,6 @@ const startGame = async () => {
         endGame(false);
       }
     }, 1000);
-
   } catch (e) {
     error.value = e.message;
     gameState.value = 'error';
@@ -255,13 +375,11 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   if (timerInterval) clearInterval(timerInterval);
-  // ▼▼▼ [핵심 추가] 컴포넌트 unmount 시 이동 인터벌 정리 ▼▼▼
   if (movementInterval.value) clearInterval(movementInterval.value);
 });
 </script>
 
 <style scoped>
-/* 기존 스타일은 그대로 유지 */
 .maze-page-container {
   display: flex;
   justify-content: center;
@@ -340,7 +458,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
-.wall { background-color: #34495e; box-shadow: inset 2px 2px 5px rgba(0,0,0,0.5); }
+.wall { background-color: #34495e; box-shadow: inset 2px 2px 5px rgba(0,0,0,0.5); transition: opacity 0.5s; }
 .path { background-color: transparent; }
 .exit {
   background-color: #2ecc71;
@@ -366,6 +484,103 @@ onUnmounted(() => {
   transition: top 0.1s linear, left 0.1s linear;
   animation: player-spawn 0.5s ease-out;
 }
+.player.is-stunned {
+  animation: shake 0.5s infinite;
+  background-color: #f39c12 !important;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+.compass-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-bottom: 30px solid #e74c3c;
+  z-index: 10;
+  transition: transform 0.5s ease;
+  filter: drop-shadow(0 0 5px #000);
+}
+.maze-area.torch-active .wall {
+  opacity: 0.3;
+}
+.trap-item {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.trap-item.rockfall::before {
+  content: '🪨';
+  font-size: 1.2em;
+  opacity: 0.5;
+}
+.trap-item.ice_patch {
+  background: rgba(173, 216, 230, 0.4);
+  border-radius: 50%;
+}
+
+.tools-hud {
+  display: flex;
+  gap: 15px;
+  margin-top: 15px;
+  padding: 10px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+}
+.tool-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: white;
+  gap: 5px;
+  cursor: pointer;
+}
+.tool-item button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background-color: #3498db;
+  color: white;
+  font-size: 1.5em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tool-item button:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.tool-item button:disabled {
+  background-color: #7f8c8d;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.tool-item.is-drilling button {
+  background-color: #e67e22;
+  animation: pulse-orange 1s infinite;
+}
+@keyframes pulse-orange {
+  0% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(230, 126, 34, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0); }
+}
+.drill-message {
+  color: #f1c40f;
+  font-weight: bold;
+  margin-top: 10px;
+  animation: blink-text 1.5s infinite;
+}
+@keyframes blink-text {
+  50% { opacity: 0.5; }
+}
+
 @keyframes player-spawn {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
@@ -374,9 +589,8 @@ onUnmounted(() => {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 모바일 조이스틱 스타일 */
 .mobile-controls {
-  display: none; /* PC에서는 숨김 */
+  display: none;
   position: fixed;
   bottom: 30px;
   right: 30px;
@@ -407,7 +621,6 @@ onUnmounted(() => {
 .control-btn.down { top: 100px; left: 50px; }
 .control-btn.right { top: 50px; left: 100px; }
 
-/* 화면 너비가 768px 이하일 때 조이스틱 표시 */
 @media (max-width: 768px) {
   .mobile-controls {
     display: block;
