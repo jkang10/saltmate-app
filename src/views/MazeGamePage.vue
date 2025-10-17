@@ -40,7 +40,6 @@ const finalResult = ref(null);
 
 const CELL_SIZE = 25;
 const MAZE_WIDTH = 15;
-const MAZE_HEIGHT = 15;
 
 const flatMaze = computed(() => maze.value.flat());
 const gridStyle = computed(() => ({
