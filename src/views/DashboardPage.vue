@@ -119,18 +119,18 @@
         </section>
 
         <div class="dashboard-grid">
-          <LiveGameFeed class="live-feed-widget" />
+	<LiveGameFeed class="live-feed-widget" />
           <LeaderboardWidget />
           <WeeklyLeaderboardWidget />
           <SaltPangHallOfFame />
-          <SaltMinePrestigeRankingsWidget />
-          <SaltMineClickRankingsWidget />
+	  <SaltMinePrestigeRankingsWidget />
+	  <SaltMineClickRankingsWidget />
           <ChallengeRankingsWidget />
           <SaltPangRankedWidget />
-          <SaltPangPvpRankingsWidget />
-          <EnchantRankingsWidget />
-          <SaltGuardiansRankingsWidget />
-          <WeatherApp />
+	  <SaltPangPvpRankingsWidget />
+	  <EnchantRankingsWidget />
+	  <SaltGuardiansRankingsWidget />
+	  <WeatherApp />
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>
@@ -354,6 +354,7 @@
 </template>
 
 <script>
+// [핵심] ref, onMounted, computed를 vue에서 직접 import합니다.
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { auth, db, functions } from "@/firebaseConfig";
 import { httpsCallable, getFunctions } from "firebase/functions";
@@ -369,6 +370,7 @@ import {
   getDoc,
   onSnapshot,
 } from "firebase/firestore";
+// ... (나머지 컴포넌트 import는 그대로 유지) ...
 import TransactionHistoryModal from "@/components/TransactionHistoryModal.vue";
 import UpgradeTierModal from "@/components/UpgradeTierModal.vue";
 import WithdrawalRequestModal from "@/components/WithdrawalRequestModal.vue";
@@ -387,11 +389,12 @@ import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
 import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
 import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
-import WeatherApp from '@/components/WeatherApp.vue'; // [핵심] WeatherApp 컴포넌트 import
+import WeatherApp from '@/components/WeatherApp.vue';
 
 export default {
   name: "DashboardPage",
   components: {
+    // ... (모든 컴포넌트 등록은 그대로 유지) ...
     TransactionHistoryModal,
     UpgradeTierModal,
     WithdrawalRequestModal,
@@ -410,10 +413,11 @@ export default {
     SaltMinePrestigeRankingsWidget,
     SaltMineClickRankingsWidget,
     DailyQuestsWidget,
-    WeatherApp, // [핵심] WeatherApp 컴포넌트 등록
+    WeatherApp,
   },
+  // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
-    // ... (기존 setup 함수 내용은 그대로 유지) ...
+    // --- 1. data()에 있던 변수들을 ref 또는 reactive로 변환 ---
     const userProfile = ref(null);
     const loadingUser = ref(true);
     const error = ref(null);
@@ -429,8 +433,10 @@ export default {
     let unsubscribe = null;
     let unsubscribeJackpot = null;
 
+    // --- 2. 튜토리얼 관련 상태 변수 추가 ---
     const shouldRunTutorial = ref(false);
 
+    // --- 3. computed 속성 정의 ---
     const cycleProgress = computed(() => {
       if (!userProfile.value || !userProfile.value.cycleCap || userProfile.value.cycleCap === 0) return 0;
       return Math.min((userProfile.value.currentCycleEarnings / userProfile.value.cycleCap) * 100, 100);
@@ -458,6 +464,7 @@ export default {
       return `status-${userProfile.value.subscriptionStatus}`;
     });
 
+    // --- 4. methods를 일반 함수로 정의 ---
     const listenToLatestJackpot = () => {
       const q = query(collection(db, "saltPangJackpotWins"), orderBy("wonAt", "desc"), limit(1));
       unsubscribeJackpot = onSnapshot(q, (snapshot) => {
@@ -489,6 +496,7 @@ export default {
         (docSnap) => {
           if (docSnap.exists()) {
             userProfile.value = docSnap.data();
+            // [핵심] 사용자 프로필을 받은 후 튜토리얼 실행 여부 결정
             if (!userProfile.value.hasCompletedTutorial) {
               shouldRunTutorial.value = true;
             }
@@ -542,18 +550,21 @@ export default {
     const openWithdrawalModal = () => { isWithdrawalModalVisible.value = true; };
     const openCycleEarningsModal = () => { isCycleModalVisible.value = true; };
     
+    // --- 5. 튜토리얼 완료 처리 함수 ---
     const onTutorialComplete = async () => {
-      shouldRunTutorial.value = false;
+      shouldRunTutorial.value = false; // 튜토리얼 숨기기
       try {
         const functionsWithRegion = getFunctions(undefined, "asia-northeast3");
         const markComplete = httpsCallable(functionsWithRegion, 'markTutorialAsCompleted');
         await markComplete();
+        // 로컬 userProfile 상태도 업데이트하여 새로고침 전까지 다시 보이지 않도록 함
         if(userProfile.value) userProfile.value.hasCompletedTutorial = true;
       } catch (e) {
         console.error("Failed to mark tutorial as complete:", e);
       }
     };
 
+    // --- 6. created()와 unmounted()를 onMounted()와 onUnmounted()로 변환 ---
     onMounted(() => {
       onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -572,6 +583,7 @@ export default {
       if (unsubscribeJackpot) unsubscribeJackpot();
     });
 
+    // --- 7. template에서 사용할 모든 변수와 함수를 return ---
     return {
       userProfile, loadingUser, error, notices, historyModal, upgradeModalVisible,
       isWithdrawalModalVisible, isCycleModalVisible, marketingPlan, isRequestingPayment,
@@ -579,6 +591,7 @@ export default {
       cycleProgress, isWithdrawalEnabled, daysUntilPayment, subscriptionStatusClass,
       requestPayment, formatDate, getTierClass, openHistoryModal, openUpgradeModal,
       openWithdrawalModal, openCycleEarningsModal,
+      // 튜토리얼 관련
       shouldRunTutorial,
       onTutorialComplete,
     };
@@ -587,10 +600,6 @@ export default {
 </script>
 
 <style scoped>
-/* ... (기존 스타일은 그대로 유지) ... */
-.dashboard-container {
-  padding: 20px;
-}
 .feature-card.crystal-game {
   background: linear-gradient(145deg, #1e2a3a, #3b506c);
   color: #fff;
@@ -663,9 +672,11 @@ export default {
   color: #ffc107;
 }
 
+/* [핵심 추가] QR 스캐너 카드 아이콘 색상 스타일 */
 .feature-card.qr-scanner .card-icon {
-  color: #007bff;
+  color: #007bff; /* 파란색 계열 아이콘 */
 }
+/* [핵심 추가] 잭팟 당첨 전광판 스타일 */
 .jackpot-winner-card {
   padding: 20px 25px;
   margin-bottom: 30px;
@@ -757,6 +768,14 @@ export default {
 }
 .clickable:hover {
   color: #aed6f1;
+}
+.dashboard-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 10px auto 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 .notice-section {
   padding: 20px 25px;
@@ -1184,5 +1203,8 @@ export default {
   .balances {
     grid-template-columns: 1fr; /* 화면이 좁아지면 1개의 열(세로 배치)로 변경 */
   }
+}
+.dashboard-container {
+padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 추가했으므로 여기는 유지 */
 }
 </style>
