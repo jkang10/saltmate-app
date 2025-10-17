@@ -31,19 +31,19 @@ import { httpsCallable } from 'firebase/functions';
 const isLoading = ref(true);
 const error = ref(null);
 const gameState = ref('loading');
-const maze = ref([]);
+const maze = ref([]); // 이 변수는 2차원 배열을 저장합니다.
 const playerPos = ref({ y: 1, x: 1 });
 const treasures = ref([]);
 const collectedTreasures = ref([]);
 const exit = ref(null);
 const finalResult = ref(null);
+const mazeDimensions = ref({ width: 15, height: 15 }); // [핵심 추가] 미로 크기 저장
 
 const CELL_SIZE = 25;
-const MAZE_WIDTH = 15;
 
 const flatMaze = computed(() => maze.value.flat());
 const gridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${MAZE_WIDTH}, ${CELL_SIZE}px)`,
+  gridTemplateColumns: `repeat(${mazeDimensions.value.width}, ${CELL_SIZE}px)`,
 }));
 const playerStyle = computed(() => ({
   top: `${playerPos.value.y * CELL_SIZE}px`,
@@ -53,8 +53,8 @@ const playerStyle = computed(() => ({
 }));
 
 const getCellClass = (cell, index) => {
-  const y = Math.floor(index / MAZE_WIDTH);
-  const x = index % MAZE_WIDTH;
+  const y = Math.floor(index / mazeDimensions.value.width);
+  const x = index % mazeDimensions.value.width;
   const isTreasure = treasures.value.some(t => t.y === y && t.x === x && !collectedTreasures.value.includes(t.id));
   const isExit = exit.value && exit.value.y === y && exit.value.x === x;
   return {
@@ -75,6 +75,7 @@ const handleKeyDown = (e) => {
   if (e.key === 'ArrowLeft') newX--;
   if (e.key === 'ArrowRight') newX++;
 
+  // 2차원 배열을 사용하여 충돌 감지
   if (maze.value[newY]?.[newX] === 0) {
     playerPos.value = { y: newY, x: newX };
     checkInteractions(newY, newX);
@@ -85,23 +86,42 @@ const checkInteractions = (y, x) => {
   const treasure = treasures.value.find(t => t.y === y && t.x === x);
   if (treasure && !collectedTreasures.value.includes(treasure.id)) {
     collectedTreasures.value.push(treasure.id);
-    alert(`'${treasure.name}'을(를) 획득했습니다! (+${treasure.value}점)`);
+    // [수정] alert 대신 console.log 사용 또는 더 나은 UI로 교체 권장
+    console.log(`'${treasure.name}'을(를) 획득했습니다! (+${treasure.value}점)`);
   }
   if (exit.value && exit.value.y === y && exit.value.x === x) {
     endGame();
   }
 };
 
+// [핵심 추가] 1차원 배열을 2차원 배열로 재구성하는 함수
+const reconstructMaze = (flatData, width, height) => {
+  const newMaze = [];
+  for (let i = 0; i < height; i++) {
+    newMaze.push(flatData.slice(i * width, (i + 1) * width));
+  }
+  return newMaze;
+};
+
 const startGame = async () => {
   try {
     const startMazeGame = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGame();
-    maze.value = result.data.maze;
-    treasures.value = result.data.treasures;
-    exit.value = result.data.exit;
+
+    // [핵심 수정] 백엔드가 반환하는 데이터 구조에 맞게 수정
+    const { mazeData, mazeWidth, mazeHeight, treasures: receivedTreasures, exit: receivedExit } = result.data;
+    
+    // 1차원 배열을 2차원 배열로 변환
+    mazeDimensions.value = { width: mazeWidth, height: mazeHeight };
+    maze.value = reconstructMaze(mazeData, mazeWidth, mazeHeight);
+
+    treasures.value = receivedTreasures;
+    exit.value = receivedExit;
     gameState.value = 'playing';
+
   } catch (e) {
     error.value = e.message;
+    gameState.value = 'error'; // 에러 상태 추가
   } finally {
     isLoading.value = false;
   }
@@ -117,6 +137,7 @@ const endGame = async () => {
     gameState.value = 'cleared';
   } catch (e) {
     error.value = e.message;
+    gameState.value = 'error';
   } finally {
     isLoading.value = false;
   }
