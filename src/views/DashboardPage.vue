@@ -131,6 +131,12 @@
 	  <EnchantRankingsWidget />
 	  <SaltGuardiansRankingsWidget />
 	  <WeatherApp />
+	  <router-link to="/weather" class="feature-card">
+	    <div class="card-icon"><i class="fas fa-cloud-sun"></i></div>
+	    <h3>오늘의 날씨</h3>
+	    <p>도시별 현재 날씨를 검색하고 자세한 정보를 확인하세요.</p>
+	    <span class="card-enter">확인하기 &rarr;</span>
+	  </router-link>
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>

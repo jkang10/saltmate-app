@@ -4,6 +4,7 @@ import LadderGamePage from "../views/LadderGamePage.vue";
 import SaltPotGachaPage from "../views/SaltPotGachaPage.vue";
 import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
 import MyAssetsPage from "../views/MyAssetsPage.vue";
+import WeatherPage from "../views/WeatherPage.vue";
 
 const routes = [
   {
@@ -170,6 +171,12 @@ const routes = [
     component: () => import('@/views/SaltCrystalPage.vue'),
     meta: { requiresAuth: true }
   },
+{
+  path: "/weather",
+  name: "WeatherPage",
+  component: WeatherPage,
+  meta: { requiresAuth: true },
+},
   {
     path: '/crystal-hall',
     name: 'CrystalHallPage',
