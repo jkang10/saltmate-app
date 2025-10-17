@@ -6,56 +6,65 @@
     </div>
 
     <div v-else-if="game.status === 'waiting'" class="state-screen">
-      <h2>솔트 스칼라 퀴즈</h2>
-      <p>매시간 정각에 시작되는 서바이벌 퀴즈쇼!</p>
+      <i class="fas fa-trophy title-icon"></i>
+      <h2 class="game-title">솔트 스칼라 퀴즈</h2>
+      <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       <div class="countdown">
         {{ timeToStart > 0 ? `게임 시작까지 약 ${timeToStart}초` : '곧 시작합니다!' }}
       </div>
-      <button @click="joinGame" :disabled="isJoined || isLoading">
-        {{ isJoined ? '참가 완료!' : '참가하기 (100 포인트 즉시 지급)' }}
+      <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
+        <span v-if="isJoined">참가 완료!</span>
+        <span v-else>참가하기 (100 포인트 즉시 지급)</span>
       </button>
     </div>
 
     <div v-else-if="game.status === 'playing' && currentQuestion" class="playing-screen">
       <div class="quiz-header">
-        <h3>{{ game.currentQuestionIndex + 1 }} / {{ game.questions.length }}</h3>
-        <div class="timer-bar" :style="{ width: `${(timer/10) * 100}%` }"></div>
+        <span class="question-counter">{{ game.currentQuestionIndex + 1 }} / {{ game.questions.length }}</span>
+        <div class="timer-container">
+          <div class="timer-bar" :style="{ width: `${(timer/10) * 100}%` }"></div>
+        </div>
       </div>
       <div class="question-area">
+        <p class="question-category">{{ currentQuestion.category }}</p>
         <h2>{{ currentQuestion.question }}</h2>
       </div>
-      <div v-if="currentQuestion.category === 'golden_bell'" class="answer-area">
-          <input type="text" v-model="goldenBellAnswer" placeholder="정답을 입력하세요" @keyup.enter="submitGoldenBell" :disabled="hasAnswered">
-          <button @click="submitGoldenBell" :disabled="hasAnswered">제출</button>
+      <div v-if="currentQuestion.category === 'golden_bell'" class="answer-area golden-bell">
+          <input type="text" v-model="goldenBellAnswer" class="golden-bell-input" placeholder="정답을 입력하세요" @keyup.enter="submitGoldenBell" :disabled="hasAnswered">
+          <button @click="submitGoldenBell" class="action-button" :disabled="hasAnswered">제출</button>
       </div>
       <div v-else class="answer-area">
         <button
           v-for="(choice, index) in currentQuestion.choices"
           :key="index"
           @click="selectAnswer(index)"
+          class="choice-button"
           :class="getChoiceClass(index)"
           :disabled="hasAnswered"
         >
-          {{ choice }}
+          <span class="choice-number">{{ index + 1 }}</span>
+          <span class="choice-text">{{ choice }}</span>
         </button>
       </div>
       <div class="status-footer">
-        <p v-if="myStatus === 'eliminated'">탈락했습니다. 결과를 지켜봐 주세요.</p>
+        <p v-if="myStatus === 'eliminated'">아쉽지만 탈락했습니다. 다음 라운드를 지켜봐 주세요.</p>
         <p v-else-if="hasAnswered">답변을 제출했습니다.</p>
       </div>
     </div>
 
     <div v-else-if="game.status === 'finished'" class="state-screen">
-      <h2>게임 종료!</h2>
+      <i class="fas fa-crown title-icon"></i>
+      <h2 class="game-title">게임 종료!</h2>
       <div v-if="game.winner">
-        <p class="winner-text">최후의 1인: {{ winnerName }}</p>
-        <p>우승 상금 10,000 SaltMate 포인트를 획득했습니다!</p>
-      </div>
+        <p class="winner-label">최후의 1인</p>
+        <p class="winner-text">{{ winnerName }}</p>
+        <p class="game-description">우승 상금 1,000 SaltMate 포인트를 획득했습니다!</p>
+        </div>
       <div v-else>
-        <p>최종 우승자가 없습니다.</p>
+        <p class="game-description">최종 우승자가 없습니다. 아쉽지만 다음 기회에!</p>
       </div>
-      <p>다음 게임은 잠시 후 정각에 시작됩니다.</p>
-      <router-link to="/dashboard">대시보드로 돌아가기</router-link>
+      <p class="next-game-info">다음 게임은 잠시 후 정각에 시작됩니다.</p>
+      <router-link to="/dashboard" class="action-button">대시보드로 돌아가기</router-link>
     </div>
   </div>
 </template>
@@ -141,9 +150,19 @@ const getChoiceClass = (index) => {
     if (!hasAnswered.value) return '';
     const myAnswer = game.value.participants?.[auth.currentUser.uid]?.answers?.[game.value.currentQuestionIndex]?.answerIndex;
     const correctAnswer = currentQuestion.value.answer;
+
+    const roundEndTime = game.value.roundEndTime || 0;
+    const isRoundOver = (Date.now() + serverTimeOffset.value) > roundEndTime - 4500;
+
+    if (!isRoundOver) {
+      if (index === myAnswer) return 'selected';
+      return '';
+    }
+    
     if (index === correctAnswer) return 'correct';
     if (index === myAnswer) return 'incorrect';
-    return '';
+
+    return 'disabled';
 };
 
 const updateTimer = () => {
@@ -153,7 +172,7 @@ const updateTimer = () => {
             const localNow = Date.now() + serverTimeOffset.value;
             const newTimer = Math.max(0, Math.round((game.value.roundEndTime - 5000 - localNow) / 1000));
             timer.value = newTimer;
-        }, 1000);
+        }, 200);
     }
 };
 
@@ -168,82 +187,208 @@ onUnmounted(() => {
   off(gameRef);
   if(timerInterval) clearInterval(timerInterval);
 });
-
 </script>
 
 <style scoped>
 .quiz-page-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 70px);
   padding: 20px;
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  color: #ecf0f1;
+}
+.state-screen, .playing-screen {
+  width: 100%;
   max-width: 800px;
-  margin: 90px auto 20px;
-  background: #fff;
-  border-radius: 15px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
   text-align: center;
 }
-.state-screen {
-  padding: 40px;
+.title-icon {
+  font-size: 4em;
+  color: #f1c40f;
+  margin-bottom: 20px;
+  text-shadow: 0 0 15px #f1c40f;
+}
+.game-title {
+  font-size: 2.8em;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.game-description, .next-game-info {
+  font-size: 1.1em;
+  color: #bdc3c7;
+  line-height: 1.6;
 }
 .countdown {
   font-size: 1.5em;
   font-weight: bold;
-  color: #e74c3c;
-  margin: 20px 0;
+  color: #e67e22;
+  margin: 25px 0;
+  background: rgba(0,0,0,0.2);
+  padding: 10px;
+  border-radius: 8px;
+}
+.action-button {
+  padding: 15px 30px;
+  font-size: 1.2em;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(145deg, #f1c40f, #e67e22);
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.action-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.action-button:disabled {
+  background: #7f8c8d;
+  cursor: not-allowed;
 }
 .playing-screen {
-  padding: 20px;
+  padding: 25px 40px;
 }
 .quiz-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
   margin-bottom: 20px;
 }
+.question-counter {
+  font-size: 1.1em;
+  font-weight: bold;
+}
+.timer-container {
+  flex-grow: 1;
+  height: 12px;
+  background-color: rgba(0,0,0,0.3);
+  border-radius: 6px;
+}
 .timer-bar {
-  height: 10px;
-  background-color: #2ecc71;
-  border-radius: 5px;
-  transition: width 1s linear;
+  height: 100%;
+  background-image: linear-gradient(90deg, #e67e22, #f1c40f);
+  border-radius: 6px;
+  transition: width 0.2s linear;
 }
 .question-area {
-  margin: 40px 0;
+  margin: 30px 0 40px 0;
   min-height: 100px;
+}
+.question-category {
+  font-size: 0.9em;
+  text-transform: uppercase;
+  color: #f1c40f;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.question-area h2 {
+  font-size: 1.8em;
+  margin: 0;
 }
 .answer-area {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 20px;
 }
-.answer-area button {
+.choice-button {
+  display: flex;
+  align-items: center;
+  gap: 15px;
   padding: 20px;
   font-size: 1.2em;
+  text-align: left;
   cursor: pointer;
-  border-radius: 8px;
-  border: 2px solid #bdc3c7;
-  background-color: #ecf0f1;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.2);
+  background-color: transparent;
+  color: #ecf0f1;
   transition: all 0.2s;
 }
-.answer-area button:hover:not(:disabled) {
-  background-color: #d2d7d9;
+.choice-button:hover:not(:disabled) {
+  background-color: rgba(255,255,255,0.1);
+  border-color: #f1c40f;
 }
-.answer-area button:disabled {
+.choice-button.selected {
+  background-color: rgba(52, 152, 219, 0.5);
+  border-color: #3498db;
+}
+.choice-button.correct {
+  background-color: #27ae60;
+  border-color: #2ecc71;
+  color: white;
+  animation: pulse-green 0.5s;
+}
+.choice-button.incorrect {
+  background-color: #c0392b;
+  border-color: #e74c3c;
+  color: white;
+  animation: shake-horizontal 0.5s;
+}
+.choice-button:disabled {
   cursor: not-allowed;
 }
-.answer-area button.correct {
-  background-color: #2ecc71;
-  color: white;
-  border-color: #27ae60;
+.choice-button.disabled {
+  opacity: 0.5;
 }
-.answer-area button.incorrect {
-  background-color: #e74c3c;
+.choice-number {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+}
+.golden-bell {
+  display: flex;
+  gap: 15px;
+}
+.golden-bell-input {
+  flex-grow: 1;
+  padding: 15px;
+  font-size: 1.2em;
+  border-radius: 8px;
+  border: 2px solid rgba(255,255,255,0.2);
+  background-color: transparent;
   color: white;
-  border-color: #c0392b;
+}
+.golden-bell-input:focus {
+  outline: none;
+  border-color: #f1c40f;
 }
 .status-footer {
-  margin-top: 20px;
+  margin-top: 25px;
   font-size: 1.1em;
-  color: #7f8c8d;
+  color: #bdc3c7;
+  min-height: 25px;
+}
+.winner-label {
+  font-size: 1.2em;
+  color: #bdc3c7;
 }
 .winner-text {
-    font-size: 1.8em;
-    font-weight: bold;
-    color: #f1c40f;
+  font-size: 2.5em;
+  font-weight: bold;
+  color: #f1c40f;
+  margin: 5px 0 15px 0;
+  animation: pulse-gold 1.5s infinite;
 }
+
+/* Animations */
+@keyframes pulse-green { 0% { box-shadow: 0 0 0 0 #2ecc71; } 100% { box-shadow: 0 0 15px 5px transparent; } }
+@keyframes pulse-gold { 0% { text-shadow: 0 0 5px #f1c40f; } 50% { text-shadow: 0 0 20px #f39c12; } 100% { text-shadow: 0 0 5px #f1c40f; } }
+@keyframes shake-horizontal { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
 </style>
