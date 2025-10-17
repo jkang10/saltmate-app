@@ -4,20 +4,21 @@
       <div class="intro-content">
         <i class="fas fa-dungeon intro-icon"></i>
         <h2>수정 동굴 탈출</h2>
-        <p>매일 구조가 바뀌는 미로를 탐험하고 숨겨진 보물을 찾아 탈출하세요! 방향키로 움직일 수 있습니다.</p>
+        <p>매일 구조가 바뀌는 미로를 탐험하고 숨겨진 보물을 찾아 탈출하세요! PC에서는 방향키, 모바일에서는 화면의 조이스틱으로 움직일 수 있습니다.</p>
         <div class="entry-fee">
           <label>입장료</label>
           <span>100 SaltMate</span>
         </div>
         <button @click="startGame" class="action-button" :disabled="isLoading">
           <span v-if="isLoading" class="spinner-small"></span>
-          <span v-else>게임 시작</span>
+          <span v-else>도전하기 (일일 5회)</span>
         </button>
       </div>
     </div>
 
     <div v-if="gameState === 'loading'" class="game-state-screen">
-      <div class="spinner"></div><p>미로 생성 중...</p>
+      <div class="spinner"></div>
+      <p>미로 생성 중...</p>
     </div>
     <div v-else-if="gameState === 'error'" class="game-state-screen">
       <p class="error-message">{{ error }}</p>
@@ -46,6 +47,13 @@
           </template>
         </div>
         <div class="player" :style="playerStyle"></div>
+      </div>
+
+      <div class="mobile-controls">
+        <button @click="movePlayer('ArrowUp')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
+        <button @click="movePlayer('ArrowLeft')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
+        <button @click="movePlayer('ArrowDown')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
+        <button @click="movePlayer('ArrowRight')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
       </div>
     </div>
 
@@ -106,8 +114,14 @@ const getCellClass = (cell, y, x) => {
   const isExit = exit.value && exit.value.y === y && exit.value.x === x;
   return { wall: cell === 1, path: cell === 0, exit: isExit };
 };
+
 const isTreasure = (y, x) => {
   return treasures.value.some(t => t.y === y && t.x === x && !collectedTreasures.value.includes(t.id));
+};
+
+const movePlayer = (direction) => {
+  const event = { key: direction, preventDefault: () => {} };
+  handleKeyDown(event);
 };
 
 const handleKeyDown = (e) => {
@@ -144,6 +158,7 @@ const startGame = async () => {
   try {
     const startMazeGame = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGame();
+    // 백엔드가 2차원 배열 그대로 반환하므로 바로 사용
     const { maze: receivedMaze, treasures: receivedTreasures, exit: receivedExit } = result.data;
     
     maze.value = receivedMaze;
@@ -177,6 +192,7 @@ const endGame = async (isSuccess) => {
   gameState.value = 'loading';
   isLoading.value = true;
   
+  // 타임오버로 실패 시
   if (!isSuccess) {
     finalResult.value = { time: 300, score: 0, reward: 0 };
     gameState.value = 'cleared';
@@ -184,6 +200,7 @@ const endGame = async (isSuccess) => {
     return;
   }
 
+  // 성공 시 서버에 결과 전송
   try {
     const endMazeGame = httpsCallable(functions, 'endMazeGame');
     const result = await endMazeGame({ treasuresCollected: collectedTreasures.value });
@@ -217,6 +234,7 @@ onUnmounted(() => {
   background: #2c3e50;
   padding: 20px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 .game-state-screen {
   text-align: center;
@@ -228,6 +246,7 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,0.2);
+  max-width: 90vw;
 }
 .intro-icon { font-size: 4em; color: #f1c40f; margin-bottom: 20px; }
 .intro-content h2, .result-content h2 { font-size: 2.5em; margin-bottom: 10px; }
@@ -261,7 +280,14 @@ onUnmounted(() => {
 }
 .spinner { width: 50px; height: 50px; margin-bottom: 15px; }
 .spinner-small { width: 18px; height: 18px; border-width: 2px; vertical-align: middle; margin-right: 8px;}
-.game-play-area { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.game-play-area { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  gap: 20px;
+  position: relative; 
+  width: 100%;
+}
 .game-hud {
   display: flex; gap: 30px; color: white; background: rgba(0,0,0,0.4); padding: 10px 20px;
   border-radius: 10px; font-size: 1.5em; font-weight: bold;
@@ -274,7 +300,6 @@ onUnmounted(() => {
   background-color: #bdc3c7;
   border: 3px solid #7f8c8d; 
   box-shadow: 0 0 20px rgba(0,0,0,0.5); 
-  /* [핵심 오류 수정] 그리드가 부모 영역을 100% 채우도록 설정 */
   width: 100%;
   height: 100%;
 }
@@ -309,4 +334,53 @@ onUnmounted(() => {
   to { transform: scale(1); opacity: 1; }
 }
 .error-message { color: #e74c3c; font-size: 1.2em; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 모바일 조이스틱 스타일 */
+.mobile-controls {
+  display: none; /* PC에서는 숨김 */
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 150px;
+  height: 150px;
+  z-index: 100;
+}
+.control-btn {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  color: white;
+  font-size: 1.5em;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+}
+.control-btn:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+.control-btn.up { top: 0; left: 50px; }
+.control-btn.left { top: 50px; left: 0; }
+.control-btn.down { top: 100px; left: 50px; }
+.control-btn.right { top: 50px; left: 100px; }
+
+/* 화면 너비가 768px 이하일 때 조이스틱 표시 */
+@media (max-width: 768px) {
+  .mobile-controls {
+    display: block;
+  }
+  .game-play-area {
+    padding-bottom: 180px; 
+  }
+  .game-hud {
+    font-size: 1.2em;
+    padding: 8px 15px;
+  }
+}
 </style>
