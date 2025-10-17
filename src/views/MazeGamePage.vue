@@ -50,12 +50,28 @@
       </div>
 
       <div class="mobile-controls">
-        <button @click="movePlayer('ArrowUp')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
-        <button @click="movePlayer('ArrowLeft')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
-        <button @click="movePlayer('ArrowDown')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
-        <button @click="movePlayer('ArrowRight')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
+        <button 
+          @mousedown="startContinuousMove('ArrowUp')" @touchstart.prevent="startContinuousMove('ArrowUp')" 
+          @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
+          class="control-btn up"><i class="fas fa-arrow-up"></i>
+        </button>
+        <button 
+          @mousedown="startContinuousMove('ArrowLeft')" @touchstart.prevent="startContinuousMove('ArrowLeft')" 
+          @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
+          class="control-btn left"><i class="fas fa-arrow-left"></i>
+        </button>
+        <button 
+          @mousedown="startContinuousMove('ArrowDown')" @touchstart.prevent="startContinuousMove('ArrowDown')" 
+          @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
+          class="control-btn down"><i class="fas fa-arrow-down"></i>
+        </button>
+        <button 
+          @mousedown="startContinuousMove('ArrowRight')" @touchstart.prevent="startContinuousMove('ArrowRight')" 
+          @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
+          class="control-btn right"><i class="fas fa-arrow-right"></i>
+        </button>
       </div>
-    </div>
+      </div>
 
     <div v-if="gameState === 'cleared'" class="game-state-screen">
       <div class="result-content">
@@ -85,6 +101,10 @@ const exit = ref(null);
 const finalResult = ref(null);
 const timeRemaining = ref(300);
 let timerInterval = null;
+
+// ▼▼▼ [핵심 추가] 연속 이동을 위한 변수 ▼▼▼
+const movementInterval = ref(null);
+// ▲▲▲
 
 const CELL_SIZE = 25;
 
@@ -141,6 +161,23 @@ const handleKeyDown = (e) => {
   }
 };
 
+// ▼▼▼ [핵심 추가] 연속 이동 시작 함수 ▼▼▼
+const startContinuousMove = (direction) => {
+  if (movementInterval.value) return; // 이미 이동 중이면 중복 실행 방지
+  movePlayer(direction); // 즉시 한 번 이동
+  movementInterval.value = setInterval(() => {
+    movePlayer(direction);
+  }, 120); // 120ms 마다 반복 이동
+};
+
+// ▼▼▼ [핵심 추가] 연속 이동 중지 함수 ▼▼▼
+const stopContinuousMove = () => {
+  if (movementInterval.value) {
+    clearInterval(movementInterval.value);
+    movementInterval.value = null;
+  }
+};
+
 const checkInteractions = (y, x) => {
   const treasure = treasures.value.find(t => t.y === y && t.x === x);
   if (treasure && !collectedTreasures.value.includes(treasure.id)) {
@@ -158,7 +195,6 @@ const startGame = async () => {
   try {
     const startMazeGame = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGame();
-    // 백엔드가 2차원 배열 그대로 반환하므로 바로 사용
     const { maze: receivedMaze, treasures: receivedTreasures, exit: receivedExit } = result.data;
     
     maze.value = receivedMaze;
@@ -192,7 +228,6 @@ const endGame = async (isSuccess) => {
   gameState.value = 'loading';
   isLoading.value = true;
   
-  // 타임오버로 실패 시
   if (!isSuccess) {
     finalResult.value = { time: 300, score: 0, reward: 0 };
     gameState.value = 'cleared';
@@ -200,7 +235,6 @@ const endGame = async (isSuccess) => {
     return;
   }
 
-  // 성공 시 서버에 결과 전송
   try {
     const endMazeGame = httpsCallable(functions, 'endMazeGame');
     const result = await endMazeGame({ treasuresCollected: collectedTreasures.value });
@@ -221,10 +255,13 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   if (timerInterval) clearInterval(timerInterval);
+  // ▼▼▼ [핵심 추가] 컴포넌트 unmount 시 이동 인터벌 정리 ▼▼▼
+  if (movementInterval.value) clearInterval(movementInterval.value);
 });
 </script>
 
 <style scoped>
+/* 기존 스타일은 그대로 유지 */
 .maze-page-container {
   display: flex;
   justify-content: center;
