@@ -5,6 +5,7 @@ import SaltPotGachaPage from "../views/SaltPotGachaPage.vue";
 import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
 import MyAssetsPage from "../views/MyAssetsPage.vue";
 import MazeGamePage from "../views/MazeGamePage.vue";
+import QuizGamePage from '../views/QuizGamePage.vue'
 
 const routes = [
   {
@@ -140,6 +141,12 @@ const routes = [
     name: "AboutView",
     component: () => import("@/views/AboutView.vue"),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/quiz-game',
+    name: 'QuizGamePage',
+    component: QuizGamePage,
+    meta: { requiresAuth: true }
   },
   {
     path: "/my-assets",

@@ -328,6 +328,12 @@
             <p>매일 바뀌는 미로를 탐험하고 숨겨진 보물을 찾아 탈출하세요!</p>
             <span class="card-enter">도전하기 &rarr;</span>
         </router-link>
+	<router-link to="/quiz-game" class="feature-card game">
+        <div class="card-icon"><i class="fas fa-question-circle"></i></div>
+        <h3>솔트 스칼라 퀴즈</h3>
+        <p>매시간 열리는 서바이벌 퀴즈쇼의 최후의 1인이 되어보세요!</p>
+        <span class="card-enter">참여하기 &rarr;</span>
+        </router-link>
         </div>
       </main>
 
