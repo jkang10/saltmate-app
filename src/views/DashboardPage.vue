@@ -130,13 +130,6 @@
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
 	  <SaltGuardiansRankingsWidget />
-	  <WeatherApp />
-	  <router-link to="/weather" class="feature-card">
-	    <div class="card-icon"><i class="fas fa-cloud-sun"></i></div>
-	    <h3>오늘의 날씨</h3>
-	    <p>도시별 현재 날씨를 검색하고 자세한 정보를 확인하세요.</p>
-	    <span class="card-enter">확인하기 &rarr;</span>
-	  </router-link>
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>
@@ -395,7 +388,6 @@ import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
 import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
 import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
-import WeatherApp from '@/components/WeatherApp.vue';
 
 export default {
   name: "DashboardPage",
@@ -419,7 +411,6 @@ export default {
     SaltMinePrestigeRankingsWidget,
     SaltMineClickRankingsWidget,
     DailyQuestsWidget,
-    WeatherApp,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {

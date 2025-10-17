@@ -171,12 +171,6 @@ const routes = [
     component: () => import('@/views/SaltCrystalPage.vue'),
     meta: { requiresAuth: true }
   },
-{
-  path: "/weather",
-  name: "WeatherPage",
-  component: WeatherPage,
-  meta: { requiresAuth: true },
-},
   {
     path: '/crystal-hall',
     name: 'CrystalHallPage',
