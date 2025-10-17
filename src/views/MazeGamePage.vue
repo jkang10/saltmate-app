@@ -41,13 +41,11 @@
               :key="`${y}-${x}`"
               :class="getCellClass(cell, y, x)"
             >
-              <div v-if="isTreasure(y, x)" class="treasure-item">💎</div>
+              <div v-if="isTreasure(y, x)" class="treasure-item"></div>
             </div>
           </template>
         </div>
-        <div class="player" :style="playerStyle">
-          <i class="fas fa-male"></i>
-        </div>
+        <div class="player" :style="playerStyle"></div>
       </div>
     </div>
 
@@ -80,7 +78,7 @@ const finalResult = ref(null);
 const timeRemaining = ref(300);
 let timerInterval = null;
 
-const CELL_SIZE = 28;
+const CELL_SIZE = 25;
 
 const mazeDimensions = computed(() => ({
   width: maze.value[0]?.length || 0,
@@ -94,6 +92,7 @@ const mazeAreaStyle = computed(() => ({
 
 const gridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${mazeDimensions.value.width}, 1fr)`,
+  gridTemplateRows: `repeat(${mazeDimensions.value.height}, 1fr)`, // [핵심 오류 수정]
 }));
 
 const playerStyle = computed(() => ({
@@ -270,9 +269,14 @@ onUnmounted(() => {
 }
 .hud-item { display: flex; align-items: center; gap: 10px; }
 .maze-area { position: relative; }
-.maze-grid { display: grid; border: 3px solid #7f8c8d; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+.maze-grid { 
+  display: grid;
+  background-color: #bdc3c7;
+  border: 3px solid #7f8c8d; 
+  box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+}
 .wall { background-color: #34495e; box-shadow: inset 2px 2px 5px rgba(0,0,0,0.5); }
-.path { background-color: #bdc3c7; }
+.path { background-color: transparent; }
 .exit {
   background-color: #2ecc71;
   animation: glow-exit 1.5s infinite alternate;
@@ -280,16 +284,20 @@ onUnmounted(() => {
 .treasure-item {
   width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
   font-size: 1.2em; animation: glow-treasure 2s infinite alternate;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="%23f1c40f" d="M256 7.7l-45.2 91.5-101.2 14.7 73.2 71.4-17.3 100.8 90.5-47.6 90.5 47.6-17.3-100.8 73.2-71.4-101.2-14.7L256 7.7z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
 }
+.treasure-item::before { content: ''; } /* Remove default '💎' */
 @keyframes glow-exit { from { box-shadow: 0 0 5px #2ecc71; } to { box-shadow: 0 0 20px #fff, 0 0 30px #2ecc71; } }
-@keyframes glow-treasure { from { text-shadow: 0 0 5px #f1c40f; } to { text-shadow: 0 0 15px #fff, 0 0 25px #f1c40f; } }
+@keyframes glow-treasure { from { filter: drop-shadow(0 0 3px #f1c40f); } to { filter: drop-shadow(0 0 10px #fff); } }
+
 .player {
   position: absolute;
-  display: flex; justify-content: center; align-items: center;
-  font-size: 1.2em; color: #fff;
-  background-color: #c0392b;
+  background-color: #e74c3c;
   border-radius: 50%;
-  box-shadow: 0 0 10px #e74c3c;
+  box-shadow: 0 0 10px #c0392b;
   transition: top 0.1s linear, left 0.1s linear;
   animation: player-spawn 0.5s ease-out;
 }
