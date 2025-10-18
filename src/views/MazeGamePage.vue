@@ -31,27 +31,14 @@
           <div class="hud-item">
             <i class="fas fa-clock"></i> {{ timeRemaining }}초
           </div>
+          <button @click="toggleMute" class="mute-button">
+            <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
+          </button>
           <div class="hud-item">
             <i class="fas fa-gem"></i> {{ collectedTreasures.length }} / {{ treasures.length }}
           </div>
         </div>
-        <div class="maze-area" :style="mazeAreaStyle" :class="{ 'torch-active': isTorchActive }">
-          <div class="maze-grid" :style="gridStyle">
-            <template v-for="(row, y) in maze" :key="y">
-              <div v-for="(cell, x) in row" :key="`${y}-${x}`" :class="getCellClass(cell, y, x)">
-                <div v-if="isTreasure(y, x)" class="treasure-item"></div>
-                <div v-if="isTrap(y, x)" :class="`trap-item ${getTrapType(y,x)}`"></div>
-              </div>
-            </template>
-          </div>
-          <div class="player" :style="playerStyle" :class="{'is-stunned': isPlayerStunned}"></div>
-          <div v-if="isCompassActive" class="compass-arrow" :style="compassStyle"></div>
-        </div>
-        <transition name="fade">
-          <div v-if="allTreasuresFound" class="exit-unlocked-message">
-            <i class="fas fa-check-circle"></i> 모든 보물을 찾았습니다! 출구가 열렸습니다!
-          </div>
-        </transition>
+
         <div class="tools-hud">
             <div class="tool-item" :class="{ 'is-drilling': isDrilling }" @click="activateDrillMode">
                 <button :disabled="tools.drill.used || isDrilling">
@@ -75,6 +62,25 @@
         <div v-if="isDrilling" class="drill-message">
             <i class="fas fa-exclamation-circle"></i> 파괴할 방향을 선택하세요!
         </div>
+        
+        <div class="maze-area" :style="mazeAreaStyle" :class="{ 'torch-active': isTorchActive }">
+          <div class="maze-grid" :style="gridStyle">
+            <template v-for="(row, y) in maze" :key="y">
+              <div v-for="(cell, x) in row" :key="`${y}-${x}`" :class="getCellClass(cell, y, x)">
+                <div v-if="isTreasure(y, x)" class="treasure-item"></div>
+                <div v-if="isTrap(y, x)" :class="`trap-item ${getTrapType(y,x)}`"></div>
+              </div>
+            </template>
+          </div>
+          <div class="player" :style="playerStyle" :class="{'is-stunned': isPlayerStunned}"></div>
+          <div v-if="isCompassActive" class="compass-arrow" :style="compassStyle"></div>
+        </div>
+
+        <transition name="fade">
+          <div v-if="allTreasuresFound" class="exit-unlocked-message">
+            <i class="fas fa-check-circle"></i> 모든 보물을 찾았습니다! 출구가 열렸습니다!
+          </div>
+        </transition>
       </div>
     </div>
     
@@ -92,26 +98,10 @@
     </div>
 
     <div v-if="gameState === 'playing'" class="mobile-controls">
-      <button 
-        @mousedown="startContinuousMove('ArrowUp')" @touchstart.prevent="startContinuousMove('ArrowUp')" 
-        @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
-        class="control-btn up"><i class="fas fa-arrow-up"></i>
-      </button>
-      <button 
-        @mousedown="startContinuousMove('ArrowLeft')" @touchstart.prevent="startContinuousMove('ArrowLeft')" 
-        @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
-        class="control-btn left"><i class="fas fa-arrow-left"></i>
-      </button>
-      <button 
-        @mousedown="startContinuousMove('ArrowDown')" @touchstart.prevent="startContinuousMove('ArrowDown')" 
-        @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
-        class="control-btn down"><i class="fas fa-arrow-down"></i>
-      </button>
-      <button 
-        @mousedown="startContinuousMove('ArrowRight')" @touchstart.prevent="startContinuousMove('ArrowRight')" 
-        @mouseup="stopContinuousMove" @mouseleave="stopContinuousMove" @touchend="stopContinuousMove" 
-        class="control-btn right"><i class="fas fa-arrow-right"></i>
-      </button>
+      <button @click="movePlayer('ArrowUp')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
+      <button @click="movePlayer('ArrowLeft')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
+      <button @click="movePlayer('ArrowDown')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
+      <button @click="movePlayer('ArrowRight')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
     </div>
   </div>
 </template>
@@ -120,6 +110,11 @@
 import { ref, onMounted, onUnmounted, computed, reactive } from 'vue';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
+import playerImageUrl from '@/assets/game_assets/player_character.png';
+
+// ▼▼▼ [신규] 배경음악 파일 import ▼▼▼
+import bgmSoundFile from '@/assets/sounds/MazeGamePage_ss.mp3';
+// ▲▲▲
 
 const isLoading = ref(false);
 const error = ref(null);
@@ -132,7 +127,6 @@ const exit = ref(null);
 const finalResult = ref(null);
 const timeRemaining = ref(300);
 let timerInterval = null;
-const movementInterval = ref(null);
 const traps = ref([]);
 const isPlayerStunned = ref(false);
 const tools = reactive({
@@ -145,6 +139,11 @@ const isTorchActive = ref(false);
 const isDrilling = ref(false);
 const scaleFactor = ref(1);
 const CELL_SIZE = 25;
+
+// ▼▼▼ [신규] 배경음악 관련 상태 변수 ▼▼▼
+const backgroundMusic = new Audio(bgmSoundFile);
+const isMuted = ref(false);
+// ▲▲▲
 
 const allTreasuresFound = computed(() => {
   return treasures.value.length > 0 && collectedTreasures.value.length === treasures.value.length;
@@ -216,19 +215,6 @@ const handleKeyDown = (e) => {
     checkInteractions(newY, newX);
   }
 };
-const startContinuousMove = (direction) => {
-  if (movementInterval.value) return;
-  movePlayer(direction);
-  movementInterval.value = setInterval(() => {
-    movePlayer(direction);
-  }, 120);
-};
-const stopContinuousMove = () => {
-  if (movementInterval.value) {
-    clearInterval(movementInterval.value);
-    movementInterval.value = null;
-  }
-};
 const checkInteractions = (y, x) => {
   const treasure = treasures.value.find(t => t.y === y && t.x === x);
   if (treasure && !collectedTreasures.value.includes(treasure.id)) {
@@ -287,12 +273,26 @@ const executeDrill = async (direction) => {
   }
 };
 
+// ▼▼▼ [신규] 음소거 토글 함수 ▼▼▼
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  backgroundMusic.muted = isMuted.value;
+};
+// ▲▲▲
+
 const originalStartGame = async () => {
   isLoading.value = true;
   gameState.value = 'loading';
   error.value = null;
   isPlayerStunned.value = false;
   Object.assign(tools, { compass: { used: false }, drill: { used: false }, torch: { used: false } });
+  
+  // ▼▼▼ [수정] 게임 시작 시 배경음악 재생 ▼▼▼
+  if (!isMuted.value) {
+    backgroundMusic.play().catch(e => console.error("BGM 재생 오류:", e));
+  }
+  // ▲▲▲
+
   try {
     const startMazeGameFunc = httpsCallable(functions, 'startMazeGame');
     const result = await startMazeGameFunc();
@@ -315,12 +315,20 @@ const originalStartGame = async () => {
   } catch (e) {
     error.value = e.message;
     gameState.value = 'error';
+    // 오류 발생 시 음악 정지
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
   } finally {
     isLoading.value = false;
   }
 };
 
 const endGame = async (isSuccess) => {
+  // ▼▼▼ [수정] 게임 종료 시 배경음악 정지 ▼▼▼
+  backgroundMusic.pause();
+  backgroundMusic.currentTime = 0;
+  // ▲▲▲
+
   if (timerInterval) clearInterval(timerInterval);
   if (gameState.value !== 'playing') return;
   gameState.value = 'loading';
@@ -349,7 +357,7 @@ const updateScale = () => {
     scaleFactor.value = 1;
     return;
   }
-  const totalGameWidth = (mazeDimensions.value.width * CELL_SIZE) + 40; // 미로 너비 + 양옆 여백
+  const totalGameWidth = (mazeDimensions.value.width * CELL_SIZE) + 40;
   const screenWidth = window.innerWidth;
   if (screenWidth < totalGameWidth) {
     scaleFactor.value = screenWidth / totalGameWidth;
@@ -366,13 +374,23 @@ const startGame = async () => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('resize', updateScale);
+  
+  // ▼▼▼ [신규] 배경음악 설정 ▼▼▼
+  backgroundMusic.loop = true;
+  backgroundMusic.volume = 0.4; // 배경음악 볼륨 설정 (0.0 ~ 1.0)
+  // ▲▲▲
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('resize', updateScale);
   if (timerInterval) clearInterval(timerInterval);
-  if (movementInterval.value) clearInterval(movementInterval.value);
+  
+  // ▼▼▼ [수정] 페이지 이탈 시 배경음악 정지 ▼▼▼
+  backgroundMusic.pause();
+  backgroundMusic.currentTime = 0;
+  // ▲▲▲
 });
+
 </script>
 
 <style scoped>
@@ -439,7 +457,7 @@ onUnmounted(() => {
   display: flex; 
   flex-direction: column; 
   align-items: center; 
-  gap: 20px;
+  gap: 15px;
   position: relative; 
   width: 100%;
 }
@@ -447,6 +465,7 @@ onUnmounted(() => {
   display: flex; gap: 30px; color: white; background: rgba(0,0,0,0.4); padding: 10px 20px;
   border-radius: 10px; font-size: 1.5em; font-weight: bold;
   border: 1px solid rgba(255,255,255,0.2);
+  width: fit-content;
 }
 .hud-item { display: flex; align-items: center; gap: 10px; }
 .maze-area { position: relative; }
@@ -477,7 +496,7 @@ onUnmounted(() => {
 @keyframes glow-treasure { from { opacity: 0.7; } to { opacity: 1; transform: scale(1.1); } }
 .player {
   position: absolute;
-  background-image: url('@/assets/game_assets/player_character.png');
+  background-image: v-bind('`url(${playerImageUrl})`');
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
@@ -530,7 +549,6 @@ onUnmounted(() => {
 .tools-hud {
   display: flex;
   gap: 15px;
-  margin-top: 15px;
   padding: 10px;
   background: rgba(0,0,0,0.3);
   border-radius: 10px;
@@ -621,13 +639,6 @@ onUnmounted(() => {
   .mobile-controls {
     display: block;
   }
-  .game-play-area {
-    padding-bottom: 0;
-  }
-  .game-hud {
-    font-size: 1.2em;
-    padding: 8px 15px;
-  }
 }
 .button-group {
   margin-top: 30px;
@@ -647,7 +658,7 @@ onUnmounted(() => {
 }
 .exit-unlocked-message {
   position: absolute;
-  top: 80px;
+  top: 150px; /* HUD와 Tools HUD 아래로 위치 조정 */
   background-color: #2ecc71;
   color: white;
   padding: 10px 20px;
@@ -663,4 +674,18 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateY(-20px);
 }
+/* ▼▼▼ [신규] 음소거 버튼 스타일 추가 ▼▼▼ */
+.mute-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2em;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+.mute-button:hover {
+  opacity: 1;
+}
+/* ▲▲▲ */
 </style>
