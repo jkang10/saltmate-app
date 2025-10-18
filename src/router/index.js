@@ -161,6 +161,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/claim-code',
+    name: 'ClaimCodePage',
+    component: () => import('@/views/ClaimCodePage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: "/game-zone",
     name: "GameZonePage",
     component: () => import("@/views/GameZonePage.vue"),
