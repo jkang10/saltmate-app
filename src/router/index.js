@@ -406,7 +406,7 @@ const routes = [
       {
         path: 'rewards',
         name: 'AdminRewards',
-	    component: () => import('@/views/admin/AdminRewardsPage.vue')
+	    component: () => import('@/components/admin/AdminRewardsPage.vue')
       },
       {
         path: '/admin/announcements',
