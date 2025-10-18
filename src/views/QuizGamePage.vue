@@ -10,7 +10,7 @@
       <h2 class="game-title">솔트 스칼라 퀴즈</h2>
       <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       <div class="countdown">
-        {{ timeToStart > 0 ? `게임 시작까지 약 ${timeToStart}초` : '곧 시작합니다!' }}
+        {{ displayTimeToStart > 0 ? `게임 시작까지 약 ${displayTimeToStart}초` : '곧 시작합니다!' }}
       </div>
       <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
         <span v-if="isJoined">참가 완료!</span>
@@ -72,23 +72,23 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { getDatabase, ref as dbRef, onValue, off } from "firebase/database";
-import { httpsCallable } from 'firebase/functions';
-import { functions, auth } from '@/firebaseConfig';
+import { httpsCallable, getFunctions } from 'firebase/functions';
+import { app, auth } from '@/firebaseConfig';
 
 const game = ref(null);
 const serverTimeOffset = ref(0);
 const timer = ref(10);
 const goldenBellAnswer = ref('');
 let timerInterval = null;
+const isLoading = ref(false);
+
+const displayTimeToStart = ref(0);
+let countdownInterval = null;
+
+const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 
 const rtdb = getDatabase();
 const gameRef = dbRef(rtdb, 'quizGame/currentGame');
-
-const timeToStart = computed(() => {
-    if (!game.value || game.value.status !== 'waiting') return 0;
-    const localNow = Date.now() + serverTimeOffset.value;
-    return Math.max(0, Math.round((game.value.startTime - localNow) / 1000));
-});
 
 const currentQuestion = computed(() => {
     if (!game.value || game.value.currentQuestionIndex < 0) return null;
@@ -117,32 +117,37 @@ const winnerName = computed(() => {
 });
 
 const joinGame = async () => {
+  isLoading.value = true;
   try {
-    const joinFunc = httpsCallable(functions, 'joinQuizGame');
+    const joinFunc = httpsCallable(functionsInSeoul, 'joinQuizGame');
     await joinFunc();
   } catch (error) {
     alert(`참가 실패: ${error.message}`);
+  } finally {
+    isLoading.value = false;
   }
 };
 
 const selectAnswer = async (index) => {
     if(hasAnswered.value || myStatus.value === 'eliminated') return;
     try {
-        const submitFunc = httpsCallable(functions, 'submitQuizAnswer');
+        const submitFunc = httpsCallable(functionsInSeoul, 'submitQuizAnswer');
         await submitFunc({ questionIndex: game.value.currentQuestionIndex, answerIndex: index });
     } catch (error) {
         console.error("정답 제출 오류:", error);
+        alert(`정답 제출 오류: ${error.message}`);
     }
 };
 
 const submitGoldenBell = async () => {
     if(hasAnswered.value || myStatus.value === 'eliminated' || !goldenBellAnswer.value) return;
      try {
-        const submitFunc = httpsCallable(functions, 'submitQuizAnswer');
+        const submitFunc = httpsCallable(functionsInSeoul, 'submitQuizAnswer');
         await submitFunc({ questionIndex: game.value.currentQuestionIndex, answerText: goldenBellAnswer.value });
         goldenBellAnswer.value = '';
     } catch (error) {
         console.error("골든벨 정답 제출 오류:", error);
+        alert(`골든벨 정답 제출 오류: ${error.message}`);
     }
 };
 
@@ -150,7 +155,6 @@ const getChoiceClass = (index) => {
     if (!hasAnswered.value) return '';
     const myAnswer = game.value.participants?.[auth.currentUser.uid]?.answers?.[game.value.currentQuestionIndex]?.answerIndex;
     const correctAnswer = currentQuestion.value.answer;
-
     const roundEndTime = game.value.roundEndTime || 0;
     const isRoundOver = (Date.now() + serverTimeOffset.value) > roundEndTime - 4500;
 
@@ -176,16 +180,31 @@ const updateTimer = () => {
     }
 };
 
+const updateCountdown = () => {
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  if (game.value?.status === 'waiting') {
+    const update = () => {
+      const localNow = Date.now() + serverTimeOffset.value;
+      displayTimeToStart.value = Math.max(0, Math.round((game.value.startTime - localNow) / 1000));
+    };
+    update();
+    countdownInterval = setInterval(update, 1000);
+  }
+};
+
 onMounted(() => {
   onValue(gameRef, (snapshot) => {
     game.value = snapshot.val();
     updateTimer();
+    updateCountdown();
   });
 });
 
 onUnmounted(() => {
   off(gameRef);
-  if(timerInterval) clearInterval(timerInterval);
+  if (timerInterval) clearInterval(timerInterval);
+  if (countdownInterval) clearInterval(countdownInterval);
 });
 </script>
 
@@ -379,6 +398,15 @@ onUnmounted(() => {
   font-size: 1.2em;
   color: #bdc3c7;
 }
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid #fff;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px auto;
+}
 .winner-text {
   font-size: 2.5em;
   font-weight: bold;
@@ -418,6 +446,7 @@ onUnmounted(() => {
   }
 }
 
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 #2ecc71; } 100% { box-shadow: 0 0 15px 5px transparent; } }
 @keyframes pulse-gold { 0% { text-shadow: 0 0 5px #f1c40f; } 50% { text-shadow: 0 0 20px #f39c12; } 100% { text-shadow: 0 0 5px #f1c40f; } }
 @keyframes shake-horizontal { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }

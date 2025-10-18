@@ -180,12 +180,12 @@
             <p style="color: white; opacity: 0.9;">포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
             <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
           </router-link>
-	  <router-link to="/crafting" class="feature-card">
-            <div class="card-icon"><i class="fas fa-hammer"></i></div>
-            <h3>솔레인 제작 공방</h3>
-            <p>게임을 통해 모은 재료로 특별한 아이템을 직접 만들어보세요!</p>
-            <span class="card-enter">입장하기 &rarr;</span>
-          </router-link>
+         <router-link to="/crafting" class="feature-card crafting-workshop-card">
+          <div class="card-icon"><i class="fas fa-hammer"></i></div>
+          <h3>솔레인 제작 공방</h3>
+          <p>게임을 통해 모은 재료로 특별한 아이템을 직접 만들어보세요!</p>
+          <span class="card-enter">입장하기 &rarr;</span>
+        </router-link>
           <router-link to="/network-tree" class="feature-card">
             <div class="card-icon"><i class="fas fa-sitemap"></i></div>
             <h3>나의 추천 네트워크</h3>
@@ -1219,5 +1219,80 @@ export default {
 }
 .dashboard-container {
 padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 추가했으므로 여기는 유지 */
+}
+/* ▼▼▼ [핵심 수정] 솔레인 제작 공방 카드 스타일 추가 ▼▼▼ */
+.crafting-workshop-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(45deg, #2c3e50, #34495e); /* 기본 배경 유지 */
+  border-color: #f1c40f; /* 테두리 강조 */
+  box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); /* 은은한 황금빛 발광 */
+  animation: glowing-border 2s infinite alternate; /* 테두리 반짝임 */
+}
+
+.crafting-workshop-card .card-icon {
+  color: #f1c40f; /* 아이콘 색상 황금색 */
+  text-shadow: 0 0 8px rgba(241, 196, 15, 0.8); /* 아이콘 발광 */
+}
+
+.crafting-workshop-card h3,
+.crafting-workshop-card p,
+.crafting-workshop-card .card-enter {
+  color: #fdfde0; /* 텍스트 색상 밝은 황금색 계열 */
+  text-shadow: 0 0 5px rgba(241, 196, 15, 0.4);
+}
+
+/* 마우스 오버 시 카드 전체에 황금빛 이펙트 */
+.crafting-workshop-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    transparent,
+    rgba(241, 196, 15, 0.4), /* 황금색 강조 */
+    transparent 30%,
+    transparent 70%,
+    rgba(241, 196, 15, 0.4),
+    transparent
+  );
+  transform: rotate(0deg);
+  animation: rotate-shine 4s linear infinite; /* 회전하는 빛 효과 */
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 0; /* 배경에 배치 */
+}
+
+.crafting-workshop-card:hover::before {
+  opacity: 1; /* 호버 시 빛 효과 활성화 */
+}
+
+/* 카드 내부 요소들이 빛 위에 오도록 */
+.crafting-workshop-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 애니메이션 키프레임 */
+@keyframes glowing-border {
+  0% {
+    border-color: #f1c40f;
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+  }
+  50% {
+    border-color: #ffd700; /* 금색 */
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.8), 0 0 35px rgba(255, 215, 0, 0.6);
+  }
+  100% {
+    border-color: #f1c40f;
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+  }
+}
+
+@keyframes rotate-shine {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>
