@@ -7,7 +7,6 @@ import MyAssetsPage from "../views/MyAssetsPage.vue";
 import MazeGamePage from "../views/MazeGamePage.vue";
 import QuizGamePage from '../views/QuizGamePage.vue'
 import ClaimCodePage from '../views/ClaimCodePage.vue'
-import AdminDashboardPage from '../views/AdminDashboardPage.vue'
 
 const routes = [
   {
