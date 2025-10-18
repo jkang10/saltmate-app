@@ -43,10 +43,12 @@
           </select>
         </div>
       </div>
-      <footer class="modal-footer">
+<footer class="modal-footer">
         <button @click="emits('close')" class="btn btn-tertiary">취소</button>
         
-        <button @click="openGrantRewardModal" class="btn btn-secondary">보상 지급</button>
+        <button @click="issueCode" class="btn btn-secondary" :disabled="isIssuingCode">
+          {{ isIssuingCode ? '발급 중...' : '보상 코드 발급' }}
+        </button>
         <button @click="saveUser" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? '저장 중...' : '저장' }}
         </button>
