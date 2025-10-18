@@ -12,7 +12,7 @@
           <h3>범용 코드 입력</h3>
           <div class="input-group">
             <input type="text" v-model="code" placeholder="예: ABC-DEF-GHI" @keyup.enter="claim" />
-            <button @click="claim" :disabled="isLoading" class="action-button">
+            <button @click="claim()" :disabled="isLoading" class="action-button">
               {{ isLoading ? '등록 중...' : '등록하기' }}
             </button>
           </div>
@@ -67,7 +67,9 @@ const fetchMyCodes = async () => {
 };
 
 const claim = async (codeToClaim) => {
-  const targetCode = codeToClaim || code.value;
+  // '사용하기' 버튼에서 넘어온 codeToClaim이 문자열인지 확인
+  const targetCode = (typeof codeToClaim === 'string') ? codeToClaim : code.value;
+
   if (!targetCode) {
     isError.value = true;
     message.value = '코드를 입력해주세요.';
@@ -81,8 +83,8 @@ const claim = async (codeToClaim) => {
     const claimFunc = httpsCallable(functions, 'claimRewardCode');
     const result = await claimFunc({ code: targetCode });
     message.value = `✅ ${result.data.message}`;
-    code.value = ''; // 입력창 비우기
-    fetchMyCodes(); // 코드 목록 갱신
+    code.value = '';
+    fetchMyCodes();
   } catch (error) {
     isError.value = true;
     message.value = `❌ ${error.message}`;
@@ -177,4 +179,27 @@ input:focus { outline: none; border-color: #f1c40f; }
 .code-text { display: block; font-size: 1.2em; font-weight: bold; font-family: monospace; }
 .code-desc { font-size: 0.9em; color: #bdc3c7; }
 .use-button { padding: 10px 15px; font-size: 0.9em; }
+
+@media (max-width: 768px) {
+  .card.glassmorphism {
+    padding: 20px;
+  }
+  .input-group {
+    flex-direction: column;
+  }
+  .action-button {
+    width: 100%;
+  }
+  .code-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .code-info {
+    text-align: center;
+  }
+  .title {
+    font-size: 2em;
+  }
+}
 </style>

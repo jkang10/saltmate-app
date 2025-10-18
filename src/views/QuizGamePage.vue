@@ -387,7 +387,37 @@ onUnmounted(() => {
   animation: pulse-gold 1.5s infinite;
 }
 
-/* Animations */
+@media (max-width: 768px) {
+  .state-screen, .playing-screen {
+    padding: 25px;
+  }
+  .answer-area {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .action-button {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1em;
+  }
+  .game-title {
+    font-size: 2.2em;
+  }
+  .question-area h2 {
+    font-size: 1.5em;
+  }
+  .choice-button {
+    padding: 15px;
+    font-size: 1.1em;
+  }
+  .golden-bell {
+    flex-direction: column;
+  }
+  .golden-bell .action-button {
+    font-size: 1em;
+  }
+}
+
 @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 #2ecc71; } 100% { box-shadow: 0 0 15px 5px transparent; } }
 @keyframes pulse-gold { 0% { text-shadow: 0 0 5px #f1c40f; } 50% { text-shadow: 0 0 20px #f39c12; } 100% { text-shadow: 0 0 5px #f1c40f; } }
 @keyframes shake-horizontal { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
