@@ -6,6 +6,8 @@ import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
 import MyAssetsPage from "../views/MyAssetsPage.vue";
 import MazeGamePage from "../views/MazeGamePage.vue";
 import QuizGamePage from '../views/QuizGamePage.vue'
+import ClaimCodePage from '../views/ClaimCodePage.vue'
+import AdminDashboardPage from '../views/AdminDashboardPage.vue'
 
 const routes = [
   {
@@ -134,6 +136,12 @@ const routes = [
     path: '/qr-scanner',
     name: 'QRCodeScanner',
     component: () => import('@/views/QRCodeScannerPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/claim-code',
+    name: 'ClaimCodePage',
+    component: ClaimCodePage,
     meta: { requiresAuth: true }
   },
   {
@@ -270,12 +278,6 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/prediction-betting',
-    name: 'PredictionPage',
-    component: () => import('@/views/PredictionPage.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/salt-trader',
     name: 'SaltTraderPage',
     component: () => import('@/views/SaltTraderPage.vue'),
@@ -403,6 +405,11 @@ const routes = [
         component: () => import("@/components/admin/DatabaseBackup.vue"),
       },
       {
+        path: 'rewards',
+        name: 'AdminRewards',
+	    component: () => import('@/views/admin/AdminRewardsPage.vue')
+      },
+      {
         path: '/admin/announcements',
         name: 'AnnouncementManagement',
         component: () => import('@/components/admin/AnnouncementManagement.vue'),
@@ -427,37 +434,40 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiredRole = to.meta.requiresRole;
   
-  const currentUser = auth.currentUser;
+  // onAuthStateChanged를 기다리는 대신, 초기 로딩 시 currentUser를 직접 확인
+  const currentUser = await new Promise((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
 
   if (requiresAuth) {
     if (currentUser) {
       if (requiredRole) {
         try {
-          const idTokenResult = await currentUser.getIdTokenResult(true);
+          const idTokenResult = await currentUser.getIdTokenResult(true); // 새 토큰 강제 갱신
           
-          // [최종 복원] 'superAdmin' 역할만 있는지 엄격하게 확인합니다.
           if (idTokenResult.claims.role === requiredRole) {
-            next(); // 역할 일치 -> 페이지 접근 허용
+            next();
           } else {
             alert("이 페이지에 접근할 권한이 없습니다.");
-            next('/dashboard'); // 역할 불일치 -> 접근 거부
+            next('/dashboard');
           }
         } catch (error) {
           console.error("권한 확인 중 오류:", error);
           next('/login');
         }
       } else {
-        next(); // 역할은 필요 없고 로그인만 필요한 페이지 -> 접근 허용
+        next();
       }
     } else {
-      // 로그인 안 됨 -> 로그인 페이지로 이동
       next({
         path: "/login",
         query: { redirectReason: "로그인이 필요한 서비스입니다." },
       });
     }
   } else {
-    // 인증이 필요 없는 페이지 -> 항상 접근 허용
     next();
   }
 });

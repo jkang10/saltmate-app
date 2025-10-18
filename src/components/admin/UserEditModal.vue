@@ -1,6 +1,6 @@
 <template>
   <div class="modal-overlay" @click.self="emits('close')">
-    <div class="modal-content">
+    <div class="modal-content user-edit-modal">
       <header class="modal-header">
         <h3><i class="fas fa-user-edit"></i> 회원 정보 수정</h3>
         <button @click="emits('close')" class="close-button">&times;</button>
@@ -44,49 +44,57 @@
         </div>
       </div>
       <footer class="modal-footer">
-        <button @click="emits('close')" class="btn btn-secondary">취소</button>
+        <button @click="emits('close')" class="btn btn-tertiary">취소</button>
+        
+        <button @click="openGrantRewardModal" class="btn btn-secondary">보상 지급</button>
         <button @click="saveUser" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? '저장 중...' : '저장' }}
         </button>
       </footer>
-    </div>
+
+      <div v-if="rewardModal.visible" class="nested-modal-overlay" @click.self="rewardModal.visible = false">
+        <div class="nested-modal-content">
+          <h4>'{{ localUser.name }}'님에게 보상 지급</h4>
+          <p>지급할 보상을 선택해주세요.</p>
+          <select v-model="rewardModal.selectedReward" class="form-control">
+            <option value="HELIAS_WARMTH">'헬리아의 온기' 버프 (1시간)</option>
+            </select>
+          <div class="modal-actions">
+            <button @click="rewardModal.visible = false" class="btn btn-tertiary">취소</button>
+            <button @click="confirmGrantReward" class="btn btn-primary" :disabled="rewardModal.isLoading">
+              {{ rewardModal.isLoading ? '지급 중...' : '확인' }}
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, defineEmits } from "vue";
+import { ref, onMounted, defineProps, defineEmits, reactive, watch } from "vue";
 import { db, functions } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
-// 부모 컴포넌트(UserManagement.vue)로부터 props와 emits를 정의합니다.
 const props = defineProps({
-  user: {
-    type: Object,
-    required: true,
-  },
-  allUsers: {
-    type: Array,
-    default: () => [],
-  },
+  user: { type: Object, required: true },
+  allUsers: { type: Array, default: () => [] },
 });
 const emits = defineEmits(['close', 'user-updated']);
 
-// 내부 상태 관리를 위한 변수들
-const localUser = ref({ ...props.user });
+const localUser = ref({});
 const centers = ref([]);
 const isSaving = ref(false);
 
-/**
- * [핵심 수정 3] 저장(save) 함수 구현
- * - 백엔드에 새로 만든 'updateUserProfile' 함수를 호출합니다.
- * - 사용자가 수정한 모든 정보를 서버로 전송합니다.
- */
+watch(() => props.user, (newUser) => {
+  localUser.value = { ...newUser };
+}, { immediate: true });
+
 const saveUser = async () => {
   isSaving.value = true;
   try {
     const updateUserProfileFunc = httpsCallable(functions, "updateUserProfile");
-    
     await updateUserProfileFunc({
       uid: localUser.value.uid,
       name: localUser.value.name,
@@ -94,10 +102,9 @@ const saveUser = async () => {
       uplineReferrer: localUser.value.uplineReferrer || null,
       centerId: localUser.value.centerId || null,
     });
-
     alert("사용자 정보가 성공적으로 업데이트되었습니다.");
-    emits('user-updated'); // 부모 컴포넌트에 변경사항 알림
-    emits('close');       // 모달 닫기
+    emits('user-updated');
+    emits('close');
   } catch (error) {
     console.error("회원 정보 수정 실패:", error);
     alert(`오류: ${error.message}`);
@@ -106,9 +113,6 @@ const saveUser = async () => {
   }
 };
 
-/**
- * [핵심 수정 4] Firestore 'centers' 컬렉션에서 소속 센터 목록을 불러오는 함수
- */
 const fetchCenters = async () => {
   try {
     const centersSnapshot = await getDocs(collection(db, "centers"));
@@ -121,10 +125,40 @@ const fetchCenters = async () => {
   }
 };
 
-// 컴포넌트가 화면에 나타날 때 센터 목록을 불러옵니다.
 onMounted(() => {
   fetchCenters();
 });
+
+// --- [신규] 보상 지급 관련 로직 ---
+const rewardModal = reactive({
+  visible: false,
+  isLoading: false,
+  selectedReward: 'HELIAS_WARMTH',
+});
+
+const openGrantRewardModal = () => {
+  rewardModal.visible = true;
+};
+
+const confirmGrantReward = async () => {
+  if (!confirm(`'${localUser.value.name}'님에게 '${rewardModal.selectedReward}' 보상을 지급하시겠습니까?`)) {
+    return;
+  }
+  rewardModal.isLoading = true;
+  try {
+    const grantReward = httpsCallable(functions, 'grantRewardToUser');
+    const result = await grantReward({
+      userId: localUser.value.uid,
+      rewardType: rewardModal.selectedReward,
+    });
+    alert(`성공: ${result.data.message}`);
+    rewardModal.visible = false;
+  } catch (error) {
+    alert(`보상 지급 실패: ${error.message}`);
+  } finally {
+    rewardModal.isLoading = false;
+  }
+};
 </script>
 
 <style scoped>
@@ -147,6 +181,7 @@ onMounted(() => {
   width: 90%;
   max-width: 500px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  position: relative; /* nested-modal-overlay의 기준점 */
 }
 .modal-header {
   display: flex;
@@ -184,6 +219,7 @@ onMounted(() => {
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 1em;
+  box-sizing: border-box;
 }
 .form-control:disabled {
   background-color: #e9ecef;
@@ -197,24 +233,75 @@ onMounted(() => {
   padding-top: 15px;
   border-top: 1px solid #eee;
 }
-.btn {
+.btn, button {
   border: none;
   border-radius: 6px;
   padding: 10px 20px;
   cursor: pointer;
   font-weight: bold;
   font-size: 1em;
+  transition: background-color 0.2s;
 }
 .btn-primary {
   background-color: #007bff;
   color: white;
 }
+.btn-primary:hover {
+  background-color: #0056b3;
+}
 .btn-secondary {
+  background-color: #17a2b8;
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: #117a8b;
+}
+.btn-tertiary {
   background-color: #6c757d;
   color: white;
 }
-.btn:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
+.btn-tertiary:hover {
+    background-color: #5a6268;
+}
+.btn:disabled, button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+/* Nested Modal Styles */
+.nested-modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1002;
+  border-radius: 12px;
+}
+.nested-modal-content {
+  background: white;
+  color: #333;
+  padding: 25px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 350px;
+  text-align: center;
+}
+.nested-modal-content h4 {
+  font-size: 1.3em;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.nested-modal-content p {
+  margin-bottom: 20px;
+}
+.nested-modal-content select {
+  width: 100%;
+}
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
 }
 </style>

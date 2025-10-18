@@ -177,6 +177,14 @@
             >
           </li>
 	  <li>
+            <router-link
+              to="/admin-dashboard/rewards"
+              class="nav-item"
+              active-class="active-link"
+              ><i class="fas fa-gift"></i> 보상 관리</router-link
+            >
+          </li>
+	  <li>
 	<router-link to="/admin-dashboard/auction" class="nav-item">
 	  <i class="fas fa-gavel"></i> 주간 경매 관리
 	</router-link>

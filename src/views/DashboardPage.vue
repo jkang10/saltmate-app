@@ -266,14 +266,6 @@
 	  <p>최고가에 도전하여 희귀 아이템을 획득하세요!</p>
 	  <span class="card-enter">입장하기 &rarr;</span>
 	</router-link>
-
-	<router-link to="/prediction-betting" class="feature-card game">
-	  <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
-	  <h3>랭킹 예측</h3>
-	  <p>솔트팡 랭킹전 우승자를 예측하고 대박을 노리세요!</p>
-	  <span class="card-enter">참여하기 &rarr;</span>
-	</router-link>
-
 	<router-link to="/salt-trader" class="feature-card">
 	  <div class="card-icon"><i class="fas fa-exchange-alt"></i></div>
 	  <h3>소금 상인</h3>
