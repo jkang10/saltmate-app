@@ -1,12 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "@/firebaseConfig";
-import LadderGamePage from "../views/LadderGamePage.vue";
-import SaltPotGachaPage from "../views/SaltPotGachaPage.vue";
-import SaltPangPvPPage from "../views/SaltPangPvPPage.vue";
-import MyAssetsPage from "../views/MyAssetsPage.vue";
-import MazeGamePage from "../views/MazeGamePage.vue";
-import QuizGamePage from '../views/QuizGamePage.vue'
-import ClaimCodePage from '../views/ClaimCodePage.vue'
 
 const routes = [
   {
@@ -138,9 +131,9 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/claim-code',
-    name: 'ClaimCodePage',
-    component: ClaimCodePage,
+    path: '/crafting',
+    name: 'CraftingPage',
+    component: () => import("@/views/CraftingPage.vue"),
     meta: { requiresAuth: true }
   },
   {
@@ -152,14 +145,20 @@ const routes = [
   {
     path: '/quiz-game',
     name: 'QuizGamePage',
-    component: QuizGamePage,
+    component: () => import("@/views/QuizGamePage.vue"),
     meta: { requiresAuth: true }
   },
   {
     path: "/my-assets",
     name: "MyAssets",
-    component: MyAssetsPage,
+    component: () => import("@/views/MyAssetsPage.vue"),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/crafting',
+    name: 'CraftingPage',
+    component: () => import("@/views/CraftingPage.vue"),
+    meta: { requiresAuth: true }
   },
   {
     path: "/game-zone",
@@ -185,37 +184,36 @@ const routes = [
     component: () => import('@/views/SaltCrystalPage.vue'),
     meta: { requiresAuth: true }
   },
-{
-  path: "/maze-game",
-  name: "MazeGamePage",
-  component: MazeGamePage,
-  meta: { requiresAuth: true },
-},
+  {
+    path: "/maze-game",
+    name: "MazeGamePage",
+    component: () => import("@/views/MazeGamePage.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: '/crystal-hall',
     name: 'CrystalHallPage',
     component: () => import('@/views/CrystalHallPage.vue'),
     meta: { requiresAuth: true }
   },
-  // [신규 추가] 솔트팡 PvP 대전 모드 경로
   {
     path: '/salt-pang-pvp',
     name: 'SaltPangPvPPage',
-    component: SaltPangPvPPage,
+    component: () => import("@/views/SaltPangPvPPage.vue"),
     meta: { requiresAuth: true }
   },
   {
     path: "/ladder-game",
     name: "LadderGame",
-    component: LadderGamePage,
+    component: () => import("@/views/LadderGamePage.vue"),
     meta: { requiresAuth: true },
-  }, // [이 블록 추가]
+  },
   {
     path: "/salt-pot-gacha",
     name: "SaltPotGacha",
-    component: SaltPotGachaPage,
+    component: () => import("@/views/SaltPotGachaPage.vue"),
     meta: { requiresAuth: true },
-  }, // [이 블록 추가]  
+  },
   {
     path: "/treasure-box",
     name: "TreasureBoxPage",

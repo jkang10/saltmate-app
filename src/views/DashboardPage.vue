@@ -180,6 +180,12 @@
             <p style="color: white; opacity: 0.9;">포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
             <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
           </router-link>
+	  <router-link to="/crafting" class="feature-card">
+            <div class="card-icon"><i class="fas fa-hammer"></i></div>
+            <h3>솔레인 제작 공방</h3>
+            <p>게임을 통해 모은 재료로 특별한 아이템을 직접 만들어보세요!</p>
+            <span class="card-enter">입장하기 &rarr;</span>
+          </router-link>
           <router-link to="/network-tree" class="feature-card">
             <div class="card-icon"><i class="fas fa-sitemap"></i></div>
             <h3>나의 추천 네트워크</h3>
