@@ -130,6 +130,12 @@
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
 	  <SaltGuardiansRankingsWidget />
+          <router-link to="/claim-code" class="feature-card">
+            <div class="card-icon"><i class="fas fa-ticket-alt"></i></div>
+            <h3>쿠폰 / 코드 등록</h3>
+            <p>이벤트나 상품 구매로 받은 코드를 입력하고 보상을 받으세요.</p>
+            <span class="card-enter">등록하기 &rarr;</span>
+          </router-link>
           <router-link to="/attendance" class="feature-card events">
             <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
             <h3>매일매일 출석체크</h3>
