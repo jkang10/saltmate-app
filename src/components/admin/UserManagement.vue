@@ -22,38 +22,52 @@
 
     <div v-if="loading" class="loading-spinner"></div>
     <div v-if="error" class="error-state"><p>{{ error }}</p></div>
-    <div v-if="!loading && users.length > 0" class="table-container">
-<table class="user-table">
-  <thead>
-    <tr>
-      <th>이름</th><th>UID</th><th>이메일</th><th>소속 센터</th>
-      <th>추천인</th>
-      <th>역할</th><th>가입일</th><th>다음 결제일</th><th>구독 상태</th><th>솔트메이트</th><th>관리</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr v-for="user in users" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
-      <td>{{ user.name }}</td>
-      <td class="uid-cell">{{ user.uid }}</td>
-      <td>{{ user.email }}</td>
-      <td>{{ user.centerName || "N/A" }}</td>
-      <td>{{ user.referrerName || "없음" }}</td>
-      <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
-      <td>{{ formatDate(user.createdAt) }}</td>
-      <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
-      <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
-      <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
-      <td class="actions">
+    <div v-if="!loading && sortedUsers.length > 0" class="table-container">
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>UID</th>
+            <th>이메일</th>
+            <th @click="sortBy('centerName')" class="sortable" :class="{ 'active-sort': sortKey === 'centerName' }">
+              소속 센터 <i :class="getSortIconClass('centerName')"></i>
+            </th>
+            <th>추천인</th>
+            <th>역할</th>
+            <th>가입일</th>
+            <th>다음 결제일</th>
+            <th @click="sortBy('subscriptionStatus')" class="sortable" :class="{ 'active-sort': sortKey === 'subscriptionStatus' }">
+              구독 상태 <i :class="getSortIconClass('subscriptionStatus')"></i>
+            </th>
+            <th @click="sortBy('saltmatePoints')" class="sortable" :class="{ 'active-sort': sortKey === 'saltmatePoints' }">
+              솔트메이트 <i :class="getSortIconClass('saltmatePoints')"></i>
+            </th>
+            <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in sortedUsers" :key="user.id" :class="{ 'not-approved-row': user.subscriptionStatus !== 'active' }">
+            <td>{{ user.name }}</td>
+            <td class="uid-cell">{{ user.uid }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.centerName || "N/A" }}</td>
+            <td>{{ user.referrerName || "없음" }}</td>
+            <td><span :class="['role-badge', user.role]">{{ formatRole(user.role) }}</span></td>
+            <td>{{ formatDate(user.createdAt) }}</td>
+            <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
+            <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
+            <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
+            <td class="actions">
               <button @click="openEditModal(user)" class="btn btn-sm btn-primary">수정</button>
               <button @click="openBalanceModal(user)" class="btn btn-sm btn-success">잔액 조정</button>
               <button @click="openTokenModal(user)" class="btn btn-sm btn-info">토큰 관리</button>
               <button @click="deleteUser(user)" class="btn btn-sm btn-danger">삭제</button>
             </td>
           </tr>
-        </tbody>
+          </tbody>
       </table>
     </div>
-    <div v-if="!loading && users.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
+    <div v-if="!loading && sortedUsers.length === 0" class="no-data"><p>표시할 사용자가 없습니다.</p></div>
 
     <div v-if="!loading && (currentPage > 1 || totalPages > currentPage)" class="pagination">
       <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">이전</button>
@@ -68,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue"; // computed 추가
 import { db, functions, auth } from "@/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -84,7 +98,7 @@ const searchTerm = ref("");
 const searchCriteria = ref("name");
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const pageTokens = ref(['']); // 첫 페이지 토큰은 빈 문자열로 유지
+const pageTokens = ref(['']);
 const totalPages = ref(1);
 
 const isTokenModalVisible = ref(false);
@@ -94,6 +108,11 @@ const selectedUser = ref(null);
 const pendingRequestCount = ref(0);
 const totalUserCount = ref(0);
 const activeUserCount = ref(0);
+
+// ▼▼▼ [신규] 정렬 상태를 관리하는 변수 추가 ▼▼▼
+const sortKey = ref(''); // 정렬 기준 컬럼
+const sortOrder = ref('asc'); // 'asc' 또는 'desc'
+// ▲▲▲
 
 let searchTimeout = null;
 watch(searchTerm, () => {
@@ -110,6 +129,32 @@ watch(itemsPerPage, () => {
   pageTokens.value = [''];
   fetchUsers();
 });
+
+// ▼▼▼ [신규] 정렬된 사용자 목록을 반환하는 computed 속성 ▼▼▼
+const sortedUsers = computed(() => {
+  if (!sortKey.value) {
+    return users.value;
+  }
+  return [...users.value].sort((a, b) => {
+    let valA = a[sortKey.value];
+    let valB = b[sortKey.value];
+
+    // 데이터 타입에 따라 정렬 방식 처리
+    if (sortKey.value === 'saltmatePoints') {
+      valA = valA || 0;
+      valB = valB || 0;
+    } else {
+      // 문자열 정렬 (대소문자 구분 없이)
+      valA = String(valA || '').toLowerCase();
+      valB = String(valB || '').toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder.value === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder.value === 'asc' ? 1 : -1;
+    return 0;
+  });
+});
+// ▲▲▲
 
 const runBackfill = async () => {
   if (!confirm('지난 주 활동 데이터에 weekId를 채우는 작업을 실행합니다. 이 작업은 딱 한 번만 실행해야 합니다. 계속하시겠습니까?')) return;
@@ -275,11 +320,31 @@ const openTokenModal = (user) => { selectedUser.value = user; isTokenModalVisibl
 const openBalanceModal = (user) => { selectedUser.value = user; isBalanceModalVisible.value = true; };
 const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.value = true; };
 
+// ▼▼▼ [신규] 정렬 기준을 변경하는 함수 ▼▼▼
+const sortBy = (key) => {
+  if (sortKey.value === key) {
+    // 이미 같은 컬럼으로 정렬 중이면 순서만 변경
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    // 새로운 컬럼으로 정렬 시작
+    sortKey.value = key;
+    sortOrder.value = 'asc';
+  }
+};
+
+// ▼▼▼ [신규] 정렬 아이콘 클래스를 반환하는 함수 ▼▼▼
+const getSortIconClass = (key) => {
+  if (sortKey.value !== key) return 'fas fa-sort sort-icon';
+  return sortOrder.value === 'asc' ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
+};
+// ▲▲▲
+
 onMounted(() => {
     fetchUsers();
     fetchSummaryCounts();
     fetchAllUsersForModal();
 });
+
 </script>
 
 <style scoped>
@@ -504,4 +569,20 @@ onMounted(() => {
 .pagination span {
   font-weight: bold;
 }
+/* ▼▼▼ [신규] 정렬 관련 스타일 추가 ▼▼▼ */
+.user-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.user-table th.sortable:hover {
+  background-color: #e9ecef;
+}
+.sort-icon {
+  margin-left: 5px;
+  color: #adb5bd; /* 기본 아이콘 색상 */
+}
+.user-table th.active-sort .sort-icon {
+  color: #343a40; /* 활성화된 정렬 아이콘 색상 */
+}
+/* ▲▲▲ */
 </style>
