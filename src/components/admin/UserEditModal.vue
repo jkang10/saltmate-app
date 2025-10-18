@@ -43,7 +43,7 @@
           </select>
         </div>
       </div>
-<footer class="modal-footer">
+      <footer class="modal-footer">
         <button @click="emits('close')" class="btn btn-tertiary">취소</button>
         
         <button @click="issueCode" class="btn btn-secondary" :disabled="isIssuingCode">
@@ -53,28 +53,12 @@
           {{ isSaving ? '저장 중...' : '저장' }}
         </button>
       </footer>
-
-      <div v-if="rewardModal.visible" class="nested-modal-overlay" @click.self="rewardModal.visible = false">
-        <div class="nested-modal-content">
-          <h4>'{{ localUser.name }}'님에게 보상 지급</h4>
-          <p>지급할 보상을 선택해주세요.</p>
-          <select v-model="rewardModal.selectedReward" class="form-control">
-            <option value="HELIAS_WARMTH">'헬리아의 온기' 버프 (1시간)</option>
-          </select>
-          <div class="modal-actions">
-            <button @click="rewardModal.visible = false" class="btn btn-tertiary">취소</button>
-            <button @click="confirmGrantReward" class="btn btn-primary" :disabled="rewardModal.isLoading">
-              {{ rewardModal.isLoading ? '지급 중...' : '확인' }}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, defineEmits, reactive, watch } from "vue";
+import { ref, onMounted, defineProps, defineEmits, watch } from "vue";
 import { db, functions } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -88,6 +72,7 @@ const emits = defineEmits(['close', 'user-updated']);
 const localUser = ref({});
 const centers = ref([]);
 const isSaving = ref(false);
+const isIssuingCode = ref(false); // 코드 발급 로딩 상태
 
 watch(() => props.user, (newUser) => {
   localUser.value = { ...newUser };
@@ -131,34 +116,31 @@ onMounted(() => {
   fetchCenters();
 });
 
-// --- [신규] 보상 지급 관련 로직 ---
-const rewardModal = reactive({
-  visible: false,
-  isLoading: false,
-  selectedReward: 'HELIAS_WARMTH',
-});
-
-const openGrantRewardModal = () => {
-  rewardModal.visible = true;
-};
-
-const confirmGrantReward = async () => {
-  if (!confirm(`'${localUser.value.name}'님에게 '${rewardModal.selectedReward}' 보상을 지급하시겠습니까?`)) {
+// --- [핵심 수정] '보상 코드 발급' 관련 로직 ---
+const issueCode = async () => {
+  // 간단한 prompt 창으로 발급할 보상 종류를 선택
+  const rewardType = prompt("'헬리아의 온기' 버프 코드를 발급하려면 'HELIAS_WARMTH'를 입력하세요.", "HELIAS_WARMTH");
+  if (!rewardType) {
+    alert("보상 종류 입력이 취소되었습니다.");
     return;
   }
-  rewardModal.isLoading = true;
+
+  if (!confirm(`'${localUser.value.name}'님에게 '${rewardType}' 보상 코드를 발급하시겠습니까?`)) {
+    return;
+  }
+
+  isIssuingCode.value = true;
   try {
-    const grantReward = httpsCallable(functions, 'grantRewardToUser');
-    const result = await grantReward({
+    const issueFunc = httpsCallable(functions, 'issueRewardCodeToUser');
+    const result = await issueFunc({
       userId: localUser.value.uid,
-      rewardType: rewardModal.selectedReward,
+      rewardType: rewardType,
     });
-    alert(`성공: ${result.data.message}`);
-    rewardModal.visible = false;
+    alert(`성공: '${localUser.value.name}'님에게 보상 코드 [${result.data.code}]가 발급되었습니다. 이제 해당 사용자의 '내 보상 코드함'에서 확인할 수 있습니다.`);
   } catch (error) {
-    alert(`보상 지급 실패: ${error.message}`);
+    alert(`코드 발급 실패: ${error.message}`);
   } finally {
-    rewardModal.isLoading = false;
+    isIssuingCode.value = false;
   }
 };
 </script>
@@ -183,7 +165,7 @@ const confirmGrantReward = async () => {
   width: 90%;
   max-width: 500px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-  position: relative; /* nested-modal-overlay의 기준점 */
+  position: relative;
 }
 .modal-header {
   display: flex;
@@ -268,42 +250,5 @@ const confirmGrantReward = async () => {
 .btn:disabled, button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
-}
-/* Nested Modal Styles */
-.nested-modal-overlay {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0,0,0,0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1002;
-  border-radius: 12px;
-}
-.nested-modal-content {
-  background: white;
-  color: #333;
-  padding: 25px;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 350px;
-  text-align: center;
-}
-.nested-modal-content h4 {
-  font-size: 1.3em;
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-.nested-modal-content p {
-  margin-bottom: 20px;
-}
-.nested-modal-content select {
-  width: 100%;
-}
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 20px;
 }
 </style>
