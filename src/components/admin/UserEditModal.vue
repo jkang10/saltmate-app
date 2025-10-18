@@ -58,7 +58,7 @@
           <p>지급할 보상을 선택해주세요.</p>
           <select v-model="rewardModal.selectedReward" class="form-control">
             <option value="HELIAS_WARMTH">'헬리아의 온기' 버프 (1시간)</option>
-            </select>
+          </select>
           <div class="modal-actions">
             <button @click="rewardModal.visible = false" class="btn btn-tertiary">취소</button>
             <button @click="confirmGrantReward" class="btn btn-primary" :disabled="rewardModal.isLoading">
@@ -67,7 +67,7 @@
           </div>
         </div>
       </div>
-      </div>
+    </div>
   </div>
 </template>
 
