@@ -29,6 +29,7 @@
             <span>{{ body.name }}</span>
           </div>
         </template>
+
         <template v-if="activeTab === 'hair'">
           <div v-for="hair in hairOptions" :key="hair.id"
                class="option-item" :class="{ selected: avatar.hair === hair.id }" @click="avatar.hair = hair.id">
@@ -36,6 +37,7 @@
             <span>{{ hair.name }}</span>
           </div>
         </template>
+        
         <div v-if="activeTab === 'face'" class="face-options">
           <div class="face-category">
             <label>눈</label>
@@ -62,6 +64,7 @@
             </div>
           </div>
         </div>
+        
         <template v-if="activeTab === 'outfit'">
           <div v-for="outfit in outfitOptions" :key="outfit.id"
                class="option-item" :class="{ selected: avatar.outfit === outfit.id }" @click="avatar.outfit = outfit.id">
@@ -87,45 +90,63 @@ import { db, functions, auth } from '@/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-// --- 데이터 정의 ---
 const loading = ref(true);
 const isSaving = ref(false);
-const activeTab = ref('hair');
+const activeTab = ref('body');
 
-// 현재 사용자가 선택한 아바타 정보
+// ▼▼▼ [핵심 수정 1] 얼굴 파츠(eyes, nose, mouth) 추가 ▼▼▼
 const avatar = reactive({
   body: 'body_male',
-  hair: 'hair_short_white',
-  outfit: 'outfit_hoodie',
+  hair: 'hair_style_1',
+  eyes: 'eyes_neutral',
+  nose: 'nose_default',
+  mouth: 'mouth_neutral',
+  outfit: 'outfit_default',
 });
+// ▲▲▲
 
-// 선택 가능한 옵션 목록
+// ▼▼▼ [핵심 수정 2] 모든 선택 옵션 데이터 정의 ▼▼▼
+const bodyOptions = ref([
+  { id: 'body_male', name: '남성', icon: require('@/assets/avatar/body_male.png') },
+  { id: 'body_female', name: '여성', icon: require('@/assets/avatar/body_female.png') },
+]);
 const hairOptions = ref([
-  { id: 'hair_short_white', name: '하얀 스포츠컷', icon: require('@/assets/avatar/hair_short_white.png') },
-  { id: 'hair_bob_blue', name: '푸른 단발', icon: require('@/assets/avatar/hair_bob_blue.png') },
-  { id: 'hair_long_silver', name: '은빛 장발', icon: require('@/assets/avatar/hair_long_silver.png') },
+  { id: 'hair_style_1', name: '헤어 1', icon: require('@/assets/avatar/hair_style_1.png') },
+  { id: 'hair_style_2', name: '헤어 2', icon: require('@/assets/avatar/hair_style_2.png') },
+]);
+const eyesOptions = ref([
+  { id: 'eyes_neutral', name: '기본 눈', icon: require('@/assets/avatar/eyes_neutral.png') },
+  { id: 'eyes_happy', name: '웃는 눈', icon: require('@/assets/avatar/eyes_happy.png') },
+]);
+const noseOptions = ref([
+  { id: 'nose_default', name: '기본 코', icon: require('@/assets/avatar/nose_default.png') },
+]);
+const mouthOptions = ref([
+  { id: 'mouth_neutral', name: '기본 입', icon: require('@/assets/avatar/mouth_neutral.png') },
+  { id: 'mouth_smile', name: '웃는 입', icon: require('@/assets/avatar/mouth_smile.png') },
 ]);
 const outfitOptions = ref([
-  { id: 'outfit_hoodie', name: '탐험가 후드', icon: require('@/assets/avatar/outfit_hoodie.png') },
-  { id: 'outfit_labcoat', name: '솔레인 연구원 가운', icon: require('@/assets/avatar/outfit_labcoat.png') },
+  { id: 'outfit_default', name: '기본 의상', icon: require('@/assets/avatar/outfit_default.png') },
+  { id: 'outfit_labcoat', name: '연구원 가운', icon: require('@/assets/avatar/outfit_labcoat.png') },
 ]);
+// ▲▲▲
 
-// --- computed 속성 (이미지 경로 반환) ---
+// ▼▼▼ [핵심 수정 3] 얼굴 파츠 이미지 경로 computed 속성 추가 ▼▼▼
 const getBodyImage = computed(() => require(`@/assets/avatar/${avatar.body}.png`));
 const getOutfitImage = computed(() => require(`@/assets/avatar/${avatar.outfit}.png`));
 const getHairImage = computed(() => require(`@/assets/avatar/${avatar.hair}.png`));
+const getEyesImage = computed(() => require(`@/assets/avatar/${avatar.eyes}.png`));
+const getNoseImage = computed(() => require(`@/assets/avatar/${avatar.nose}.png`));
+const getMouthImage = computed(() => require(`@/assets/avatar/${avatar.mouth}.png`));
+// ▲▲▲
 
-// --- 함수 정의 ---
 onMounted(async () => {
   const uid = auth.currentUser.uid;
   if (!uid) return;
-
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
-
   if (userSnap.exists() && userSnap.data().avatar) {
-    const savedAvatar = userSnap.data().avatar;
-    Object.assign(avatar, savedAvatar); // 저장된 데이터로 덮어쓰기
+    Object.assign(avatar, userSnap.data().avatar);
   }
   loading.value = false;
 });
@@ -146,13 +167,13 @@ const saveAvatar = async () => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] 페이지 전체 스타일을 제거하고, 패널 스타일을 수정합니다. ▼▼▼ */
+/* ▼▼▼ [핵심 수정] 페이지 전체를 덮어쓰는 스타일 제거 및 패널 스타일 수정 ▼▼▼ */
 .customization-panel {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   width: 100%;
   max-width: 900px;
-  margin: 20px auto; /* 페이지 중앙 정렬 */
+  margin: 80px auto 20px; /* 상단 메뉴와의 간격을 위해 margin-top 추가 */
   background: rgba(44, 62, 80, 0.8);
   border-radius: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.4);
@@ -161,7 +182,6 @@ const saveAvatar = async () => {
 }
 /* ▲▲▲ */
 
-/* 1. 아바타 미리보기 영역 */
 .avatar-preview-wrapper {
   position: relative;
   display: flex;
@@ -169,7 +189,6 @@ const saveAvatar = async () => {
   align-items: center;
   border-right: 1px solid rgba(255,255,255,0.1);
   overflow: hidden;
-  /* ▼▼▼ [핵심 수정 2] 미리보기 영역을 정사각형 비율로 강제합니다. ▼▼▼ */
   aspect-ratio: 1 / 1;
 }
 .spotlight {
@@ -186,7 +205,7 @@ const saveAvatar = async () => {
 }
 .avatar-preview {
   position: relative;
-  width: 80%; /* 부모(wrapper) 크기에 맞춰 유동적으로 변경 */
+  width: 80%;
   height: 80%;
 }
 .avatar-part {
@@ -211,12 +230,11 @@ const saveAvatar = async () => {
 .avatar-part.nose { z-index: 4; }
 .avatar-part.mouth { z-index: 4; }
 
-/* 2. 커스터마이징 옵션 영역 */
 .options-panel {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  overflow-y: auto; /* 내용이 많아지면 스크롤 */
+  overflow-y: auto;
 }
 .tabs {
   display: flex;
@@ -279,15 +297,12 @@ const saveAvatar = async () => {
 .option-item span {
   font-size: 0.9em;
 }
-
 .face-options { display: flex; flex-direction: column; gap: 15px; width: 100%; }
 .face-category { text-align: left; }
 .face-category label { font-weight: bold; margin-bottom: 8px; display: block; }
 .option-group { display: flex; gap: 10px; flex-wrap: wrap; }
 .option-group .option-item { padding: 5px; width: 60px; height: 60px; }
 .option-group .option-item img { width: 100%; height: 100%; }
-
-/* 3. 액션 버튼 */
 .action-buttons {
   display: flex;
   justify-content: flex-end;
@@ -315,14 +330,12 @@ const saveAvatar = async () => {
   background: rgba(255,255,255,0.1);
   color: #ecf0f1;
 }
-
-/* ▼▼▼ [핵심 수정 3] 모바일에서 세로로 쌓이도록 변경합니다. ▼▼▼ */
 @media (max-width: 768px) {
   .customization-panel {
     grid-template-columns: 1fr;
     height: auto;
-    max-height: calc(100vh - 40px); /* 화면 높이에 맞게 조절 */
-    margin: 0;
+    max-height: calc(100vh - 90px);
+    margin-top: 70px;
   }
   .avatar-preview-wrapper {
     border-right: none;
