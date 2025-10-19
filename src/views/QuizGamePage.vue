@@ -63,7 +63,7 @@
       <div v-else>
         <p class="game-description">최종 우승자가 없습니다. 아쉽지만 다음 기회에!</p>
       </div>
-      <p class="next-game-info">다음 게임은 잠시 후 정각에 시작됩니다.</p>
+      <p class="next-game-info">다음 게임은 {{ nextGameTime }}에 시작됩니다.</p>
       <router-link to="/dashboard" class="action-button">대시보드로 돌아가기</router-link>
     </div>
   </div>
