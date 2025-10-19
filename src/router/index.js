@@ -397,12 +397,12 @@ const routes = [
 	  name: 'AuctionManagement',
 	  component: () => import('@/components/admin/AuctionManagementPage.vue'),
 	},
-	{
-	  path: '/my-avatar',
-	  name: 'AvatarCustomizationPage',
-	  component: () => import('@/views/AvatarCustomizationPage.vue'),
-	  meta: { requiresAuth: true }
-	},
+    {
+      path: '/my-avatar',
+      name: 'AvatarCustomizationPage',
+      component: () => import('@/views/AvatarCustomizationPage.vue'),
+      meta: { requiresAuth: true } // 'requiresRole' 속성이 없는 것이 정상입니다.
+    },
       {
         path: "equity",
         name: "AdminEquityManagement",

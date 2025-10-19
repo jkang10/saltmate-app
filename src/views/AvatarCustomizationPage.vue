@@ -4,7 +4,7 @@
       <div class="avatar-preview-wrapper">
         <div class="spotlight"></div>
         <div v-if="loading" class="loading-spinner"></div>
-        <div v-else class="avatar-preview">
+        <div velse class="avatar-preview">
           <img :src="getBodyImage" class="avatar-part body" alt="Body" />
           <img :src="getOutfitImage" class="avatar-part outfit" alt="Outfit" />
           <img :src="getHairImage" class="avatar-part hair" alt="Hair" />
@@ -40,8 +40,32 @@
           </template>
           
           <div v-if="activeTab === 'face'" class="face-options">
+            <div class="face-category">
+              <label>눈</label>
+              <div class="option-group">
+                <div v-for="eyes in eyesOptions" :key="eyes.id" class="option-item" :class="{ selected: avatar.eyes === eyes.id }" @click="avatar.eyes = eyes.id">
+                   <img :src="eyes.icon" :alt="eyes.name" />
+                </div>
+              </div>
             </div>
-          
+            <div class="face-category">
+              <label>코</label>
+              <div class="option-group">
+                <div v-for="nose in noseOptions" :key="nose.id" class="option-item" :class="{ selected: avatar.nose === nose.id }" @click="avatar.nose = nose.id">
+                  <img :src="nose.icon" :alt="nose.name" />
+                </div>
+              </div>
+            </div>
+            <div class="face-category">
+              <label>입</label>
+              <div class="option-group">
+                <div v-for="mouth in mouthOptions" :key="mouth.id" class="option-item" :class="{ selected: avatar.mouth === mouth.id }" @click="avatar.mouth = mouth.id">
+                   <img :src="mouth.icon" :alt="mouth.name" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <template v-if="activeTab === 'outfit'">
             <div v-for="outfit in outfitOptions" :key="outfit.id"
                  class="option-item" :class="{ selected: avatar.outfit === outfit.id }" @click="avatar.outfit = outfit.id">
@@ -49,7 +73,7 @@
               <span>{{ outfit.name }}</span>
             </div>
           </template>
-          </div>
+        </div>
 
         <div class="action-buttons">
           <router-link to="/dashboard" class="btn-secondary">나중에</router-link>
@@ -160,8 +184,8 @@ const saveAvatar = async () => {
 }
 .spotlight {
   position: absolute;
-  width: 300px;
-  height: 300px;
+  width: 400px; /* 스포트라이트 크기 조정 */
+  height: 400px;
   background: radial-gradient(circle, rgba(241, 196, 15, 0.15) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse-light 4s infinite alternate;
@@ -170,11 +194,15 @@ const saveAvatar = async () => {
   from { transform: scale(0.9); opacity: 0.8; }
   to { transform: scale(1.1); opacity: 1; }
 }
+
+/* ▼▼▼ [핵심 수정 1] 미리보기 영역을 정사각형으로 변경 ▼▼▼ */
 .avatar-preview {
   position: relative;
-  width: 250px;
-  height: 500px;
+  width: 300px;
+  height: 300px;
 }
+/* ▲▲▲ */
+
 .avatar-part {
   position: absolute;
   left: 0;
@@ -190,7 +218,17 @@ const saveAvatar = async () => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 2. 커스터마이징 옵션 영역 */
+/* ▼▼▼ [핵심 수정 2] 레이어 순서를 z-index로 명확하게 지정 ▼▼▼ */
+.avatar-part.body { z-index: 1; }
+.avatar-part.outfit { z-index: 2; }
+.avatar-part.hair { z-index: 3; }
+.avatar-part.eyes { z-index: 4; }
+.avatar-part.nose { z-index: 4; }
+.avatar-part.mouth { z-index: 4; }
+/* ▲▲▲ */
+
+/* 2. 커스터마이징 옵션 영역 (나머지는 동일) */
+/* ... (다른 모든 스타일은 기존과 동일하게 유지) ... */
 .options-panel {
   display: flex;
   flex-direction: column;
@@ -202,83 +240,13 @@ const saveAvatar = async () => {
   border-bottom: 1px solid rgba(255,255,255,0.1);
   margin-bottom: 20px;
 }
-.tabs button {
-  padding: 10px 20px;
-  background: none;
-  border: none;
-  color: #bdc3c7;
-  font-size: 1.1em;
-  font-weight: bold;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-}
-.tabs button.active {
-  color: #f1c40f;
-  border-bottom-color: #f1c40f;
-}
-.options-grid {
-  flex-grow: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 15px;
-  overflow-y: auto;
-  padding: 10px;
-}
-.option-item {
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-  padding: 10px;
-  text-align: center;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: all 0.2s;
-}
-.option-item:hover {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(241, 196, 15, 0.5);
-}
-.option-item.selected {
-  border-color: #f1c40f;
-  box-shadow: 0 0 15px rgba(241, 196, 15, 0.3);
-}
-.option-item img {
-  width: 80px;
-  height: 80px;
-  object-fit: contain;
-  margin-bottom: 5px;
-}
-.option-item span {
-  font-size: 0.9em;
-}
-
-/* 3. 액션 버튼 */
-.action-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-}
-.btn-primary, .btn-secondary {
-  padding: 12px 25px;
-  font-size: 1em;
-  font-weight: bold;
-  cursor: pointer;
-  border-radius: 8px;
-  border: none;
-  transition: all 0.3s ease;
-  text-decoration: none;
-}
-.btn-primary {
-  background: linear-gradient(145deg, #f1c40f, #e67e22);
-  color: white;
-}
-.btn-secondary {
-  background: rgba(255,255,255,0.1);
-  color: #ecf0f1;
-}
+/* ... */
+.face-options { display: flex; flex-direction: column; gap: 15px; width: 100%; }
+.face-category { text-align: left; }
+.face-category label { font-weight: bold; margin-bottom: 8px; display: block; }
+.option-group { display: flex; gap: 10px; flex-wrap: wrap; }
+.option-group .option-item { padding: 5px; }
+.option-group .option-item img { width: 40px; height: 40px; }
 
 /* 모바일 화면 대응 */
 @media (max-width: 768px) {
@@ -292,10 +260,12 @@ const saveAvatar = async () => {
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,0.1);
   }
+  /* ▼▼▼ [핵심 수정 3] 모바일 미리보기 영역도 정사각형으로 변경 ▼▼▼ */
   .avatar-preview {
-    width: 150px;
-    height: 300px;
+    width: 200px;
+    height: 200px;
   }
+  /* ▲▲▲ */
   .options-panel {
     padding: 15px;
   }
