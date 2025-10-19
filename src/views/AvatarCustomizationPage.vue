@@ -8,31 +8,48 @@
           <img :src="getBodyImage" class="avatar-part body" alt="Body" />
           <img :src="getOutfitImage" class="avatar-part outfit" alt="Outfit" />
           <img :src="getHairImage" class="avatar-part hair" alt="Hair" />
+          <img :src="getEyesImage" class="avatar-part eyes" alt="Eyes" />
+          <img :src="getNoseImage" class="avatar-part nose" alt="Nose" />
+          <img :src="getMouthImage" class="avatar-part mouth" alt="Mouth" />
         </div>
       </div>
 
       <div class="options-panel">
         <div class="tabs">
+          <button @click="activeTab = 'body'" :class="{ active: activeTab === 'body' }"><i class="fas fa-male"></i> 체형</button>
           <button @click="activeTab = 'hair'" :class="{ active: activeTab === 'hair' }"><i class="fas fa-hat-wizard"></i> 헤어</button>
+          <button @click="activeTab = 'face'" :class="{ active: activeTab === 'face' }"><i class="fas fa-smile"></i> 얼굴</button>
           <button @click="activeTab = 'outfit'" :class="{ active: activeTab === 'outfit' }"><i class="fas fa-tshirt"></i> 의상</button>
         </div>
 
         <div class="options-grid">
-          <div v-if="activeTab === 'hair'" v-for="hair in hairOptions" :key="hair.id"
-               class="option-item"
-               :class="{ selected: avatar.hair === hair.id }"
-               @click="avatar.hair = hair.id">
-            <img :src="hair.icon" :alt="hair.name" />
-            <span>{{ hair.name }}</span>
+          <template v-if="activeTab === 'body'">
+            <div v-for="body in bodyOptions" :key="body.id"
+                 class="option-item" :class="{ selected: avatar.body === body.id }" @click="avatar.body = body.id">
+              <img :src="body.icon" :alt="body.name" />
+              <span>{{ body.name }}</span>
+            </div>
+          </template>
+
+          <template v-if="activeTab === 'hair'">
+            <div v-for="hair in hairOptions" :key="hair.id"
+                 class="option-item" :class="{ selected: avatar.hair === hair.id }" @click="avatar.hair = hair.id">
+              <img :src="hair.icon" :alt="hair.name" />
+              <span>{{ hair.name }}</span>
+            </div>
+          </template>
+          
+          <div v-if="activeTab === 'face'" class="face-options">
+            </div>
+          
+          <template v-if="activeTab === 'outfit'">
+            <div v-for="outfit in outfitOptions" :key="outfit.id"
+                 class="option-item" :class="{ selected: avatar.outfit === outfit.id }" @click="avatar.outfit = outfit.id">
+              <img :src="outfit.icon" :alt="outfit.name" />
+              <span>{{ outfit.name }}</span>
+            </div>
+          </template>
           </div>
-          <div v-if="activeTab === 'outfit'" v-for="outfit in outfitOptions" :key="outfit.id"
-               class="option-item"
-               :class="{ selected: avatar.outfit === outfit.id }"
-               @click="avatar.outfit = outfit.id">
-            <img :src="outfit.icon" :alt="outfit.name" />
-            <span>{{ outfit.name }}</span>
-          </div>
-        </div>
 
         <div class="action-buttons">
           <router-link to="/dashboard" class="btn-secondary">나중에</router-link>
