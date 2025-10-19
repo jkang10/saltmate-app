@@ -116,6 +116,24 @@ const winnerName = computed(() => {
     return game.value.participants?.[game.value.winner]?.name || '알 수 없음';
 });
 
+// ▼▼▼ [핵심 추가] 다음 게임 시간을 계산하는 computed 속성 ▼▼▼
+const nextGameTime = computed(() => {
+  const now = new Date();
+  const allowedHours = [0, 9, 12, 15, 18, 21];
+  const currentHour = now.getHours();
+
+  // 현재 시간보다 늦은 다음 게임 시간을 찾습니다.
+  let nextHour = allowedHours.find(hour => hour > currentHour);
+
+  // 만약 없다면 (즉, 21시 이후라면), 다음 날 0시(자정)가 다음 게임 시간입니다.
+  if (nextHour === undefined) {
+    nextHour = 0;
+  }
+  
+  return `${nextHour}시 정각`;
+});
+// ▲▲▲
+
 const joinGame = async () => {
   isLoading.value = true;
   try {
