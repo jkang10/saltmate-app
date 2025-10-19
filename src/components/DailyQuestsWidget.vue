@@ -150,9 +150,12 @@ onMounted(fetchQuests);
   display: flex;
   align-items: center;
   gap: 15px;
+  /* ▼▼▼ [핵심 수정] 모바일 화면에서 세로로 쌓이도록 설정 ▼▼▼ */
+  flex-wrap: wrap;
 }
 .quest-text {
   flex-grow: 1;
+  min-width: 150px; /* 텍스트 영역 최소 너비 확보 */
 }
 .quest-text strong {
   display: block;
@@ -230,4 +233,19 @@ onMounted(fetchQuests);
     display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* ▼▼▼ [핵심 추가] 모바일 화면 레이아웃 조정 ▼▼▼ */
+@media (max-width: 600px) {
+  .quest-info {
+    flex-direction: column; /* 세로 방향으로 변경 */
+    align-items: stretch; /* 아이템들을 쭉 펴줌 */
+    gap: 10px;
+  }
+  .quest-progress {
+    width: 100%; /* 진행도 바 너비를 100%로 설정 */
+  }
+  .quest-action {
+    align-self: flex-end; /* '보상 받기' 버튼을 오른쪽 끝으로 */
+  }
+}
+/* ▲▲▲ */
 </style>

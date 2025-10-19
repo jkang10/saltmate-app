@@ -141,6 +141,23 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [핵심 수정] 페이지 전체 스타일 변경 ▼▼▼ */
+.game-zone-page.dark-theme {
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+}
+.dark-theme .page-header {
+  color: #ecf0f1;
+}
+.dark-theme .page-header h1 i {
+  color: #f1c40f;
+}
+.dark-theme .page-header .description {
+  color: #bdc3c7;
+}
+/* ▲▲▲ */
 .game-zone-page {
   /* [수정] 보라색 배경 제거 */
   background-color: #f8f9fa; /* 다른 페이지와 동일한 밝은 회색 배경 */
@@ -174,7 +191,15 @@ export default {
   font-size: 1.2em;
   color: #666; /* 글씨 색상 변경 */
 }
-
+/* ▼▼▼ [핵심 수정] 게임 콘텐츠를 감싸는 래퍼 스타일 ▼▼▼ */
+.game-content-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+/* ▲▲▲ */
 .content-wrapper {
   text-align: center;
   padding: 40px;
