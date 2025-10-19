@@ -96,38 +96,41 @@ const activeTab = ref('body');
 
 const avatar = reactive({
   body: 'body_male',
-  hair: 'hair_short_white.png',
+  hair: 'hair_short_white',
   eyes: 'eyes_neutral',
   nose: 'nose_default',
   mouth: 'mouth_neutral',
-  outfit: 'outfit_default',
+  outfit: 'outfit_hoodie',
 });
 
-// ▼▼▼ [핵심 수정 1] 누락되었던 모든 선택 옵션 데이터를 다시 정의합니다. ▼▼▼
+// ▼▼▼ [핵심 수정] 실제 파일 이름과 100% 일치하도록 모든 경로를 수정합니다. ▼▼▼
 const bodyOptions = ref([
   { id: 'body_male', name: '남성', icon: require('@/assets/avatar/body_male.png') },
   { id: 'body_female', name: '여성', icon: require('@/assets/avatar/body_female.png') },
 ]);
 const hairOptions = ref([
-  { id: 'hair_short_white', name: '헤어 1', icon: require('@/assets/avatar/hair_short_white.png') },
-  { id: 'hair_long_silver', name: '헤어 2', icon: require('@/assets/avatar/hair_long_silver.png') },
-  { id: 'hair_bob_blue', name: '헤어 3', icon: require('@/assets/avatar/hair_bob_blue.png') },
-
+  { id: 'hair_short_white', name: '하얀 스포츠컷', icon: require('@/assets/avatar/hair_short_white.png') },
+  { id: 'hair_long_silver', name: '은빛 장발', icon: require('@/assets/avatar/hair_long_silver.png') },
+  { id: 'hair_bob_blue', name: '푸른 단발', icon: require('@/assets/avatar/hair_bob_blue.png') },
 ]);
 const eyesOptions = ref([
   { id: 'eyes_neutral', name: '기본 눈', icon: require('@/assets/avatar/eyes_neutral.png') },
-  { id: 'eyes_surprised', name: '웃는 눈', icon: require('@/assets/avatar/eyes_surprised.png') },
+  { id: 'eyes_surprised', name: '놀란 눈', icon: require('@/assets/avatar/eyes_surprised.png') },
 ]);
 const noseOptions = ref([
   { id: 'nose_default', name: '기본 코', icon: require('@/assets/avatar/nose_default.png') },
+  { id: 'nose_line', name: '선 모양 코', icon: require('@/assets/avatar/nose_line.png') },
+  { id: 'nose_sharp', name: '오똑한 코', icon: require('@/assets/avatar/nose_sharp.png') },
 ]);
 const mouthOptions = ref([
   { id: 'mouth_neutral', name: '기본 입', icon: require('@/assets/avatar/mouth_neutral.png') },
   { id: 'mouth_smile', name: '웃는 입', icon: require('@/assets/avatar/mouth_smile.png') },
+  { id: 'mouth_surprised', name: '놀란 입', icon: require('@/assets/avatar/mouth_surprised.png') },
 ]);
 const outfitOptions = ref([
-  { id: 'outfit_hoodie', name: '기본 의상', icon: require('@/assets/avatar/outfit_hoodie.png') },
+  { id: 'outfit_hoodie', name: '탐험가 후드', icon: require('@/assets/avatar/outfit_hoodie.png') },
   { id: 'outfit_labcoat', name: '연구원 가운', icon: require('@/assets/avatar/outfit_labcoat.png') },
+  { id: 'outfit_crystal_armor', name: '수호자 갑옷', icon: require('@/assets/avatar/outfit_crystal_armor.png') },
 ]);
 // ▲▲▲
 
