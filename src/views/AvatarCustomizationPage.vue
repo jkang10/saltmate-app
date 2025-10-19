@@ -94,7 +94,6 @@ const loading = ref(true);
 const isSaving = ref(false);
 const activeTab = ref('body');
 
-// ▼▼▼ [핵심 수정 1] 얼굴 파츠(eyes, nose, mouth) 추가 ▼▼▼
 const avatar = reactive({
   body: 'body_male',
   hair: 'hair_style_1',
@@ -103,9 +102,8 @@ const avatar = reactive({
   mouth: 'mouth_neutral',
   outfit: 'outfit_default',
 });
-// ▲▲▲
 
-// ▼▼▼ [핵심 수정 2] 모든 선택 옵션 데이터 정의 ▼▼▼
+// ▼▼▼ [핵심 수정 1] 누락되었던 모든 선택 옵션 데이터를 다시 정의합니다. ▼▼▼
 const bodyOptions = ref([
   { id: 'body_male', name: '남성', icon: require('@/assets/avatar/body_male.png') },
   { id: 'body_female', name: '여성', icon: require('@/assets/avatar/body_female.png') },
@@ -131,14 +129,12 @@ const outfitOptions = ref([
 ]);
 // ▲▲▲
 
-// ▼▼▼ [핵심 수정 3] 얼굴 파츠 이미지 경로 computed 속성 추가 ▼▼▼
 const getBodyImage = computed(() => require(`@/assets/avatar/${avatar.body}.png`));
 const getOutfitImage = computed(() => require(`@/assets/avatar/${avatar.outfit}.png`));
 const getHairImage = computed(() => require(`@/assets/avatar/${avatar.hair}.png`));
 const getEyesImage = computed(() => require(`@/assets/avatar/${avatar.eyes}.png`));
 const getNoseImage = computed(() => require(`@/assets/avatar/${avatar.nose}.png`));
 const getMouthImage = computed(() => require(`@/assets/avatar/${avatar.mouth}.png`));
-// ▲▲▲
 
 onMounted(async () => {
   const uid = auth.currentUser.uid;
@@ -167,7 +163,7 @@ const saveAvatar = async () => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] 페이지 전체를 덮어쓰는 스타일 제거 및 패널 스타일 수정 ▼▼▼ */
+/* ▼▼▼ [핵심 수정 2] 페이지 전체를 덮어쓰지 않고, 중앙에 위치하도록 스타일 수정 ▼▼▼ */
 .customization-panel {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
