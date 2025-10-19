@@ -397,6 +397,12 @@ const routes = [
 	  name: 'AuctionManagement',
 	  component: () => import('@/components/admin/AuctionManagementPage.vue'),
 	},
+	{
+	  path: '/my-avatar',
+	  name: 'AvatarCustomizationPage',
+	  component: () => import('@/views/AvatarCustomizationPage.vue'),
+	  meta: { requiresAuth: true }
+	},
       {
         path: "equity",
         name: "AdminEquityManagement",
