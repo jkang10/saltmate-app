@@ -96,7 +96,7 @@ const activeTab = ref('body');
 
 const avatar = reactive({
   body: 'body_male',
-  hair: 'hair_style_1',
+  hair: 'hair_short_white.png',
   eyes: 'eyes_neutral',
   nose: 'nose_default',
   mouth: 'mouth_neutral',
@@ -109,12 +109,14 @@ const bodyOptions = ref([
   { id: 'body_female', name: '여성', icon: require('@/assets/avatar/body_female.png') },
 ]);
 const hairOptions = ref([
-  { id: 'hair_style_1', name: '헤어 1', icon: require('@/assets/avatar/hair_style_1.png') },
-  { id: 'hair_style_2', name: '헤어 2', icon: require('@/assets/avatar/hair_style_2.png') },
+  { id: 'hair_short_white', name: '헤어 1', icon: require('@/assets/avatar/hair_short_white.png') },
+  { id: 'hair_long_silver', name: '헤어 2', icon: require('@/assets/avatar/hair_long_silver.png') },
+  { id: 'hair_bob_blue', name: '헤어 3', icon: require('@/assets/avatar/hair_bob_blue.png') },
+
 ]);
 const eyesOptions = ref([
   { id: 'eyes_neutral', name: '기본 눈', icon: require('@/assets/avatar/eyes_neutral.png') },
-  { id: 'eyes_happy', name: '웃는 눈', icon: require('@/assets/avatar/eyes_happy.png') },
+  { id: 'eyes_surprised', name: '웃는 눈', icon: require('@/assets/avatar/eyes_surprised.png') },
 ]);
 const noseOptions = ref([
   { id: 'nose_default', name: '기본 코', icon: require('@/assets/avatar/nose_default.png') },
@@ -124,7 +126,7 @@ const mouthOptions = ref([
   { id: 'mouth_smile', name: '웃는 입', icon: require('@/assets/avatar/mouth_smile.png') },
 ]);
 const outfitOptions = ref([
-  { id: 'outfit_default', name: '기본 의상', icon: require('@/assets/avatar/outfit_default.png') },
+  { id: 'outfit_hoodie', name: '기본 의상', icon: require('@/assets/avatar/outfit_hoodie.png') },
   { id: 'outfit_labcoat', name: '연구원 가운', icon: require('@/assets/avatar/outfit_labcoat.png') },
 ]);
 // ▲▲▲
