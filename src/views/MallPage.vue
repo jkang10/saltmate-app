@@ -167,7 +167,7 @@ export default {
 .detail-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85); /* 배경을 더 어둡게 */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -177,31 +177,34 @@ export default {
 .detail-modal-content {
   position: relative;
   background: white;
-  padding: 10px;
+  padding: 0; /* 패딩 제거 */
   border-radius: 10px;
-  max-width: 90vw;
-  max-height: 90vh;
+  width: 90vw; /* 가로폭을 화면의 90%로 설정 */
+  max-width: 860px; /* PC에서는 최대 860px (이미지 원본 가로 크기) */
+  max-height: 80vh; /* 세로 높이를 화면의 80%로 제한 */
+  overflow-y: auto; /* 세로 스크롤 자동 생성 */
+  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
 }
 .detail-modal-content img {
-  max-width: 100%;
-  max-height: calc(90vh - 20px);
-  display: block;
+  width: 100%; /* 이미지가 모달창 가로폭에 꽉 차도록 설정 */
+  max-width: 100%; /* max-width 제거 (이미지가 100%로 늘어나도록) */
+  display: block; /* 이미지 하단 여백 제거 */
 }
 .close-detail-modal {
-  position: absolute;
-  top: -15px;
-  right: -15px;
-  width: 30px;
-  height: 30px;
+  position: fixed; /* [수정] 이미지를 스크롤해도 닫기 버튼은 고정 */
+  top: 15px;
+  right: 15px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
-  background: white;
-  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 2px solid white;
   font-size: 1.5em;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  z-index: 1003; /* 모달 컨텐츠보다 위에 오도록 */
 }
-/* ▲▲▲ */
 .page-container {
   max-width: 1200px;
   margin: 70px auto 20px;
