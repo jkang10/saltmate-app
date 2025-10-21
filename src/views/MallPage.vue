@@ -29,7 +29,8 @@
           <img
             :src="product.imageUrl || 'https://via.placeholder.com/300'"
             alt="상품 이미지"
-            class="product-image"
+            class="product-image clickable-image"
+            @click="openDetailModal(product)"
           />
           <div class="product-info">
             <h3 class="product-name">{{ product.name }}</h3>
@@ -53,15 +54,21 @@
         </div>
       </div>
     </main>
-  </div>
+
+    <div v-if="isDetailModalVisible" class="detail-modal-overlay" @click="closeDetailModal">
+      <div class="detail-modal-content" @click.stop>
+        <button @click="closeDetailModal" class="close-detail-modal">&times;</button>
+        <img :src="selectedDetailImageUrl" alt="상품 상세 이미지" />
+      </div>
+    </div>
+    </div>
 </template>
 
 <script>
-// ▼▼▼ [수정됨] 사용하지 않는 auth 제거 ▼▼▼
 import { db } from "@/firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+// [수정] getFunctions, httpsCallable import 추가
 import { getFunctions, httpsCallable } from "firebase/functions";
-// ▲▲▲ 수정 완료 ▲▲▲
 
 export default {
   name: "MallPage",
@@ -70,6 +77,8 @@ export default {
       products: [],
       isLoading: true,
       error: null,
+      isDetailModalVisible: false, // [신규] 모달 표시 상태
+      selectedDetailImageUrl: null, // [신규] 선택된 상세 이미지 URL
     };
   },
   async created() {
@@ -113,8 +122,9 @@ export default {
         return;
 
       try {
-        const functions = getFunctions();
-        const placeOrder = httpsCallable(functions, "placeOrder");
+        // [수정] functions 인스턴스 올바르게 참조
+        const functionsInstance = getFunctions(undefined, "asia-northeast3");
+        const placeOrder = httpsCallable(functionsInstance, "placeOrder");
         const result = await placeOrder({
           productId: product.id,
           quantity: Number(quantity),
@@ -127,11 +137,71 @@ export default {
         alert(`주문에 실패했습니다: ${error.message}`);
       }
     },
+
+    // ▼▼▼ [신규] 모달 관련 함수 ▼▼▼
+    openDetailModal(product) {
+      // 상세 이미지가 있으면 그것을, 없으면 메인 이미지를 보여줌
+      this.selectedDetailImageUrl = product.detailImageUrl || product.imageUrl || 'https://via.placeholder.com/600';
+      this.isDetailModalVisible = true;
+    },
+    closeDetailModal() {
+      this.isDetailModalVisible = false;
+      this.selectedDetailImageUrl = null;
+    },
+    // ▲▲▲
   },
 };
 </script>
 
 <style scoped>
+.product-image {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+}
+
+/* ▼▼▼ [신규] 상세 이미지 모달 스타일 ▼▼▼ */
+.clickable-image {
+  cursor: pointer;
+}
+.detail-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1002;
+  backdrop-filter: blur(5px);
+}
+.detail-modal-content {
+  position: relative;
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+.detail-modal-content img {
+  max-width: 100%;
+  max-height: calc(90vh - 20px);
+  display: block;
+}
+.close-detail-modal {
+  position: absolute;
+  top: -15px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  font-size: 1.5em;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+/* ▲▲▲ */
 .page-container {
   max-width: 1200px;
   margin: 70px auto 20px;

@@ -6,8 +6,9 @@
         <button @click="$emit('close')" class="close-button">&times;</button>
       </header>
       <form class="modal-body" @submit.prevent="saveProduct">
+        
         <div class="form-group image-upload-group">
-          <label>상품 이미지</label>
+          <label>상품 이미지 (목록용)</label>
           <img
             :src="imagePreviewUrl"
             alt="상품 이미지 미리보기"
@@ -20,11 +21,24 @@
             accept="image/*"
             :required="isNew"
           />
-          <small v-if="!isNew"
-            >이미지를 새로 선택하지 않으면 기존 이미지가 유지됩니다.</small
-          >
+          <small v-if="!isNew">이미지를 새로 선택하지 않으면 기존 이미지가 유지됩니다.</small>
         </div>
 
+        <div class="form-group image-upload-group">
+          <label>상품 상세 이미지 (클릭 시)</label>
+          <img
+            :src="detailImagePreviewUrl"
+            alt="상세 이미지 미리보기"
+            class="image-preview"
+            v-if="detailImagePreviewUrl"
+          />
+          <input
+            type="file"
+            @change="handleDetailFileSelect"
+            accept="image/*"
+          />
+          <small v-if="!isNew">상세 이미지를 새로 선택하지 않으면 기존 이미지가 유지됩니다.</small>
+        </div>
         <div class="form-group">
           <label>상품명</label>
           <input type="text" v-model="product.name" required />
@@ -71,7 +85,8 @@
 </template>
 
 <script>
-import { db } from "@/firebaseConfig";
+// [수정] functions, httpsCallable import 추가
+import { db, functions } from "@/firebaseConfig";
 import {
   doc,
   setDoc,
@@ -79,7 +94,7 @@ import {
   collection,
   serverTimestamp,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 
 export default {
   name: "ProductEditModal",
@@ -94,9 +109,12 @@ export default {
         description: "",
         isActive: true,
         imageUrl: null,
+        detailImageUrl: null, // [신규] 상세 이미지 URL 필드
       },
       selectedFile: null,
       imagePreviewUrl: null,
+      selectedDetailFile: null, // [신규] 상세 이미지 파일
+      detailImagePreviewUrl: null, // [신규] 상세 이미지 미리보기
       isSaving: false,
     };
   },
@@ -111,6 +129,10 @@ export default {
       if (this.product.imageUrl) {
         this.imagePreviewUrl = this.product.imageUrl;
       }
+      // [신규] 기존 상세 이미지 미리보기 로드
+      if (this.product.detailImageUrl) {
+        this.detailImagePreviewUrl = this.product.detailImageUrl;
+      }
     }
   },
   methods: {
@@ -121,51 +143,81 @@ export default {
         this.imagePreviewUrl = URL.createObjectURL(file);
       }
     },
+    // [신규] 상세 이미지 파일 선택 핸들러
+    handleDetailFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        this.selectedDetailFile = file;
+        this.detailImagePreviewUrl = URL.createObjectURL(file);
+      }
+    },
+
+    // [신규] 파일 업로드 로직을 별도 함수로 분리
+    async uploadImage(file, productId, uploadFunctionName) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      return new Promise((resolve, reject) => {
+        reader.onload = async () => {
+          try {
+            const base64Data = reader.result.split(",")[1];
+            // [수정] functions 인스턴스를 올바르게 참조
+            const uploadFunction = httpsCallable(functions, uploadFunctionName);
+            
+            const result = await uploadFunction({
+              productId: productId,
+              fileData: base64Data,
+              fileName: file.name,
+            });
+            
+            resolve(result.data); // { success: true, imageUrl: '...' } 또는 { success: true, detailImageUrl: '...' }
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = (error) => reject(error);
+      });
+    },
+
     async saveProduct() {
       this.isSaving = true;
       try {
+        const productId = this.isNew
+          ? doc(collection(db, "products")).id
+          : this.product.id;
+          
         let imageUrl = this.product.imageUrl;
+        let detailImageUrl = this.product.detailImageUrl;
 
+        // 1. 메인 이미지 업로드
         if (this.selectedFile) {
           if (this.isNew && !this.selectedFile) {
             alert("새 상품 등록 시에는 이미지가 필수입니다.");
             this.isSaving = false;
             return;
           }
-          const reader = new FileReader();
-          reader.readAsDataURL(this.selectedFile);
-
-          await new Promise((resolve, reject) => {
-            reader.onload = async () => {
-              const base64Data = reader.result.split(",")[1];
-              const functions = getFunctions();
-              const uploadProductImage = httpsCallable(
-                functions,
-                "uploadProductImage",
-              );
-
-              const productId = this.isNew
-                ? doc(collection(db, "products")).id
-                : this.product.id;
-
-              const result = await uploadProductImage({
-                productId: productId,
-                fileData: base64Data,
-                fileName: this.selectedFile.name,
-              });
-
-              imageUrl = result.data.imageUrl;
-              resolve();
-            };
-            reader.onerror = (error) => reject(error);
-          });
+          // [수정] uploadProductImage 함수를 호출 (백엔드에 이 함수가 존재해야 함)
+          const result = await this.uploadImage(this.selectedFile, productId, "uploadProductImage");
+          imageUrl = result.imageUrl;
         }
 
-        const dataToSave = { ...this.product, imageUrl: imageUrl };
+        // 2. 상세 이미지 업로드
+        if (this.selectedDetailFile) {
+          // [수정] 새로 만든 uploadProductDetailImage 함수를 호출
+          const result = await this.uploadImage(this.selectedDetailFile, productId, "uploadProductDetailImage");
+          detailImageUrl = result.detailImageUrl;
+        }
+
+        // 3. 데이터 저장
+        const dataToSave = { 
+          ...this.product, 
+          imageUrl: imageUrl,
+          detailImageUrl: detailImageUrl // 상세 이미지 URL 저장
+        };
 
         if (this.isNew) {
           dataToSave.createdAt = serverTimestamp();
-          await addDoc(collection(db, "products"), dataToSave);
+          await setDoc(doc(db, "products", productId), dataToSave); // ID를 지정하여 생성
           alert("새 상품이 등록되었습니다.");
         } else {
           const productRef = doc(db, "products", this.product.id);
