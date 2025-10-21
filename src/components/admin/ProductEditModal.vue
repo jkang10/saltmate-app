@@ -90,7 +90,6 @@ import { db, functions } from "@/firebaseConfig";
 import {
   doc,
   setDoc,
-  addDoc,
   collection,
   serverTimestamp,
 } from "firebase/firestore";
