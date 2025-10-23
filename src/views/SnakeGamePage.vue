@@ -14,11 +14,14 @@
         <div class="high-score">최고 기록: {{ highScore }}</div>
       </div>
 
-      <div class="canvas-wrapper" 
-           @touchstart.prevent="handleTouchStart"
-           @touchmove.prevent="handleTouchMove"
-           @touchend="handleTouchEnd">
-        <canvas ref="gameCanvas" width="600" height="600"></canvas>
+      <div class="game-area-wrapper">
+        <div class="canvas-wrapper" 
+             @touchstart.prevent="handleTouchStart"
+             @touchmove.prevent="handleTouchMove"
+             @touchend="handleTouchEnd">
+          <canvas ref="gameCanvas" width="600" height="600"></canvas>
+        </div>
+        
         <div v-if="gameState === 'ready'" class="game-overlay">
           <h2>준비</h2>
           <button @click="startGame" class="game-button" :disabled="isLoading">
@@ -36,7 +39,6 @@
           </div>
         </div>
       </div>
-
       <div class="mobile-controls">
         <button @mousedown.prevent @touchstart.prevent="changeDirection('up')"><i class="fas fa-arrow-up"></i></button>
         <div>
@@ -50,11 +52,11 @@
 </template>
 
 <script setup>
+// [ script 태그 내용은 기존과 동일하므로 변경할 필요 없습니다 ]
 import { ref, onMounted, onUnmounted } from 'vue';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { app } from '@/firebaseConfig';
 
-// 사운드 파일 import
 import soundBgm1 from '@/assets/sounds/SnakeGame_BB01.mp3';
 import soundBgm2 from '@/assets/sounds/SnakeGame_BB02.mp3';
 import soundBgm3 from '@/assets/sounds/SnakeGame_BB03.mp3';
@@ -277,9 +279,6 @@ onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
   window.addEventListener('keydown', handleKeydown);
   draw();
-  // ▼▼▼ [핵심 수정] 불필요한 update 함수 선언을 제거합니다. ▼▼▼
-  // const update = () => { ... };
-  // ▲▲▲
 });
 
 onUnmounted(() => {
@@ -294,25 +293,27 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ▼▼▼ [핵심 수정 1] 페이지 전체 스타일 변경 ▼▼▼ */
 .snake-game-container {
   max-width: 600px;
   margin: 90px auto 20px;
   padding: 0 10px;
   color: #ecf0f1;
+  /* [추가] 페이지 전체에 다크 테마 적용 */
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  min-height: calc(100vh - 70px);
 }
-
-/* ▼▼▼ [핵심 수정] 헤더 글씨 색상 변경 ▼▼▼ */
 .page-header { 
   text-align: center; 
   margin-bottom: 30px; 
 }
 .page-header h1 { 
   font-size: 2.8em; 
-  color: #ecf0f1; /* 어두운 배경에 맞춰 밝은 색으로 */
+  color: #ecf0f1; /* 밝은 색으로 */
 }
 .page-header p { 
   font-size: 1.1em; 
-  color: #bdc3c7; /* 어두운 배경에 맞춰 밝은 색으로 */
+  color: #bdc3c7; /* 밝은 색으로 */
 }
 /* ▲▲▲ */
 
@@ -327,6 +328,7 @@ onUnmounted(() => {
 .game-ui {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 1.5em;
   padding: 0 10px 15px 10px;
   border-bottom: 2px solid rgba(255,255,255,0.2);
@@ -335,14 +337,20 @@ onUnmounted(() => {
 .score strong { color: #f1c40f; }
 .high-score { color: #95a5a6; }
 
-.canvas-wrapper {
+/* ▼▼▼ [핵심 수정 2] 캔버스와 오버레이 구조 변경 ▼▼▼ */
+.game-area-wrapper {
   position: relative;
-  width: 600px;
-  height: 600px;
-  margin: 0 auto;
-  touch-action: none;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+.canvas-wrapper {
+  position: absolute;
+  inset: 0;
+  touch-action: none; /* 캔버스에서만 스크롤 방지 */
 }
 canvas {
+  width: 100%;
+  height: 100%;
   background-color: #2c3e50;
   border-radius: 8px;
 }
@@ -357,7 +365,11 @@ canvas {
   align-items: center;
   text-align: center;
   border-radius: 8px;
+  z-index: 10;
+  touch-action: auto; /* [중요] 오버레이에서는 터치(클릭)가 가능하도록 복원 */
 }
+/* ▲▲▲ */
+
 .game-overlay h2 { font-size: 3em; margin-bottom: 10px; }
 .game-overlay p { font-size: 1.5em; }
 .game-button {
@@ -398,19 +410,10 @@ canvas {
   .game-wrapper {
     padding: 15px;
   }
-  .canvas-wrapper { 
-    width: 100%; 
-    height: auto; 
-    aspect-ratio: 1 / 1; 
-  }
-  canvas { width: 100%; height: 100%; }
   .mobile-controls { display: block; }
   .game-ui { font-size: 1.2em; }
 }
-/* ▼▼▼ [신규] 음소거 버튼 스타일 추가 ▼▼▼ */
-.game-ui {
-  align-items: center; /* 아이콘 세로 중앙 정렬 */
-}
+
 .mute-button {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -425,5 +428,4 @@ canvas {
 .mute-button:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
-/* ▲▲▲ */
 </style>
