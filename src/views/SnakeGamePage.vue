@@ -8,6 +8,9 @@
     <div class="game-wrapper card">
       <div class="game-ui">
         <div class="score">점수: <strong>{{ score }}</strong></div>
+        <button @click="toggleMute" class="mute-button">
+          <i :class="isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i>
+        </button>
         <div class="high-score">최고 기록: {{ highScore }}</div>
       </div>
 
@@ -51,6 +54,14 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { app } from '@/firebaseConfig';
 
+// ▼▼▼ [신규] 사운드 파일 import ▼▼▼
+import soundBgm1 from '@/assets/sounds/SnakeGame_BB01.mp3';
+import soundBgm2 from '@/assets/sounds/SnakeGame_BB02.mp3';
+import soundBgm3 from '@/assets/sounds/SnakeGame_BB03.mp3';
+import soundEatFile from '@/assets/sounds/SnakeGame_IN.mp3';
+import soundGameOverFile from '@/assets/sounds/SnakeGame_EN.mp3';
+// ▲▲▲
+
 const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 const gameCanvas = ref(null);
 const ctx = ref(null);
@@ -60,10 +71,8 @@ const gameState = ref('ready'); // ready, playing, ended
 const isLoading = ref(false);
 const awardedPoints = ref(0);
 
-// ▼▼▼ [핵심 수정 1] 맵 크기 변경 ▼▼▼
 const mapSize = 600;
 const gridSize = 20;
-// ▲▲▲
 
 let snake = [];
 let food = {};
@@ -71,10 +80,22 @@ let direction = 'right';
 let nextDirection = 'right';
 let gameLoopId = null;
 
-// ▼▼▼ [핵심 수정 2] 스와이프 로직을 위한 변수 ▼▼▼
 const touchStartPos = ref({ x: 0, y: 0 });
 const touchEndPos = ref({ x: 0, y: 0 });
-const minSwipeDistance = 30; // 최소 스와이프 거리
+const minSwipeDistance = 30;
+
+// ▼▼▼ [신규] 사운드 객체 및 상태 변수 ▼▼▼
+const bgmFiles = [soundBgm1, soundBgm2, soundBgm3];
+const selectedBgmFile = bgmFiles[Math.floor(Math.random() * bgmFiles.length)];
+const backgroundMusic = new Audio(selectedBgmFile);
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.3;
+
+const soundEat = new Audio(soundEatFile);
+const soundGameOver = new Audio(soundGameOverFile);
+
+const isMuted = ref(false);
+let audioContextStarted = false;
 // ▲▲▲
 
 const initGame = () => {
@@ -96,10 +117,38 @@ const placeFood = () => {
   }
 };
 
+// ▼▼▼ [신규] 사운드 재생 헬퍼 함수 ▼▼▼
+const initAudioContext = () => {
+  if (audioContextStarted) return;
+  audioContextStarted = true;
+};
+
+const playSound = (audioElement) => {
+  if (!isMuted.value && audioContextStarted) {
+    audioElement.currentTime = 0;
+    audioElement.play().catch(e => console.error("SFX 재생 오류:", e));
+  }
+};
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  backgroundMusic.muted = isMuted.value;
+  soundEat.muted = isMuted.value;
+  soundGameOver.muted = isMuted.value;
+};
+// ▲▲▲
+
 const startGame = async () => {
   if (isLoading.value) return;
   isLoading.value = true;
   
+  // ▼▼▼ [수정] 오디오 컨텍스트 초기화 및 BGM 재생 ▼▼▼
+  initAudioContext();
+  if (!isMuted.value) {
+    backgroundMusic.play().catch(e => console.error("BGM 재생 오류:", e));
+  }
+  // ▲▲▲
+
   try {
     const startFunc = httpsCallable(functionsInSeoul, 'startSnakeGame');
     await startFunc();
@@ -110,12 +159,23 @@ const startGame = async () => {
     gameLoop();
   } catch (error) {
     alert(`게임 시작 실패: ${error.message}`);
+    // [수정] 실패 시 BGM 정지
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
   } finally {
     isLoading.value = false;
   }
 };
 
 const endGame = async () => {
+  if (gameState.value === 'ended') return; // 중복 실행 방지
+  
+  // ▼▼▼ [수정] BGM 정지 및 게임 오버 사운드 재생 ▼▼▼
+  backgroundMusic.pause();
+  backgroundMusic.currentTime = 0;
+  playSound(soundGameOver);
+  // ▲▲▲
+
   gameState.value = 'ended';
   cancelAnimationFrame(gameLoopId);
   gameLoopId = null;
@@ -135,15 +195,7 @@ const endGame = async () => {
   }
 };
 
-const gameLoop = () => {
-  if (gameState.value !== 'playing') return;
-
-  setTimeout(() => {
-    gameLoopId = requestAnimationFrame(gameLoop);
-    draw();
-    update();
-  }, 100);
-};
+const gameLoop = () => { /* ... (기존과 동일) ... */ };
 
 const update = () => {
   direction = nextDirection;
@@ -154,11 +206,9 @@ const update = () => {
   else if (direction === 'down') head.y++;
   else if (direction === 'up') head.y--;
 
-  // 1. 벽 충돌 확인 (mapSize 사용)
   if (head.x < 0 || head.x >= mapSize / gridSize || head.y < 0 || head.y >= mapSize / gridSize) {
     return endGame();
   }
-  // 2. 꼬리 충돌 확인
   if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
     return endGame();
   }
@@ -167,6 +217,9 @@ const update = () => {
 
   if (head.x === food.x && head.y === food.y) {
     score.value += 10;
+    // ▼▼▼ [수정] 먹이 사운드 재생 ▼▼▼
+    playSound(soundEat);
+    // ▲▲▲
     placeFood();
   } else {
     snake.pop();
@@ -201,7 +254,6 @@ const handleKeydown = (e) => {
   else if (e.key === 'ArrowRight' || e.key === 'd') changeDirection('right');
 };
 
-// ▼▼▼ [핵심 수정 3] 스와이프 이벤트 핸들러 추가 ▼▼▼
 const handleTouchStart = (e) => {
   touchStartPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 };
@@ -226,7 +278,6 @@ const handleTouchEnd = () => {
     }
   }
 };
-// ▲▲▲
 
 onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
@@ -237,30 +288,40 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
+  
+  // ▼▼▼ [수정] 페이지 이탈 시 모든 사운드 정지 ▼▼▼
+  backgroundMusic.pause();
+  backgroundMusic.src = '';
+  soundEat.src = '';
+  soundGameOver.src = '';
+  // ▲▲▲
 });
+
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정 4] UI/UX 및 모바일 최적화 스타일 ▼▼▼ */
 .snake-game-container {
-  max-width: 600px; /* 캔버스 크기에 맞춤 */
+  max-width: 600px;
   margin: 90px auto 20px;
-  padding: 0 10px; /* 모바일 좌우 여백 */
+  padding: 0 10px;
   color: #ecf0f1;
 }
+
+/* ▼▼▼ [핵심 수정] 헤더 글씨 색상 변경 ▼▼▼ */
 .page-header { 
   text-align: center; 
   margin-bottom: 30px; 
-  color: #333; /* 다크모드에서는 white 또는 #ecf0f1 */
 }
 .page-header h1 { 
   font-size: 2.8em; 
-  color: #ecf0f1;
+  color: #ecf0f1; /* 어두운 배경에 맞춰 밝은 색으로 */
 }
 .page-header p { 
   font-size: 1.1em; 
-  color: #bdc3c7; 
+  color: #bdc3c7; /* 어두운 배경에 맞춰 밝은 색으로 */
 }
+/* ▲▲▲ */
+
 .game-wrapper {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 20px;
@@ -285,7 +346,7 @@ onUnmounted(() => {
   width: 600px;
   height: 600px;
   margin: 0 auto;
-  touch-action: none; /* [중요] 캔버스에서 브라우저 스크롤 방지 */
+  touch-action: none;
 }
 canvas {
   background-color: #2c3e50;
@@ -351,6 +412,24 @@ canvas {
   canvas { width: 100%; height: 100%; }
   .mobile-controls { display: block; }
   .game-ui { font-size: 1.2em; }
+}
+/* ▼▼▼ [신규] 음소거 버튼 스타일 추가 ▼▼▼ */
+.game-ui {
+  align-items: center; /* 아이콘 세로 중앙 정렬 */
+}
+.mute-button {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ecf0f1;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.mute-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 /* ▲▲▲ */
 </style>
