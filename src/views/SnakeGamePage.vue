@@ -39,13 +39,12 @@
           </div>
         </div>
       </div>
-      <div class="mobile-controls">
-        <button @mousedown.prevent @touchstart.prevent="changeDirection('up')"><i class="fas fa-arrow-up"></i></button>
-        <div>
-          <button @mousedown.prevent @touchstart.prevent="changeDirection('left')"><i class="fas fa-arrow-left"></i></button>
-          <button @mousedown.prevent @touchstart.prevent="changeDirection('down')"><i class="fas fa-arrow-down"></i></button>
-          <button @mousedown.prevent @touchstart.prevent="changeDirection('right')"><i class="fas fa-arrow-right"></i></button>
-        </div>
+	<div class="mobile-controls">
+	  <button @click="changeDirection('up')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
+	  <button @click="changeDirection('left')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
+	  <button @click="changeDirection('down')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
+	  <button @click="changeDirection('right')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
+	</div>
       </div>
     </div>
   </div>
@@ -388,20 +387,30 @@ canvas {
 
 .mobile-controls {
   display: none;
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
   width: 150px;
-  margin: 20px auto 0;
-  text-align: center;
+  height: 150px;
+  z-index: 100;
 }
 .mobile-controls button {
+  position: absolute;
   width: 50px;
   height: 50px;
   font-size: 1.4em;
-  margin: 2px;
+  margin: 0;
   border: none;
   border-radius: 50%;
-  background-color: #4e6a85;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   color: white;
+  backdrop-filter: blur(5px);
 }
+.control-btn.up { top: 0; left: 50px; }
+.control-btn.left { top: 50px; left: 0; }
+.control-btn.down { top: 100px; left: 50px; }
+.control-btn.right { top: 50px; left: 100px; }
 @media (max-width: 768px) {
   .snake-game-container {
     padding: 0 10px;
