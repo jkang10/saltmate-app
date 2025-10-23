@@ -281,6 +281,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/snake-game',
+    name: 'SnakeGamePage',
+    component: () => import('@/views/SnakeGamePage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/salt-trader',
     name: 'SaltTraderPage',
     component: () => import('@/views/SaltTraderPage.vue'),

@@ -338,6 +338,12 @@
             <p>매일 바뀌는 미로를 탐험하고 숨겨진 보물을 찾아 탈출하세요!</p>
             <span class="card-enter">도전하기 &rarr;</span>
         </router-link>
+        <router-link to="/snake-game" class="feature-card game">
+          <div class="card-icon"><i class="fas fa-worm"></i></div>
+          <h3>지렁이 게임</h3>
+          <p>소금 결정을 먹고 꼬리가 닿기 전까지 최고 점수에 도전하세요!</p>
+          <span class="card-enter">도전하기 &rarr;</span>
+        </router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
