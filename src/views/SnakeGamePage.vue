@@ -54,20 +54,19 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { app } from '@/firebaseConfig';
 
-// ▼▼▼ [신규] 사운드 파일 import ▼▼▼
+// 사운드 파일 import
 import soundBgm1 from '@/assets/sounds/SnakeGame_BB01.mp3';
 import soundBgm2 from '@/assets/sounds/SnakeGame_BB02.mp3';
 import soundBgm3 from '@/assets/sounds/SnakeGame_BB03.mp3';
 import soundEatFile from '@/assets/sounds/SnakeGame_IN.mp3';
 import soundGameOverFile from '@/assets/sounds/SnakeGame_EN.mp3';
-// ▲▲▲
 
 const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 const gameCanvas = ref(null);
 const ctx = ref(null);
 const score = ref(0);
 const highScore = ref(localStorage.getItem('snakeHighScore') || 0);
-const gameState = ref('ready'); // ready, playing, ended
+const gameState = ref('ready');
 const isLoading = ref(false);
 const awardedPoints = ref(0);
 
@@ -84,7 +83,6 @@ const touchStartPos = ref({ x: 0, y: 0 });
 const touchEndPos = ref({ x: 0, y: 0 });
 const minSwipeDistance = 30;
 
-// ▼▼▼ [신규] 사운드 객체 및 상태 변수 ▼▼▼
 const bgmFiles = [soundBgm1, soundBgm2, soundBgm3];
 const selectedBgmFile = bgmFiles[Math.floor(Math.random() * bgmFiles.length)];
 const backgroundMusic = new Audio(selectedBgmFile);
@@ -96,10 +94,9 @@ const soundGameOver = new Audio(soundGameOverFile);
 
 const isMuted = ref(false);
 let audioContextStarted = false;
-// ▲▲▲
 
 const initGame = () => {
-  snake = [ { x: 15, y: 15 } ]; // 중앙에서 시작
+  snake = [ { x: 15, y: 15 } ];
   direction = 'right';
   nextDirection = 'right';
   score.value = 0;
@@ -117,7 +114,6 @@ const placeFood = () => {
   }
 };
 
-// ▼▼▼ [신규] 사운드 재생 헬퍼 함수 ▼▼▼
 const initAudioContext = () => {
   if (audioContextStarted) return;
   audioContextStarted = true;
@@ -136,18 +132,15 @@ const toggleMute = () => {
   soundEat.muted = isMuted.value;
   soundGameOver.muted = isMuted.value;
 };
-// ▲▲▲
 
 const startGame = async () => {
   if (isLoading.value) return;
   isLoading.value = true;
   
-  // ▼▼▼ [수정] 오디오 컨텍스트 초기화 및 BGM 재생 ▼▼▼
   initAudioContext();
   if (!isMuted.value) {
     backgroundMusic.play().catch(e => console.error("BGM 재생 오류:", e));
   }
-  // ▲▲▲
 
   try {
     const startFunc = httpsCallable(functionsInSeoul, 'startSnakeGame');
@@ -159,7 +152,6 @@ const startGame = async () => {
     gameLoop();
   } catch (error) {
     alert(`게임 시작 실패: ${error.message}`);
-    // [수정] 실패 시 BGM 정지
     backgroundMusic.pause();
     backgroundMusic.currentTime = 0;
   } finally {
@@ -168,13 +160,11 @@ const startGame = async () => {
 };
 
 const endGame = async () => {
-  if (gameState.value === 'ended') return; // 중복 실행 방지
+  if (gameState.value === 'ended') return;
   
-  // ▼▼▼ [수정] BGM 정지 및 게임 오버 사운드 재생 ▼▼▼
   backgroundMusic.pause();
   backgroundMusic.currentTime = 0;
   playSound(soundGameOver);
-  // ▲▲▲
 
   gameState.value = 'ended';
   cancelAnimationFrame(gameLoopId);
@@ -195,7 +185,15 @@ const endGame = async () => {
   }
 };
 
-const gameLoop = () => { /* ... (기존과 동일) ... */ };
+const gameLoop = () => {
+  if (gameState.value !== 'playing') return;
+
+  setTimeout(() => {
+    gameLoopId = requestAnimationFrame(gameLoop);
+    draw();
+    update();
+  }, 100);
+};
 
 const update = () => {
   direction = nextDirection;
@@ -217,9 +215,7 @@ const update = () => {
 
   if (head.x === food.x && head.y === food.y) {
     score.value += 10;
-    // ▼▼▼ [수정] 먹이 사운드 재생 ▼▼▼
     playSound(soundEat);
-    // ▲▲▲
     placeFood();
   } else {
     snake.pop();
@@ -267,12 +263,10 @@ const handleTouchEnd = () => {
   const dy = touchEndPos.value.y - touchStartPos.value.y;
 
   if (Math.abs(dx) > Math.abs(dy)) {
-    // 수평 스와이프
     if (Math.abs(dx) > minSwipeDistance) {
       changeDirection(dx > 0 ? 'right' : 'left');
     }
   } else {
-    // 수직 스와이프
     if (Math.abs(dy) > minSwipeDistance) {
       changeDirection(dy > 0 ? 'down' : 'up');
     }
@@ -283,25 +277,20 @@ onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
   window.addEventListener('keydown', handleKeydown);
   draw();
-  // ▼▼▼ 'update' 변수가 여기서 선언되었지만, ▼▼▼
-  // ▼▼▼ 이 코드 블록 안에서 아무도 사용하지 않습니다. ▼▼▼
-  const update = () => {
-    // (스와이프 관련 로직이 있었으나 지금은 handleTouchEnd로 이동됨)
-  };
+  // ▼▼▼ [핵심 수정] 불필요한 update 함수 선언을 제거합니다. ▼▼▼
+  // const update = () => { ... };
+  // ▲▲▲
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
   
-  // ▼▼▼ [수정] 페이지 이탈 시 모든 사운드 정지 ▼▼▼
   backgroundMusic.pause();
   backgroundMusic.src = '';
   soundEat.src = '';
   soundGameOver.src = '';
-  // ▲▲▲
 });
-
 </script>
 
 <style scoped>
