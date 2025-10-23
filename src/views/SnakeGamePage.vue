@@ -283,6 +283,11 @@ onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
   window.addEventListener('keydown', handleKeydown);
   draw();
+  // ▼▼▼ 'update' 변수가 여기서 선언되었지만, ▼▼▼
+  // ▼▼▼ 이 코드 블록 안에서 아무도 사용하지 않습니다. ▼▼▼
+  const update = () => {
+    // (스와이프 관련 로직이 있었으나 지금은 handleTouchEnd로 이동됨)
+  };
 });
 
 onUnmounted(() => {
