@@ -11,8 +11,11 @@
         <div class="high-score">최고 기록: {{ highScore }}</div>
       </div>
 
-      <div class="canvas-wrapper">
-        <canvas ref="gameCanvas" width="400" height="400"></canvas>
+      <div class="canvas-wrapper" 
+           @touchstart.prevent="handleTouchStart"
+           @touchmove.prevent="handleTouchMove"
+           @touchend="handleTouchEnd">
+        <canvas ref="gameCanvas" width="600" height="600"></canvas>
         <div v-if="gameState === 'ready'" class="game-overlay">
           <h2>준비</h2>
           <button @click="startGame" class="game-button" :disabled="isLoading">
@@ -32,11 +35,11 @@
       </div>
 
       <div class="mobile-controls">
-        <button @click="changeDirection('up')"><i class="fas fa-arrow-up"></i></button>
+        <button @mousedown.prevent @touchstart.prevent="changeDirection('up')"><i class="fas fa-arrow-up"></i></button>
         <div>
-          <button @click="changeDirection('left')"><i class="fas fa-arrow-left"></i></button>
-          <button @click="changeDirection('down')"><i class="fas fa-arrow-down"></i></button>
-          <button @click="changeDirection('right')"><i class="fas fa-arrow-right"></i></button>
+          <button @mousedown.prevent @touchstart.prevent="changeDirection('left')"><i class="fas fa-arrow-left"></i></button>
+          <button @mousedown.prevent @touchstart.prevent="changeDirection('down')"><i class="fas fa-arrow-down"></i></button>
+          <button @mousedown.prevent @touchstart.prevent="changeDirection('right')"><i class="fas fa-arrow-right"></i></button>
         </div>
       </div>
     </div>
@@ -57,15 +60,25 @@ const gameState = ref('ready'); // ready, playing, ended
 const isLoading = ref(false);
 const awardedPoints = ref(0);
 
+// ▼▼▼ [핵심 수정 1] 맵 크기 변경 ▼▼▼
+const mapSize = 600;
 const gridSize = 20;
+// ▲▲▲
+
 let snake = [];
 let food = {};
 let direction = 'right';
 let nextDirection = 'right';
 let gameLoopId = null;
 
+// ▼▼▼ [핵심 수정 2] 스와이프 로직을 위한 변수 ▼▼▼
+const touchStartPos = ref({ x: 0, y: 0 });
+const touchEndPos = ref({ x: 0, y: 0 });
+const minSwipeDistance = 30; // 최소 스와이프 거리
+// ▲▲▲
+
 const initGame = () => {
-  snake = [ { x: 10, y: 10 } ];
+  snake = [ { x: 15, y: 15 } ]; // 중앙에서 시작
   direction = 'right';
   nextDirection = 'right';
   score.value = 0;
@@ -75,10 +88,9 @@ const initGame = () => {
 
 const placeFood = () => {
   food = {
-    x: Math.floor(Math.random() * (400 / gridSize)),
-    y: Math.floor(Math.random() * (400 / gridSize))
+    x: Math.floor(Math.random() * (mapSize / gridSize)),
+    y: Math.floor(Math.random() * (mapSize / gridSize))
   };
-  // 뱀의 몸통과 겹치는지 확인
   if (snake.some(segment => segment.x === food.x && segment.y === food.y)) {
     placeFood();
   }
@@ -130,7 +142,7 @@ const gameLoop = () => {
     gameLoopId = requestAnimationFrame(gameLoop);
     draw();
     update();
-  }, 100); // 게임 속도 (100ms)
+  }, 100);
 };
 
 const update = () => {
@@ -142,11 +154,10 @@ const update = () => {
   else if (direction === 'down') head.y++;
   else if (direction === 'up') head.y--;
 
-  // 1. 벽 충돌 확인
-  if (head.x < 0 || head.x >= 400 / gridSize || head.y < 0 || head.y >= 400 / gridSize) {
+  // 1. 벽 충돌 확인 (mapSize 사용)
+  if (head.x < 0 || head.x >= mapSize / gridSize || head.y < 0 || head.y >= mapSize / gridSize) {
     return endGame();
   }
-
   // 2. 꼬리 충돌 확인
   if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
     return endGame();
@@ -154,7 +165,6 @@ const update = () => {
 
   snake.unshift(head);
 
-  // 3. 먹이 먹기 확인
   if (head.x === food.x && head.y === food.y) {
     score.value += 10;
     placeFood();
@@ -166,15 +176,13 @@ const update = () => {
 const draw = () => {
   if (!ctx.value) return;
   ctx.value.fillStyle = '#2c3e50';
-  ctx.value.fillRect(0, 0, 400, 400);
+  ctx.value.fillRect(0, 0, mapSize, mapSize);
 
-  // 뱀 그리기
   snake.forEach((segment, index) => {
     ctx.value.fillStyle = index === 0 ? '#2ecc71' : '#27ae60';
-    ctx.value.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1); // 1px 간격
+    ctx.value.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
   });
 
-  // 먹이 그리기 (소금 결정)
   ctx.value.fillStyle = '#f1c40f';
   ctx.value.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 1, gridSize - 1);
 };
@@ -193,10 +201,37 @@ const handleKeydown = (e) => {
   else if (e.key === 'ArrowRight' || e.key === 'd') changeDirection('right');
 };
 
+// ▼▼▼ [핵심 수정 3] 스와이프 이벤트 핸들러 추가 ▼▼▼
+const handleTouchStart = (e) => {
+  touchStartPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+};
+
+const handleTouchMove = (e) => {
+  touchEndPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+};
+
+const handleTouchEnd = () => {
+  const dx = touchEndPos.value.x - touchStartPos.value.x;
+  const dy = touchEndPos.value.y - touchStartPos.value.y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // 수평 스와이프
+    if (Math.abs(dx) > minSwipeDistance) {
+      changeDirection(dx > 0 ? 'right' : 'left');
+    }
+  } else {
+    // 수직 스와이프
+    if (Math.abs(dy) > minSwipeDistance) {
+      changeDirection(dy > 0 ? 'down' : 'up');
+    }
+  }
+};
+// ▲▲▲
+
 onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
   window.addEventListener('keydown', handleKeydown);
-  draw(); // 초기 화면 그리기
+  draw();
 });
 
 onUnmounted(() => {
@@ -206,37 +241,51 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ▼▼▼ [핵심 수정 4] UI/UX 및 모바일 최적화 스타일 ▼▼▼ */
 .snake-game-container {
-  max-width: 800px;
+  max-width: 600px; /* 캔버스 크기에 맞춤 */
   margin: 90px auto 20px;
-  padding: 20px;
+  padding: 0 10px; /* 모바일 좌우 여백 */
+  color: #ecf0f1;
 }
-.page-header { text-align: center; margin-bottom: 30px; }
-.page-header h1 { font-size: 2.8em; }
-.page-header p { font-size: 1.1em; color: #666; }
-
+.page-header { 
+  text-align: center; 
+  margin-bottom: 30px; 
+  color: #333; /* 다크모드에서는 white 또는 #ecf0f1 */
+}
+.page-header h1 { 
+  font-size: 2.8em; 
+  color: #ecf0f1;
+}
+.page-header p { 
+  font-size: 1.1em; 
+  color: #bdc3c7; 
+}
 .game-wrapper {
-  background: #fff;
-  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
   padding: 25px;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
 }
 .game-ui {
   display: flex;
   justify-content: space-between;
   font-size: 1.5em;
   padding: 0 10px 15px 10px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid rgba(255,255,255,0.2);
   margin-bottom: 20px;
 }
-.score strong { color: #007bff; }
-.high-score { color: #6c757d; }
+.score strong { color: #f1c40f; }
+.high-score { color: #95a5a6; }
 
 .canvas-wrapper {
   position: relative;
-  width: 400px;
-  height: 400px;
+  width: 600px;
+  height: 600px;
   margin: 0 auto;
+  touch-action: none; /* [중요] 캔버스에서 브라우저 스크롤 방지 */
 }
 canvas {
   background-color: #2c3e50;
@@ -269,6 +318,7 @@ canvas {
 }
 .button-group { display: flex; gap: 15px; margin-top: 20px; }
 .game-button.secondary { background: #6c757d; }
+
 .mobile-controls {
   display: none;
   width: 150px;
@@ -276,14 +326,31 @@ canvas {
   text-align: center;
 }
 .mobile-controls button {
-  width: 45px;
-  height: 45px;
-  font-size: 1.2em;
+  width: 50px;
+  height: 50px;
+  font-size: 1.4em;
   margin: 2px;
+  border: none;
+  border-radius: 50%;
+  background-color: #4e6a85;
+  color: white;
 }
 @media (max-width: 768px) {
-  .canvas-wrapper { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+  .snake-game-container {
+    padding: 0 10px;
+    margin-top: 70px;
+  }
+  .game-wrapper {
+    padding: 15px;
+  }
+  .canvas-wrapper { 
+    width: 100%; 
+    height: auto; 
+    aspect-ratio: 1 / 1; 
+  }
   canvas { width: 100%; height: 100%; }
   .mobile-controls { display: block; }
+  .game-ui { font-size: 1.2em; }
 }
+/* ▲▲▲ */
 </style>
