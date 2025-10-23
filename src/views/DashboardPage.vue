@@ -130,6 +130,12 @@
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
 	  <SaltGuardiansRankingsWidget />
+          <router-link to="/mall" class="feature-card mall">
+            <div class="card-icon"><i class="fas fa-store"></i></div>
+            <h3>솔트메이트 몰</h3>
+            <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
+            <span class="card-enter">둘러보기 &rarr;</span>
+          </router-link>
           <router-link to="/claim-code" class="feature-card">
             <div class="card-icon"><i class="fas fa-ticket-alt"></i></div>
             <h3>쿠폰 / 코드 등록</h3>
@@ -209,12 +215,6 @@
             <h3>이벤트 공간</h3>
             <p>진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.</p>
             <span class="card-enter">참여하기 &rarr;</span>
-          </router-link>
-          <router-link to="/mall" class="feature-card mall">
-            <div class="card-icon"><i class="fas fa-store"></i></div>
-            <h3>솔트메이트 몰</h3>
-            <p>솔트메이트 포인트로 특별한 상품을 구매하세요.</p>
-            <span class="card-enter">둘러보기 &rarr;</span>
           </router-link>
           <router-link to="/my-investments" class="feature-card revenue">
             <div class="card-icon"><i class="fas fa-chart-line"></i></div>
