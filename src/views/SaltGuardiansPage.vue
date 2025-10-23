@@ -144,6 +144,11 @@ const initAudioContext = async () => {
 
 const handleTouchStart = (event) => {
   if (gameState.value !== 'playing') return;
+
+  // ▼▼▼ [핵심 수정] 브라우저의 기본 스크롤 동작을 막습니다. ▼▼▼
+  event.preventDefault();
+  // ▲▲▲
+
   touchState.active = true;
   touchState.touchStartX = event.touches[0].clientX;
   touchState.initialPlayerX = player.x; // [수정] 터치 시작 시점의 플레이어 X좌표 저장
@@ -151,6 +156,11 @@ const handleTouchStart = (event) => {
 
 const handleTouchMove = (event) => {
   if (!touchState.active || gameState.value !== 'playing') return;
+
+  // ▼▼▼ [핵심 수정] 브라우저의 기본 스크롤 동작을 막습니다. ▼▼▼
+  event.preventDefault();
+  // ▲▲▲
+
   const deltaX = event.touches[0].clientX - touchState.touchStartX;
   const newPlayerX = touchState.initialPlayerX + deltaX;
   const canvasWidth = gameCanvas.value.getBoundingClientRect().width;
@@ -421,6 +431,7 @@ onMounted(() => {
 
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+// [수정] 이벤트 리스너 옵션은 onMounted에서 추가
   canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
   canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
   canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
@@ -432,7 +443,6 @@ onMounted(() => {
   backgroundAudio.value.volume = 0.3;
   backgroundAudio.value.muted = isMuted.value;
   
-
   if (auth.currentUser) {
     const guardianRef = doc(db, `users/${auth.currentUser.uid}/gamedata/saltGuardian`);
     onSnapshot(guardianRef, (docSnap) => {
