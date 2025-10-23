@@ -40,7 +40,7 @@
         </div>
       </div>
 
-      <div class="mobile-controls" :style="{ bottom: `${dpadPosition.y}px`, right: `${dpadPosition.x}px` }">
+      <div v-if="gameState === 'playing'" class="mobile-controls" :style="{ bottom: `${dpadPosition.y}px`, right: `${dpadPosition.x}px` }">
         <div class="dpad-drag-handle"
              @touchstart.prevent="handleDpadTouchStart"
              @touchmove.prevent="handleDpadTouchMove"
@@ -304,10 +304,14 @@ const handleDpadTouchMove = (e) => {
   const deltaX = e.touches[0].clientX - dpadPosition.dragStartX;
   const deltaY = e.touches[0].clientY - dpadPosition.dragStartY;
 
+  // 화면 경계(10px 여백)를 넘지 않도록 최대/최소값 설정
+  const maxX = window.innerWidth - 160; // D-pad 너비(150) + 여백(10)
+  const maxY = window.innerHeight - 160; // D-pad 높이(150) + 여백(10)
+
   // X (right) 위치 업데이트
-  dpadPosition.x = Math.max(10, dpadPosition.dpadStartX - deltaX);
+  dpadPosition.x = Math.max(10, Math.min(maxX, dpadPosition.dpadStartX - deltaX));
   // Y (bottom) 위치 업데이트
-  dpadPosition.y = Math.max(10, dpadPosition.dpadStartY - deltaY);
+  dpadPosition.y = Math.max(10, Math.min(maxY, dpadPosition.dpadStartY - deltaY));
 };
 
 const handleDpadTouchEnd = () => {
