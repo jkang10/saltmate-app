@@ -39,20 +39,20 @@
           </div>
         </div>
       </div>
+      </div>
 
-      <div class="mobile-controls" :style="{ bottom: `${dpadPosition.y}px`, right: `${dpadPosition.x}px` }">
-        <div class="dpad-drag-handle"
-             @touchstart.prevent="handleDpadTouchStart"
-             @touchmove.prevent="handleDpadTouchMove"
-             @touchend="handleDpadTouchEnd">
-          <i class="fas fa-arrows-alt"></i>
-        </div>
-        <button @click="changeDirection('up')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
-        <button @click="changeDirection('left')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
-        <button @click="changeDirection('down')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
-        <button @click="changeDirection('right')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
+    <div v-if="gameState === 'playing'" class="mobile-controls" :style="{ bottom: `${dpadPosition.y}px`, right: `${dpadPosition.x}px` }">
+      <div class="dpad-drag-handle"
+           @touchstart.prevent="handleDpadTouchStart"
+           @touchmove.prevent="handleDpadTouchMove"
+           @touchend="handleDpadTouchEnd">
+        <i class="fas fa-arrows-alt"></i>
       </div>
-      </div>
+      <button @click="changeDirection('up')" class="control-btn up"><i class="fas fa-arrow-up"></i></button>
+      <button @click="changeDirection('left')" class="control-btn left"><i class="fas fa-arrow-left"></i></button>
+      <button @click="changeDirection('down')" class="control-btn down"><i class="fas fa-arrow-down"></i></button>
+      <button @click="changeDirection('right')" class="control-btn right"><i class="fas fa-arrow-right"></i></button>
+    </div>
   </div>
 </template>
 
@@ -102,7 +102,6 @@ const soundGameOver = new Audio(soundGameOverFile);
 const isMuted = ref(false);
 let audioContextStarted = false;
 
-// ▼▼▼ [핵심 추가] D-pad 위치 및 드래그 상태 관리 ▼▼▼
 const dpadPosition = reactive({
   x: 30, // right
   y: 30, // bottom
@@ -112,7 +111,6 @@ const dpadPosition = reactive({
   dpadStartX: 0,
   dpadStartY: 0
 });
-// ▲▲▲
 
 const initGame = () => {
   snake = [ { x: 15, y: 15 } ];
@@ -256,6 +254,7 @@ const draw = () => {
 };
 
 const changeDirection = (newDir) => {
+  if (gameState.value !== 'playing') return;
   if (newDir === 'up' && direction !== 'down') nextDirection = 'up';
   else if (newDir === 'down' && direction !== 'up') nextDirection = 'down';
   else if (newDir === 'left' && direction !== 'right') nextDirection = 'left';
@@ -269,9 +268,8 @@ const handleKeydown = (e) => {
   else if (e.key === 'ArrowRight' || e.key === 'd') changeDirection('right');
 };
 
-// ▼▼▼ [핵심 수정] 캔버스 스와이프 로직 수정 (D-pad와 겹치지 않게) ▼▼▼
 const handleTouchStart = (e) => {
-  if (e.target.closest('.mobile-controls')) return; // D-pad 영역이면 캔버스 스와이프 무시
+  if (e.target.closest('.mobile-controls')) return;
   touchStartPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 };
 const handleTouchMove = (e) => {
@@ -290,7 +288,6 @@ const handleTouchEnd = (e) => {
   }
 };
 
-// ▼▼▼ [핵심 추가] D-pad 드래그 이벤트 핸들러 ▼▼▼
 const handleDpadTouchStart = (e) => {
   dpadPosition.isDragging = true;
   dpadPosition.dragStartX = e.touches[0].clientX;
@@ -304,16 +301,19 @@ const handleDpadTouchMove = (e) => {
   const deltaX = e.touches[0].clientX - dpadPosition.dragStartX;
   const deltaY = e.touches[0].clientY - dpadPosition.dragStartY;
 
+  // 화면 경계(10px 여백)를 넘지 않도록 최대/최소값 설정
+  const maxX = window.innerWidth - 160; // D-pad 너비(150) + 여백(10)
+  const maxY = window.innerHeight - 160; // D-pad 높이(150) + 여백(10)
+
   // X (right) 위치 업데이트
-  dpadPosition.x = Math.max(10, dpadPosition.dpadStartX - deltaX);
+  dpadPosition.x = Math.max(10, Math.min(maxX, dpadPosition.dpadStartX - deltaX));
   // Y (bottom) 위치 업데이트
-  dpadPosition.y = Math.max(10, dpadPosition.dpadStartY - deltaY);
+  dpadPosition.y = Math.max(10, Math.min(maxY, dpadPosition.dpadStartY - deltaY));
 };
 
 const handleDpadTouchEnd = () => {
   dpadPosition.isDragging = false;
 };
-// ▲▲▲
 
 onMounted(() => {
   ctx.value = gameCanvas.value.getContext('2d');
@@ -333,13 +333,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정 1] 페이지 전체 스타일 변경 ▼▼▼ */
 .snake-game-container {
   max-width: 600px;
   margin: 90px auto 20px;
   padding: 0 10px;
   color: #ecf0f1;
-  /* [추가] 페이지 전체에 다크 테마 적용 */
   background: linear-gradient(135deg, #2c3e50, #34495e);
   min-height: calc(100vh - 70px);
 }
@@ -349,14 +347,12 @@ onUnmounted(() => {
 }
 .page-header h1 { 
   font-size: 2.8em; 
-  color: #ecf0f1; /* 밝은 색으로 */
+  color: #ecf0f1;
 }
 .page-header p { 
   font-size: 1.1em; 
-  color: #bdc3c7; /* 밝은 색으로 */
+  color: #bdc3c7; 
 }
-/* ▲▲▲ */
-
 .game-wrapper {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 20px;
@@ -376,111 +372,6 @@ onUnmounted(() => {
 }
 .score strong { color: #f1c40f; }
 .high-score { color: #95a5a6; }
-
-/* ▼▼▼ [핵심 수정 2] 캔버스와 오버레이 구조 변경 ▼▼▼ */
-.game-area-wrapper {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-}
-.canvas-wrapper {
-  position: absolute;
-  inset: 0;
-  touch-action: none; /* 캔버스에서만 스크롤 방지 */
-}
-canvas {
-  width: 100%;
-  height: 100%;
-  background-color: #2c3e50;
-  border-radius: 8px;
-}
-.game-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(44, 62, 80, 0.9);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  border-radius: 8px;
-  z-index: 10;
-  touch-action: auto; /* [중요] 오버레이에서는 터치(클릭)가 가능하도록 복원 */
-}
-/* ▲▲▲ */
-
-.game-overlay h2 { font-size: 3em; margin-bottom: 10px; }
-.game-overlay p { font-size: 1.5em; }
-.game-button {
-  padding: 12px 30px;
-  font-size: 1.1em;
-  font-weight: bold;
-  cursor: pointer;
-  border-radius: 8px;
-  border: none;
-  background: linear-gradient(145deg, #f1c40f, #e67e22);
-  color: white;
-  text-decoration: none;
-}
-.button-group { display: flex; gap: 15px; margin-top: 20px; }
-.game-button.secondary { background: #6c757d; }
-
-.mobile-controls {
-  display: none;
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  width: 150px;
-  height: 150px;
-  z-index: 100;
-}
-.mobile-controls button {
-  position: absolute;
-  width: 50px;
-  height: 50px;
-  font-size: 1.4em;
-  margin: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  color: white;
-  backdrop-filter: blur(5px);
-}
-.control-btn.up { top: 0; left: 50px; }
-.control-btn.left { top: 50px; left: 0; }
-.control-btn.down { top: 100px; left: 50px; }
-.control-btn.right { top: 50px; left: 100px; }
-@media (max-width: 768px) {
-  .snake-game-container {
-    padding: 0 10px;
-    margin-top: 70px;
-  }
-  .game-wrapper {
-    padding: 15px;
-  }
-  .mobile-controls { display: block; }
-  .game-ui { font-size: 1.2em; }
-}
-
-.mute-button {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ecf0f1;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 1.1em;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.mute-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-.score strong { color: #f1c40f; }
-.high-score { color: #95a5a6; }
-
 .game-area-wrapper {
   position: relative;
   width: 100%;
@@ -527,18 +418,16 @@ canvas {
 .button-group { display: flex; gap: 15px; margin-top: 20px; }
 .game-button.secondary { background: #6c757d; }
 
-/* ▼▼▼ [핵심 수정] D-pad 스타일 수정 ▼▼▼ */
 .mobile-controls {
   display: none;
   position: fixed;
-  /* bottom, right는 이제 style 바인딩으로 제어됨 */
   width: 150px;
   height: 150px;
   z-index: 100;
-  transition: opacity 0.2s; /* 드래그 시 부드러운 효과 */
+  transition: opacity 0.2s;
 }
 .mobile-controls[style*="bottom"] {
-  display: block; /* Vue가 style을 적용하면 보이도록 */
+  display: block;
 }
 .mobile-controls button {
   position: absolute;
@@ -552,13 +441,12 @@ canvas {
   border: 2px solid rgba(255, 255, 255, 0.5);
   color: white;
   backdrop-filter: blur(5px);
-  cursor: pointer; /* PC에서도 클릭 가능하도록 */
+  cursor: pointer;
 }
 .control-btn.up { top: 0; left: 50px; }
 .control-btn.left { top: 50px; left: 0; }
 .control-btn.down { top: 100px; left: 50px; }
 .control-btn.right { top: 50px; left: 100px; }
-
 .dpad-drag-handle {
   position: absolute;
   top: 50px;
@@ -578,7 +466,16 @@ canvas {
   cursor: grabbing;
   background: rgba(255, 255, 255, 0.5);
 }
-/* ▲▲▲ */
+@media (max-width: 768px) {
+  .snake-game-container {
+    padding: 0 10px;
+    margin-top: 70px;
+  }
+  .game-wrapper {
+    padding: 15px;
+  }
+  .game-ui { font-size: 1.2em; }
+}
 .mute-button {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.3);
