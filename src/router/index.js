@@ -287,6 +287,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+   path: '/my-avatar',
+   name: 'AvatarCreationPage',
+   component: () => import('@/views/AvatarCreationPage.vue'),
+   meta: { requiresAuth: true } // <-- requiresRole 없음 (정상)
+  },
+  {
     path: '/auction',
     name: 'AuctionPage',
     component: () => import('@/views/AuctionPage.vue'),
@@ -415,11 +421,6 @@ const routes = [
 	  name: 'AuctionManagement',
 	  component: () => import('@/components/admin/AuctionManagementPage.vue'),
 	},
-	{
-	  path: '/my-avatar',
-	  name: 'AvatarCreationPage',
-	  component: () => import('@/views/AvatarCreationPage.vue'),
-	},
       {
         path: "equity",
         name: "AdminEquityManagement",
@@ -457,6 +458,8 @@ const router = createRouter({
 
 // [핵심 수정] 내비게이션 가드 로직을 역할 기반으로 전체 변경
 router.beforeEach(async (to, from, next) => {
+  console.log('Navigating to:', to.path); // 이동 경로 확인
+  console.log('Route meta:', to.meta); // meta 객체 확인
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiredRole = to.meta.requiresRole;
   
