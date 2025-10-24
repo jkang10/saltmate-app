@@ -177,7 +177,13 @@ const listenToUserProfile = (uid) => {
       }
       isLoading.value = false;
     },
-    (e) => { /* ... 에러 처리 ... */ }
+    (e) => { // Firestore 데이터 수신 중 에러가 발생했을 때 실행되는 함수
+      console.error("프로필 실시간 수신 실패:", e); // 콘솔에 에러 로그 출력
+      error.value = "프로필 로딩에 실패했습니다."; // 사용자에게 보여줄 에러 메시지 설정
+      userProfileData.value = null; // 프로필 데이터 초기화
+      centerName.value = ''; // 에러 시 센터 이름 초기화
+      isLoading.value = false; // 로딩 상태 종료
+    }
   );
 };
 
