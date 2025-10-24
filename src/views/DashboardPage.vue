@@ -55,10 +55,9 @@
             </button>
 
             <div v-show="openCategories.includes(category.id) || isEditMode" class="accordion-content">
-              <UserInfoWidget v-if="category.id === 'main'" :userProfile="userProfile" :isLoading="loadingUser" :error="error"
-                              @openPasswordModal="isPasswordModalVisible = true"
-                              @openNotificationSettingsModal="isNotificationSettingsModalVisible = true" />
-
+<UserInfoWidget v-if="category.id === 'main'" :userProfile="userProfile" :isLoading="loadingUser" :error="error"
+                            @openPasswordModal="isPasswordModalVisible = true"
+                            @openNotificationSettingsModal="isNotificationSettingsModalVisible = true" />
               <div v-if="category.id === 'mall'" class="mall-preview-section">
                 <div v-if="isLoadingMallProducts" class="loading-mall">
                   <div class="spinner-small-dark"></div> 상품 목록 로딩 중...
@@ -501,7 +500,8 @@ onUnmounted(() => {
   if (jackpotUnsubscribe) jackpotUnsubscribe();
   if (authUnsubscribe) authUnsubscribe();
 });
-</script
+
+</script>
 
 <style scoped>
 /* 기존 스타일 + 아래 추가/수정 */
