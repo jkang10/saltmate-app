@@ -175,6 +175,9 @@ const dashboardCards = ref([]); // 현재 표시 및 정렬될 카드 목록
 const openCategories = ref(['main', 'assets', 'games']); // 기본으로 열어둘 카테고리
 const isLoadingLayout = ref(false); // 레이아웃 저장 로딩 상태
 
+const currentUserId = ref(null); // currentUserId 선언
+let authUnsubscribe = null; // authUnsubscribe 선언
+
 // Firestore 리스너 참조
 let userUnsubscribe = null;
 let jackpotUnsubscribe = null;
@@ -490,9 +493,9 @@ const onTutorialComplete = async () => {
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
-  const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+  authUnsubscribe = onAuthStateChanged(auth, (user) => { // 할당
     if (user) {
-      currentUserId.value = user.uid; // currentUserId 업데이트
+      currentUserId.value = user.uid; // .value 사용
       // 사용자 프로필 실시간 감지 시작
       const userRef = doc(db, "users", user.uid);
       userUnsubscribe = onSnapshot(userRef, (docSnap) => {
@@ -525,9 +528,8 @@ onMounted(() => {
       fetchMarketingPlan();
       fetchNotices();
       listenToLatestJackpot();
-    } else {
-      // 로그아웃 상태
-      currentUserId.value = null;
+   } else {
+      currentUserId.value = null; // .value 사용
       loadingUser.value = false;
       userProfile.value = null;
       if (userUnsubscribe) userUnsubscribe(); // 리스너 정리
@@ -543,6 +545,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (userUnsubscribe) userUnsubscribe();
   if (jackpotUnsubscribe) jackpotUnsubscribe();
+  if (authUnsubscribe) authUnsubscribe(); // auth 구독 해제 추가
 });
 
 // setup 함수 마지막: template에서 사용할 모든 변수와 함수 반환 (Composition API에서는 필요 없음)

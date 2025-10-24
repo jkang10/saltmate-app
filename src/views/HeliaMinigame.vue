@@ -40,7 +40,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc, Timestamp } from 'firebase/firestore'; // Timestamp 추가
+import { doc, getDoc } from 'firebase/firestore'; // Timestamp 추가
 import { auth, db, functions } from '@/firebaseConfig';
 
 const gameState = ref('ready'); // ready, playing, ended

@@ -41,10 +41,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, inject } from 'vue'; // inject 추가
+import { ref, onMounted, onUnmounted, computed, inject } from 'vue'; // onUnmounted 추가
 import { httpsCallable } from 'firebase/functions';
 import { collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { auth, db, functions } from '@/firebaseConfig';
+
+let unsubscribe = null; // 상단에 선언
 
 // App.vue 등 상위 컴포넌트에서 provide된 userProfile 사용 (없으면 직접 가져와야 함)
 const userProfile = inject('userProfile', ref(null)); // 예시, 실제 provide key 확인 필요
@@ -99,11 +101,16 @@ const getStatusText = (status) => {
 onMounted(() => {
   if (!auth.currentUser) return;
   const q = query(collection(db, 'users', auth.currentUser.uid, 'stakings'), orderBy('depositDate', 'desc'));
-  const unsubscribe = onSnapshot(q, (snapshot) => {
+  unsubscribe = onSnapshot(q, (snapshot) => { // 할당
     stakings.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   });
-  // 컴포넌트 언마운트 시 구독 해제는 Vue 3의 onUnmounted 훅 사용 권장
 });
+
+// onUnmounted 훅 추가
+onUnmounted(() => {
+    if (unsubscribe) unsubscribe(); // 컴포넌트 제거 시 리스너 해제
+});
+
 </script>
 
 <style scoped>
