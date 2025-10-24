@@ -105,10 +105,11 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue';
-import { auth, functions } from '@/firebaseConfig'; // db는 필요 없으므로 제거
+// inject, onMounted 제거됨
+import { ref, computed } from 'vue';
+import { auth, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-import { Timestamp } from 'firebase/firestore'; // Timestamp 임포트
+import { Timestamp } from 'firebase/firestore';
 
 // Props: DashboardPage 등 부모로부터 userProfile 데이터 받기
 const props = defineProps({
