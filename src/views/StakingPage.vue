@@ -209,8 +209,7 @@ onUnmounted(() => {
 .card { /* 기본 카드 스타일 제거 - 아래 .pristine-white-card 사용 */
     margin-bottom: 0; /* 레이아웃 gap으로 간격 관리 */
 }
-
-2025-10-24
+.pristine-white-card {
   background: #FFFFFF;
   padding: 30px; /* 패딩 증가 */
   border-radius: 12px; /* 부드러운 모서리 */
