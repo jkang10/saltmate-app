@@ -186,12 +186,11 @@
             <p style="color: white; opacity: 0.9;">포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
             <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
           </router-link>
-	  <router-link to="/my-avatar" class="feature-card">
-            <div class="card-icon"><i class="fas fa-user-astronaut"></i></div>
-            <h3>내 아바타 꾸미기</h3>
-            <p>나만의 아바타를 만들어 '솔레인 디지털 유니버스'의 주인공이 되어보세요!</p>
-            <span class="card-enter">꾸미러 가기 &rarr;</span>
-          </router-link>
+  	  <router-link to="/my-avatar" class="feature-card"> <div class="card-icon"><i class="fas fa-user-astronaut"></i></div>
+ 	    <h3>내 아바타 꾸미기</h3>
+	    <p>나만의 아바타를 만들어 '솔레인 디지털 유니버스'의 주인공이 되어보세요!</p>
+	    <span class="card-enter">꾸미러 가기 &rarr;</span>
+	  </router-link>
 	  <router-link to="/staking" class="feature-card staking">
             <div class="card-icon"><i class="fas fa-piggy-bank"></i></div>
             <h3>SaltMate 정기예금</h3>

@@ -415,12 +415,12 @@ const routes = [
 	  name: 'AuctionManagement',
 	  component: () => import('@/components/admin/AuctionManagementPage.vue'),
 	},
-    {
-      path: '/my-avatar',
-      name: 'AvatarCustomizationPage',
-      component: () => import('@/views/AvatarCustomizationPage.vue'),
-      meta: { requiresAuth: true } // 'requiresRole' 속성이 없는 것이 정상입니다.
-    },
+	{
+	  path: '/my-avatar',
+	  name: 'AvatarCreationPage', // [핵심 수정] 이름을 새 컴포넌트 이름으로 변경
+	  component: () => import('@/views/AvatarCreationPage.vue'), // [핵심 수정] AvatarCustomizationPage -> AvatarCreationPage
+	  meta: { requiresAuth: true }
+	},
       {
         path: "equity",
         name: "AdminEquityManagement",
