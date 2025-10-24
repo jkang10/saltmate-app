@@ -167,7 +167,6 @@ const upgradeModalVisible = ref(false);
 const isWithdrawalModalVisible = ref(false);
 const isCycleModalVisible = ref(false);
 const marketingPlan = ref(null);
-const isRequestingPayment = ref(false);
 const latestJackpotWinner = ref(null);
 const shouldRunTutorial = ref(false);
 const isEditMode = ref(false);
@@ -184,7 +183,6 @@ let jackpotUnsubscribe = null;
 
 // Firebase Functions 호출자
 const saveLayoutFunc = httpsCallable(functions, 'saveDashboardLayout'); // 레이아웃 저장 함수
-const requestMonthlyPaymentFunc = httpsCallable(functions, 'requestMonthlyPayment'); // 월간 결제 요청 함수
 const markTutorialCompleteFunc = httpsCallable(functions, 'markTutorialAsCompleted'); // 튜토리얼 완료 함수
 
 // --- 카테고리 및 카드 설정 ---
@@ -340,7 +338,7 @@ const resolveComponent = (componentName) => {
 
 
 // 드래그 종료 시 호출 (vuedraggable이 배열 순서를 자동으로 업데이트함)
-const onDragEnd = (event) => {
+const onDragEnd = () => {
     // console.log('Drag ended:', dashboardCards.value.map(c => c.id));
     // 변경된 순서는 dashboardCards.value에 반영되어 있음
 };
