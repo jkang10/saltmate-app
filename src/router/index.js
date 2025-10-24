@@ -239,9 +239,21 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/helia-game",
+    name: "HeliaMinigame",
+    component: () => import("@/views/HeliaMinigame.vue"), // HeliaMinigame.vue 파일 생성 필요
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/rps-game",
     name: "RPSPage",
     component: () => import("@/views/RPSPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/staking",
+    name: "StakingPage",
+    component: () => import("@/views/StakingPage.vue"),
     meta: { requiresAuth: true },
   },
   {
