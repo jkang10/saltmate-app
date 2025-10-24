@@ -12,8 +12,8 @@
 <script>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 // firestore와 auth 관련 서비스를 가져옵니다 (프로젝트에 맞게 경로 수정)
-// import { doc, updateDoc } from 'firebase/firestore'; 
-// import { db, auth } from '@/firebaseConfig'; 
+import { doc, updateDoc } from 'firebase/firestore'; 
+import { db, auth } from '@/firebaseConfig'; 
 
 export default {
   name: 'AvatarCreationPage',
