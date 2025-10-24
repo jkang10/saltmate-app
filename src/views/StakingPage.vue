@@ -210,7 +210,7 @@ onUnmounted(() => {
     margin-bottom: 0; /* 레이아웃 gap으로 간격 관리 */
 }
 
-.pristine-white-card {
+2025-10-24
   background: #FFFFFF;
   padding: 30px; /* 패딩 증가 */
   border-radius: 12px; /* 부드러운 모서리 */
@@ -466,7 +466,43 @@ onUnmounted(() => {
       font-size: 1.8em;
   }
 }
-
+/* ▼▼▼ [핵심 수정] 모바일 화면 스타일 추가 ▼▼▼ */
+@media (max-width: 767px) {
+  .staking-page-container {
+    padding: 10px; /* 모바일 페이지 좌우 여백 축소 */
+  }
+  .page-header h1 {
+    font-size: 2em; /* 헤더 폰트 크기 축소 */
+  }
+  .pristine-white-card {
+    padding: 20px; /* 카드 내부 여백 축소 */
+  }
+  .staking-form h2, .staking-list h2 {
+    font-size: 1.4em; /* h2 폰트 크기 축소 */
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .input-group input,
+  .input-group .currency-unit,
+  .form-group select {
+    padding: 10px; /* 입력창 패딩 축소 */
+    font-size: 0.95em;
+  }
+  .payout-preview .expected-amount {
+    font-size: 1.3em; /* 예상 지급액 폰트 축소 */
+  }
+  .submit-button {
+    padding: 12px;
+    font-size: 1em;
+  }
+  .staking-items-container {
+    padding-right: 5px; /* 스크롤바 공간 축소 */
+  }
+  .item-details {
+    padding: 12px;
+  }
+}
+/* ▲▲▲ */
 @keyframes spin { /* 스피너 애니메이션 */
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
