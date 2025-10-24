@@ -211,12 +211,6 @@ const endGame = async () => {
   }
 };
 
-// 게임 영역 클릭 (타겟 놓쳤을 때 - 패널티 없음)
-const handleAreaClick = (event) => {
-    if (gameState.value !== 'playing' || isTargetMoving.value) return;
-    // 필요 시 여기에 클릭 실패 효과 추가 가능 (예: 화면 흔들림)
-};
-
 // 타겟 클릭
 const handleTargetClick = (event) => {
   if (gameState.value !== 'playing' || isTargetMoving.value) return;
@@ -227,7 +221,7 @@ const handleTargetClick = (event) => {
   score.value++;
 
   // 점수 팝업 생성
-  const rect = event.target.getBoundingClientRect();
+  // const rect = event.target.getBoundingClientRect(); // <--- 이 라인 삭제
   const gameAreaRect = event.target.parentElement.getBoundingClientRect();
   // 클릭 위치 근처에 팝업 표시
   const popupX = event.clientX - gameAreaRect.left;
