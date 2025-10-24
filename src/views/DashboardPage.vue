@@ -191,6 +191,14 @@
 	    <p>나만의 아바타를 만들어 '솔레인 디지털 유니버스'의 주인공이 되어보세요!</p>
 	    <span class="card-enter">꾸미러 가기 &rarr;</span>
 	  </router-link>
+	<div class="dashboard-grid">
+	  <router-link to="/metaverse-portal" class="feature-card metaverse-portal-card">
+	    <div class="card-icon"><i class="fas fa-vr-cardboard"></i></div>
+	    <h3>솔레인 디지털 유토피아</h3>
+	    <p>가상현실 테마파크! 곧 열릴 새로운 세계를 미리 만나보세요.</p>
+	    <span class="card-enter">미리보기 &rarr;</span>
+	  </router-link>
+	  </div>
 	  <router-link to="/staking" class="feature-card staking">
             <div class="card-icon"><i class="fas fa-piggy-bank"></i></div>
             <h3>SaltMate 정기예금</h3>
@@ -1338,4 +1346,76 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+/* ▼▼▼ 메타버스 포털 카드 스타일 ▼▼▼ */
+.feature-card.metaverse-portal-card {
+  background: linear-gradient(135deg, #2c3e50 0%, #4a0e97 100%); /* 딥블루 -> 퍼플 그라데이션 */
+  color: #fff; /* 기본 텍스트 색상 흰색 */
+  border: 1px solid rgba(142, 68, 173, 0.5); /* 퍼플 계열 테두리 */
+  box-shadow: 0 8px 30px rgba(74, 14, 151, 0.3); /* 퍼플 계열 그림자 */
+  position: relative; /* 내부 효과를 위한 설정 */
+  overflow: hidden; /* 내부 효과를 위한 설정 */
+}
+
+/* 카드 아이콘 스타일 */
+.feature-card.metaverse-portal-card .card-icon {
+  color: #9b59b6; /* 아이콘 색상 (연한 퍼플) */
+  text-shadow: 0 0 15px rgba(155, 89, 182, 0.7); /* 아이콘 글로우 효과 */
+}
+
+/* 카드 제목 스타일 (흰색 유지) */
+.feature-card.metaverse-portal-card h3 {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 카드 설명 텍스트 스타일 */
+.feature-card.metaverse-portal-card p {
+  color: #ecf0f1; /* 약간 밝은 회색 */
+  opacity: 0.9;
+}
+
+/* '미리보기 ->' 텍스트 스타일 */
+.feature-card.metaverse-portal-card .card-enter {
+  color: #e9d4ff; /* 연한 라벤더 색상 */
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+/* 호버 시 '미리보기 ->' 텍스트 스타일 */
+.feature-card.metaverse-portal-card:hover .card-enter {
+  color: #fff;
+  background: rgba(155, 89, 182, 0.5); /* 호버 시 배경색 (퍼플) */
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* (선택) 미묘한 배경 패턴 또는 효과 추가 */
+.feature-card.metaverse-portal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at top left, rgba(142, 68, 173, 0.2) 0%, transparent 40%),
+                    radial-gradient(circle at bottom right, rgba(88, 24, 69, 0.2) 0%, transparent 50%);
+  opacity: 0.7;
+  transition: opacity 0.4s ease;
+  pointer-events: none; /* 클릭 방해하지 않도록 */
+  z-index: 0;
+}
+
+.feature-card.metaverse-portal-card:hover::before {
+  opacity: 1; /* 호버 시 패턴 강조 */
+}
+
+/* 카드 내부 요소들이 패턴 위에 오도록 */
+.feature-card.metaverse-portal-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ▲▲▲ 메타버스 포털 카드 스타일 끝 ▲▲▲ */
 </style>

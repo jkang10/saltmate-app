@@ -106,6 +106,12 @@ const routes = [
     component: () => import("@/views/MyTokensPage.vue"),
     meta: { requiresAuth: true },
   },
+{
+  path: '/metaverse-portal', // 포털 페이지 경로
+  name: 'MetaversePortalPage',
+  component: () => import('@/views/MetaversePortalPage.vue'), // 새로 만든 컴포넌트 연결
+  meta: { requiresAuth: true } // 로그인 필수
+},
   {
     path: "/my-equity",
     name: "MyEquityPage",
