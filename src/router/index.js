@@ -417,9 +417,9 @@ const routes = [
 	},
 	{
 	  path: '/my-avatar',
-	  name: 'AvatarCreationPage', // [핵심 수정] 이름을 새 컴포넌트 이름으로 변경
-	  component: () => import('@/views/AvatarCreationPage.vue'), // [핵심 수정] AvatarCustomizationPage -> AvatarCreationPage
-	  meta: { requiresAuth: true }
+	  name: 'AvatarCreationPage',
+	  component: () => import('@/views/AvatarCreationPage.vue'),
+	  meta: { requiresAuth: true } // <-- requiresRole 없음!
 	},
       {
         path: "equity",
