@@ -66,16 +66,16 @@ export default {
     // 6. 수신한 URL을 Firestore에 저장하는 함수 (형님의 로직)
     const saveUrlToFirestore = async (url) => {
       try {
-        // const user = auth.currentUser;
-        // if (user) {
-        //   const userDocRef = doc(db, 'users', user.uid);
-        //   await updateDoc(userDocRef, {
-        //     avatarUrl: url
-        //   });
-        //   console.log('Firestore에 avatarUrl 저장 완료!');
-        //   // 저장이 완료되면 플라자 페이지로 이동시킵니다.
-        //   // router.push({ name: 'SoleinDigitalUtopia' });
-        // }
+         const user = auth.currentUser;
+         if (user) {
+         const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, {
+            avatarUrl: url
+          });
+          console.log('Firestore에 avatarUrl 저장 완료!');
+         // 저장이 완료되면 플라자 페이지로 이동시킵니다.
+        router.push({ name: 'SoleinDigitalUtopia' });
+         }
         alert(`아바타 URL 저장 성공 (시뮬레이션): ${url}`);
       } catch (error) {
         console.error('Firestore 저장 중 오류 발생:', error);
