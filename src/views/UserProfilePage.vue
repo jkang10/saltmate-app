@@ -1,9 +1,12 @@
 <template>
   <div class="user-profile-container card glassmorphism">
     <div v-if="isLoading" class="loading-state">
-      </div>
+      <div class="spinner"></div>
+      <p>프로필 정보를 불러오는 중입니다...</p>
+    </div>
     <div v-else-if="error" class="error-state">
-      </div>
+      <p>{{ error || "정보를 불러올 수 없습니다." }}</p>
+    </div>
     <div v-else-if="userProfileData" class="widget-layout">
       <section class="profile-info-section widget-card">
         <div class="profile-header">
@@ -36,21 +39,91 @@
           <div class="info-item">
             <label><i class="fas fa-store"></i> 소속 센터</label>
             <span>{{ centerName || "미지정" }}</span>
+          </div>
+          <div class="info-item">
+            <label><i class="fas fa-phone"></i> 연락처</label>
+            <span>{{ userProfileData.phone || "미등록" }}</span>
+          </div>
+          <div class="info-item">
+             <label><i class="fas fa-star"></i> 등급</label>
+             <span :class="['tier-badge', getTierClass(userProfileData.tier)]">{{ userProfileData.tier || 'BRONZE' }}</span>
+          </div>
+          <div class="info-item">
+              <label><i class="fas fa-file-invoice-dollar"></i> 구독 상태</label>
+              <span :class="['subscription-status', subscriptionStatusClass]">
+                  {{ getSubscriptionStatusText(userProfileData.subscriptionStatus) }}
+                  <template v-if="userProfileData.subscriptionStatus === 'active' && userProfileData.nextPaymentDueDate">
+                    (~{{ formatDate(userProfileData.nextPaymentDueDate, true) }})
+                  </template>
+              </span>
+          </div>
+          <div class="info-item" v-if="userProfileData.subscriptionStatus === 'overdue'">
+             <label><i class="fas fa-exclamation-triangle"></i> 구독 만료</label>
+             <button @click="requestPayment" class="btn-pay urgent" :disabled="isRequestingPayment">
+                {{ isRequestingPayment ? '요청 중...' : '결제 요청 (만원)' }}
+             </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-details-section">
+        <div class="detail-card widget-card">
+          <h3><i class="fas fa-chart-bar"></i> 활동 요약</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <label>총 추천인 수</label>
+              <span class="highlight-blue">{{ (userProfileData.referralCount || 0).toLocaleString() }} 명</span>
+            </div>
+            <div class="summary-item">
+              <label>총 정산 수익 (Cash)</label>
+              <span class="highlight-green">{{ (userProfileData.totalPayouts || 0).toLocaleString() }} 원</span>
+            </div>
+            <div class="summary-item">
+              <label>총 게임 수익 (Salt)</label>
+              <span class="highlight-purple">{{ (userProfileData.totalGameWinnings || 0).toLocaleString() }} S</span>
             </div>
           </div>
+        </div>
+
+        <div class="detail-card widget-card">
+          <h3><i class="fas fa-share-alt"></i> 추천인 링크 공유</h3>
+          <p class="referral-desc">
+            이 링크를 통해 가입한 회원은 나의 추천인으로 등록됩니다.
+          </p>
+          <div class="link-box">
+            <input type="text" :value="referralLink" readonly ref="referralInput" />
+            <button class="copy-button" @click="copyReferralLink">
+              <i class="fas fa-copy"></i> 복사
+            </button>
+          </div>
+        </div>
+
+        <div class="detail-card widget-card">
+          <h3><i class="fas fa-cog"></i> 계정 설정</h3>
+          <div class="settings-grid">
+            <button class="setting-item" @click="emitOpenPasswordModal">
+              <i class="fas fa-key"></i>
+              <span>비밀번호 변경</span>
+            </button>
+            <button class="setting-item" @click="emitOpenNotificationSettingsModal">
+              <i class="fas fa-bell"></i>
+              <span>알림 설정</span>
+            </button>
+          </div>
+        </div>
       </section>
       </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+// [수정] watch 제거
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot, Timestamp, getDoc } from 'firebase/firestore'; // getDoc 추가
+import { doc, onSnapshot, Timestamp, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-// [수정 1] model-viewer 컴포넌트 import (설치 필요: npm install @google/model-viewer)
-import '@google/model-viewer'; // 전역으로 컴포넌트 등록
+import '@google/model-viewer';
 
 const emit = defineEmits(['openPasswordModal', 'openNotificationSettingsModal']);
 
@@ -58,15 +131,11 @@ const userProfileData = ref(null);
 const isLoading = ref(true);
 const error = ref(null);
 let unsubscribe = null;
-
-// [수정 2] 센터 이름 저장을 위한 ref 추가
 const centerName = ref('');
-
 const isRequestingPayment = ref(false);
 const referralInput = ref(null);
 const requestMonthlyPaymentFunc = httpsCallable(functions, 'requestMonthlyPayment');
 
-// Computed Properties (props.userProfile -> userProfileData.value 로 변경)
 const referralLink = computed(() => {
   if (!auth.currentUser?.uid) return "";
   const baseUrl = "https://saltmate-app.netlify.app";
@@ -78,22 +147,20 @@ const subscriptionStatusClass = computed(() => {
   return `status-${userProfileData.value.subscriptionStatus}`;
 });
 
-// Methods (기존과 거의 동일, props.userProfile -> userProfileData.value 사용)
 const formatDate = (timestamp, includeTime = false) => {
   if (!timestamp) return "N/A";
   const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
   if (!(date instanceof Date) || isNaN(date)) return "N/A";
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
   if (includeTime) {
-      options.hour = 'numeric';
-      options.minute = 'numeric';
+    options.hour = 'numeric';
+    options.minute = 'numeric';
   }
   return date.toLocaleDateString("ko-KR", options);
 };
 
 const copyReferralLink = () => {
     if (!referralInput.value) return;
-    referralInput.value.select();
     navigator.clipboard.writeText(referralLink.value).then(() => {
         alert("추천인 링크가 복사되었습니다!");
     }).catch(err => {
@@ -102,9 +169,7 @@ const copyReferralLink = () => {
         try {
             referralInput.value.select();
             referralInput.value.setSelectionRange(0, 99999);
-        } catch (selectErr) {
-            console.error('텍스트 선택 실패:', selectErr);
-        }
+        } catch (selectErr) { console.error('텍스트 선택 실패:', selectErr); }
     });
 };
 
@@ -140,20 +205,14 @@ const requestPayment = async () => {
 const emitOpenPasswordModal = () => { emit('openPasswordModal'); };
 const emitOpenNotificationSettingsModal = () => { emit('openNotificationSettingsModal'); };
 
-// [수정 2] 센터 이름 가져오는 함수 추가
 const fetchCenterName = async (centerId) => {
-  if (!centerId) {
-    centerName.value = '미지정';
-    return;
-  }
+  if (!centerId) { centerName.value = '미지정'; return; }
   try {
     const centerRef = doc(db, 'centers', centerId);
     const centerSnap = await getDoc(centerRef);
     if (centerSnap.exists()) {
       centerName.value = centerSnap.data().name || centerId;
-    } else {
-      centerName.value = '센터 정보 없음';
-    }
+    } else { centerName.value = '센터 정보 없음'; }
   } catch (e) {
     console.error("센터 이름 가져오기 실패:", e);
     centerName.value = '정보 로딩 실패';
@@ -168,119 +227,59 @@ const listenToUserProfile = (uid) => {
       if (docSnap.exists()) {
         userProfileData.value = docSnap.data();
         error.value = null;
-        // [수정 2] 프로필 로드 후 센터 이름 가져오기 호출
         fetchCenterName(userProfileData.value.centerId);
       } else {
         error.value = "사용자 프로필을 찾을 수 없습니다.";
         userProfileData.value = null;
-        centerName.value = ''; // 데이터 없으면 센터 이름도 초기화
+        centerName.value = '';
       }
       isLoading.value = false;
     },
-    (e) => { // Firestore 데이터 수신 중 에러가 발생했을 때 실행되는 함수
-      console.error("프로필 실시간 수신 실패:", e); // 콘솔에 에러 로그 출력
-      error.value = "프로필 로딩에 실패했습니다."; // 사용자에게 보여줄 에러 메시지 설정
-      userProfileData.value = null; // 프로필 데이터 초기화
-      centerName.value = ''; // 에러 시 센터 이름 초기화
-      isLoading.value = false; // 로딩 상태 종료
+    (e) => {
+      console.error("프로필 실시간 수신 실패:", e);
+      error.value = "프로필 로딩에 실패했습니다.";
+      userProfileData.value = null;
+      centerName.value = '';
+      isLoading.value = false;
     }
   );
 };
 
 onMounted(() => {
-  // 인증 상태 변경 감지
   const authUnsubscribe = onAuthStateChanged(auth, (user) => {
     if (user) {
-      listenToUserProfile(user.uid); // 로그인된 사용자 UID로 데이터 리스닝 시작
+      listenToUserProfile(user.uid);
     } else {
-      // 로그아웃 상태 처리 (예: 로그인 페이지로 리다이렉트 또는 에러 메시지)
       isLoading.value = false;
       error.value = "로그인이 필요합니다.";
       userProfileData.value = null;
-      if (unsubscribe) unsubscribe(); // 이전 리스너 해제
+      centerName.value = '';
+      if (unsubscribe) unsubscribe();
     }
   });
 
   onUnmounted(() => {
     if (unsubscribe) unsubscribe();
-    authUnsubscribe(); // 인증 상태 리스너도 해제
+    authUnsubscribe();
   });
 });
 
 </script>
 
 <style scoped>
-/* ▼▼▼ [수정 1] 3D 아바타 관련 스타일 추가 ▼▼▼ */
-.profile-avatar-3d {
-  width: 70px; /* 기존 아바타 크기와 동일하게 */
-  height: 70px;
-  border-radius: 50%;
-  overflow: hidden; /* 원형 마스크 */
-  background-color: #e9ecef; /* 로딩 또는 에러 시 배경 */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.profile-avatar-3d a { /* 링크가 div 전체를 차지하도록 */
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.avatar-model {
-  width: 100%;
-  height: 100%;
-  --poster-color: transparent; /* 로딩 시 배경 투명하게 */
-}
-.profile-avatar-default { /* avatarUrl 없을 때 기본 아이콘 스타일 */
-  font-size: 2.5em;
-  color: #adb5bd;
-}
-/* ▲▲▲ */
-.user-profile-container {
-  padding: 0;
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  max-width: 1100px; /* 최대 너비 설정 */
-  margin: 80px auto 20px; /* 상단 여백 추가 및 중앙 정렬 */
-}
+/* 3D 아바타 관련 스타일 */
+.profile-avatar-3d { width: 70px; height: 70px; border-radius: 50%; overflow: hidden; background-color: #e9ecef; display: flex; justify-content: center; align-items: center; cursor: pointer; flex-shrink: 0; }
+.profile-avatar-3d a { display: block; width: 100%; height: 100%; }
+.avatar-model { width: 100%; height: 100%; --poster-color: transparent; }
+.profile-avatar-default { font-size: 2.5em; color: #adb5bd; }
 
-/* ... (나머지 스타일은 기존과 동일) ... */
-.widget-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-}
-.profile-info-section {
-  padding: 25px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e9ecef;
-}
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 25px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-.profile-name h2 {
-  margin: 0;
-  font-size: 1.6em;
-  color: #2c3e50;
-  font-weight: 600;
-}
-.profile-name p {
-  margin: 4px 0 0;
-  color: #7f8c8d;
-  font-size: 0.95em;
-}
+/* 나머지 스타일 */
+.user-profile-container { padding: 0; background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); overflow: hidden; max-width: 1100px; margin: 80px auto 20px; }
+.widget-layout { display: grid; grid-template-columns: 1fr; gap: 0; }
+.profile-info-section { padding: 25px; background-color: #ffffff; border-bottom: 1px solid #e9ecef; }
+.profile-header { display: flex; align-items: center; gap: 20px; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0; }
+.profile-name h2 { margin: 0; font-size: 1.6em; color: #2c3e50; font-weight: 600; }
+.profile-name p { margin: 4px 0 0; color: #7f8c8d; font-size: 0.95em; }
 .info-grid { display: flex; flex-direction: column; gap: 12px; }
 .info-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.95em; }
 .info-item label { color: #555; font-weight: 500; display: flex; align-items: center; gap: 8px; }
@@ -319,15 +318,7 @@ onMounted(() => {
 .setting-item:hover { background-color: #e9ecef; border-color: #adb5bd; transform: translateY(-2px); }
 .setting-item i { display: block; font-size: 1.6em; margin-bottom: 8px; color: #3498db; }
 .loading-state, .error-state { text-align: center; padding: 40px; color: #666; }
-.spinner { /* 로딩 스피너 스타일 */
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border-left-color: #09f;
-  animation: spin 1s ease infinite;
-  margin: 0 auto 10px;
-}
+.spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #09f; animation: spin 1s ease infinite; margin: 0 auto 10px; }
 @media (min-width: 768px) {
   .widget-layout { grid-template-columns: 1fr 1.5fr; gap: 25px; }
   .profile-info-section { border-right: 1px solid #e9ecef; border-bottom: none; }
