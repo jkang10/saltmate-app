@@ -257,7 +257,7 @@ const updateRemainingTime = () => {
 
 
 // Watcher for currentSessionId change
-watch(currentSessionId, (newVal, oldVal) => {
+watch(currentSessionId, (newVal) => {
   if (newVal) {
     if (recruitingUnsubscribe) recruitingUnsubscribe(); // 모집 목록 구독 해제
     recruitingSessions.value = [];

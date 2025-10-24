@@ -124,14 +124,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch, defineAsyncComponent, inject } from 'vue';
-import draggable from 'vuedraggable'; // vuedraggable 설치 필요: npm install vuedraggable@next
+import { ref, onMounted, onUnmounted, computed, defineAsyncComponent, inject } from 'vue';
+import draggable from 'vuedraggable';
 import { auth, db, functions } from '@/firebaseConfig';
-import { httpsCallable, getFunctions } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions'; // getFunctions 제거됨
 import { onAuthStateChanged } from 'firebase/auth';
 import {
-  collection, query, where, orderBy, limit, doc, onSnapshot, Timestamp, // Timestamp 추가
-  getDocs, getDoc, // getDocs, getDoc 추가 (fetchNotices 등에서 사용)
+  collection, query, where, orderBy, limit, doc, onSnapshot, // Timestamp 제거됨 (사용 안 할 경우)
+  getDocs, getDoc,
 } from 'firebase/firestore';
 
 // --- 컴포넌트 Import (기존 + 비동기 로딩) ---
