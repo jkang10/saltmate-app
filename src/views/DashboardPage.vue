@@ -262,38 +262,6 @@ const ALL_CARDS_CONFIG = [
   { id: 'saltguardians-rankings', component: SaltGuardiansRankingsWidget, categoryId: 'network', order: 99, title: '솔트 가디언즈 랭킹' },
 ];
 
-// --- Computed 속성 ---
-const cycleProgress = computed(() => {
-  if (!userProfile.value || !userProfile.value.cycleCap || userProfile.value.cycleCap === 0) return 0;
-  return Math.min((userProfile.value.currentCycleEarnings / userProfile.value.cycleCap) * 100, 100);
-});
-
-const isWithdrawalEnabled = computed(() => {
-  const now = new Date();
-  const day = now.getDay(); // 0 (일) ~ 6 (토)
-  const hour = now.getHours();
-  // 한국 시간 기준 화요일 09:00 ~ 17:00 (KST = UTC+9)
-  // 서버 시간(UTC) 기준으로 계산 시 주의 필요 (Firestore Timestamp는 UTC)
-  // 여기서는 클라이언트 시간 기준으로 단순 계산
-  return day === 2 && hour >= 9 && hour < 17;
-});
-
-const daysUntilPayment = computed(() => {
-  if (!userProfile.value?.nextPaymentDueDate?.toDate) return "N/A"; // toDate() 가능 여부 확인
-  const dueDate = userProfile.value.nextPaymentDueDate.toDate();
-  const today = new Date();
-  // 날짜만 비교하기 위해 시간 초기화
-  dueDate.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  const diffTime = dueDate.getTime() - today.getTime();
-  return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-});
-
-const subscriptionStatusClass = computed(() => {
-  if (!userProfile.value?.subscriptionStatus) return "";
-  return `status-${userProfile.value.subscriptionStatus}`; // active, overdue 등
-});
-
 // 카테고리 순서대로 정렬
 const sortedCategories = computed(() => {
     return [...categories.value].sort((a, b) => a.order - b.order);
@@ -314,21 +282,6 @@ const listenToLatestJackpot = () => {
       latestJackpotWinner.value = null; // 당첨 기록 없을 경우 초기화
     }
   });
-};
-
-const requestPayment = async () => {
-  if (isRequestingPayment.value) return;
-  if (!confirm("월간 구독료(만원의 행복) 결제를 요청하시겠습니까? 관리자 확인 후 승인 처리됩니다.")) return;
-  isRequestingPayment.value = true;
-  try {
-    await requestMonthlyPaymentFunc(); // 함수 직접 호출
-    alert("결제 요청이 완료되었습니다. 관리자가 승인하면 구독 상태가 갱신됩니다.");
-  } catch (e) {
-    console.error("월간 결제 요청 오류:", e);
-    alert(`오류가 발생했습니다: ${e.message}`);
-  } finally {
-    isRequestingPayment.value = false;
-  }
 };
 
 const initializeLayout = (profile) => {
@@ -464,17 +417,6 @@ const formatDate = (timestamp) => {
   if (!timestamp?.toDate) return ""; // Firestore Timestamp 객체인지 확인
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
-
-const getTierClass = (tier) => {
-  if (!tier) return "default";
-  return tier.toLowerCase().replace(/\s+/g, '-') || "default"; // 공백을 '-'로 변경
-};
-
-// Modal Openers
-const openHistoryModal = (type) => { historyModal.value = { visible: true, type }; };
-const openUpgradeModal = () => { upgradeModalVisible.value = true; };
-const openWithdrawalModal = () => { isWithdrawalModalVisible.value = true; };
-const openCycleEarningsModal = () => { isCycleModalVisible.value = true; };
 
 // 튜토리얼 완료 처리
 const onTutorialComplete = async () => {
