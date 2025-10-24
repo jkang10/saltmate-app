@@ -419,7 +419,6 @@ const routes = [
 	  path: '/my-avatar',
 	  name: 'AvatarCreationPage',
 	  component: () => import('@/views/AvatarCreationPage.vue'),
-	  meta: { requiresAuth: true } // <-- requiresRole 없음!
 	},
       {
         path: "equity",
