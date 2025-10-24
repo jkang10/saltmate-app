@@ -88,7 +88,53 @@ let popupIdCounter = 0;
 const completeHeliaMinigame = httpsCallable(functions, 'completeHeliaMinigame');
 
 // --- 함수 ---
-const checkPlayCount = async () => { /* 이전과 동일 */ }; // 이전 코드와 동일
+const checkPlayCount = async () => {
+  // 1. 사용자 로그인 상태 확인
+  if (!auth.currentUser) {
+    console.log("사용자가 로그인되어 있지 않아 플레이 횟수를 확인할 수 없습니다.");
+    currentPlayCount.value = dailyPlayLimit; // 로그인 안 됐으면 플레이 불가 처리
+    return;
+  }
+
+  // 2. 로딩 상태 시작
+  isLoading.value = true;
+
+  // 3. 한국 시간 기준 오늘 날짜 문자열 생성 ('YYYY-MM-DD')
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000; // 한국 시간대 오프셋 (UTC+9)
+  const kstNow = new Date(now.getTime() + kstOffset);
+  const todayStr = kstNow.toISOString().slice(0, 10);
+
+  // 4. Firestore에서 해당 날짜의 플레이 횟수 문서 참조 생성
+  // 경로: /users/{userId}/daily_play_counts/{YYYY-MM-DD}
+  const playCountRef = doc(db, 'users', auth.currentUser.uid, 'daily_play_counts', todayStr);
+
+  try {
+    // 5. 문서 데이터 가져오기 시도
+    const docSnap = await getDoc(playCountRef);
+
+    // 6. 문서가 존재하면 'heliaMinigame' 필드 값 사용, 없으면 0으로 초기화
+    if (docSnap.exists()) {
+      currentPlayCount.value = docSnap.data().heliaMinigame || 0;
+    } else {
+      // 오늘 처음 플레이하는 경우 문서가 없으므로 0회
+      currentPlayCount.value = 0;
+    }
+    console.log(`오늘 플레이 횟수 (${todayStr}): ${currentPlayCount.value}`); // 확인용 로그
+
+  } catch (error) {
+    // 7. 오류 발생 시 콘솔에 로그 출력 및 플레이 횟수 0으로 처리 (오류 시 플레이 가능하도록)
+    console.error("플레이 횟수 확인 중 오류 발생:", error);
+    currentPlayCount.value = 0; // 오류 발생 시 안전하게 0으로 설정 (또는 오류 상태 관리)
+    // 사용자에게 오류 알림 필요 시 추가 (예: alert 사용)
+    // alert("플레이 횟수를 확인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+
+  } finally {
+    // 8. 로딩 상태 종료
+    isLoading.value = false;
+  }
+};
+
 const moveTarget = () => {
     if (!targetBox.value?.parentElement) return;
     isTargetMoving.value = true; // 이동 시작
