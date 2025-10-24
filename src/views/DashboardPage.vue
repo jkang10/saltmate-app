@@ -1298,7 +1298,27 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   position: relative;
   z-index: 1;
 }
+.rank-card {
+  background: rgba(44, 62, 80, 0.7);
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  color: #ecf0f1;
+  text-align: center;
+  position: relative;
+  overflow: hidden; /* 자식 요소 스크롤을 위해 overflow-y를 덮어쓰기 위해 설정 */
+}
 
+.rank-card.click-rank-card {
+  /* ▼▼▼ [핵심 수정] 이 부분을 추가하거나 변경해 주세요 ▼▼▼ */
+  max-height: 300px; /* 원하는 높이로 조절 (예: 300px) */
+  overflow-y: auto; /* 내용이 넘치면 스크롤바 생성 */
+  /* ▲▲▲ */
+}
 /* 애니메이션 키프레임 */
 @keyframes glowing-border {
   0% {
