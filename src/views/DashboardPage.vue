@@ -4,7 +4,7 @@
 
     <AnnouncementTicker />
 
-    <div class="dashboard-container" style="padding-top: 0; gap: 0;">
+    <div class="dashboard-container">
       <DailyQuestsWidget />
 
       <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
@@ -30,6 +30,8 @@
         </ul>
       </section>
 
+      <LiveGameFeed class="live-feed-widget-standalone card" />
+
       <main class="dashboard-content">
         <div class="dashboard-header">
           <h2><i class="fas fa-columns"></i> 대시보드</h2>
@@ -53,6 +55,27 @@
             </button>
 
             <div v-show="openCategories.includes(category.id) || isEditMode" class="accordion-content">
+              <UserInfoWidget v-if="category.id === 'main'" :userProfile="userProfile" :isLoading="loadingUser" :error="error"
+                              @openPasswordModal="isPasswordModalVisible = true"
+                              @openNotificationSettingsModal="isNotificationSettingsModalVisible = true" />
+
+              <div v-if="category.id === 'mall'" class="mall-preview-section">
+                <div v-if="isLoadingMallProducts" class="loading-mall">
+                  <div class="spinner-small-dark"></div> 상품 목록 로딩 중...
+                </div>
+                <div v-else-if="mallProducts.length > 0" class="mall-product-grid">
+                  <router-link v-for="product in mallProducts" :key="product.id" :to="`/product/${product.id}`" class="mall-product-item">
+                    <img :src="product.imageUrl || '/img/placeholder.png'" :alt="product.name" class="product-image"/>
+                    <span class="product-name">{{ product.name }}</span>
+                    <span class="product-price">{{ (product.price || 0).toLocaleString() }} S</span>
+                  </router-link>
+                  <router-link to="/mall" class="mall-more-link">
+                     <span>전체 상품 보기 &rarr;</span>
+                  </router-link>
+                </div>
+                 <p v-else>현재 판매 중인 상품이 없습니다.</p>
+              </div>
+
               <draggable
                 :list="getCardsForCategory(category.id)"
                 item-key="id"
@@ -63,29 +86,22 @@
                 @end="onDragEnd"
               >
                 <template #item="{ element: card }">
-                  <router-link v-if="card.component === 'router-link'" :to="card.to" :class="['feature-card', card.class]" :style="card.style" :draggable="isEditMode">
-                     <div class="card-icon"><i :class="card.icon"></i></div>
-                     <h3>{{ card.title }}</h3>
-                     <p>{{ card.description }}</p>
-                     <div v-if="card.id === 'my-tokens'" class="token-glance">
-                        <div class="token-item">
-                          <img src="@/assets/COBS.png" alt="COBS" />
-                          <span>{{ (userProfile?.tokens?.cobs || 0).toLocaleString() }}</span>
-                        </div>
-                        <div class="token-item">
-                          <img src="@/assets/BND_LOGO.png" alt="BND" />
-                          <span>{{ (userProfile?.tokens?.bnd || 0).toLocaleString() }}</span>
-                        </div>
-                        <div class="token-item">
-                          <img src="@/assets/SSC_LOGO.png" alt="SSC" />
-                          <span>{{ (userProfile?.tokens?.ssc || 0).toLocaleString() }}</span>
-                        </div>
-                     </div>
-                     <span class="card-enter">{{ card.enterText || '바로가기 &rarr;' }}</span>
-                  </router-link>
+                  <template v-if="card.component !== UserInfoWidget">
+                    <router-link v-if="card.component === 'router-link'" :to="card.to" :class="['feature-card', card.class]" :style="card.style" :draggable="isEditMode">
+                       <div class="card-icon"><i :class="card.icon"></i></div>
+                       <h3>{{ card.title }}</h3>
+                       <p>{{ card.description }}</p>
+                       <span class="card-enter">{{ card.enterText || '바로가기 &rarr;' }}</span>
+                    </router-link>
 
-                  <component v-else :is="card.component" :class="['feature-card', card.class]" :style="card.style" :draggable="isEditMode">
+                    <component v-else :is="card.component" :class="['feature-card', card.class, 'widget-card-style']" :style="card.style" :draggable="isEditMode">
+                       <div class="card-header-widget">
+                          <h3><i :class="card.icon"></i> {{ card.title }}</h3>
+                       </div>
+                       <div class="widget-content-area">
+                          </div>
                     </component>
+                  </template>
                 </template>
               </draggable>
             </div>
@@ -119,27 +135,36 @@
         :cycleCap="userProfile?.cycleCap || 0"
         @close="isCycleModalVisible = false"
       />
+      <ChangePasswordModal
+        v-if="isPasswordModalVisible"
+        @close="isPasswordModalVisible = false"
+      />
+      <NotificationSettingsModal
+        v-if="isNotificationSettingsModalVisible"
+        @close="isNotificationSettingsModalVisible = false"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, defineAsyncComponent, inject } from 'vue';
-import draggable from 'vuedraggable';
+import draggable from 'vuedraggable'; // vuedraggable 설치 필요: npm install vuedraggable@next
 import { auth, db, functions } from '@/firebaseConfig';
-import { httpsCallable } from 'firebase/functions'; // getFunctions 제거됨
+import { httpsCallable } from 'firebase/functions';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
-  collection, query, where, orderBy, limit, doc, onSnapshot, // Timestamp 제거됨 (사용 안 할 경우)
+  collection, query, where, orderBy, limit, doc, onSnapshot,
   getDocs, getDoc,
 } from 'firebase/firestore';
 
-// --- 컴포넌트 Import (기존 + 비동기 로딩) ---
+// --- 컴포넌트 Import ---
 const OnboardingTutorial = defineAsyncComponent(() => import('@/components/common/OnboardingTutorial.vue'));
 const AnnouncementTicker = defineAsyncComponent(() => import('@/components/AnnouncementTicker.vue'));
 const DailyQuestsWidget = defineAsyncComponent(() => import('@/components/DailyQuestsWidget.vue'));
-const UserInfoWidget = defineAsyncComponent(() => import('@/components/UserInfoWidget.vue')); // UserInfoWidget 카드용
-const LiveGameFeed = defineAsyncComponent(() => import('@/components/LiveGameFeed.vue'));
+const UserInfoWidget = defineAsyncComponent(() => import('@/components/UserInfoWidget.vue'));
+const LiveGameFeed = defineAsyncComponent(() => import('@/components/LiveGameFeed.vue')); // 항상 표시될 피드
+// 랭킹 위젯들
 const LeaderboardWidget = defineAsyncComponent(() => import('@/components/LeaderboardWidget.vue'));
 const WeeklyLeaderboardWidget = defineAsyncComponent(() => import('@/components/WeeklyLeaderboardWidget.vue'));
 const SaltPangHallOfFame = defineAsyncComponent(() => import('@/components/SaltPangHallOfFame.vue'));
@@ -150,15 +175,16 @@ const SaltPangPvpRankingsWidget = defineAsyncComponent(() => import('@/component
 const SaltGuardiansRankingsWidget = defineAsyncComponent(() => import('@/components/SaltGuardiansRankingsWidget.vue'));
 const SaltMinePrestigeRankingsWidget = defineAsyncComponent(() => import('@/components/SaltMinePrestigeRankingsWidget.vue'));
 const SaltMineClickRankingsWidget = defineAsyncComponent(() => import('@/components/SaltMineClickRankingsWidget.vue'));
-
 // Modal 컴포넌트
 import TransactionHistoryModal from '@/components/TransactionHistoryModal.vue';
 import UpgradeTierModal from '@/components/UpgradeTierModal.vue';
 import WithdrawalRequestModal from '@/components/WithdrawalRequestModal.vue';
 import CycleEarningsModal from '@/components/CycleEarningsModal.vue';
+import ChangePasswordModal from "@/components/ChangePasswordModal.vue"; // UserInfoWidget용
+import NotificationSettingsModal from "@/components/NotificationSettingsModal.vue"; // UserInfoWidget용
 
 // --- 상태 변수 (Refs) ---
-const userProfile = inject('userProfile', ref(null)); // App.vue 등에서 provide 가정
+const userProfile = inject('userProfile', ref(null));
 const loadingUser = ref(true);
 const error = ref(null);
 const notices = ref([]);
@@ -166,24 +192,27 @@ const historyModal = ref({ visible: false, type: '' });
 const upgradeModalVisible = ref(false);
 const isWithdrawalModalVisible = ref(false);
 const isCycleModalVisible = ref(false);
+const isPasswordModalVisible = ref(false); // UserInfoWidget용 모달 상태
+const isNotificationSettingsModalVisible = ref(false); // UserInfoWidget용 모달 상태
 const marketingPlan = ref(null);
 const latestJackpotWinner = ref(null);
 const shouldRunTutorial = ref(false);
 const isEditMode = ref(false);
-const dashboardCards = ref([]); // 현재 표시 및 정렬될 카드 목록
-const openCategories = ref(['main', 'assets', 'games']); // 기본으로 열어둘 카테고리
-const isLoadingLayout = ref(false); // 레이아웃 저장 로딩 상태
-
-const currentUserId = ref(null); // currentUserId 선언
-let authUnsubscribe = null; // authUnsubscribe 선언
+const dashboardCards = ref([]);
+const openCategories = ref(['mall', 'games', 'main']); // 기본 열림 카테고리 변경
+const isLoadingLayout = ref(false);
+const currentUserId = ref(null);
+const mallProducts = ref([]); // 몰 상품 목록
+const isLoadingMallProducts = ref(false); // 몰 상품 로딩 상태
 
 // Firestore 리스너 참조
 let userUnsubscribe = null;
 let jackpotUnsubscribe = null;
+let authUnsubscribe = null;
 
 // Firebase Functions 호출자
-const saveLayoutFunc = httpsCallable(functions, 'saveDashboardLayout'); // 레이아웃 저장 함수
-const markTutorialCompleteFunc = httpsCallable(functions, 'markTutorialAsCompleted'); // 튜토리얼 완료 함수
+const saveLayoutFunc = httpsCallable(functions, 'saveDashboardLayout');
+const markTutorialCompleteFunc = httpsCallable(functions, 'markTutorialAsCompleted');
 
 // --- 카테고리 및 카드 설정 ---
 const categories = ref([
@@ -193,23 +222,13 @@ const categories = ref([
   { id: 'assets', title: '나의 자산', icon: 'fas fa-wallet', order: 4 },
   { id: 'community', title: '커뮤니티 및 정보', icon: 'fas fa-comments', order: 5 },
   { id: 'events', title: '이벤트 및 참여', icon: 'fas fa-calendar-check', order: 6 },
-  { id: 'network', title: '블록체인 및 네트워크', icon: 'fas fa-link', order: 7 }, // icon 예시 변경
+  { id: 'network', title: '블록체인 및 네트워크', icon: 'fas fa-link', order: 7 },
+  { id: 'rankings', title: '솔트메이트 랭킹 현황', icon: 'fas fa-trophy', order: 8 }, // 랭킹 카테고리 추가
 ]);
 
-// 모든 카드 설정 정보 (ID는 고유해야 함)
+// 모든 카드 설정 정보 (수정됨)
 const ALL_CARDS_CONFIG = [
-  // --- Main Category ---
-  { id: 'user-info', component: UserInfoWidget, categoryId: 'main', order: 1, title: '나의 등급 및 수익 현황' },
-  { id: 'mall', component: 'router-link', to: '/mall', categoryId: 'main', icon: 'fas fa-store', title: '솔트메이트 몰', description: '솔트메이트 포인트로 특별한 상품을 구매하세요.', class: 'mall', order: 10 },
-  { id: 'claim-code', component: 'router-link', to: '/claim-code', categoryId: 'main', icon: 'fas fa-ticket-alt', title: '쿠폰 / 코드 등록', description: '이벤트나 상품 구매로 받은 코드를 입력하세요.', order: 11 },
-
-  // --- Assets Category ---
-  { id: 'my-assets', component: 'router-link', to: '/my-assets', categoryId: 'assets', icon: 'fas fa-wallet', title: '나의 통합 자산', description: '포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산 확인', style: 'background: linear-gradient(135deg, #667eea, #764ba2); color: white;', order: 20 },
-  { id: 'my-tokens', component: 'router-link', to: '/my-tokens', categoryId: 'assets', icon: 'fas fa-coins', title: '보유 토큰 현황', description: 'COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.', class: 'tokens', order: 21 },
-  { id: 'nft-marketplace', component: 'router-link', to: '/nft-marketplace', categoryId: 'assets', icon: 'fas fa-gem', title: 'NFT 마켓플레이스', description: '보유한 NFT를 확인하고 멤버십 혜택을 누리세요.', class: 'nft', order: 22 },
-  { id: 'my-equity', component: 'router-link', to: '/my-equity', categoryId: 'assets', icon: 'fas fa-chart-pie', title: '지분 정보', description: '나의 공장 지분 현황과 관련 정보를 확인합니다.', class: 'equity', order: 23 },
-  { id: 'my-investments', component: 'router-link', to: '/my-investments', categoryId: 'assets', icon: 'fas fa-chart-line', title: '내 수익 현황', description: '기간별, 종류별 수익 내역을 상세히 확인합니다.', class: 'revenue', order: 24 },
-  { id: 'staking', component: 'router-link', to: '/staking', categoryId: 'assets', icon: 'fas fa-piggy-bank', title: 'SaltMate 정기예금', description: 'SaltMate를 예치하고 이자를 받아보세요.', class: 'staking', order: 25 },
+  // --- Mall Category --- (카드는 없고, 상품 목록 직접 표시)
 
   // --- Games Category ---
   { id: 'salt-pang', component: 'router-link', to: '/salt-pang', categoryId: 'games', icon: 'fas fa-puzzle-piece', title: '솔트팡', description: '같은 모양의 소금 결정을 3개 이상 맞춰 포인트를 획득하세요!', class: 'game', order: 30 },
@@ -224,61 +243,70 @@ const ALL_CARDS_CONFIG = [
   { id: 'rps-game', component: 'router-link', to: '/rps-game', categoryId: 'games', icon: 'fas fa-hand-scissors', title: '가위바위보', description: '컴퓨터를 상대로 가위바위보에서 승리하고 SaltMate를 획득하세요!', class: 'game', order: 39 },
   { id: 'high-low-game', component: 'router-link', to: '/high-low-game', categoryId: 'games', icon: 'fas fa-sort-numeric-up-alt', title: '하이로우', description: '다음 숫자가 높을지 낮을지 예측하고 SaltMate를 획득하세요!', class: 'game', order: 40 },
   { id: 'quiz-game', component: 'router-link', to: '/quiz-game', categoryId: 'games', icon: 'fas fa-question-circle', title: '솔트 스칼라 퀴즈', description: '서바이벌 퀴즈쇼의 최후의 1인이 되어보세요!', class: 'game', order: 41 },
-  { id: 'helia-game', component: 'router-link', to: '/helia-game', categoryId: 'games', icon: 'fas fa-box-open', title: '헬리아 미니게임', description: '헬리아 소금을 포장하고 SaltMate와 쿠폰을 받으세요!', class: 'helia-event', order: 42 }, // 카테고리 games로 변경, 순서 조정
+  { id: 'helia-game', component: 'router-link', to: '/helia-game', categoryId: 'games', icon: 'fas fa-box-open', title: '헬리아 미니게임', description: '헬리아 소금을 포장하고 SaltMate와 쿠폰을 받으세요!', class: 'helia-event', order: 42 },
+  { id: 'game-zone', component: 'router-link', to: '/game-zone', categoryId: 'games', icon: 'fas fa-dice', title: '럭키 룰렛', description: '매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!', class: 'game', order: 43 }, // 이동됨
+  { id: 'treasure-box', component: 'router-link', to: '/treasure-box', categoryId: 'games', icon: 'fas fa-box', title: '보물상자 열기', description: '매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!', class: 'treasure', order: 44 }, // 이동됨
+  { id: 'ladder-game', component: 'router-link', to: '/ladder-game', categoryId: 'games', icon: 'fas fa-stream', title: '사다리타기', description: '운명의 사다리를 타고 행운의 SaltMate를 획득하세요!', class: 'game', order: 45 }, // 이동됨
+  { id: 'salt-pot-gacha', component: 'router-link', to: '/salt-pot-gacha', categoryId: 'games', icon: 'fas fa-wine-bottle', title: '소금 항아리', description: '매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!', class: 'treasure', order: 46 }, // 이동됨
+
+  // --- Main Category ---
+  { id: 'user-info', component: UserInfoWidget, categoryId: 'main', order: 1, title: '나의 등급 및 수익 현황' }, // UserInfoWidget 카드 정의는 유지 (렌더링은 별도 처리)
+  { id: 'claim-code', component: 'router-link', to: '/claim-code', categoryId: 'main', icon: 'fas fa-ticket-alt', title: '쿠폰 / 코드 등록', description: '이벤트나 상품 구매로 받은 코드를 입력하세요.', order: 11 },
+  { id: 'crafting', component: 'router-link', to: '/crafting', categoryId: 'main', icon: 'fas fa-hammer', title: '솔레인 제작 공방', description: '모은 재료로 특별한 아이템을 직접 만들어보세요!', class: 'crafting-workshop-card', order: 12 }, // 이동됨
+
+  // --- Assets Category ---
+  { id: 'my-assets', component: 'router-link', to: '/my-assets', categoryId: 'assets', icon: 'fas fa-wallet', title: '나의 통합 자산', description: '포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산 확인', style: 'background: linear-gradient(135deg, #667eea, #764ba2); color: white;', order: 20 },
+  { id: 'my-tokens', component: 'router-link', to: '/my-tokens', categoryId: 'assets', icon: 'fas fa-coins', title: '보유 토큰 현황', description: 'COBS, BND, SSC 토큰의 수량과 가치를 확인하세요.', class: 'tokens', order: 21 }, // 토큰 미리보기 제거됨
+  { id: 'nft-marketplace', component: 'router-link', to: '/nft-marketplace', categoryId: 'assets', icon: 'fas fa-gem', title: 'NFT 마켓플레이스', description: '보유한 NFT를 확인하고 멤버십 혜택을 누리세요.', class: 'nft', order: 22 },
+  { id: 'my-equity', component: 'router-link', to: '/my-equity', categoryId: 'assets', icon: 'fas fa-chart-pie', title: '지분 정보', description: '나의 공장 지분 현황과 관련 정보를 확인합니다.', class: 'equity', order: 23 },
+  { id: 'my-investments', component: 'router-link', to: '/my-investments', categoryId: 'assets', icon: 'fas fa-chart-line', title: '내 수익 현황', description: '기간별, 종류별 수익 내역을 상세히 확인합니다.', class: 'revenue', order: 24 },
+  { id: 'staking', component: 'router-link', to: '/staking', categoryId: 'assets', icon: 'fas fa-piggy-bank', title: 'SaltMate 정기예금', description: 'SaltMate를 예치하고 이자를 받아보세요.', class: 'staking', order: 25 },
 
   // --- Community Category ---
   { id: 'community-notices', component: 'router-link', to: '/community/notices', categoryId: 'community', icon: 'fas fa-bullhorn', title: '공지사항', description: '중요한 소식을 확인하세요.', order: 60 },
   { id: 'community-freeboard', component: 'router-link', to: '/community/freeboard', categoryId: 'community', icon: 'fas fa-comments', title: '자유게시판', description: '다른 사용자들과 소통하세요.', order: 61 },
-  { id: 'live-feed', component: LiveGameFeed, categoryId: 'community', order: 62, title: '실시간 게임 피드' },
+  // LiveGameFeed는 여기서 제거됨 (항상 표시)
 
   // --- Events Category ---
   { id: 'attendance', component: 'router-link', to: '/attendance', categoryId: 'events', icon: 'fas fa-calendar-check', title: '매일매일 출석체크', description: '매일 접속하여 SaltMate와 특별한 쿠폰 보상을 받으세요!', class: 'events', order: 70 },
   { id: 'my-events', component: 'router-link', to: '/my-events', categoryId: 'events', icon: 'fas fa-calendar-alt', title: '이벤트 공간', description: '진행중인 다양한 이벤트에 참여하고 혜택을 받으세요.', class: 'events', order: 71 },
   { id: 'qr-scanner', component: 'router-link', to: '/qr-scanner', categoryId: 'events', icon: 'fas fa-qrcode', title: '센터 방문 QR 인증', description: '센터에 방문하여 QR코드를 스캔하고 보상을 획득하세요!', class: 'qr-scanner', order: 72 },
-  { id: 'game-zone', component: 'router-link', to: '/game-zone', categoryId: 'events', icon: 'fas fa-dice', title: '럭키 룰렛', description: '매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!', class: 'game', order: 73 }, // GameZonePage가 룰렛 페이지라고 가정
-  { id: 'treasure-box', component: 'router-link', to: '/treasure-box', categoryId: 'events', icon: 'fas fa-box', title: '보물상자 열기', description: '매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!', class: 'treasure', order: 74 },
-  { id: 'ladder-game', component: 'router-link', to: '/ladder-game', categoryId: 'events', icon: 'fas fa-stream', title: '사다리타기', description: '운명의 사다리를 타고 행운의 SaltMate를 획득하세요!', class: 'game', order: 75 },
-  { id: 'salt-pot-gacha', component: 'router-link', to: '/salt-pot-gacha', categoryId: 'events', icon: 'fas fa-wine-bottle', title: '소금 항아리', description: '매일 한 번, 항아리를 열고 대박 포인트를 노려보세요!', class: 'treasure', order: 76 },
+  { id: 'auction', component: 'router-link', to: '/auction', categoryId: 'events', icon: 'fas fa-gavel', title: '주간 경매', description: '최고가에 도전하여 희귀 아이템을 획득하세요!', class: 'game', order: 73 }, // 이동됨
 
-  // --- Network & Etc Category ---
+  // --- Network Category ---
   { id: 'network-tree', component: 'router-link', to: '/network-tree', categoryId: 'network', icon: 'fas fa-sitemap', title: '나의 추천 네트워크', description: '나의 하위 추천 라인을 시각적으로 확인합니다.', order: 80 },
   { id: 'my-avatar', component: 'router-link', to: '/my-avatar', categoryId: 'network', icon: 'fas fa-user-astronaut', title: '내 아바타 꾸미기', description: '나만의 아바타를 만들어 \'솔레인 디지털 유니버스\'의 주인공!', order: 81 },
-  { id: 'crafting', component: 'router-link', to: '/crafting', categoryId: 'network', icon: 'fas fa-hammer', title: '솔레인 제작 공방', description: '모은 재료로 특별한 아이템을 직접 만들어보세요!', class: 'crafting-workshop-card', order: 82 },
   { id: 'salt-trader', component: 'router-link', to: '/salt-trader', categoryId: 'network', icon: 'fas fa-exchange-alt', title: '소금 상인', description: '변동하는 시세에 맞춰 소금을 사고팔아 수익을 내보세요.', order: 83 },
   { id: 'enchanting', component: 'router-link', to: '/enchanting', categoryId: 'network', icon: 'fas fa-magic', title: '아이템 강화', description: 'SaltMate를 사용하여 아이템을 강화하고 더 강해지세요!', order: 84 },
-  { id: 'auction', component: 'router-link', to: '/auction', categoryId: 'network', icon: 'fas fa-gavel', title: '주간 경매', description: '최고가에 도전하여 희귀 아이템을 획득하세요!', class: 'game', order: 85 },
-  // 랭킹 위젯들 (카테고리 분류 필요 시 수정)
-  { id: 'leaderboard', component: LeaderboardWidget, categoryId: 'network', order: 90, title: '전체 랭킹' },
-  { id: 'weekly-leaderboard', component: WeeklyLeaderboardWidget, categoryId: 'network', order: 91, title: '주간 랭킹' },
-  { id: 'saltpang-hof', component: SaltPangHallOfFame, categoryId: 'network', order: 92, title: '솔트팡 명예의 전당' },
-  { id: 'challenge-rankings', component: ChallengeRankingsWidget, categoryId: 'network', order: 93, title: '챌린지 랭킹' },
-  { id: 'saltpang-ranked', component: SaltPangRankedWidget, categoryId: 'network', order: 94, title: '솔트팡 랭크' },
-  { id: 'saltmine-prestige-rankings', component: SaltMinePrestigeRankingsWidget, categoryId: 'network', order: 95, title: '광산 환생 랭킹' },
-  { id: 'saltmine-click-rankings', component: SaltMineClickRankingsWidget, categoryId: 'network', order: 96, title: '광산 클릭 랭킹' },
-  { id: 'saltpang-pvp-rankings', component: SaltPangPvpRankingsWidget, categoryId: 'network', order: 97, title: '솔트팡 PvP 랭킹' },
-  { id: 'enchant-rankings', component: EnchantRankingsWidget, categoryId: 'network', order: 98, title: '강화 랭킹' },
-  { id: 'saltguardians-rankings', component: SaltGuardiansRankingsWidget, categoryId: 'network', order: 99, title: '솔트 가디언즈 랭킹' },
+
+  // --- Rankings Category ---
+  { id: 'leaderboard', component: LeaderboardWidget, categoryId: 'rankings', order: 90, title: '전체 랭킹', icon: 'fas fa-signal' }, // 아이콘 추가
+  { id: 'weekly-leaderboard', component: WeeklyLeaderboardWidget, categoryId: 'rankings', order: 91, title: '주간 랭킹', icon: 'fas fa-calendar-week' },
+  { id: 'saltpang-hof', component: SaltPangHallOfFame, categoryId: 'rankings', order: 92, title: '솔트팡 명예의 전당', icon: 'fas fa-crown' },
+  { id: 'challenge-rankings', component: ChallengeRankingsWidget, categoryId: 'rankings', order: 93, title: '챌린지 랭킹', icon: 'fas fa-medal' },
+  { id: 'saltpang-ranked', component: SaltPangRankedWidget, categoryId: 'rankings', order: 94, title: '솔트팡 랭크', icon: 'fas fa-chess-king' },
+  { id: 'saltmine-prestige-rankings', component: SaltMinePrestigeRankingsWidget, categoryId: 'rankings', order: 95, title: '광산 환생 랭킹', icon: 'fas fa-sync-alt' },
+  { id: 'saltmine-click-rankings', component: SaltMineClickRankingsWidget, categoryId: 'rankings', order: 96, title: '광산 클릭 랭킹', icon: 'fas fa-mouse-pointer' },
+  { id: 'saltpang-pvp-rankings', component: SaltPangPvpRankingsWidget, categoryId: 'rankings', order: 97, title: '솔트팡 PvP 랭킹', icon: 'fas fa-fist-raised' },
+  { id: 'enchant-rankings', component: EnchantRankingsWidget, categoryId: 'rankings', order: 98, title: '강화 랭킹', icon: 'fas fa-magic' },
+  { id: 'saltguardians-rankings', component: SaltGuardiansRankingsWidget, categoryId: 'rankings', order: 99, title: '솔트 가디언즈 랭킹', icon: 'fas fa-shield-alt' },
 ];
 
-// 카테고리 순서대로 정렬
+// --- Computed 속성 ---
 const sortedCategories = computed(() => {
     return [...categories.value].sort((a, b) => a.order - b.order);
 });
 
-// 특정 카테고리에 속하는 카드 목록 반환 (현재 dashboardCards 순서 기준)
 const getCardsForCategory = (categoryId) => {
-    return dashboardCards.value.filter(card => card.categoryId === categoryId);
+    // UserInfoWidget 카드는 필터링하여 제외 (별도 렌더링)
+    return dashboardCards.value.filter(card => card.categoryId === categoryId && card.id !== 'user-info');
 };
 
 // --- 함수 정의 ---
 const listenToLatestJackpot = () => {
   const q = query(collection(db, "saltPangJackpotWins"), orderBy("wonAt", "desc"), limit(1));
   jackpotUnsubscribe = onSnapshot(q, (snapshot) => {
-    if (!snapshot.empty) {
-      latestJackpotWinner.value = snapshot.docs[0].data();
-    } else {
-      latestJackpotWinner.value = null; // 당첨 기록 없을 경우 초기화
-    }
+    latestJackpotWinner.value = snapshot.empty ? null : snapshot.docs[0].data();
   });
 };
 
@@ -289,18 +317,16 @@ const initializeLayout = (profile) => {
   if (savedLayoutOrder && Array.isArray(savedLayoutOrder) && savedLayoutOrder.length > 0) {
     sortedCards = savedLayoutOrder.map(cardId => {
       const config = ALL_CARDS_CONFIG.find(c => c.id === cardId);
-      // 설정에서 카드가 삭제되었을 수 있으므로 확인
       return config ? { ...config, component: resolveComponent(config.component) } : null;
     }).filter(Boolean);
 
     const currentCardIds = new Set(sortedCards.map(c => c.id));
     ALL_CARDS_CONFIG.forEach(config => {
       if (!currentCardIds.has(config.id)) {
-        sortedCards.push({ ...config, component: resolveComponent(config.component) }); // 새 카드 추가
+        sortedCards.push({ ...config, component: resolveComponent(config.component) });
       }
     });
   } else {
-    // 기본 순서: 카테고리 순서 -> 카드 order 순서
     sortedCards = [...ALL_CARDS_CONFIG].sort((a, b) => {
         const catAOrder = categories.value.find(c => c.id === a.categoryId)?.order || 99;
         const catBOrder = categories.value.find(c => c.id === b.categoryId)?.order || 99;
@@ -311,11 +337,9 @@ const initializeLayout = (profile) => {
   dashboardCards.value = sortedCards;
 };
 
-// 컴포넌트 이름 문자열을 실제 컴포넌트 객체로 변환하는 헬퍼
 const resolveComponent = (componentName) => {
     if (typeof componentName === 'string') {
         if (componentName === 'router-link') return 'router-link';
-        // 비동기 컴포넌트 이름과 매핑 (defineAsyncComponent 변수 이름)
         switch (componentName) {
             case 'UserInfoWidget': return UserInfoWidget;
             case 'LiveGameFeed': return LiveGameFeed;
@@ -329,76 +353,59 @@ const resolveComponent = (componentName) => {
             case 'SaltGuardiansRankingsWidget': return SaltGuardiansRankingsWidget;
             case 'SaltMinePrestigeRankingsWidget': return SaltMinePrestigeRankingsWidget;
             case 'SaltMineClickRankingsWidget': return SaltMineClickRankingsWidget;
-            // 다른 위젯 컴포넌트 추가...
-            default: return 'div'; // 찾지 못하면 기본 div
+            default: return 'div';
         }
     }
-    return componentName; // 이미 컴포넌트 객체인 경우
+    return componentName;
 };
 
+const onDragEnd = () => { /* 순서는 vuedraggable이 관리 */ };
 
-// 드래그 종료 시 호출 (vuedraggable이 배열 순서를 자동으로 업데이트함)
-const onDragEnd = () => {
-    // console.log('Drag ended:', dashboardCards.value.map(c => c.id));
-    // 변경된 순서는 dashboardCards.value에 반영되어 있음
-};
-
-// 편집 모드 토글 및 레이아웃 저장
 const toggleEditMode = async () => {
   if (isEditMode.value) {
-    // 편집 완료
     const currentLayoutIds = dashboardCards.value.map(c => c.id);
+    // UserInfoWidget은 레이아웃 저장에서 제외 (고정 위치)
+    const currentDraggableLayoutIds = currentLayoutIds.filter(id => id !== 'user-info');
+
     const initialLayoutIds = (userProfile.value?.dashboardLayout || []).length > 0
         ? userProfile.value.dashboardLayout
-        : ALL_CARDS_CONFIG.sort((a, b) => (categories.value.find(c=>c.id === a.categoryId)?.order || 99) - (categories.value.find(c=>c.id === b.categoryId)?.order || 99) || a.order - b.order).map(c => c.id);
+        : ALL_CARDS_CONFIG.filter(c => c.id !== 'user-info') // UserInfo 제외
+            .sort((a, b) => (categories.value.find(c=>c.id === a.categoryId)?.order || 99) - (categories.value.find(c=>c.id === b.categoryId)?.order || 99) || a.order - b.order)
+            .map(c => c.id);
 
-    // 순서가 변경되었는지 확인
-    if (JSON.stringify(currentLayoutIds) !== JSON.stringify(initialLayoutIds)) {
+    if (JSON.stringify(currentDraggableLayoutIds) !== JSON.stringify(initialLayoutIds)) {
       isLoadingLayout.value = true;
       try {
-        await saveLayoutFunc({ layout: currentLayoutIds });
-        // Firestore 업데이트 성공 시 userProfile 스냅샷 리스너가 새 레이아웃으로 initializeLayout 재호출
+        // UserInfoWidget ID를 제외하고 저장
+        await saveLayoutFunc({ layout: currentDraggableLayoutIds });
         alert('대시보드 순서가 저장되었습니다.');
       } catch (error) {
         console.error("레이아웃 저장 실패:", error);
         alert('저장에 실패했습니다. 페이지를 새로고침합니다.');
-        // 실패 시 강제로 페이지 새로고침하여 이전 상태 복원
         window.location.reload();
       } finally {
          isLoadingLayout.value = false;
       }
     }
-     // 편집 모드 종료 시 모든 카테고리 열기 (선택적)
-     // openCategories.value = categories.value.map(c => c.id);
   } else {
-      // 편집 모드 시작 시 모든 카테고리 열기
-      openCategories.value = categories.value.map(c => c.id);
+    openCategories.value = categories.value.map(c => c.id);
   }
   isEditMode.value = !isEditMode.value;
 };
 
-// 카테고리 아코디언 토글
 const toggleCategory = (categoryId) => {
-  if (isEditMode.value) return; // 편집 중에는 토글 방지
+  if (isEditMode.value) return;
   const index = openCategories.value.indexOf(categoryId);
-  if (index > -1) {
-    openCategories.value.splice(index, 1);
-  } else {
-    openCategories.value.push(categoryId);
-  }
+  if (index > -1) openCategories.value.splice(index, 1);
+  else openCategories.value.push(categoryId);
 };
-
 
 const fetchMarketingPlan = async () => {
   const planRef = doc(db, "configuration", "marketingPlan");
   try {
     const docSnap = await getDoc(planRef);
-    if (docSnap.exists()) {
-      marketingPlan.value = docSnap.data();
-    }
-  } catch(e) {
-      console.error("마케팅 플랜 로딩 오류:", e);
-  }
+    marketingPlan.value = docSnap.exists() ? docSnap.data() : null;
+  } catch(e) { console.error("마케팅 플랜 로딩 오류:", e); }
 };
 
 const fetchNotices = async () => {
@@ -406,56 +413,65 @@ const fetchNotices = async () => {
     const q = query(collection(db, "posts"), where("category", "==", "notices"), orderBy("createdAt", "desc"), limit(3));
     const querySnapshot = await getDocs(q);
     notices.value = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-  } catch (e) {
-    console.error("공지사항 로딩 오류:", e);
-  }
+  } catch (e) { console.error("공지사항 로딩 오류:", e); }
 };
 
+// 몰 상품 목록 가져오기 함수
+const fetchMallProducts = async () => {
+    isLoadingMallProducts.value = true;
+    try {
+        // 예시: 활성화된 상품 중 가격 낮은 순으로 4개 가져오기
+        const q = query(collection(db, "products"),
+                        where("isActive", "==", true),
+                        orderBy("price", "asc"), // 또는 orderBy("createdAt", "desc") 등
+                        limit(4)); // 대시보드에는 4개만 표시
+        const querySnapshot = await getDocs(q);
+        mallProducts.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.error("몰 상품 로딩 오류:", e);
+    } finally {
+        isLoadingMallProducts.value = false;
+    }
+};
+
+
 const formatDate = (timestamp) => {
-  if (!timestamp?.toDate) return ""; // Firestore Timestamp 객체인지 확인
+  if (!timestamp?.toDate) return "";
   return timestamp.toDate().toLocaleDateString("ko-KR");
 };
 
-// 튜토리얼 완료 처리
 const onTutorialComplete = async () => {
   shouldRunTutorial.value = false;
   if (!auth.currentUser) return;
   try {
-    // Cloud Function 호출하여 Firestore 업데이트
     await markTutorialCompleteFunc();
-    // 로컬 상태 즉시 업데이트 (선택적)
     if(userProfile.value) userProfile.value.hasCompletedTutorial = true;
-  } catch (e) {
-    console.error("튜토리얼 완료 처리 실패:", e);
-    // 사용자에게 알림 필요 시 추가
-  }
+  } catch (e) { console.error("튜토리얼 완료 처리 실패:", e); }
 };
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
-  authUnsubscribe = onAuthStateChanged(auth, (user) => { // 할당
+  authUnsubscribe = onAuthStateChanged(auth, (user) => {
     if (user) {
-      currentUserId.value = user.uid; // .value 사용
-      // 사용자 프로필 실시간 감지 시작
+      currentUserId.value = user.uid;
       const userRef = doc(db, "users", user.uid);
       userUnsubscribe = onSnapshot(userRef, (docSnap) => {
-        loadingUser.value = true; // 스냅샷 받을 때마다 로딩 상태 잠시 활성화
+        loadingUser.value = true;
         if (docSnap.exists()) {
           const newProfile = { id: docSnap.id, ...docSnap.data() };
-          // 레이아웃 변경 감지 또는 첫 로드 시에만 initializeLayout 호출
-          if (!userProfile.value || JSON.stringify(userProfile.value.dashboardLayout) !== JSON.stringify(newProfile.dashboardLayout)) {
+          // UserInfoWidget 분리로 인해 dashboardLayout만 비교
+          if (!userProfile.value || JSON.stringify(userProfile.value?.dashboardLayout) !== JSON.stringify(newProfile.dashboardLayout)) {
              initializeLayout(newProfile);
           }
-          userProfile.value = newProfile; // 프로필 상태 업데이트
-          // 튜토리얼 실행 여부 결정
+          userProfile.value = newProfile;
           shouldRunTutorial.value = !newProfile.hasCompletedTutorial;
           error.value = null;
         } else {
           error.value = "사용자 프로필을 찾을 수 없습니다.";
           userProfile.value = null;
-          initializeLayout(null); // 프로필 없으면 기본 레이아웃
+          initializeLayout(null);
         }
-        loadingUser.value = false; // 로딩 완료
+        loadingUser.value = false;
       }, (err) => {
         console.error("프로필 실시간 수신 실패:", err);
         error.value = "프로필 로딩 중 오류가 발생했습니다.";
@@ -464,36 +480,51 @@ onMounted(() => {
         initializeLayout(null);
       });
 
-      // 기타 데이터 로드
       fetchMarketingPlan();
       fetchNotices();
       listenToLatestJackpot();
-   } else {
-      currentUserId.value = null; // .value 사용
+      fetchMallProducts(); // 몰 상품 로드 추가
+    } else {
+      currentUserId.value = null;
       loadingUser.value = false;
       userProfile.value = null;
-      if (userUnsubscribe) userUnsubscribe(); // 리스너 정리
+      if (userUnsubscribe) userUnsubscribe();
       if (jackpotUnsubscribe) jackpotUnsubscribe();
-      initializeLayout(null); // 비로그인 시 기본 레이아웃
+      initializeLayout(null);
+      mallProducts.value = []; // 로그아웃 시 상품 목록 초기화
     }
   });
-
-  // 컴포넌트 언마운트 시 auth 리스너도 정리 (선택적, 앱 전체 생명주기와 연관)
-  // onUnmounted(authUnsubscribe);
 });
 
 onUnmounted(() => {
   if (userUnsubscribe) userUnsubscribe();
   if (jackpotUnsubscribe) jackpotUnsubscribe();
-  if (authUnsubscribe) authUnsubscribe(); // auth 구독 해제 추가
+  if (authUnsubscribe) authUnsubscribe();
 });
-
-// setup 함수 마지막: template에서 사용할 모든 변수와 함수 반환 (Composition API에서는 필요 없음)
-</script>
+</script
 
 <style scoped>
-/* 기존 스타일 + 아래 추가 */
+/* 기존 스타일 + 아래 추가/수정 */
+.dashboard-container {
+  padding: 15px; /* 상단 패딩 제거하고 컨테이너 자체 패딩 사용 */
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* 섹션 간 기본 간격 */
+}
 
+/* 실시간 당첨 피드 독립 스타일 */
+.live-feed-widget-standalone {
+    padding: 15px; /* 패딩 조정 */
+    margin-bottom: 0; /* dashboard-content와의 간격은 dashboard-container gap으로 처리 */
+}
+
+/* 대시보드 메인 콘텐츠 */
+.dashboard-content {
+    /* dashboard-container의 gap으로 대체 */
+    /* margin-top: 20px; */
+}
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -725,6 +756,134 @@ onUnmounted(() => {
 }
 .crafting-workshop-card:hover::before { opacity: 1; }
 .crafting-workshop-card > * { position: relative; z-index: 1; }
+/* 위젯 카드 스타일 (랭킹 등 컴포넌트 카드용) */
+.widget-card-style {
+    padding: 0; /* 내부 컴포넌트가 패딩 관리 */
+    display: block; /* 내부 컴포넌트가 레이아웃 채우도록 */
+}
+.widget-card-style:hover { /* 위젯 카드는 hover 효과 제거 또는 약하게 */
+    transform: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+}
+.card-header-widget { /* 위젯 카드 헤더 (선택적) */
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+    background-color: #f9f9f9;
+    border-radius: 10px 10px 0 0;
+}
+.card-header-widget h3 {
+    margin: 0;
+    font-size: 1.1em;
+    color: #34495e;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.card-header-widget h3 i {
+    font-size: 1em; /* 아이콘 크기 조정 */
+    color: #3498db;
+    width: auto; /* 자동 너비 */
+    text-align: left;
+}
+.widget-content-area {
+    padding: 15px 20px 20px; /* 위젯 내용 패딩 */
+}
+
+/* 솔트메이트 몰 상품 미리보기 스타일 */
+.mall-preview-section { padding-top: 5px; } /* 아코디언 패딩과 조화 */
+.loading-mall { color: #555; font-size: 0.9em; text-align: center; padding: 20px; }
+.spinner-small-dark { /* 로딩 스피너 (어두운 버전) */
+    border: 2px solid rgba(0,0,0,0.1); border-top: 2px solid #555;
+    border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; vertical-align: middle;
+}
+.mall-product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 모바일 2열 */
+    gap: 15px;
+}
+.mall-product-item {
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    transition: box-shadow 0.2s ease;
+    background-color: #fff;
+}
+.mall-product-item:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.product-image {
+    width: 100%;
+    max-width: 80px; /* 이미지 최대 너비 */
+    height: 80px; /* 고정 높이 */
+    object-fit: contain; /* 이미지가 잘리지 않도록 */
+    margin-bottom: 8px;
+}
+.product-name {
+    display: block;
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.product-price {
+    display: block;
+    font-size: 0.95em;
+    font-weight: bold;
+    color: #e74c3c;
+}
+.mall-more-link { /* '전체 상품 보기' 링크 스타일 */
+    grid-column: 1 / -1; /* 그리드 전체 너비 차지 */
+    text-align: center;
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #3498db;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.mall-more-link:hover {
+    background-color: #e9ecef;
+}
+
+/* PC 화면 스타일 */
+@media (min-width: 768px) {
+  .dashboard-container { padding: 20px; }
+  .dashboard-header h2 { font-size: 1.8em; }
+  .accordion-header h3 { font-size: 1.4em; }
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* PC 그리드 설정 */
+    gap: 20px;
+  }
+  .feature-card { padding: 25px; min-height: 180px; }
+  .card-icon { font-size: 2.2em; width: 45px; }
+  .feature-card h3 { font-size: 1.3em; }
+  .feature-card p { font-size: 0.95em; }
+  .card-enter { font-size: 1em; }
+
+  /* 몰 상품 그리드 PC 스타일 */
+  .mall-product-grid {
+    grid-template-columns: repeat(4, 1fr); /* PC 4열 */
+    gap: 20px;
+  }
+  .product-image { max-width: 100px; height: 100px; }
+  .product-name { font-size: 0.95em; }
+  .product-price { font-size: 1em; }
+}
+
+/* UserInfoWidget 스타일 (기존 스타일 대부분 유지, 레이아웃 관련 조정) */
+:deep(.user-info-widget-container) { /* :deep() 선택자로 하위 컴포넌트 스타일 접근 (선택적) */
+  padding: 0; background: none; backdrop-filter: none; border: none; box-shadow: none;
+  margin-bottom: 15px; /* 아래 그리드와의 간격 */
+}
 @keyframes glowing-border { 0%, 100% { border-color: #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); } 50% { border-color: #ffd700; box-shadow: 0 0 25px rgba(255, 215, 0, 0.8), 0 0 35px rgba(255, 215, 0, 0.6); } }
 @keyframes rotate-shine { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 @keyframes running-animation { from { transform: translateY(0px); } to { transform: translateY(-3px); } } /* UserInfoWidget 용 */
