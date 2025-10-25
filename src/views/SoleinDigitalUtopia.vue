@@ -276,10 +276,11 @@ const listenToOtherPlayers = () => {
           }
 
           // otherPlayers 객체에 플레이어 정보 저장
-	  otherPlayers[userId] = {
-            mesh: markRaw(avatarMesh), // [★수정] Vue가 Proxy로 감싸지 못하게 markRaw 처리
-            targetPosition: new THREE.Vector3().copy(avatarMesh.position), // 목표 위치 (보간용)
-            targetRotationY: avatarMesh.rotation.y, // 목표 회전 (보간용)
+	    otherPlayers[userId] = {
+            mesh: markRaw(avatarMesh), // 3D 모델 객체 보호
+            // [★수정] 3D 위치 객체(Vector3)도 markRaw로 보호합니다.
+            targetPosition: markRaw(new THREE.Vector3().copy(avatarMesh.position)), 
+            targetRotationY: avatarMesh.rotation.y, // (이 값은 단순 숫자이므로 markRaw 불필요)
           };
           console.log(`${playerData.userName || userId} 씬에 추가 완료`);
       } else {
