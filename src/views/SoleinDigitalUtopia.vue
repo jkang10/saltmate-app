@@ -215,9 +215,11 @@ const updateMyStateInRTDB = () => {
   if (!playerRef || !myAvatar || !isReady.value) return; // 유효성 검사
 
   // [★수정] 업데이트할 newState (3개 항목만)
+  const currentRotationY = myAvatar.rotation.y; // 현재 회전값
   const newState = {
     position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z },
-    rotationY: myAvatar.rotation.y,
+    // [★수정] rotationY가 유효한 숫자인지 확인 (NaN, undefined 방지)
+    rotationY: (typeof currentRotationY === 'number' && isFinite(currentRotationY)) ? currentRotationY : 0,
     timestamp: serverTimestamp(),
   };
 
@@ -307,17 +309,32 @@ onChildAdded(playersListenerRef, async (snapshot) => {
   });
 
   // 플레이어 상태 변경 감지 (onChildChanged)
-  onChildChanged(playersListenerRef, (snapshot) => {
+onChildChanged(playersListenerRef, (snapshot) => {
     const userId = snapshot.key;
     if (userId === currentUid || !otherPlayers[userId]) return; // 본인 또는 없는 플레이어 무시
 
     const playerData = snapshot.val();
     const player = otherPlayers[userId];
 
-    // 목표 상태 업데이트 (애니메이션 루프에서 보간 처리)
-    player.targetPosition.set(playerData.position.x, playerData.position.y, playerData.position.z);
-    player.targetRotationY = playerData.rotationY;
+    // [★수정] 1. 데이터에 position 객체가 없으면(null) 에러 방지를 위해 즉시 종료
+    if (!playerData || !playerData.position) {
+        console.warn(`[onChildChanged] ${userId}의 playerData 또는 position이 null입니다.`, playerData);
+        return;
+    }
 
+    // [★수정] 2. rotationY 값이 유효한 숫자인지 확인합니다 (NaN, undefined 방지)
+    const newRotationY = playerData.rotationY;
+    if (typeof newRotationY === 'number' && isFinite(newRotationY)) {
+        player.targetRotationY = newRotationY; // 유효한 경우에만 갱신
+    } else {
+        console.warn(`[onChildChanged] ${userId}의 rotationY가 유효하지 않습니다.`, playerData);
+        // rotationY가 유효하지 않아도 position은 업데이트해야 하므로 return하지 않습니다.
+        // 대신 targetRotationY를 갱신하지 않습니다.
+    }
+
+    // [★수정] 3. position은 항상 업데이트합니다 (위에서 null 체크 완료)
+    player.targetPosition.set(playerData.position.x, playerData.position.y, playerData.position.z);
+    
   });
 
   // 플레이어 퇴장 감지 (onChildRemoved)
