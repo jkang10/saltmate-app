@@ -1,6 +1,6 @@
 <template>
   <div class="utopia-container">
-    <canvas ref="canvasRef" class="main-canvas"></canvas>
+    <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
@@ -333,7 +333,13 @@ const sendMessage = () => {
   const chatMessage = { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() };
   push(dbRef(rtdb, plazaChatPath), chatMessage);
   chatInput.value = '';
+  
+  // [★추가] 메시지 전송 후 채팅창 포커스 해제
+  if (chatInputRef.value) {
+    chatInputRef.value.blur();
+  }
 };
+
 // 새 채팅 메시지 수신
 const listenToChat = () => {
   chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
@@ -404,6 +410,9 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트 (로컬 Z축 이동으로 복귀)
 const updatePlayerMovement = (deltaTime) => {
+  // [★디버깅 로그 추가] 현재 상태와 W 키 입력 상태를 확인합니다.
+  console.log(`Movement Check: isReady=${isReady.value}, key W=${!!keysPressed['w']}`);
+
   if (!myAvatar || !isReady.value) return; // 유효성 검사
 
   let moved = false;                     // 이동/회전 발생 여부 플래그
