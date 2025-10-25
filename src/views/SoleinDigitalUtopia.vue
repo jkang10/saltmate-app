@@ -74,24 +74,36 @@ const keysPressed = {}; // 현재 눌린 키 상태
 const loadAvatar = (url) => {
   return new Promise((resolve, reject) => {
     if (!url) {
-      // URL 없으면 기본 아바타 (여기서는 간단히 Cube로 대체)
+      // URL 없으면 기본 아바타 (Cube)
       console.warn("Avatar URL not found, using default cube.");
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5; // 바닥 위에 서도록
-      resolve(cube);
+      cube.position.y = 0.5;
+      resolve(cube); // 기본 큐브는 복제할 필요 없음
       return;
     }
     loader.load(url,
       (gltf) => {
-        const model = gltf.scene;
-        // 모델 크기 및 위치 조정 (필요 시)
-        model.scale.set(0.7, 0.7, 0.7); // 예시 스케일
+        // ▼▼▼ [핵심 수정] 로드된 씬을 복제하여 반환 ▼▼▼
+        const model = gltf.scene.clone(); // .clone() 추가!
+        // ▲▲▲
+
+        // 모델 크기 및 위치 조정
+        model.scale.set(0.7, 0.7, 0.7);
         model.position.y = 0; // 바닥에 맞춤
-        resolve(model);
+
+        // (선택 사항) 복제된 모델의 그림자 설정 (원본 gltf에 설정되어 있어도 복제 시 다시 해주는 것이 안전)
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true; // 필요에 따라 설정
+          }
+        });
+
+        resolve(model); // 복제된 모델 반환
       },
-      undefined, // Progress 콜백 (필요 시 구현)
+      undefined,
       (error) => {
         console.error('아바타 로딩 실패:', error);
         reject(error);
