@@ -7,10 +7,8 @@
       <p>{{ loadingMessage }}</p>
     </div>
 
-    <!-- Joystick Area (Bottom Right) -->
     <div id="joystick-zone" class="joystick-zone"></div>
 
-    <!-- Chat UI (Bottom Left) -->
     <div class="chat-ui">
       <div class="message-list" ref="messageListRef">
         <div v-for="msg in chatMessages" :key="msg.id" class="chat-message">
@@ -23,8 +21,7 @@
         @keyup.enter="sendMessage"
         placeholder="메시지 입력..."
         :disabled="!isReady"
-        ref="chatInputRef" <!-- Added ref for focus check -->
-      />
+        ref="chatInputRef" />
     </div>
   </div>
 </template>
@@ -33,8 +30,8 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { auth, db, rtdb } from '@/firebaseConfig'; // Keep db for getDoc
-import { doc, getDoc } from 'firebase/firestore'; // Keep doc and getDoc
+import { auth, db, rtdb } from '@/firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved,
   set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
@@ -45,74 +42,72 @@ import nipplejs from 'nipplejs';
 const canvasRef = ref(null);
 const isLoading = ref(true);
 const loadingMessage = ref('유토피아 입장 준비 중...');
-const isReady = ref(false); // Flag for when loading is complete and interactions are enabled
+const isReady = ref(false);
 
 // --- Avatar ---
-let myAvatar = null; // My avatar's Three.js Object3D
-const otherPlayers = reactive({}); // Other players' data { userId: { mesh, targetPosition, targetRotationY } }
-let myAvatarUrl = ''; // My avatar's GLB URL
-let myUserName = ''; // My display name
+let myAvatar = null;
+const otherPlayers = reactive({});
+let myAvatarUrl = '';
+let myUserName = '';
 
 // --- Chat ---
 const chatInput = ref('');
-const chatMessages = ref([]); // Array to hold chat messages { id, userName, message }
-const messageListRef = ref(null); // DOM ref for scrolling message list
-const chatInputRef = ref(null); // DOM ref for chat input focus check
-const MAX_CHAT_MESSAGES = 50; // Max messages to display
+const chatMessages = ref([]);
+const messageListRef = ref(null);
+const chatInputRef = ref(null); // Ref for chat input element
+const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js ---
-let scene, camera, renderer, clock; // Core Three.js components
-const loader = new GLTFLoader(); // GLB model loader
+let scene, camera, renderer, clock;
+const loader = new GLTFLoader();
 
 // --- Firebase RTDB Paths ---
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
-let playerRef = null; // RTDB reference to my player data
-let playersListenerRef = null; // RTDB reference for listening to other players
-let chatListenerRef = null; // RTDB reference for listening to chat messages
+let playerRef = null;
+let playersListenerRef = null;
+let chatListenerRef = null;
 
 // --- Player Movement ---
-const moveSpeed = 2.0; // Units per second
-const rotateSpeed = Math.PI; // Radians per second (180 degrees)
-const keysPressed = reactive({}); // Tracks currently pressed keys
-const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 }); // Joystick state
-let joystickManager = null; // NippleJS instance
+const moveSpeed = 2.0;
+const rotateSpeed = Math.PI;
+const keysPressed = reactive({});
+const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
+let joystickManager = null;
 
 // --- Helper: Load Avatar ---
 const loadAvatar = (url) => {
-  return new Promise((resolve) => { // Removed unused 'reject'
+  return new Promise((resolve) => {
     if (!url || !url.endsWith('.glb')) {
       console.warn("Avatar URL is invalid or not a GLB, using default cube.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Green cube
+      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5; // Place it on the ground
+      cube.position.y = 0.5;
       resolve(cube);
       return;
     }
     loader.load(url,
       (gltf) => {
-        const model = gltf.scene.clone(); // Clone to prevent reference issues
-        model.scale.set(0.7, 0.7, 0.7); // Adjust scale
-        model.position.y = 0; // Align with ground
-        // Enable shadows for the model
+        const model = gltf.scene.clone();
+        model.scale.set(0.7, 0.7, 0.7);
+        model.position.y = 0;
         model.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true;
-            child.receiveShadow = false; // Only ground receives shadows in this setup
+            child.receiveShadow = false;
           }
         });
         resolve(model);
       },
-      undefined, // Progress callback (optional)
+      undefined,
       (error) => {
         console.error('Avatar loading failed:', error, 'URL:', url);
-        // Fallback to a default cube on error
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red cube for error
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
-        resolve(cube); // Resolve with cube even on error
+        resolve(cube);
       }
     );
   });
