@@ -34,8 +34,10 @@ import { auth, db, rtdb } from '@/firebaseConfig'; // Firestore getDoc 사용을
 import { doc, getDoc } from 'firebase/firestore'; // doc, getDoc 유지
 import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved,
-  set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
+  set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove,
+  update // [★추가] update 함수를 import합니다.
 } from 'firebase/database';
+
 // eslint-disable-next-line no-unused-vars
 import nipplejs from 'nipplejs'; // ESLint 'no-unused-vars' 규칙 비활성화
 
@@ -171,7 +173,7 @@ const createNicknameSprite = (text) => {
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
 
   // 아바타 머리 위 위치 설정 (Y축 오프셋, 아바타 모델 크기에 따라 조절 필요)
-  sprite.position.y = 1.35; // 예: 아바타 Y 크기가 약 1.7 정도일 때 적절한 높이
+  sprite.position.y = 1.6; // 예: 아바타 Y 크기가 약 1.7 정도일 때 적절한 높이
 
   return sprite; // 생성된 스프라이트 반환
 };
@@ -212,16 +214,15 @@ const joinPlaza = async () => {
 const updateMyStateInRTDB = () => {
   if (!playerRef || !myAvatar || !isReady.value) return; // 유효성 검사
 
-  // 업데이트할 새로운 상태 객체
+  // [★수정] 업데이트할 newState (3개 항목만)
   const newState = {
     position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z },
     rotationY: myAvatar.rotation.y,
     timestamp: serverTimestamp(),
   };
 
-  // set을 사용하여 업데이트 (기존 avatarUrl, userName은 유지하면서 덮어쓰기)
-  // [★수정] .catch()를 추가하여 쓰기 실패 시 에러를 콘솔에 출력합니다.
-  set(playerRef, { ...newState, avatarUrl: myAvatarUrl, userName: myUserName })
+  // [★수정] set 대신 update를 사용하여 newState 객체만 전송합니다.
+  update(playerRef, newState) // <--- set을 update로 변경
     .catch((error) => {
       // 이 에러가 콘솔을 도배하는 것을 막기 위해 isReady를 false로 변경합니다.
       if (isReady.value) {
