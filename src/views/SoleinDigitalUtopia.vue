@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick, markRaw } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { auth, db, rtdb } from '@/firebaseConfig'; // Firestore getDoc 사용을 위해 db 유지
@@ -268,9 +268,6 @@ const listenToOtherPlayers = () => {
           avatarMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
           avatarMesh.rotation.y = playerData.rotationY;
 
-	  // [★디버깅 로그 1] 입장 시 위치 값을 확인합니다.
-          console.log(`[onChildAdded: ${playerData.userName}] DB좌표:`, playerData.position, `적용된 좌표:`, avatarMesh.position);
-
           // [닉네임] 닉네임 스프라이트 생성 및 추가
           if (playerData.userName) {
               const otherNickname = createNicknameSprite(playerData.userName);
@@ -279,8 +276,8 @@ const listenToOtherPlayers = () => {
           }
 
           // otherPlayers 객체에 플레이어 정보 저장
-          otherPlayers[userId] = {
-            mesh: avatarMesh, // Three.js 메쉬 객체
+	  otherPlayers[userId] = {
+            mesh: markRaw(avatarMesh), // [★수정] Vue가 Proxy로 감싸지 못하게 markRaw 처리
             targetPosition: new THREE.Vector3().copy(avatarMesh.position), // 목표 위치 (보간용)
             targetRotationY: avatarMesh.rotation.y, // 목표 회전 (보간용)
           };
@@ -305,8 +302,6 @@ const listenToOtherPlayers = () => {
     player.targetPosition.set(playerData.position.x, playerData.position.y, playerData.position.z);
     player.targetRotationY = playerData.rotationY;
 
-// [★디버깅 로그 2] 이동 시 수신된 좌표를 확인합니다.
-    console.log(`[onChildChanged: ${playerData.userName}] 새 DB좌표:`, playerData.position, `타겟 좌표:`, player.targetPosition);
   });
 
   // 플레이어 퇴장 감지 (onChildRemoved)
@@ -494,14 +489,8 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const player = otherPlayers[userId];
     const mesh = player.mesh;
 
-// [★디버깅 로그 3] Lerp 실행 '전' 위치와 '목표' 위치를 확인합니다.
-    console.log(`[Lerp Check: ${userId}] BEFORE:`, mesh.position, `TARGET:`, player.targetPosition);
-
     // 위치 보간
     mesh.position.lerp(player.targetPosition, lerpFactor);
-
-// [★디버깅 로그 4] Lerp 실행 '후' 실제 위치를 확인합니다.
-    console.log(`[Lerp Check: ${userId}] AFTER:`, mesh.position);
 
     // 회전 보간 (Y축, 최단 각도)
     let currentY = mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
