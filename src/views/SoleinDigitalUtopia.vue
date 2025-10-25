@@ -345,40 +345,44 @@ const listenToChat = () => {
 
 // --- Three.js 초기화 함수 ---
 const initThree = () => {
-  scene = new THREE.Scene(); // 씬 생성
-  scene.background = new THREE.Color(0xade6ff); // 배경색
-  scene.fog = new THREE.Fog(0xade6ff, 10, 30); // 안개
+  try {
+      scene = new THREE.Scene(); // 씬 생성
+      scene.background = new THREE.Color(0xade6ff); // 배경색
+      scene.fog = new THREE.Fog(0xade6ff, 10, 30); // 안개
 
-  // 카메라 생성
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 1.6, 4); // 초기 위치
+      // 카메라 생성
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 1.6, 4); // 초기 위치
 
-  // 렌더러 생성
-  if (canvasRef.value) {
+      // 렌더러 생성
+      if (!canvasRef.value) {
+          console.error("캔버스 요소를 찾을 수 없습니다!"); return false;
+      }
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true; // 그림자 활성화
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자
-  } else {
-      console.error("캔버스 요소를 찾을 수 없습니다!"); return false; // 초기화 실패 시 false 반환
+
+      // 조명 설정
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); // 주변광
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10); dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; // 그림자 해상도
+      dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 50; // 그림자 범위
+      dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
+      dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
+      scene.add(dirLight); // 직사광
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight); // 반구광
+
+      // 바닥 생성
+      const groundGeometry = new THREE.PlaneGeometry(30, 30); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground); // 바닥 평면
+      const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
+
+      clock = new THREE.Clock(); // 시계 생성
+      return true; // 초기화 성공 시 true 반환
+  } catch (error) {
+      console.error("Three.js 초기화 중 오류 발생:", error);
+      return false; // 초기화 실패 시 false 반환
   }
-
-  // 조명 설정
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); // 주변광
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10); dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; // 그림자 해상도
-  dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 50; // 그림자 범위
-  dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
-  dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
-  scene.add(dirLight); // 직사광
-  const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight); // 반구광
-
-  // 바닥 생성
-  const groundGeometry = new THREE.PlaneGeometry(30, 30); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground); // 바닥 평면
-  const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
-
-  clock = new THREE.Clock(); // 시계 생성
-  return true; // 초기화 성공 시 true 반환
 };
 
 // --- 플레이어 이동 로직 ---
@@ -397,36 +401,34 @@ const handleKeyUp = (event) => { keysPressed[event.key.toLowerCase()] = false; }
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// 매 프레임 호출: 내 아바타 위치/회전 업데이트 (월드 좌표 기준 이동)
+// 매 프레임 호출: 내 아바타 위치/회전 업데이트 (로컬 Z축 이동으로 복귀)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value) return; // 유효성 검사
 
   let moved = false;                     // 이동/회전 발생 여부 플래그
-  let moveDirection = new THREE.Vector3(0, 0, 0); // *월드* 이동 방향 벡터 (초기화)
-  let applyRotation = false;                     // 회전 적용 여부
-  let targetRotationY = myAvatar.rotation.y;     // 목표 Y축 회전값 (Lerp용)
-  let rotationAmount = 0;                        // 이번 프레임 키보드 회전량
-  let applyMovement = false;                     // 이동 적용 여부
-  let currentSpeedFactor = 1.0;                  // 속도 계수 (조이스틱 힘)
+  let rotationAmount = 0;                // 이번 프레임 회전량 (키보드)
+  let applyRotation = false;             // 회전 적용 여부
+  let applyMovement = false;             // 이동 적용 여부
+  let moveDirectionZ = 0;                // 로컬 Z축 이동 방향 (-1: 전진, 1: 후진)
+  let currentSpeedFactor = 1.0;          // 속도 계수 (조이스틱 힘)
+  let targetRotationY = myAvatar.rotation.y; // 목표 Y 회전 (조이스틱 Lerp용)
 
   // --- 조이스틱 입력 처리 ---
   if (joystickData.value.active) {
     targetRotationY = -joystickData.value.angle + Math.PI / 2; // 목표 회전값
-    // 조이스틱 각도를 사용하여 월드 이동 방향 벡터 계산
-    moveDirection.x = Math.sin(targetRotationY); // 회전된 X 방향
-    moveDirection.z = Math.cos(targetRotationY); // 회전된 Z 방향
-    currentSpeedFactor = joystickData.value.force; // 속도 계수
-    applyRotation = true; // 조이스틱 움직이면 항상 회전 시도
-    applyMovement = joystickData.value.distance > 10; // 일정 거리 이상 움직여야 이동
+    moveDirectionZ = -1; // 조이스틱은 항상 전방 이동
+    currentSpeedFactor = joystickData.value.force; // 속도 조절
+    applyRotation = true;
+    applyMovement = joystickData.value.distance > 10;
   }
   // --- 키보드 입력 처리 ---
   else {
     // 회전 (A/D 또는 좌/우 화살표)
     if (keysPressed['a'] || keysPressed['arrowleft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['d'] || keysPressed['arrowright']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    // 이동 (W/S 또는 위/아래 화살표) - 아바타 기준 전/후
-    if (keysPressed['w'] || keysPressed['arrowup']) { moveDirection.z = -1; applyMovement = true; } // 전방(-Z) 로컬
-    if (keysPressed['s'] || keysPressed['arrowdown']) { moveDirection.z = 1; applyMovement = true; }  // 후방(+Z) 로컬
+    // 이동 (W/S 또는 위/아래 화살표)
+    if (keysPressed['w'] || keysPressed['arrowup']) { moveDirectionZ = -1; applyMovement = true; } // 전방(-Z) 로컬
+    if (keysPressed['s'] || keysPressed['arrowdown']) { moveDirectionZ = 1; applyMovement = true; }  // 후방(+Z) 로컬
   }
 
   // --- 회전 적용 ---
@@ -435,7 +437,7 @@ const updatePlayerMovement = (deltaTime) => {
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationChange = diff * deltaTime * 8; // 회전 속도 조절 (8)
+        const rotationChange = diff * deltaTime * 8;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
     } else { // 키보드: 즉시 회전 적용
@@ -444,26 +446,11 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
 
-  // --- 이동 적용 ---
+  // --- 이동 적용 (로컬 Z축 기준) ---
   if (applyMovement) {
-    // 최종 이동량 계산
-    const moveAmount = (joystickData.value.active ? moveSpeed * currentSpeedFactor : moveSpeed) * deltaTime;
-    let moveVector;
-
-    if (joystickData.value.active) {
-        // 조이스틱은 이미 계산된 월드 방향 벡터 사용 (정규화 후 스케일 적용)
-        moveVector = moveDirection.normalize().multiplyScalar(moveAmount);
-    } else {
-        // 키보드는 현재 아바타 방향 기준 전/후 이동 (로컬 Z 방향 벡터를 월드로 변환)
-        const localMove = new THREE.Vector3(0, 0, moveDirection.z); // 로컬 Z 방향
-        moveVector = localMove.applyQuaternion(myAvatar.quaternion).multiplyScalar(moveAmount); // 월드 벡터로 변환 및 스케일 적용
-    }
-
-    // 아바타 위치에 이동 벡터 더하기 (월드 좌표)
-    myAvatar.position.add(moveVector);
-
-    // 실제 이동 확인
-    if (moveVector.lengthSq() > 0.00001) moved = true;
+    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
+    myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
+    if (Math.abs(moveAmount) > 0.001) moved = true;
   }
 
   // --- 경계 처리 ---
@@ -475,7 +462,6 @@ const updatePlayerMovement = (deltaTime) => {
   // --- 상태 변경 시 RTDB 업데이트 (Throttled) ---
   if (moved) { throttledUpdate(); } // 이동 또는 회전 시 업데이트 요청
 };
-
 
 // --- 다른 플레이어 부드러운 이동 처리 ---
 const updateOtherPlayersMovement = (deltaTime) => {
@@ -507,28 +493,26 @@ const animate = () => {
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-  // [수정] 카메라 추적 로직: 아바타 월드 위치 기준 + Lerp 속도 조절
+  // [수정] 카메라 추적 로직: 아바타 월드 위치 기준 + Lerp 제거 (직접 설정)
   if (myAvatar) {
-      const desiredOffset = new THREE.Vector3(0, 2.5, 4.0); // 카메라 오프셋 (높이 2.5, 거리 4.0) 약간 조정
+      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 카메라 오프셋 (높이 3.0, 거리 5.0)
 
       // 1. 목표 카메라 위치 계산 (월드 좌표)
       //    아바타의 현재 월드 위치에 고정된 월드 오프셋을 더함
+      //    오프셋을 아바타 회전에 따라 변환하지 않아 항상 같은 방향에서 따라감
       const targetPosition = myAvatar.position.clone().add(desiredOffset);
 
-      // 2. 부드럽게 카메라 위치 이동 (Lerp)
-      //    Lerp 알파 값을 낮춰서 카메라가 약간 느리게 따라가도록 시도
-      camera.position.lerp(targetPosition, deltaTime * 2.0); // 따라가는 속도 감소 (5.0 -> 2.0)
+      // 2. 카메라 위치를 목표 위치로 즉시 설정 (Lerp 제거)
+      camera.position.copy(targetPosition);
 
       // 3. 카메라가 아바타의 상반신(가슴 높이)을 바라보도록 설정
       const lookAtPosition = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // Y=1.0
       camera.lookAt(lookAtPosition);
-
-      // --- 디버깅 로그 (아바타와 카메라의 월드 좌표 출력) ---
-      console.log(`Avatar Pos: ${myAvatar.position.x.toFixed(2)}, ${myAvatar.position.z.toFixed(2)} | Cam Pos: ${camera.position.x.toFixed(2)}, ${camera.position.z.toFixed(2)}`);
   }
 
   renderer.render(scene, camera); // 렌더링
 };
+
 
 // --- 창 크기 조절 처리 ---
 const handleResize = () => {
@@ -574,7 +558,17 @@ onMounted(async () => {
           myAvatar.add(myNickname); // 아바타 자식으로 추가
       }
       // 초기 카메라는 animate 루프에서 위치 잡음
-  } catch (error) { /* 에러 처리 (기본 큐브 추가) */ }
+  } catch (error) { /* 에러 처리 (기본 큐브 추가) */
+        console.error("내 아바타 로드 중 에러 발생:", error);
+        loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
+        if (myAvatar) { // 기본 큐브라도 로드되었다면 씬에 추가
+            scene.add(myAvatar);
+        } else { // 만약 기본 큐브 로드조차 실패했다면
+            console.error("기본 아바타 로드 실패.");
+            isLoading.value = false;
+            return;
+        }
+   }
 
    // 5. 조이스틱 초기화 (nextTick 사용)
   await nextTick(); // DOM 요소가 렌더링될 때까지 기다림
