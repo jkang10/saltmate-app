@@ -36,6 +36,7 @@ import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved,
   set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
 } from 'firebase/database';
+// eslint-disable-next-line no-unused-vars
 import nipplejs from 'nipplejs';
 
 // --- 상태 변수 ---
