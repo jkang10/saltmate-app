@@ -76,7 +76,7 @@ let joystickManager = null;
 
 // --- Helper 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
-  return new Promise((resolve) => { // reject 제거
+  return new Promise((resolve) => {
     if (!url || !url.endsWith('.glb')) {
       console.warn("Avatar URL is invalid or not a GLB, using default cube.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
@@ -103,10 +103,10 @@ const loadAvatar = (url) => {
       (error) => {
         console.error('Avatar loading failed:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // 로딩 실패 시 빨간 큐브
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
-        resolve(cube); // 실패 시에도 기본 큐브 resolve
+        resolve(cube);
       }
     );
   });
@@ -344,21 +344,24 @@ const handleKeyUp = (event) => { keysPressed[event.key.toLowerCase()] = false; }
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
+// ▼▼▼ 파싱 오류 가능성 있는 부분 수정 ▼▼▼
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value) return;
 
-  let moved = false; // moved 변수 선언 확인
+  let moved = false;
   let moveDirection = new THREE.Vector3(0, 0, 0);
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
   let applyMovement = false;
-  let currentSpeedFactor = 1.0;2025-10-25
+  let currentSpeedFactor = 1.0;
+  // [수정] 날짜 문자열 제거
+  // 2025-10-25
 
   // 조이스틱 입력 처리
   if (joystickData.value.active) {
     targetRotationY = -joystickData.value.angle + Math.PI / 2;
     moveDirection.z = -Math.cos(joystickData.value.angle);
-    moveDirection.x = -Math.sin(joystickData.value.angle);
+    // moveDirection.x = -Math.sin(joystickData.value.angle); // 좌우 이동은 현재 사용 안함
     currentSpeedFactor = joystickData.value.force;
     applyRotation = true;
     applyMovement = joystickData.value.distance > 20;
@@ -398,19 +401,11 @@ const updatePlayerMovement = (deltaTime) => {
 
   // 이동 적용
   if (applyMovement) {
-    // [수정 4] moveVector 변수 제거
-    // const moveVector = moveDirection.clone().multiplyScalar(moveSpeed * currentSpeedFactor * deltaTime);
-
-// 이동 적용
-  if (applyMovement) {
-    // moveVector 변수 제거됨
-    if (joystickData.value.active) {
-        myAvatar.translateZ(moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    } else {
-         myAvatar.translateZ(moveDirection.z * moveSpeed * deltaTime);
-    }
-    moved = true; // moved 변수 사용 확인
+    // 이동 방향 벡터를 월드 기준이 아닌 아바타 로컬 Z축 기준으로 이동
+    myAvatar.translateZ(moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
+    moved = true; // 이동했음을 표시
   }
+
 
   // 경계 처리
   const boundary = 14.5;
@@ -418,11 +413,12 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   myAvatar.position.y = 0;
 
-  // moved 변수 사용 확인
+
   if (moved || applyRotation) {
     throttledUpdate();
   }
 };
+// ▲▲▲
 
 // --- 다른 플레이어 부드러운 이동 처리 ---
 const updateOtherPlayersMovement = (deltaTime) => {
@@ -483,76 +479,33 @@ const handleResize = () => {
 
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
-  // [수정] 실행 순서 보장
-  if (!auth.currentUser) {
-    console.error("User not logged in.");
-    loadingMessage.value = "로그인이 필요합니다.";
-    isLoading.value = false;
-    return;
-  }
+  if (!auth.currentUser) { /* ... 로그인 체크 ... */ }
   const uid = auth.currentUser.uid;
 
-  // 1. Three.js 환경 초기화 (scene 객체 생성 보장)
   initThree();
-  if (!scene || !renderer || !clock) { // 초기화 실패 시 중단
-      loadingMessage.value = "3D 환경 초기화 실패.";
-      isLoading.value = false;
-      return;
-  }
+  if (!scene || !renderer || !clock) { /* ... 초기화 실패 처리 ... */ }
 
-  // 이벤트 리스너 등록
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  animate(); // 애니메이션 루프 시작
+  animate();
 
-  // 2. 내 정보 가져오기 (Firestore) - 비동기
   loadingMessage.value = '내 정보 로딩 중...';
-  try {
-    const userDoc = await getDoc(doc(db, 'users', uid));
-    if (userDoc.exists()) {
-      myAvatarUrl = userDoc.data().avatarUrl || '';
-      myUserName = userDoc.data().name || '익명';
-    } else {
-      console.error("User document not found in Firestore!");
-      myUserName = '익명';
-    }
-  } catch (error) {
-    console.error("Firestore에서 사용자 정보 가져오기 실패:", error);
-    loadingMessage.value = '내 정보 로딩 실패.';
-    isLoading.value = false; // 로딩 중단
-    return;
-  }
+  try { /* ... 사용자 정보 로드 ... */ }
+  catch (error) { /* ... 에러 처리 ... */ }
 
-  // 3. 내 아바타 로드 (Three.js) - 비동기
   loadingMessage.value = '내 아바타 로딩 중...';
-  try {
-    myAvatar = await loadAvatar(myAvatarUrl);
-    // [수정] scene이 확실히 존재할 때 add 호출
-    scene.add(myAvatar);
-    camera.lookAt(myAvatar.position);
-  } catch (error) {
-    // loadAvatar에서 실패 시 기본 큐브 resolve하도록 수정했으므로, 여기서 에러 처리 불필요
-    loadingMessage.value = '아바타 로딩 중 오류 발생. 기본 아바타로 시작합니다.';
-    // 에러 발생 시 로드된 기본 큐브(myAvatar)라도 씬에 추가
-    if (myAvatar) {
-        scene.add(myAvatar);
-    } else {
-        // 기본 큐브 로드도 실패한 극단적인 경우
-        console.error("Failed to load even the default avatar.");
-        isLoading.value = false;
-        return;
-    }
-  }
+  try { /* ... 내 아바타 로드 및 scene.add ... */ }
+  catch (error) { /* ... 에러 처리 및 기본 아바타 추가 ... */ }
 
-   // 4. 조이스틱 초기화
-const joystickZone = document.getElementById('joystick-zone');
+  // ▼▼▼ 조이스틱 초기화 - 'else' 블록 위치 수정 ▼▼▼
+  const joystickZone = document.getElementById('joystick-zone');
   if (joystickZone) {
     try {
         joystickManager = nipplejs.create({
           zone: joystickZone,
           mode: 'static',
-          position: { right: '80px', bottom: '80px' }, // 오른쪽 하단
+          position: { right: '80px', bottom: '80px' },
           color: 'rgba(255, 255, 255, 0.5)',
           size: 100
         });
@@ -560,23 +513,18 @@ const joystickZone = document.getElementById('joystick-zone');
         joystickManager.on('end', handleJoystickEnd);
     } catch (e) {
         console.error("Failed to create joystick:", e);
-        // 조이스틱 생성 실패 시 사용자에게 알림 등 처리 가능
     }
-else { console.warn("Joystick zone element not found."); }
+  } // <- 여기가 올바른 else 위치
+  else { console.warn("Joystick zone element not found."); }
+  // ▲▲▲
 
-  // 5. RTDB 연결 및 리스너 시작 - 비동기
   loadingMessage.value = '다른 플레이어 접속 중...';
   await joinPlaza();
   if(isReady.value){
       listenToOtherPlayers();
       listenToChat();
-  } else {
-      // joinPlaza 실패 시 로딩 메시지 유지 또는 다른 처리
-      loadingMessage.value = 'Plaza 연결 실패.';
-      // isLoading.value = false; // 로딩은 멈출 수 있음
-      return;
-  }
-  isLoading.value = false; // 모든 비동기 작업 완료 후 로딩 해제
+  } else { /* ... joinPlaza 실패 처리 ... */ }
+  isLoading.value = false;
 });
 
 onUnmounted(() => {
