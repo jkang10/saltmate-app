@@ -173,7 +173,7 @@ const createNicknameSprite = (text) => {
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
 
   // 아바타 머리 위 위치 설정 (Y축 오프셋, 아바타 모델 크기에 따라 조절 필요)
-  sprite.position.y = 1.6; // 예: 아바타 Y 크기가 약 1.7 정도일 때 적절한 높이
+  sprite.position.y = 2.3; // 예: 아바타 Y 크기가 약 1.7 정도일 때 적절한 높이
 
   return sprite; // 생성된 스프라이트 반환
 };
@@ -268,6 +268,9 @@ const listenToOtherPlayers = () => {
           avatarMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
           avatarMesh.rotation.y = playerData.rotationY;
 
+	  // [★디버깅 로그 1] 입장 시 위치 값을 확인합니다.
+          console.log(`[onChildAdded: ${playerData.userName}] DB좌표:`, playerData.position, `적용된 좌표:`, avatarMesh.position);
+
           // [닉네임] 닉네임 스프라이트 생성 및 추가
           if (playerData.userName) {
               const otherNickname = createNicknameSprite(playerData.userName);
@@ -301,6 +304,9 @@ const listenToOtherPlayers = () => {
     // 목표 상태 업데이트 (애니메이션 루프에서 보간 처리)
     player.targetPosition.set(playerData.position.x, playerData.position.y, playerData.position.z);
     player.targetRotationY = playerData.rotationY;
+
+// [★디버깅 로그 2] 이동 시 수신된 좌표를 확인합니다.
+    console.log(`[onChildChanged: ${playerData.userName}] 새 DB좌표:`, playerData.position, `타겟 좌표:`, player.targetPosition);
   });
 
   // 플레이어 퇴장 감지 (onChildRemoved)
