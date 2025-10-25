@@ -250,7 +250,7 @@ const listenToOtherPlayers = () => {
       const avatarMesh = await loadAvatar(playerData.avatarUrl); // 아바타 모델 로드
       console.log(`${playerData.userName || userId} 아바타 로드 완료`); // 로드 완료 로그 추가
 
-      if (scene) { // 씬이 존재하는지 확인
+      if (scene) { // 씬이 존재하는지 확인 (컴포넌트 unmount 대비)
           scene.add(avatarMesh); // 씬에 아바타 추가
           // 초기 위치 및 회전 설정
           avatarMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
@@ -567,7 +567,7 @@ onMounted(async () => {
       // 초기 카메라는 animate 루프에서 위치 잡음
   } catch (error) { /* 에러 처리 (기본 큐브 추가) */ }
 
-   // [수정] 조이스틱 초기화 (nextTick 사용)
+   // 5. 조이스틱 초기화 (nextTick 사용)
   await nextTick(); // DOM 요소가 렌더링될 때까지 기다림
   const joystickZone = document.getElementById('joystick-zone');
   if (joystickZone) {
