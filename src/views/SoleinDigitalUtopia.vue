@@ -221,8 +221,8 @@ const updateMyStateInRTDB = () => {
     timestamp: serverTimestamp(),
   };
 
-  // [★수정] set 대신 update를 사용하여 newState 객체만 전송합니다.
-update(playerRef, newState) // <--- set을 update로 변경
+// [★수정] set 대신 update를 사용하여 newState 객체만 전송합니다.
+  update(playerRef, newState) // <--- set을 update로 변경
     .catch((error) => {
       // 이 에러가 콘솔을 도배하는 것을 막기 위해 isReady를 false로 변경합니다.
       if (isReady.value) {
