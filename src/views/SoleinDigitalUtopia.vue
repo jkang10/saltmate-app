@@ -251,42 +251,54 @@ const listenToOtherPlayers = () => {
   const currentUid = auth.currentUser.uid; // 내 UID
 
   // 새 플레이어 입장 감지 (onChildAdded)
-  onChildAdded(playersListenerRef, async (snapshot) => {
+onChildAdded(playersListenerRef, async (snapshot) => {
     const userId = snapshot.key; // 입장한 플레이어의 UID
     if (userId === currentUid || otherPlayers[userId]) return; // 본인이거나 이미 목록에 있으면 무시
 
     const playerData = snapshot.val(); // 입장한 플레이어 데이터
     console.log(`플레이어 입장 감지: ${playerData.userName || userId}`); // 입장 감지 로그 추가
 
-    try {
-      const avatarMesh = await loadAvatar(playerData.avatarUrl); // 아바타 모델 로드
-      console.log(`${playerData.userName || userId} 아바타 로드 완료`); // 로드 완료 로그 추가
+    // [★RACE CONDITION FIX]
+    // 1. 플레이어 객체를 *즉시* 생성합니다 (mesh는 null로).
+    otherPlayers[userId] = {
+      mesh: null, // 메쉬는 아직 로드 중
+      targetPosition: new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z), // DB에서 직접 초기화
+      targetRotationY: playerData.rotationY,
+      userName: playerData.userName || '익명' // (닉네임도 미리 저장)
+    };
 
-      if (scene) { // 씬이 존재하는지 확인 (컴포넌트 unmount 대비)
-          scene.add(avatarMesh); // 씬에 아바타 추가
+    try {
+      // 2. 아바타를 비동기로 로드합니다.
+      const avatarMesh = await loadAvatar(playerData.avatarUrl); // 아바타 모델 로드
+      console.log(`${playerData.userName || userId} 아바타 로드 완료`);
+
+      // 3. 로드 완료 시 씬에 추가하고 메쉬를 할당합니다.
+      if (scene && otherPlayers[userId]) { // 씬이 존재하고, 그 사이에 퇴장하지 않았다면
           // 초기 위치 및 회전 설정
           avatarMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
           avatarMesh.rotation.y = playerData.rotationY;
 
           // [닉네임] 닉네임 스프라이트 생성 및 추가
-          if (playerData.userName) {
-              const otherNickname = createNicknameSprite(playerData.userName);
+          if (otherPlayers[userId].userName !== '익명') {
+              const otherNickname = createNicknameSprite(otherPlayers[userId].userName);
               avatarMesh.add(otherNickname); // 아바타의 자식으로 추가
-              console.log(`${playerData.userName || userId} 닉네임 추가 완료`); // 닉네임 추가 로그
+              console.log(`${playerData.userName || userId} 닉네임 추가 완료`);
           }
 
-          // otherPlayers 객체에 플레이어 정보 저장
-	    otherPlayers[userId] = {
-            mesh: avatarMesh, // [★수정] markRaw 제거
-            targetPosition: new THREE.Vector3().copy(avatarMesh.position), // [★수정] markRaw 제거
-            targetRotationY: avatarMesh.rotation.y, 
-          };
+          scene.add(avatarMesh); // 씬에 아바타 추가
+          
+          // 4. 로드된 메쉬를 객체에 할당합니다.
+          otherPlayers[userId].mesh = avatarMesh; 
+          
           console.log(`${playerData.userName || userId} 씬에 추가 완료`);
       } else {
-          console.warn(`씬이 존재하지 않아 ${userId}를 추가할 수 없습니다.`);
+          // 씬이 없거나, 로드 중에 플레이어가 나가버린 경우
+          console.warn(`${userId} 씬에 추가 실패 (씬이 없거나 이미 퇴장함)`);
+          if (otherPlayers[userId]) { delete otherPlayers[userId]; } // 필요없는 객체 정리
       }
     } catch (error) {
       console.error(`${userId} 플레이어 처리 중 오류 발생:`, error);
+      if (otherPlayers[userId]) { delete otherPlayers[userId]; } // 실패 시 객체 정리
     }
   });
 
@@ -487,7 +499,11 @@ const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 8; // 보간 속도
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
-    const mesh = player.mesh;
+
+    // [★RACE CONDITION FIX] 메쉬가 아직 로드되지 않았다면(null) 건너뜁니다.
+    if (!player.mesh) continue;
+
+    const mesh = player.mesh; // 이제 mesh는 null이 아님
 
     // 위치 보간
     mesh.position.lerp(player.targetPosition, lerpFactor);
