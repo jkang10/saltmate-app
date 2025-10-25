@@ -76,8 +76,7 @@ let joystickManager = null;
 
 // --- Helper 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
-  // [수정 1] reject 매개변수 제거
-  return new Promise((resolve) => {
+  return new Promise((resolve) => { // reject 제거
     if (!url || !url.endsWith('.glb')) {
       console.warn("Avatar URL is invalid or not a GLB, using default cube.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
@@ -104,10 +103,10 @@ const loadAvatar = (url) => {
       (error) => {
         console.error('Avatar loading failed:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // 로딩 실패 시 빨간 큐브
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
-        resolve(cube);
+        resolve(cube); // 실패 시에도 기본 큐브 resolve
       }
     );
   });
@@ -286,7 +285,55 @@ const listenToChat = () => {
 
 
 // --- Three.js 초기화 함수 ---
-const initThree = () => { /* ... 이전 코드와 동일 ... */ };
+const initThree = () => {
+  scene = new THREE.Scene(); // scene 초기화 확인
+  scene.background = new THREE.Color(0xade6ff);
+  scene.fog = new THREE.Fog(0xade6ff, 10, 30);
+
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 1.6, 4);
+
+  // canvasRef.value가 확실히 존재할 때 renderer 생성
+  if (canvasRef.value) {
+      renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  } else {
+      console.error("Canvas element not found for renderer initialization!");
+      return; // 렌더러 생성 실패 시 중단
+  }
+
+  // 조명
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5, 15, 10);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 50;
+  dirLight.shadow.camera.left = -15;
+  dirLight.shadow.camera.right = 15;
+  dirLight.shadow.camera.top = 15;
+  dirLight.shadow.camera.bottom = -15;
+  scene.add(dirLight);
+  const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5);
+  scene.add(hemiLight);
+
+  // 바닥
+  const groundGeometry = new THREE.PlaneGeometry(30, 30);
+  const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc);
+  scene.add(gridHelper);
+
+  clock = new THREE.Clock(); // clock 초기화 확인
+};
 
 // --- 플레이어 이동 로직 ---
 const handleKeyDown = (event) => {
@@ -300,13 +347,12 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value) return;
 
-  // [수정 5] moved 변수 선언 추가
-  let moved = false;
+  let moved = false; // moved 변수 선언 확인
   let moveDirection = new THREE.Vector3(0, 0, 0);
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
   let applyMovement = false;
-  let currentSpeedFactor = 1.0;
+  let currentSpeedFactor = 1.0;2025-10-25
 
   // 조이스틱 입력 처리
   if (joystickData.value.active) {
@@ -355,16 +401,16 @@ const updatePlayerMovement = (deltaTime) => {
     // [수정 4] moveVector 변수 제거
     // const moveVector = moveDirection.clone().multiplyScalar(moveSpeed * currentSpeedFactor * deltaTime);
 
+// 이동 적용
+  if (applyMovement) {
+    // moveVector 변수 제거됨
     if (joystickData.value.active) {
         myAvatar.translateZ(moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
     } else {
          myAvatar.translateZ(moveDirection.z * moveSpeed * deltaTime);
     }
-
-    // [수정 5] moved 변수 사용 확인
-    moved = true; // 이동했음을 표시
+    moved = true; // moved 변수 사용 확인
   }
-
 
   // 경계 처리
   const boundary = 14.5;
@@ -372,7 +418,7 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   myAvatar.position.y = 0;
 
-  // [수정 5] moved 변수 사용 확인
+  // moved 변수 사용 확인
   if (moved || applyRotation) {
     throttledUpdate();
   }
@@ -407,13 +453,22 @@ const updateOtherPlayersMovement = (deltaTime) => {
 
 // --- 애니메이션 루프 ---
 const animate = () => {
-  if (!renderer) return; // 컴포넌트 unmount 시 중단
+  // renderer가 unmounted 시 null이 될 수 있으므로 체크
+  if (!renderer || !scene || !camera || !clock) return;
   requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta();
 
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
+
+  // 카메라가 내 아바타를 따라다니도록 (간단한 버전)
+  if (myAvatar) {
+      const offset = new THREE.Vector3(0, 2, 4); // 아바타 뒤쪽 상단 오프셋
+      offset.applyQuaternion(myAvatar.quaternion); // 아바타 회전에 따라 오프셋 방향 변경
+      camera.position.lerp(myAvatar.position.clone().add(offset), deltaTime * 2.0); // 부드럽게 따라감
+      camera.lookAt(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0))); // 아바타 약간 위쪽 바라봄
+  }
 
   renderer.render(scene, camera);
 };
@@ -428,23 +483,30 @@ const handleResize = () => {
 
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
+  // [수정] 실행 순서 보장
   if (!auth.currentUser) {
     console.error("User not logged in.");
     loadingMessage.value = "로그인이 필요합니다.";
-    isLoading.value = false; // 로딩 중단
-    // 여기에 로그인 페이지로 리다이렉트하는 로직 추가 가능
+    isLoading.value = false;
     return;
   }
   const uid = auth.currentUser.uid;
 
-  // 1. Three.js 초기화
+  // 1. Three.js 환경 초기화 (scene 객체 생성 보장)
   initThree();
+  if (!scene || !renderer || !clock) { // 초기화 실패 시 중단
+      loadingMessage.value = "3D 환경 초기화 실패.";
+      isLoading.value = false;
+      return;
+  }
+
+  // 이벤트 리스너 등록
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
   animate(); // 애니메이션 루프 시작
 
-  // 2. 내 정보 가져오기 (Firestore)
+  // 2. 내 정보 가져오기 (Firestore) - 비동기
   loadingMessage.value = '내 정보 로딩 중...';
   try {
     const userDoc = await getDoc(doc(db, 'users', uid));
@@ -453,35 +515,38 @@ onMounted(async () => {
       myUserName = userDoc.data().name || '익명';
     } else {
       console.error("User document not found in Firestore!");
-      myUserName = '익명'; // 이름이라도 기본값 설정
-      // 에러 처리...
+      myUserName = '익명';
     }
   } catch (error) {
     console.error("Firestore에서 사용자 정보 가져오기 실패:", error);
     loadingMessage.value = '내 정보 로딩 실패.';
-    // isLoading.value = false; // 에러 발생 시 로딩 중단 고려
+    isLoading.value = false; // 로딩 중단
     return;
   }
 
-  // 3. 내 아바타 로드 (Three.js)
+  // 3. 내 아바타 로드 (Three.js) - 비동기
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
     myAvatar = await loadAvatar(myAvatarUrl);
+    // [수정] scene이 확실히 존재할 때 add 호출
     scene.add(myAvatar);
-    // 카메라가 아바타 뒤를 따라다니도록 설정 (간단 버전)
-    camera.lookAt(myAvatar.position); // 초기 시점
+    camera.lookAt(myAvatar.position);
   } catch (error) {
-    // loadAvatar 내부에서 이미 에러 처리 및 기본 큐브 반환
+    // loadAvatar에서 실패 시 기본 큐브 resolve하도록 수정했으므로, 여기서 에러 처리 불필요
     loadingMessage.value = '아바타 로딩 중 오류 발생. 기본 아바타로 시작합니다.';
-    if (!myAvatar) { // 기본 큐브 로드도 실패한 경우
-        isLoading.value = false; // 로딩 중단
+    // 에러 발생 시 로드된 기본 큐브(myAvatar)라도 씬에 추가
+    if (myAvatar) {
+        scene.add(myAvatar);
+    } else {
+        // 기본 큐브 로드도 실패한 극단적인 경우
+        console.error("Failed to load even the default avatar.");
+        isLoading.value = false;
         return;
     }
-     scene.add(myAvatar); // 기본 큐브라도 추가
   }
 
    // 4. 조이스틱 초기화
-  const joystickZone = document.getElementById('joystick-zone');
+const joystickZone = document.getElementById('joystick-zone');
   if (joystickZone) {
     try {
         joystickManager = nipplejs.create({
@@ -497,18 +562,21 @@ onMounted(async () => {
         console.error("Failed to create joystick:", e);
         // 조이스틱 생성 실패 시 사용자에게 알림 등 처리 가능
     }
-  } else {
-    console.warn("Joystick zone element not found.");
-  }
+else { console.warn("Joystick zone element not found."); }
 
-  // 5. RTDB 연결 및 다른 플레이어/채팅 리스닝 시작
+  // 5. RTDB 연결 및 리스너 시작 - 비동기
   loadingMessage.value = '다른 플레이어 접속 중...';
-  await joinPlaza(); // isReady는 이 함수 내부에서 true로 설정됨
-  if(isReady.value){ // joinPlaza 성공 시에만 리스너 시작
+  await joinPlaza();
+  if(isReady.value){
       listenToOtherPlayers();
       listenToChat();
+  } else {
+      // joinPlaza 실패 시 로딩 메시지 유지 또는 다른 처리
+      loadingMessage.value = 'Plaza 연결 실패.';
+      // isLoading.value = false; // 로딩은 멈출 수 있음
+      return;
   }
-  isLoading.value = false; // 모든 로딩 완료 (또는 joinPlaza 실패 시 이미 true)
+  isLoading.value = false; // 모든 비동기 작업 완료 후 로딩 해제
 });
 
 onUnmounted(() => {
