@@ -95,17 +95,45 @@ const loadAvatar = (url) => {
     // GLTFLoader를 사용하여 모델 로드
     loader.load(url,
       (gltf) => { // 로드 성공 시 콜백
-        const model = gltf.scene.clone(); // 참조 문제를 피하기 위해 로드된 씬 복제
-        model.scale.set(0.7, 0.7, 0.7); // 모델 크기 조절
-        model.position.y = 0; // 모델을 바닥에 맞춤 (Y=0)
-        // 모델 내부의 모든 메시에 그림자 설정 적용
-        model.traverse((child) => {
+        // const model = gltf.scene.clone(); // [★수정] 이 라인을 바로 사용하지 않습니다.
+
+        // --- ▼▼▼ 피벗 보정 로직 (핵심 수정) ▼▼▼ ---
+
+        // 1. 로드된 씬(모델 내용물)을 가져옵니다.
+        const gltfScene = gltf.scene.clone(); 
+        
+        // 2. 씬의 경계 상자(Bounding Box)를 계산합니다.
+        const box = new THREE.Box3().setFromObject(gltfScene);
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // 3. 씬(내용물)의 위치를 조정하여 피벗을 (X,Z 중앙), (Y 바닥)으로 맞춥니다.
+        gltfScene.position.x -= center.x;
+        gltfScene.position.y -= box.min.y; // Y축은 바닥(min.y)에 맞춥니다.
+        gltfScene.position.z -= center.z;
+
+        // 4. 이 씬(내용물)을 감쌀 깨끗한 '컨테이너 그룹'을 생성합니다.
+        //    이 'model' 객체가 'myAvatar'가 되며, 실제 이동/회전이 적용될 객체입니다.
+        const model = new THREE.Group();
+        
+        // 5. 위치가 보정된 씬(내용물)을 컨테이너의 자식으로 추가합니다.
+        model.add(gltfScene);
+        
+        // --- ▲▲▲ 피벗 보정 로직 (수정 완료) ▲▲▲ ---
+
+
+        model.scale.set(0.7, 0.7, 0.7); // 크기 조절 (컨테이너에 적용)
+        model.position.y = 0; // 컨테이너의 Y 위치 (바닥)
+        
+        // [★수정] 그림자 설정은 'model'(컨테이너)이 아닌 
+        // 'gltfScene'(내용물)을 순회해야 합니다.
+        gltfScene.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true; // 그림자를 생성하도록 설정
             child.receiveShadow = false; // 그림자를 받지는 않도록 설정 (바닥만 받음)
           }
         });
-        resolve(model); // 복제된 모델 객체로 Promise 완료
+        
+        resolve(model); // '컨테이너' 그룹을 반환
       },
       undefined, // 진행 상태 콜백 (현재 사용 안 함)
       (error) => { // 로드 실패 시 콜백
