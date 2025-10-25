@@ -33,7 +33,7 @@ import { auth, db, rtdb } from '@/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved,
-  set, onDisconnect, push, serverTimestamp, off, query, limitToLast, startAt
+  set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
 } from 'firebase/database';
 
 // --- 상태 변수 ---
