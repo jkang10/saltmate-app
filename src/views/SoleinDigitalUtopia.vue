@@ -60,6 +60,7 @@ const MAX_CHAT_MESSAGES = 50; // 화면에 표시할 최대 메시지 수
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock; // Three.js 핵심 컴포넌트 변수
+let cameraLookAtTarget = new THREE.Vector3(0, 1.0, 0); // [★추가] 카메라가 부드럽게 바라볼 지점
 const loader = new GLTFLoader(); // GLB 모델 로더 인스턴스
 
 // --- Firebase RTDB 경로 ---
@@ -493,28 +494,33 @@ const animate = () => {
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-// [수정] 카메라 추적 로직: 아바타의 회전을 따라가는 3인칭 카메라로 변경
+// [수정] 카메라 추적 로직: 아바타를 '부드럽게(Lerp)' 따라가는 3인칭 카메라로 변경
   if (myAvatar) {
-      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 카메라 오프셋 (높이 3.0, 뒤로 5.0)
-
-      // 1. 오프셋 벡터(desiredOffset)에 아바타의 현재 Y축 회전(Quaternion)을 적용합니다.
-      //    이렇게 하면 오프셋이 아바타의 등 뒤 방향으로 회전됩니다.
-      const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
+      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 오프셋 (높이 3.0, 뒤로 5.0)
       
-      // 2. 아바타의 현재 위치에 '회전된 오프셋'을 더하여 카메라의 목표 위치를 계산합니다.
+      // 이 값이 클수록 카메라가 더 빠릿하게(딱딱하게) 따라오고, 작을수록 굼뜨게(부드럽게) 따라옵니다. (4.0 ~ 8.0 추천)
+      const lerpFactor = deltaTime * 5.0; 
+
+      // 1. 아바타의 회전을 적용하여 '이상적인' 카메라 위치(targetPosition) 계산
+      const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
       const targetPosition = myAvatar.position.clone().add(cameraOffset);
 
-      // 3. 카메라 위치를 목표 위치로 즉시 설정
-      camera.position.copy(targetPosition);
+      // 2. 카메라의 현재 위치에서 '이상적인' 위치로 부드럽게 이동 (Lerp)
+      //    camera.position.copy(targetPosition); // <--- '즉시' 복사 대신 lerp 사용
+      camera.position.lerp(targetPosition, lerpFactor);
 
-      // 4. 카메라가 아바타의 상반신(가슴 높이)을 바라보도록 설정
-      const lookAtPosition = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // Y=1.0
-      camera.lookAt(lookAtPosition);
+      // 3. 카메라가 바라볼 '이상적인' 지점 계산 (아바타 상반신)
+      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+      
+      // 4. (1단계에서 추가한) 전역 변수 'cameraLookAtTarget'을 '이상적인' 지점으로 부드럽게 이동 (Lerp)
+      cameraLookAtTarget.lerp(targetLookAt, lerpFactor);
+
+      // 5. 부드럽게 이동된 지점을 카메라가 바라보도록 설정
+      camera.lookAt(cameraLookAtTarget);
   }
 
   renderer.render(scene, camera); // 렌더링
 };
-
 
 // --- 창 크기 조절 처리 ---
 const handleResize = () => {
