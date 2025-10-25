@@ -410,9 +410,6 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트 (로컬 Z축 이동으로 복귀)
 const updatePlayerMovement = (deltaTime) => {
-  // [★디버깅 로그 추가] 현재 상태와 W 키 입력 상태를 확인합니다.
-  console.log(`Movement Check: isReady=${isReady.value}, key W=${!!keysPressed['w']}`);
-
   if (!myAvatar || !isReady.value) return; // 유효성 검사
 
   let moved = false;                     // 이동/회전 발생 여부 플래그
