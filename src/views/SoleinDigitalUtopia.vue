@@ -493,19 +493,21 @@ const animate = () => {
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-  // [수정] 카메라 추적 로직: 아바타 월드 위치 기준 + Lerp 제거 (직접 설정)
+// [수정] 카메라 추적 로직: 아바타의 회전을 따라가는 3인칭 카메라로 변경
   if (myAvatar) {
-      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 카메라 오프셋 (높이 3.0, 거리 5.0)
+      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 카메라 오프셋 (높이 3.0, 뒤로 5.0)
 
-      // 1. 목표 카메라 위치 계산 (월드 좌표)
-      //    아바타의 현재 월드 위치에 고정된 월드 오프셋을 더함
-      //    오프셋을 아바타 회전에 따라 변환하지 않아 항상 같은 방향에서 따라감
-      const targetPosition = myAvatar.position.clone().add(desiredOffset);
+      // 1. 오프셋 벡터(desiredOffset)에 아바타의 현재 Y축 회전(Quaternion)을 적용합니다.
+      //    이렇게 하면 오프셋이 아바타의 등 뒤 방향으로 회전됩니다.
+      const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
+      
+      // 2. 아바타의 현재 위치에 '회전된 오프셋'을 더하여 카메라의 목표 위치를 계산합니다.
+      const targetPosition = myAvatar.position.clone().add(cameraOffset);
 
-      // 2. 카메라 위치를 목표 위치로 즉시 설정 (Lerp 제거)
+      // 3. 카메라 위치를 목표 위치로 즉시 설정
       camera.position.copy(targetPosition);
 
-      // 3. 카메라가 아바타의 상반신(가슴 높이)을 바라보도록 설정
+      // 4. 카메라가 아바타의 상반신(가슴 높이)을 바라보도록 설정
       const lookAtPosition = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // Y=1.0
       camera.lookAt(lookAtPosition);
   }
