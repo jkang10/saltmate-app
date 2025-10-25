@@ -494,8 +494,14 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const player = otherPlayers[userId];
     const mesh = player.mesh;
 
+// [★디버깅 로그 3] Lerp 실행 '전' 위치와 '목표' 위치를 확인합니다.
+    console.log(`[Lerp Check: ${userId}] BEFORE:`, mesh.position, `TARGET:`, player.targetPosition);
+
     // 위치 보간
     mesh.position.lerp(player.targetPosition, lerpFactor);
+
+// [★디버깅 로그 4] Lerp 실행 '후' 실제 위치를 확인합니다.
+    console.log(`[Lerp Check: ${userId}] AFTER:`, mesh.position);
 
     // 회전 보간 (Y축, 최단 각도)
     let currentY = mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
