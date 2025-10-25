@@ -3,29 +3,39 @@
     <canvas ref="canvasRef" class="main-canvas"></canvas>
 
     <div v-if="isLoading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>{{ loadingMessage }}</p>
       </div>
 
     <div id="joystick-zone" class="joystick-zone"></div>
+
     <div class="chat-ui">
-     </div>
-  </div>
+      <div class="message-list" ref="messageListRef">
+        <div v-for="msg in chatMessages" :key="msg.id" class="chat-message">
+          <strong>{{ msg.userName }}:</strong> {{ msg.message }}
+        </div>
+      </div>
+      <input
+        type="text"
+        v-model="chatInput"
+        @keyup.enter="sendMessage" placeholder="메시지 입력..."
+        :disabled="!isReady"
+      />
+    </div>
+    </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// [수정] OrbitControls 제거 또는 주석 처리 (조이스틱과 충돌 방지)
-// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { auth, db, rtdb } from '@/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved,
   set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
 } from 'firebase/database';
-// ▼▼▼ nipplejs import 추가 ▼▼▼
 import nipplejs from 'nipplejs';
-// ▲▲▲
 
 // --- 상태 변수 ---
 const canvasRef = ref(null);
@@ -46,8 +56,7 @@ const messageListRef = ref(null);
 const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
-// [수정] controls 변수 제거 또는 주석 처리
-let scene, camera, renderer, /* controls, */ clock;
+let scene, camera, renderer, clock; // controls 제거됨
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -61,10 +70,8 @@ let chatListenerRef = null;
 const moveSpeed = 1.5;
 const rotateSpeed = Math.PI / 2;
 const keysPressed = {};
-// ▼▼▼ 조이스틱 상태 저장을 위한 ref 추가 ▼▼▼
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
-let joystickManager = null; // 조이스틱 인스턴스
-// ▲▲▲
+let joystickManager = null;
 
 // --- Helper 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
@@ -385,25 +392,54 @@ const updatePlayerMovement = (deltaTime) => {
 };
 
 // --- 다른 플레이어 부드러운 이동 처리 ---
-const updateOtherPlayersMovement = (deltaTime) => { /* ... 이전 코드와 동일 ... */ };
+// ▼▼▼ deltaTime 사용하도록 수정 ▼▼▼
+const updateOtherPlayersMovement = (deltaTime) => {
+  const lerpFactor = deltaTime * 5; // 보간 속도 조절 (값이 클수록 빠름)
+  for (const userId in otherPlayers) {
+    const player = otherPlayers[userId];
+    const mesh = player.mesh;
+
+    // 위치 보간 (Lerp)
+    mesh.position.lerp(player.targetPosition, lerpFactor);
+
+    // 회전 보간 (Y축만 Lerp - 간단 버전)
+    // 각도 차이 보정 (shortest angle)
+    let currentY = mesh.rotation.y;
+    let targetY = player.targetRotationY;
+    const PI2 = Math.PI * 2;
+    currentY = (currentY % PI2 + PI2) % PI2;
+    targetY = (targetY % PI2 + PI2) % PI2;
+    let diff = targetY - currentY;
+    if (Math.abs(diff) > Math.PI) {
+      diff = diff > 0 ? diff - PI2 : diff + PI2;
+    }
+    // Lerp 적용
+    mesh.rotation.y += diff * lerpFactor;
+  }
+};
+// ▲▲▲
 
 // --- 애니메이션 루프 ---
 const animate = () => {
   if (!renderer) return;
   requestAnimationFrame(animate);
 
-  const deltaTime = clock.getDelta();
+  const deltaTime = clock.getDelta(); // deltaTime 사용
 
   updatePlayerMovement(deltaTime);
-  updateOtherPlayersMovement(deltaTime);
+  updateOtherPlayersMovement(deltaTime); // deltaTime 전달
 
-  // [수정] controls.update() 제거 또는 주석 처리
-  // controls.update();
+  // controls.update(); // 주석 처리됨
   renderer.render(scene, camera);
 };
 
 // --- 창 크기 조절 처리 ---
-const handleResize = () => { /* ... 이전 코드와 동일 ... */ };
+const handleResize = () => {
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+};
 
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
