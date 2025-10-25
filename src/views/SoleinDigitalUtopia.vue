@@ -37,7 +37,7 @@ import {
   set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove
 } from 'firebase/database';
 // eslint-disable-next-line no-unused-vars
-import nipplejs from 'nipplejs';
+import nipplejs from 'nipplejs'; // ESLint 'no-unused-vars' 규칙 비활성화
 
 // --- 상태 변수 ---
 const canvasRef = ref(null); // 캔버스 DOM 참조
@@ -118,7 +118,7 @@ const loadAvatar = (url) => {
   });
 };
 
-// --- [새로운 함수] 헬퍼 함수: 닉네임 스프라이트 생성 ---
+// --- 헬퍼 함수: 닉네임 스프라이트 생성 ---
 const createNicknameSprite = (text) => {
   const canvas = document.createElement('canvas'); // 캔버스 요소 생성
   const context = canvas.getContext('2d'); // 2D 컨텍스트 가져오기
@@ -244,11 +244,12 @@ const listenToOtherPlayers = () => {
     if (userId === currentUid || otherPlayers[userId]) return; // 본인이거나 이미 목록에 있으면 무시
 
     const playerData = snapshot.val(); // 입장한 플레이어 데이터
-    loadingMessage.value = `플레이어 ${playerData.userName || userId} 로딩 중...`;
-    // isLoading.value = true; // 개별 플레이어 로딩 시 전체 로딩 표시 X
+    console.log(`플레이어 입장 감지: ${playerData.userName || userId}`); // 입장 감지 로그 추가
 
     try {
       const avatarMesh = await loadAvatar(playerData.avatarUrl); // 아바타 모델 로드
+      console.log(`${playerData.userName || userId} 아바타 로드 완료`); // 로드 완료 로그 추가
+
       if (scene) { // 씬이 존재하는지 확인
           scene.add(avatarMesh); // 씬에 아바타 추가
           // 초기 위치 및 회전 설정
@@ -259,6 +260,7 @@ const listenToOtherPlayers = () => {
           if (playerData.userName) {
               const otherNickname = createNicknameSprite(playerData.userName);
               avatarMesh.add(otherNickname); // 아바타의 자식으로 추가
+              console.log(`${playerData.userName || userId} 닉네임 추가 완료`); // 닉네임 추가 로그
           }
 
           // otherPlayers 객체에 플레이어 정보 저장
@@ -266,14 +268,14 @@ const listenToOtherPlayers = () => {
             mesh: avatarMesh, // Three.js 메쉬 객체
             targetPosition: new THREE.Vector3().copy(avatarMesh.position), // 목표 위치 (보간용)
             targetRotationY: avatarMesh.rotation.y, // 목표 회전 (보간용)
-            // nicknameSprite: otherNickname // 필요 시 닉네임 참조 저장
           };
-          console.log(`${playerData.userName || userId} 입장`);
+          console.log(`${playerData.userName || userId} 씬에 추가 완료`);
+      } else {
+          console.warn(`씬이 존재하지 않아 ${userId}를 추가할 수 없습니다.`);
       }
     } catch (error) {
-      console.error(`${userId} 플레이어 아바타 로딩 실패:`, error);
+      console.error(`${userId} 플레이어 처리 중 오류 발생:`, error);
     }
-    // finally { isLoading.value = false; } // 전체 로딩 상태는 여기서 관리하지 않음
   });
 
   // 플레이어 상태 변경 감지 (onChildChanged)
@@ -358,12 +360,17 @@ const initThree = () => {
       renderer.shadowMap.enabled = true; // 그림자 활성화
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자
   } else {
-      console.error("캔버스 요소를 찾을 수 없습니다!"); return;
+      console.error("캔버스 요소를 찾을 수 없습니다!"); return false; // 초기화 실패 시 false 반환
   }
 
   // 조명 설정
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); // 주변광
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10); dirLight.castShadow = true; /* 그림자 설정 */ scene.add(dirLight); // 직사광
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10); dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; // 그림자 해상도
+  dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 50; // 그림자 범위
+  dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
+  dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
+  scene.add(dirLight); // 직사광
   const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight); // 반구광
 
   // 바닥 생성
@@ -371,73 +378,92 @@ const initThree = () => {
   const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
 
   clock = new THREE.Clock(); // 시계 생성
+  return true; // 초기화 성공 시 true 반환
 };
 
 // --- 플레이어 이동 로직 ---
 // 키보드 이벤트 핸들러
 const handleKeyDown = (event) => {
     if (chatInputRef.value === document.activeElement) return; // 채팅 중이면 무시
-    keysPressed[event.key.toLowerCase()] = true;
+    const key = event.key.toLowerCase();
+    keysPressed[key] = true;
+    // 화살표 키 입력 시 기본 스크롤 동작 방지
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+        event.preventDefault();
+    }
 };
 const handleKeyUp = (event) => { keysPressed[event.key.toLowerCase()] = false; };
 // 조이스틱 이벤트 핸들러
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// 매 프레임 호출: 내 아바타 위치/회전 업데이트
+// 매 프레임 호출: 내 아바타 위치/회전 업데이트 (월드 좌표 기준 이동)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value) return; // 유효성 검사
 
   let moved = false;                     // 이동/회전 발생 여부 플래그
-  let moveDirection = new THREE.Vector3(0, 0, 0); // 로컬 이동 방향 벡터 (Z축 사용)
-  let targetRotationY = myAvatar.rotation.y;     // 목표 Y축 회전값
+  let moveDirection = new THREE.Vector3(0, 0, 0); // *월드* 이동 방향 벡터 (초기화)
   let applyRotation = false;                     // 회전 적용 여부
+  let targetRotationY = myAvatar.rotation.y;     // 목표 Y축 회전값 (Lerp용)
+  let rotationAmount = 0;                        // 이번 프레임 키보드 회전량
   let applyMovement = false;                     // 이동 적용 여부
-  let currentSpeedFactor = 1.0;                  // 속도 계수 (조이스틱 힘 반영)
+  let currentSpeedFactor = 1.0;                  // 속도 계수 (조이스틱 힘)
 
   // --- 조이스틱 입력 처리 ---
   if (joystickData.value.active) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 목표 회전값 계산
-    moveDirection.z = -1; // 전방 이동
-    currentSpeedFactor = joystickData.value.force; // 속도 조절
-    applyRotation = true;
+    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 목표 회전값
+    // 조이스틱 각도를 사용하여 월드 이동 방향 벡터 계산
+    moveDirection.x = Math.sin(targetRotationY); // 회전된 X 방향
+    moveDirection.z = Math.cos(targetRotationY); // 회전된 Z 방향
+    currentSpeedFactor = joystickData.value.force; // 속도 계수
+    applyRotation = true; // 조이스틱 움직이면 항상 회전 시도
     applyMovement = joystickData.value.distance > 10; // 일정 거리 이상 움직여야 이동
   }
   // --- 키보드 입력 처리 ---
   else {
     // 회전 (A/D 또는 좌/우 화살표)
-    if (keysPressed['a'] || keysPressed['arrowleft']) { targetRotationY += rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['d'] || keysPressed['arrowright']) { targetRotationY -= rotateSpeed * deltaTime; applyRotation = true; }
-    // 이동 (W/S 또는 위/아래 화살표)
-    if (keysPressed['w'] || keysPressed['arrowup']) { moveDirection.z = -1; applyMovement = true; }
-    if (keysPressed['s'] || keysPressed['arrowdown']) { moveDirection.z = 1; applyMovement = true; }
+    if (keysPressed['a'] || keysPressed['arrowleft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
+    if (keysPressed['d'] || keysPressed['arrowright']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
+    // 이동 (W/S 또는 위/아래 화살표) - 아바타 기준 전/후
+    if (keysPressed['w'] || keysPressed['arrowup']) { moveDirection.z = -1; applyMovement = true; } // 전방(-Z) 로컬
+    if (keysPressed['s'] || keysPressed['arrowdown']) { moveDirection.z = 1; applyMovement = true; }  // 후방(+Z) 로컬
   }
 
-  // --- 회전 적용 (Lerp 보간 + 최단 각도) ---
+  // --- 회전 적용 ---
   if (applyRotation) {
-    let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
-    let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    const rotationChange = diff * deltaTime * 8; // 회전 속도 조절 (8)
-    myAvatar.rotation.y += rotationChange;
-    if (Math.abs(rotationChange) > 0.001) moved = true; // 회전 발생 플래그
+    if (joystickData.value.active) { // 조이스틱: 부드러운 Lerp 회전
+        let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+        currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
+        let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+        const rotationChange = diff * deltaTime * 8; // 회전 속도 조절 (8)
+        myAvatar.rotation.y += rotationChange;
+        if (Math.abs(rotationChange) > 0.001) moved = true;
+    } else { // 키보드: 즉시 회전 적용
+        myAvatar.rotation.y += rotationAmount;
+        if (Math.abs(rotationAmount) > 0.001) moved = true;
+    }
   }
 
-  // --- 이동 적용 (월드 좌표 기준) ---
+  // --- 이동 적용 ---
   if (applyMovement) {
-    // 1. 아바타의 현재 전방 벡터(-Z) 구하기
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyQuaternion(myAvatar.quaternion); // 현재 회전 적용
+    // 최종 이동량 계산
+    const moveAmount = (joystickData.value.active ? moveSpeed * currentSpeedFactor : moveSpeed) * deltaTime;
+    let moveVector;
 
-    // 2. 이동량 계산 (조이스틱 힘 또는 기본 속도)
-    const moveAmount = moveDirection.z * (joystickData.value.active ? moveSpeed * currentSpeedFactor : moveSpeed) * deltaTime;
-    const moveVector = forward.multiplyScalar(moveAmount); // 최종 월드 이동 벡터
+    if (joystickData.value.active) {
+        // 조이스틱은 이미 계산된 월드 방향 벡터 사용 (정규화 후 스케일 적용)
+        moveVector = moveDirection.normalize().multiplyScalar(moveAmount);
+    } else {
+        // 키보드는 현재 아바타 방향 기준 전/후 이동 (로컬 Z 방향 벡터를 월드로 변환)
+        const localMove = new THREE.Vector3(0, 0, moveDirection.z); // 로컬 Z 방향
+        moveVector = localMove.applyQuaternion(myAvatar.quaternion).multiplyScalar(moveAmount); // 월드 벡터로 변환 및 스케일 적용
+    }
 
-    // 3. 아바타 위치에 이동 벡터 더하기
+    // 아바타 위치에 이동 벡터 더하기 (월드 좌표)
     myAvatar.position.add(moveVector);
 
-    // 실제 이동 확인 (매우 작은 이동은 무시)
-    if (moveVector.lengthSq() > 0.00001) moved = true; // 이동 발생 플래그
+    // 실제 이동 확인
+    if (moveVector.lengthSq() > 0.00001) moved = true;
   }
 
   // --- 경계 처리 ---
@@ -474,20 +500,21 @@ const updateOtherPlayersMovement = (deltaTime) => {
 // --- 애니메이션 루프 ---
 const animate = () => {
   if (!renderer || !scene || !camera || !clock) return; // 컴포넌트 unmount 대비
-  requestAnimationFrame(animate); // 다음 프레임 요청
+  requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta(); // 시간 간격
 
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-  // 간단한 카메라 추적
+  // [수정] 카메라 추적 로직: 아바타 위치 기준 고정 오프셋
   if (myAvatar) {
-      const desiredOffset = new THREE.Vector3(0, 2.5, 4.5); // 카메라 오프셋
-      // 아바타 위치 기준으로 목표 카메라 위치 계산 (회전 미반영)
-      const targetCameraPosition = myAvatar.position.clone().add(desiredOffset);
-      camera.position.lerp(targetCameraPosition, deltaTime * 2.0); // 부드럽게 이동
-      // 아바타의 약간 위쪽 바라보기
+      const desiredOffset = new THREE.Vector3(0, 3, 5); // 카메라 오프셋 (높이, 거리 조절)
+      // 아바타 위치 기준으로 목표 카메라 위치 계산
+      const targetPosition = myAvatar.position.clone().add(desiredOffset);
+      // 부드럽게 카메라 위치 이동
+      camera.position.lerp(targetPosition, deltaTime * 3.0); // 따라가는 속도 조절 (3.0)
+      // 아바타의 약간 위쪽(머리 근처) 바라보기
       camera.lookAt(myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)));
   }
 
@@ -506,11 +533,13 @@ const handleResize = () => {
 onMounted(async () => {
   // 로그인 확인
   if (!auth.currentUser) { console.error("로그인되지 않음."); loadingMessage.value = "로그인이 필요합니다."; isLoading.value = false; return; }
-  const currentUid = auth.currentUser.uid; // currentUid 사용
+  const currentUid = auth.currentUser.uid;
 
   // 1. Three.js 초기화
-  initThree();
-  if (!scene || !renderer || !clock) { loadingMessage.value = "3D 초기화 실패."; isLoading.value = false; return; }
+  const initSuccess = initThree(); // 초기화 함수 호출 및 성공 여부 확인
+  if (!initSuccess) { // initThree 내부에서 캔버스 못 찾으면 false 반환
+      loadingMessage.value = "3D 환경 초기화 실패."; isLoading.value = false; return;
+  }
 
   // 2. 이벤트 리스너 등록
   window.addEventListener('resize', handleResize);
@@ -521,33 +550,41 @@ onMounted(async () => {
   // 3. Firestore에서 사용자 정보 가져오기
   loadingMessage.value = '내 정보 로딩 중...';
   try {
-    const userDoc = await getDoc(doc(db, 'users', currentUid)); // db, doc, getDoc 사용
-    if (userDoc.exists()) { myAvatarUrl = userDoc.data().avatarUrl || ''; myUserName = userDoc.data().name || '익명'; }
-    else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
+      const userDoc = await getDoc(doc(db, 'users', currentUid)); // db, doc, getDoc 사용 확인
+      if (userDoc.exists()) { myAvatarUrl = userDoc.data().avatarUrl || ''; myUserName = userDoc.data().name || '익명'; }
+      else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
   } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
 
   // 4. 내 아바타 로드 및 닉네임 추가
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
-    myAvatar = await loadAvatar(myAvatarUrl);
-    scene.add(myAvatar);
-    if (myUserName) { // 이름이 있으면 닉네임 추가
-        const myNickname = createNicknameSprite(myUserName);
-        myAvatar.add(myNickname);
-    }
-    camera.lookAt(myAvatar.position); // 초기 카메라 시점
+      myAvatar = await loadAvatar(myAvatarUrl);
+      scene.add(myAvatar); // 씬에 아바타 추가
+      if (myUserName) { // 이름이 있으면 닉네임 추가
+          const myNickname = createNicknameSprite(myUserName);
+          myAvatar.add(myNickname); // 아바타 자식으로 추가
+      }
+      // 초기 카메라는 animate 루프에서 위치 잡음
   } catch (error) { /* 에러 처리 (기본 큐브 추가) */ }
 
-   // 5. 조이스틱 초기화
+   // [수정] 조이스틱 초기화 (nextTick 사용)
+  await nextTick(); // DOM 요소가 렌더링될 때까지 기다림
   const joystickZone = document.getElementById('joystick-zone');
-  if (joystickZone) { /* 조이스틱 생성 및 이벤트 리스너 연결 */ }
-  else { console.warn("조이스틱 영역 없음."); }
+  if (joystickZone) {
+    try {
+        joystickManager = nipplejs.create({
+          zone: joystickZone, mode: 'static', position: { right: '80px', bottom: '80px' }, color: 'rgba(255, 255, 255, 0.5)', size: 100
+        });
+        joystickManager.on('move', handleJoystickMove); joystickManager.on('end', handleJoystickEnd);
+        console.log("조이스틱 생성 완료"); // 생성 확인 로그
+    } catch (e) { console.error("조이스틱 생성 실패:", e); }
+  } else { console.warn("조이스틱 영역 없음."); }
 
   // 6. RTDB 연결 및 리스너 시작
   loadingMessage.value = '다른 플레이어 접속 중...';
   await joinPlaza();
   if(isReady.value){ listenToOtherPlayers(); listenToChat(); }
-  else { loadingMessage.value = 'Plaza 연결 실패.'; return; }
+  else { loadingMessage.value = 'Plaza 연결 실패.'; return; } // joinPlaza 실패 시 로딩 메시지 유지
   isLoading.value = false; // 최종 로딩 완료
 });
 
@@ -576,16 +613,28 @@ onUnmounted(() => {
   if (renderer) { renderer.dispose(); renderer = null; }
   if (scene) {
      scene.traverse(object => {
-       if(object.isMesh && object.geometry && object.material) { /* 메쉬 리소스 해제 */ }
+       // 메쉬 객체이고 지오메트리와 재질이 있으면 해제
+       if(object.isMesh && object.geometry && object.material) {
+           object.geometry.dispose(); // 지오메트리 해제
+           // 재질 해제 (배열 또는 단일 객체 처리)
+           if (Array.isArray(object.material)) {
+               object.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+           } else {
+               if(object.material.map) object.material.map.dispose();
+               object.material.dispose();
+           }
+       }
        // [닉네임] 스프라이트 리소스 해제
        else if (object instanceof THREE.Sprite) {
            if (object.material.map) object.material.map.dispose();
            object.material.dispose();
        }
      });
-    scene = null;
+    scene = null; // 씬 참조 제거
   }
+  // 다른 참조들도 제거
   camera = null; clock = null; myAvatar = null;
+  // 다른 플레이어 객체 정리
   Object.keys(otherPlayers).forEach(key => delete otherPlayers[key]);
 });
 
