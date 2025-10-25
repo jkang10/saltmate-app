@@ -507,28 +507,24 @@ const animate = () => {
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-  // [수정] 카메라 추적 로직: 아바타 월드 위치를 기준으로 오프셋 계산 및 적용
+  // [수정] 카메라 추적 로직: 아바타 월드 위치 기준 + Lerp 속도 조절
   if (myAvatar) {
-      const desiredOffset = new THREE.Vector3(0, 3, 5); // 카메라 오프셋 (뒤쪽 위)
+      const desiredOffset = new THREE.Vector3(0, 2.5, 4.0); // 카메라 오프셋 (높이 2.5, 거리 4.0) 약간 조정
 
-      // 1. 아바타의 현재 월드 위치 복사
-      const avatarWorldPosition = myAvatar.position.clone();
+      // 1. 목표 카메라 위치 계산 (월드 좌표)
+      //    아바타의 현재 월드 위치에 고정된 월드 오프셋을 더함
+      const targetPosition = myAvatar.position.clone().add(desiredOffset);
 
-      // 2. 목표 카메라 위치 계산 (월드 좌표)
-      //    아바타의 월드 위치에 고정된 오프셋을 더합니다.
-      const targetCameraPosition = avatarWorldPosition.add(desiredOffset);
+      // 2. 부드럽게 카메라 위치 이동 (Lerp)
+      //    Lerp 알파 값을 낮춰서 카메라가 약간 느리게 따라가도록 시도
+      camera.position.lerp(targetPosition, deltaTime * 2.0); // 따라가는 속도 감소 (5.0 -> 2.0)
 
-      // 3. 현재 카메라 위치에서 목표 위치로 부드럽게 이동 (Lerp)
-      //    Lerp 알파 값을 높여 더 빠르게 따라가도록 시도 (예: deltaTime * 5.0)
-      camera.position.lerp(targetCameraPosition, deltaTime * 5.0); // 따라가는 속도 증가 (3.0 -> 5.0)
-
-      // 4. 카메라가 아바타의 약간 위쪽(머리 근처) 바라보기
-      //    lookAt의 대상도 아바타의 현재 월드 위치를 기준으로 합니다.
-      const lookAtPosition = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+      // 3. 카메라가 아바타의 상반신(가슴 높이)을 바라보도록 설정
+      const lookAtPosition = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // Y=1.0
       camera.lookAt(lookAtPosition);
 
-      // --- 디버깅 로그 (문제가 계속되면 주석 해제하여 값 확인) ---
-      // console.log(`Avatar Pos: ${myAvatar.position.x.toFixed(2)}, ${myAvatar.position.z.toFixed(2)} | Target Cam: ${targetCameraPosition.x.toFixed(2)}, ${targetCameraPosition.z.toFixed(2)} | Actual Cam: ${camera.position.x.toFixed(2)}, ${camera.position.z.toFixed(2)}`);
+      // --- 디버깅 로그 (아바타와 카메라의 월드 좌표 출력) ---
+      console.log(`Avatar Pos: ${myAvatar.position.x.toFixed(2)}, ${myAvatar.position.z.toFixed(2)} | Cam Pos: ${camera.position.x.toFixed(2)}, ${camera.position.z.toFixed(2)}`);
   }
 
   renderer.render(scene, camera); // 렌더링
