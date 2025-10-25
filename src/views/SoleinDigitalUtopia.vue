@@ -218,8 +218,18 @@ const updateMyStateInRTDB = () => {
     rotationY: myAvatar.rotation.y,
     timestamp: serverTimestamp(),
   };
+
   // set을 사용하여 업데이트 (기존 avatarUrl, userName은 유지하면서 덮어쓰기)
-  set(playerRef, { ...newState, avatarUrl: myAvatarUrl, userName: myUserName });
+  // [★수정] .catch()를 추가하여 쓰기 실패 시 에러를 콘솔에 출력합니다.
+  set(playerRef, { ...newState, avatarUrl: myAvatarUrl, userName: myUserName })
+    .catch((error) => {
+      // 이 에러가 콘솔을 도배하는 것을 막기 위해 isReady를 false로 변경합니다.
+      if (isReady.value) {
+        console.error("!!! RTDB 상태 업데이트 실패 (Firebase 규칙 오류 가능) !!!", error.message);
+        isReady.value = false; // 에러 반복 방지를 위해 이동 및 업데이트 중지
+        alert("서버와의 실시간 연결이 끊겼습니다. (DB 쓰기 오류)");
+      }
+    });
 };
 
 // RTDB 업데이트 Throttling (과도한 쓰기 방지)
