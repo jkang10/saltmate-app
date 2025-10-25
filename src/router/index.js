@@ -220,6 +220,12 @@ const routes = [
     component: () => import("@/views/LadderGamePage.vue"),
     meta: { requiresAuth: true },
   },
+{
+  path: '/plaza',
+  name: 'SoleinDigitalUtopia',
+  component: () => import('@/views/SoleinDigitalUtopia.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: "/salt-pot-gacha",
     name: "SaltPotGacha",
