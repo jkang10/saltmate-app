@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick, markRaw } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { auth, db, rtdb } from '@/firebaseConfig'; // Firestore getDoc 사용을 위해 db 유지
@@ -49,7 +49,7 @@ const isReady = ref(false); // 로딩 완료 및 상호작용 가능 여부 플�
 
 // --- 아바타 관련 ---
 let myAvatar = null; // 내 아바타 Three.js Object3D 객체
-const otherPlayers = reactive({}); // 다른 플레이어 정보 { userId: { mesh, targetPosition, targetRotationY } }
+let otherPlayers = {}; // [★수정] reactive 제거. 일반 JS 객체로 변경
 let myAvatarUrl = ''; // 내 아바타 GLB 파일 URL
 let myUserName = ''; // 내 사용자 이름 (채팅 표시용)
 
@@ -277,10 +277,9 @@ const listenToOtherPlayers = () => {
 
           // otherPlayers 객체에 플레이어 정보 저장
 	    otherPlayers[userId] = {
-            mesh: markRaw(avatarMesh), // 3D 모델 객체 보호
-            // [★수정] 3D 위치 객체(Vector3)도 markRaw로 보호합니다.
-            targetPosition: markRaw(new THREE.Vector3().copy(avatarMesh.position)), 
-            targetRotationY: avatarMesh.rotation.y, // (이 값은 단순 숫자이므로 markRaw 불필요)
+            mesh: avatarMesh, // [★수정] markRaw 제거
+            targetPosition: new THREE.Vector3().copy(avatarMesh.position), // [★수정] markRaw 제거
+            targetRotationY: avatarMesh.rotation.y, 
           };
           console.log(`${playerData.userName || userId} 씬에 추가 완료`);
       } else {
@@ -665,7 +664,7 @@ onUnmounted(() => {
   // 다른 참조들도 제거
   camera = null; clock = null; myAvatar = null;
   // 다른 플레이어 객체 정리
-  Object.keys(otherPlayers).forEach(key => delete otherPlayers[key]);
+otherPlayers = {}; // [★수정] 객체 참조를 초기화
 });
 
 </script>
