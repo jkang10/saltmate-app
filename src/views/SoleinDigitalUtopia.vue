@@ -222,13 +222,17 @@ const updateMyStateInRTDB = () => {
   };
 
   // [★수정] set 대신 update를 사용하여 newState 객체만 전송합니다.
-  update(playerRef, newState) // <--- set을 update로 변경
+update(playerRef, newState) // <--- set을 update로 변경
     .catch((error) => {
       // 이 에러가 콘솔을 도배하는 것을 막기 위해 isReady를 false로 변경합니다.
       if (isReady.value) {
-        console.error("!!! RTDB 상태 업데이트 실패 (Firebase 규칙 오류 가능) !!!", error.message);
+        console.error("!!! RTDB UPDATE FAILED (DB 규칙 확인 필요) !!!", error.message);
         isReady.value = false; // 에러 반복 방지를 위해 이동 및 업데이트 중지
-        alert("서버와의 실시간 연결이 끊겼습니다. (DB 쓰기 오류)");
+        
+        // [★수정] alert 대신 로딩 화면을 다시 띄워 사용자에게 명확히 알림
+        isLoading.value = true;
+        loadingMessage.value = `실시간 연결 끊김: ${error.message}`;
+        // alert("서버와의 실시간 연결이 끊겼습니다. (DB 쓰기 오류)");
       }
     });
 };
