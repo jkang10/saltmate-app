@@ -663,7 +663,7 @@ const handleResize = () => {
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
   // ▼▼▼ [새로운 테스트 코드] 이 라인을 onMounted 최상단에 추가하세요 ▼▼▼
-  console.log('--- DEPLOY TEST VERSION 13 --- THIS IS THE NEWEST CODE ---');
+  console.log('--- DEPLOY TEST VERSION 14 --- THIS IS THE NEWEST CODE ---');
   // ▲▲▲ [새로운 테스트 코드] ▲▲▲
 
   // 로그인 확인
