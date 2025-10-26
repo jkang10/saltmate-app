@@ -84,13 +84,14 @@ let joystickManager = null; // nipplejs 인스턴스
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
   return new Promise((resolve) => {
+    // 1. 'model'은 아바타의 최상위 부모 그룹입니다. (이것이 myAvatar가 됩니다)
     const model = new THREE.Group();
     model.position.set(0, 0, 0);
 
-    const visuals = new THREE.Group();
-
+    // 2. URL이 없거나 GLB가 아닌 경우, 기본 큐브를 생성합니다.
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
+      const visuals = new THREE.Group(); // 이 경우에도 visuals 그룹으로 감싸줍니다.
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
@@ -98,58 +99,55 @@ const loadAvatar = (url) => {
       
       visuals.add(cube);
       visuals.scale.set(0.7, 0.7, 0.7);
-      model.add(visuals);
+      model.add(visuals); // model에 visuals를 추가
       
-      resolve(model);
+      resolve(model); // model을 반환
       return;
     }
     
+    // 3. GLB 파일 로드
     loader.load(url,
       (gltf) => {
-        const avatarModel = gltf.scene.clone(); 
+        // ★★★ [핵심 수정] ★★★
+        // gltf.scene 객체 자체를 'visuals'로 사용합니다.
+        // 불필요한 복제(clone)나 자식 이동(while 루프)을 하지 않습니다.
+        const visuals = gltf.scene; 
         
-        const box = new THREE.Box3().setFromObject(avatarModel);
+        // 4. 모델의 바운딩 박스를 계산하여 중앙에 맞춥니다.
+        const box = new THREE.Box3().setFromObject(visuals);
         const center = box.getCenter(new THREE.Vector3()); 
         
-        // ★★★ [핵심 수정 1] traverse는 나중에 실행 ★★★
-        avatarModel.traverse((child) => {
+        // 5. 지오메트리 원점을 발밑 중앙으로 이동시키고, matrixAutoUpdate를 설정합니다.
+        visuals.traverse((child) => {
           if (child.isMesh) {
+            // 지오메트리 변환
             child.geometry.translate(-center.x, -box.min.y, -center.z); 
             child.castShadow = true;
             child.receiveShadow = false;
           }
-        });
-        
-        avatarModel.matrixAutoUpdate = true;
-        
-        // ★★★ [핵심 수정 2] 자식들을 visuals로 옮긴 후 traverse 실행 ★★★
-        while (avatarModel.children.length > 0) {
-          const child = avatarModel.children[0];
-          visuals.add(child);
-        }
-
-        // ★★★ [핵심 수정 3] 옮긴 후에 matrixAutoUpdate 설정 ★★★
-        visuals.traverse((child) => {
+          // ★ 모든 자식 객체의 matrixAutoUpdate를 true로 강제 설정
           child.matrixAutoUpdate = true;
         });
 
+        // 6. 'visuals' (gltf.scene) 그룹 자체의 변환(transform)을 설정합니다.
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0);
-        visuals.matrixAutoUpdate = true; 
-	console.log('--- [최종 확인] visuals.matrixAutoUpdate가 true로 설정되었습니다! ---', visuals.matrixAutoUpdate);
+        visuals.rotation.set(0, 0, 0); // <-- 회전 값도 명시적으로 리셋
+        visuals.matrixAutoUpdate = true; // <-- 'visuals' 그룹 자체도 true로 설정
 
+        // 7. 'visuals' 그룹을 최상위 'model' 그룹에 추가합니다.
         model.add(visuals);
         
-        // ★★★ [디버깅 로그 추가] ★★★
-        console.log('[loadAvatar] visuals children count:', visuals.children.length);
-        console.log('[loadAvatar] First child matrixAutoUpdate:', 
-                    visuals.children[0]?.matrixAutoUpdate);
+        console.log('[loadAvatar] 수정된 로직: gltf.scene을 visuals로 사용 완료.');
         
+        // 8. 최상위 'model' 그룹을 반환합니다.
         resolve(model);
       },
       undefined,
       (error) => {
+        // 9. 로드 실패 시 에러 큐브 생성
         console.error('아바타 로딩 실패:', error, 'URL:', url);
+        const visuals = new THREE.Group();
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
@@ -620,7 +618,8 @@ const animate = () => {
 
   const deltaTime = clock.getDelta(); // 시간 간격
 
-  // ★★★ [새로운 디버깅] 아바타 모델의 matrixAutoUpdate를 매 프레임 강제로 true로 설정 ★★★
+  // ★★★ [이 코드 삭제] ★★★
+  // 아래 디버깅 코드를 삭제합니다.
   if (myAvatar && myAvatar.children[0]) {
     // myAvatar.children[0]이 'visuals' 그룹입니다.
     myAvatar.children[0].matrixAutoUpdate = true;
