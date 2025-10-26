@@ -110,55 +110,42 @@ const loadAvatar = (url) => {
     }
     
     // 4. GLB 로더 실행
-    loader.load(url,
-(gltf) => {
-        // 5. gltf.scene을 복제합니다. (이것은 메쉬를 꺼내기 위한 임시 홀더입니다)
-        const avatarModel = gltf.scene.clone(); 
-        
-        // 6. 피벗 보정 + ★★★ [핵심 수정] ★★★
-        const box = new THREE.Box3().setFromObject(avatarModel);
-        const center = box.getCenter(new THREE.Vector3()); 
-        
-        avatarModel.traverse((child) => {
-            
-            // ▼▼▼ [핵심 수정] ▼▼▼
-            // GLB 내부의 모든 객체(그룹, 메쉬 등)가
-            // 부모의 움직임을 상속받도록 강제로 설정합니다.
-            // 이것이 아바타만 안 움직이는 문제를 해결합니다.
-            child.matrixAutoUpdate = true; 
-            // ▲▲▲ [핵심 수정] ▲▲▲
+loader.load(url,
+  (gltf) => {
+    const avatarModel = gltf.scene.clone(); 
+    
+    const box = new THREE.Box3().setFromObject(avatarModel);
+    const center = box.getCenter(new THREE.Vector3()); 
+    
+    avatarModel.traverse((child) => {
+      child.matrixAutoUpdate = true; 
+      
+      if (child.isMesh) {
+        child.geometry.translate(-center.x, -box.min.y, -center.z); 
+        child.castShadow = true;
+        child.receiveShadow = false;
+      }
+    });
+    
+    // ★★★ [핵심 수정] ★★★
+    // avatarModel의 모든 자식을 visuals에 추가하기 전에
+    // avatarModel 자체의 matrixAutoUpdate를 true로 설정
+    avatarModel.matrixAutoUpdate = true;
+    
+    while (avatarModel.children.length > 0) {
+      const child = avatarModel.children[0];
+      // 각 자식도 명시적으로 true 설정
+      child.matrixAutoUpdate = true;
+      visuals.add(child);
+    }
 
-            if (child.isMesh) {
-              // 지오메트리 자체를 이동시켜 피벗을 보정
-              child.geometry.translate(-center.x, -box.min.y, -center.z); 
-              child.castShadow = true;
-              child.receiveShadow = false;
-            }
-        });
-        
-        // 7. ★★★ [핵심 수정] ★★★
-        // 'avatarModel' 객체 자체를 버리고,
-        // 그 *자식 객체(메쉬 등)*들만 'visuals' 그룹으로 이동시킵니다.
-        while (avatarModel.children.length > 0) {
-            visuals.add(avatarModel.children[0]);
-        }
+    visuals.scale.set(0.7, 0.7, 0.7);
+    visuals.position.set(0, 0, 0);
+    visuals.matrixAutoUpdate = true; 
 
-        // 8. 'visuals' 그룹 자체의 스케일을 조절합니다.
-        visuals.scale.set(0.7, 0.7, 0.7);
-        visuals.position.set(0, 0, 0); // (내부 위치는 0)
-
-        // 9. ★★★ [핵심 수정] ★★★
-        // 'visuals' 그룹이 부모('model')의 움직임을
-        // 상속받도록 matrixAutoUpdate를 'true'로 강제합니다.
-        // (닉네임은 움직이는데 아바타만 안 움직이는 문제 해결)
-        visuals.matrixAutoUpdate = true; 
-
-        // 10. 스케일링된 'visuals' 그룹을 최상위 'model' 컨테이너에 추가합니다.
-        model.add(visuals);
-
-        // 11. 최상위 'model'(컨테이너)를 반환합니다.
-        resolve(model);
-      },
+    model.add(visuals);
+    resolve(model);
+  },
       undefined, // 'onProgress' 콜백 (사용 안 함)
       (error) => {
         // 12. 로드 실패 시 에러 큐브 로직
@@ -731,18 +718,16 @@ onMounted(async () => {
       myAvatar.matrixAutoUpdate = true; // (기본값이지만 명시)
 
       // 3. [★수정] 'loadedModel'에서 'visuals' 그룹(첫 번째 자식)을 "꺼내옵니다".
-      const visuals = loadedModel.children[0]; 
-      if (visuals) {
-          // 'visuals'를 'loadedModel'에서 분리하고 'myAvatar'의 자식으로 "재배치(Reparent)"합니다.
-          myAvatar.add(visuals); 
-
-          // ▼▼▼ [핵심 수정] ▼▼▼
-          // 'visuals' 그룹이 'myAvatar'의 자식이 된 *후에*
-          // matrixAutoUpdate 속성을 다시 한번 강제로 true로 설정합니다.
-          // (닉네임은 움직이는데 아바타만 안 움직이는 문제의 최종 해결책)
-          visuals.matrixAutoUpdate = true;
-          console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
-          // ▲▲▲ [핵심 수정] ▲▲▲
+const visuals = loadedModel.children[0]; 
+if (visuals) {
+  // ★ visuals와 그 모든 자식의 matrixAutoUpdate를 강제로 true 설정
+  visuals.traverse((child) => {
+    child.matrixAutoUpdate = true;
+  });
+  
+  myAvatar.add(visuals); 
+  visuals.matrixAutoUpdate = true;
+  console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
 
       } else {
           console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
