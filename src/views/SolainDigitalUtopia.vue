@@ -645,7 +645,7 @@ const initThree = () => {
       scene.add(dirLight); // 직사광
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight); // 반구광
 
-// 바닥 생성
+      // 바닥 생성
       const groundGeometry = new THREE.PlaneGeometry(30, 30); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground); // 바닥 평면
       const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
 
@@ -656,12 +656,12 @@ const initThree = () => {
           const car = gltf.scene; // 2. 로드된 3D 객체
 
           // 3. 위치, 크기, 회전 설정 (원하는 값으로 조절하세요)
-          car.position.set(2, 0, -3);       // 예: x=2, y=0, z=-3 위치
-          car.scale.set(0.5, 0.5, 0.5);   // 예: 크기를 절반으로 줄임
+          car.position.set(0, 0, 0);       // 예: x=2, y=0, z=-3 위치
+          car.scale.set(2, 2, 2);   // 예: 크기를 절반으로 줄임
           car.rotation.y = -Math.PI / 4;  // 예: -45도 회전 (약간 비스듬히)
 
-          // 4. 그림자 설정 (★중요★)
-          // 자동차가 그림자를 만들고, 다른 그림자를 받을 수 있도록 설정
+       // 4. 그림자 설정 (★중요★)
+       // 자동차가 그림자를 만들고, 다른 그림자를 받을 수 있도록 설정
 	car.traverse((child) => {
 	  if (child.isMesh) {
 	    // ▼▼▼ 재질 강제 변경 코드 추가 ▼▼▼
