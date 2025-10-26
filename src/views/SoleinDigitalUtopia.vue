@@ -38,6 +38,8 @@ import {
   update // [★추가] update 함수를 import합니다.
 } from 'firebase/database';
 
+const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
+
 // eslint-disable-next-line no-unused-vars
 import nipplejs from 'nipplejs'; // ESLint 'no-unused-vars' 규칙 비활성화
 
@@ -166,7 +168,6 @@ const createNicknameSprite = (text) => {
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`; // 폰트 설정
   const textMetrics = context.measureText(text); // 텍스트 너비 측정
   const textWidth = textMetrics.width;
-  const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
   const padding = 10; // 좌우 여백
   const verticalPadding = 5; // 상하 여백
