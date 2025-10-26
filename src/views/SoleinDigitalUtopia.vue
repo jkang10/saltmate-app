@@ -735,9 +735,18 @@ onMounted(async () => {
       if (visuals) {
           // 'visuals'를 'loadedModel'에서 분리하고 'myAvatar'의 자식으로 "재배치(Reparent)"합니다.
           myAvatar.add(visuals); 
+
+          // ▼▼▼ [핵심 수정] ▼▼▼
+          // 'visuals' 그룹이 'myAvatar'의 자식이 된 *후에*
+          // matrixAutoUpdate 속성을 다시 한번 강제로 true로 설정합니다.
+          // (닉네임은 움직이는데 아바타만 안 움직이는 문제의 최종 해결책)
+          visuals.matrixAutoUpdate = true;
+          console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
+          // ▲▲▲ [핵심 수정] ▲▲▲
+
       } else {
           console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
-          throw new Error("Avatar visuals not found.");
+          throw new Error("Avatar visuals new found."); // (오타 수정: not found)
       }
 
       console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
