@@ -524,13 +524,22 @@ onChildChanged(playersListenerRef, (snapshot) => {
     }
     // ★★★ [말풍선 정리 끝] ★★★
 
-    if (scene) { scene.remove(playerToRemove.mesh); } // 씬에서 아바타 제거
+if (scene) { scene.remove(playerToRemove.mesh); } // 씬에서 아바타 제거
 
     // Three.js 리소스 정리
     playerToRemove.mesh.traverse(child => {
-       // ... (기존 dispose 로직) ...
-       if (child.isMesh) { 
-           // ...
+       // ★★★ [권장 수정] 여기도 리소스 정리 코드를 채워주세요 ★★★
+       if (child.isMesh) {
+         if (child.geometry) child.geometry.dispose();
+         if (Array.isArray(child.material)) {
+           child.material.forEach(material => {
+             if (material.map) material.map.dispose();
+             material.dispose();
+           });
+         } else if (child.material) {
+           if (child.material.map) child.material.map.dispose();
+           child.material.dispose();
+         }
        }
        // [닉네임] 스프라이트인 경우 리소스 해제
        else if (child instanceof THREE.Sprite) {
@@ -903,10 +912,33 @@ onUnmounted(() => {
   // ★★★ [말풍선 정리 끝] ★★★
 
   // Three.js 리소스 정리
-  if (renderer) { renderer.dispose(); renderer = null; }
+if (renderer) { renderer.dispose(); renderer = null; }
   if (scene) {
      scene.traverse(object => {
-       // ... (기존 dispose 로직) ...
+       // ★★★ [수정] 리소스 정리 코드를 추가하여 'object' 변수를 사용합니다 ★★★
+       if (object.isMesh) {
+         // 지오메트리(Geometry) 해제
+         if (object.geometry) {
+           object.geometry.dispose();
+         }
+         // 재질(Material)이 배열일 경우 (예: MultiMaterial)
+         if (Array.isArray(object.material)) {
+           object.material.forEach(material => {
+             if (material.map) material.map.dispose(); // 텍스처
+             material.dispose(); // 재질
+           });
+         } 
+         // 재질이 단일 객체일 경우
+         else if (object.material) {
+           if (object.material.map) object.material.map.dispose(); // 텍스처
+           object.material.dispose(); // 재질
+         }
+       }
+       // 스프라이트 (닉네임, 말풍선) 정리
+       else if (object instanceof THREE.Sprite) {
+         if (object.material.map) object.material.map.dispose();
+         object.material.dispose();
+       }
      });
     scene = null; // 씬 참조 제거
   }
