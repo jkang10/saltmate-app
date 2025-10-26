@@ -620,6 +620,13 @@ const animate = () => {
 
   const deltaTime = clock.getDelta(); // 시간 간격
 
+  // ★★★ [새로운 디버깅] 아바타 모델의 matrixAutoUpdate를 매 프레임 강제로 true로 설정 ★★★
+  if (myAvatar && myAvatar.children[0]) {
+    // myAvatar.children[0]이 'visuals' 그룹입니다.
+    myAvatar.children[0].matrixAutoUpdate = true;
+  }
+  // ★★★ [디버깅 코드 끝] ★★★
+
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
