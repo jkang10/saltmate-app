@@ -96,7 +96,7 @@ const loadAvatar = (url) => {
     }
     // GLTFLoader를 사용하여 모델 로드
     loader.load(url,
-(gltf) => {
+    (gltf) => {
         // ▼▼▼ [핵심 수정] "유령" 컨테이너(model)를 만들지 않고
         // gltfScene (실제 모델) 자체를 myAvatar로 사용합니다.
         
@@ -469,10 +469,6 @@ const initThree = () => {
 // --- 플레이어 이동 로직 ---
 // 키보드 이벤트 핸들러
 const handleKeyDown = (event) => {
-    // ▼▼▼ [디버깅 로그] ▼▼▼
-    console.log(`--- KEY DOWN EVENT: ${event.code} ---`);
-    // ▲▲▲ [디버깅 로그] ▲▲▲
-
     if (chatInputRef.value === document.activeElement) return; // 채팅 중이면 무시
     
     const code = event.code;
@@ -494,10 +490,6 @@ const handleKeyUp = (event) => {
 
 // 조이스틱 이벤트 핸들러
 const handleJoystickMove = (evt, data) => { 
-    // ▼▼▼ [디버깅 로그] ▼▼▼
-    console.log(`--- JOYSTICK MOVE EVENT: force=${data.force}, distance=${data.distance} ---`);
-    // ▲▲▲ [디버깅 로그] ▲▲▲
-    
     joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; 
 };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
@@ -555,12 +547,6 @@ const updatePlayerMovement = (deltaTime) => {
 // --- 이동 적용 (로컬 Z축 기준) ---
   if (applyMovement) {
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-
-    // ▼▼▼ [디버깅 로그] ▼▼▼
-    // (이 로그가 찍히면 움직여야 정상입니다)
-    console.log(`--- APPLYING MOVEMENT: amount=${moveAmount} ---`);
-    // ▲▲▲ [디버깅 로그] ▲▲▲
-
     myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
     if (Math.abs(moveAmount) > 0.001) moved = true;
   }
