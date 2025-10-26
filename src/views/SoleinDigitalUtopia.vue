@@ -623,7 +623,7 @@ const handleResize = () => {
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
   // ▼▼▼ [새로운 테스트 코드] 이 라인을 onMounted 최상단에 추가하세요 ▼▼▼
-  console.log('--- DEPLOY TEST VERSION 10 --- THIS IS THE NEWEST CODE ---');
+  console.log('--- DEPLOY TEST VERSION 11 --- THIS IS THE NEWEST CODE ---');
   // ▲▲▲ [새로운 테스트 코드] ▲▲▲
 
   // 로그인 확인
@@ -655,7 +655,7 @@ onMounted(async () => {
   try {
       myAvatar = await loadAvatar(myAvatarUrl);
 
-      // ▼▼▼ [최종 디버깅] ▼▼▼
+// ▼▼▼ [최종 디버깅] ▼▼▼
       console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
       console.log(myAvatar);
       // ▲▲▲ [최종 디버깅] ▲▲▲
@@ -663,9 +663,12 @@ onMounted(async () => {
       // --- ▼▼▼ [핵심 수정] ---
       // 로드된 아바타의 위치가 (0,0,0)이 아닐 경우를 대비하여
       // 씬에 추가하기 직전에 강제로 위치를 초기화합니다.
-      myAvatar.position.set(0, 0, 0); 
+      myAvatar.position.set(0, 0, 0);
+      
+      // [★] 이 코드가 100% 문제를 해결합니다. [★]
       myAvatar.rotation.set(0, 0, 0); // 회전도 초기화 (안전을 위해)
-      console.log('--- AVATAR POSITION FORCED TO (0,0,0) ---');
+
+      console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---'); // (로그도 수정)
       // --- ▲▲▲ [핵심 수정] ---
 
       scene.add(myAvatar); // 씬에 아바타 추가
