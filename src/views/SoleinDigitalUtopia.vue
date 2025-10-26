@@ -84,11 +84,16 @@ let joystickManager = null; // nipplejs 인스턴스
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
   return new Promise((resolve) => {
-    // 1. model은 'myAvatar'가 될 '컨테이너(래퍼)' 그룹입니다.
+    // 1. 'model'은 'myAvatar'가 될 *최상위* 컨테이너입니다.
+    //    이 객체는 오직 '이동'과 '회전'만 담당합니다. (스케일 X)
     const model = new THREE.Group();
-    model.position.set(0, 0, 0); // 컨테이너의 위치
+    model.position.set(0, 0, 0);
 
-    // 2. URL이 없거나 GLB가 아닐 경우 기본 큐브 로직
+    // 2. 'visuals' 그룹은 '스케일'만 담당할 *내부* 컨테이너입니다.
+    //    아바타의 모든 메쉬(시각적 모델)는 이 그룹의 자식이 됩니다.
+    const visuals = new THREE.Group();
+
+    // 3. URL이 없거나 GLB가 아닐 경우 기본 큐브 로직
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
@@ -96,22 +101,23 @@ const loadAvatar = (url) => {
       const cube = new THREE.Mesh(geometry, material);
       cube.position.y = 0.5; // 큐브를 바닥 위에 놓음
       
-      // 큐브를 'model' 컨테이너의 자식으로 추가
-      model.add(cube);
-      // 'model' 컨테이너를 반환
-      resolve(model); 
+      visuals.add(cube); // 큐브를 'visuals' 그룹에 추가
+      visuals.scale.set(0.7, 0.7, 0.7); // (기본 큐브도 스케일 통일)
+      model.add(visuals); // 'visuals'를 'model'에 추가
+      
+      resolve(model); // 최상위 'model' 반환
       return;
     }
     
-    // 3. GLB 로더 실행
+    // 4. GLB 로더 실행
     loader.load(url,
     (gltf) => {
-        // 4. gltf.scene을 복제한 'avatarModel'은 순수한 '시각적 모델'입니다.
+        // 5. gltf.scene을 복제합니다. (이것은 메쉬를 꺼내기 위한 임시 홀더입니다)
         const avatarModel = gltf.scene.clone(); 
         
-        // 5. 피벗 보정 (모델의 발을 (0,0,0)에 맞춤)
+        // 6. 피벗 보정 (모델의 발을 (0,0,0)에 맞춤)
         const box = new THREE.Box3().setFromObject(avatarModel);
-        const center = box.getCenter(new THREE.Vector3()); // center 정의
+        const center = box.getCenter(new THREE.Vector3()); 
         
         avatarModel.traverse((child) => {
           if (child.isMesh) {
@@ -122,36 +128,36 @@ const loadAvatar = (url) => {
           }
         });
         
-        // 6. 'avatarModel'(시각적 모델) 자체의 스케일과 위치를 조정합니다.
-        //    이것은 컨테이너(model) 내부에서의 스케일/위치입니다.
-        avatarModel.scale.set(0.7, 0.7, 0.7);
-        avatarModel.position.set(0, 0, 0); // 컨테이너 기준 (0,0,0)
-
         // 7. ★★★ [핵심 수정] ★★★
-        
-        // 'avatarModel'의 matrixAutoUpdate를 강제로 true로 설정합니다.
-        // 이것이 false이면 부모의 움직임을 상속받지 못합니다.
-        avatarModel.matrixAutoUpdate = true; 
-        
-        // 'avatarModel'(시각적 모델)을 'model'(컨테이너)의 자식으로 추가합니다.
-        model.add(avatarModel);
+        // 'avatarModel' 객체 자체를 버리고,
+        // 그 *자식 객체(메쉬 등)*들만 'visuals' 그룹으로 이동시킵니다.
+        while (avatarModel.children.length > 0) {
+            visuals.add(avatarModel.children[0]);
+        }
 
-        // 8. 'model'(컨테이너)를 반환합니다.
+        // 8. 'visuals' 그룹 자체의 스케일을 조절합니다.
+        visuals.scale.set(0.7, 0.7, 0.7);
+        visuals.position.set(0, 0, 0); // (내부 위치는 0)
+
+        // 9. 스케일링된 'visuals' 그룹을 최상위 'model' 컨테이너에 추가합니다.
+        model.add(visuals);
+
+        // 10. 최상위 'model'(컨테이너)를 반환합니다.
         resolve(model);
       },
       undefined, // 'onProgress' 콜백 (사용 안 함)
       (error) => {
-        // 9. 로드 실패 시 에러 큐브 로직
+        // 11. 로드 실패 시 에러 큐브 로직
         console.error('아바타 로딩 실패:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
         
-        // 에러 큐브도 'model' 컨테이너에 추가
-        model.add(cube);
-        // 'model' 컨테이너를 반환
-        resolve(model);
+        visuals.add(cube); // 에러 큐브도 'visuals'에 추가
+        visuals.scale.set(0.7, 0.7, 0.7);
+        model.add(visuals); // 'visuals'를 'model'에 추가
+        resolve(model); // 최상위 'model' 반환
       }
     );
   });
