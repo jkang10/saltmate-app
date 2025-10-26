@@ -83,59 +83,83 @@ let joystickManager = null; // nipplejs 인스턴스
 
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
-  return new Promise((resolve) => { // 사용되지 않는 'reject' 제거
-    if (!url || !url.endsWith('.glb')) { // URL 유효성 및 .glb 확장자 확인
+  return new Promise((resolve) => {
+    // [★수정] '유령' 컨테이너(래퍼) 객체를 생성합니다.
+    // 이것이 myAvatar가 되며, 실제 이동/회전을 담당합니다.
+    const model = new THREE.Group();
+    model.position.set(0, 0, 0); // 컨테이너의 위치는 항상 0,0,0에서 시작
+
+    if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
-      // 기본 아바타 (녹색 큐브) 생성
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5; // 바닥 위에 위치하도록 Y 좌표 조정
-      resolve(cube); // 생성된 큐브 객체로 Promise 완료
+      cube.position.y = 0.5;
+      
+      // [★수정] 큐브를 씬이 아닌 'model' 컨테이너에 추가합니다.
+      model.add(cube);
+      // [★수정] 'model' 컨테이너를 반환합니다.
+      resolve(model); 
       return;
     }
-    // GLTFLoader를 사용하여 모델 로드
+
     loader.load(url,
     (gltf) => {
-        // ▼▼▼ [핵심 수정] "유령" 컨테이너(model)를 만들지 않고
-        // gltfScene (실제 모델) 자체를 myAvatar로 사용합니다.
+        // ▼▼▼ [핵심 수정] 기존 로직을 'model' 컨테이너를 사용하는 방식으로 변경합니다.
         
-        const avatarModel = gltf.scene.clone(); // [1] 이것이 'myAvatar'가 될 객체입니다.
+        // [1] gltf.scene을 복제합니다. 이것은 '시각적'인 모델입니다.
+        const avatarModel = gltf.scene.clone(); 
         
         const box = new THREE.Box3().setFromObject(avatarModel);
         const center = box.getCenter(new THREE.Vector3());
         
-        // [2] 모델의 '위치'를 옮기는 것이 아니라,
-        // 모델의 '내용물(지오메트리)' 자체를 옮깁니다.
-        // 이렇게 하면 avatarModel.position은 (0,0,0)을 유지할 수 있습니다.
+        // [2] 피벗 보정: '시각적 모델'의 지오메트리를 이동시킵니다.
         avatarModel.traverse((child) => {
           if (child.isMesh) {
-            // 지오메트리 자체를 피벗 중심으로 이동
             child.geometry.translate(-center.x, -box.min.y, -center.z);
-
-            // 그림자 설정도 여기서 바로 처리
             child.castShadow = true;
             child.receiveShadow = false;
           }
         });
         
-        // [3] 모델의 크기와 위치는 (0,0,0)으로 설정합니다.
+        // [3] '시각적 모델'의 크기와 위치를 설정합니다. (컨테이너 내부에서의 위치)
         avatarModel.scale.set(0.7, 0.7, 0.7);
-        avatarModel.position.set(0, 0, 0); // (이것은 onMounted에서도 초기화됨)
+        avatarModel.position.set(0, 0, 0); // 컨테이너(model) 기준 0,0,0
 
-        resolve(avatarModel); // "유령"이 아닌 "실제 모델"을 반환합니다.
+        // [4] ★★★ '시각적 모델(avatarModel)'을 '유령' 컨테이너(model)의 자식으로 추가합니다.
+        model.add(avatarModel);
+
+        // [5] ★★★ '유령' 컨테이너(model)를 반환합니다.
+        resolve(model); 
         
-        // --- ▲▲▲ 수정 완료 (기존 '피벗 보정 로직' ~ 'resolve(model)'까지 대체) ---
+        /* --- ▼▼▼ 기존 로직 (주석 처리) ▼▼▼ ---
+        const avatarModel = gltf.scene.clone(); 
+        const box = new THREE.Box3().setFromObject(avatarModel);
+        const center = box.getCenter(new THREE.Vector3());
+        avatarModel.traverse((child) => {
+          if (child.isMesh) {
+            child.geometry.translate(-center.x, -box.min.y, -center.z);
+            child.castShadow = true;
+            child.receiveShadow = false;
+          }
+        });
+        avatarModel.scale.set(0.7, 0.7, 0.7);
+        avatarModel.position.set(0, 0, 0); 
+        resolve(avatarModel);
+        --- ▲▲▲ 기존 로직 (주석 처리) ▲▲▲ --- */
       },
-      undefined, // 진행 상태 콜백 (현재 사용 안 함)
-      (error) => { // 로드 실패 시 콜백
+      undefined, 
+      (error) => {
         console.error('아바타 로딩 실패:', error, 'URL:', url);
-        // 로딩 실패 시 빨간색 큐브 생성
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
-        resolve(cube); // 실패 시에도 기본 큐브로 Promise 완료 (앱 중단 방지)
+        
+        // [★수정] 실패 시 큐브도 'model' 컨테이너에 추가합니다.
+        model.add(cube);
+        // [★수정] 'model' 컨테이너를 반환합니다.
+        resolve(model);
       }
     );
   });
