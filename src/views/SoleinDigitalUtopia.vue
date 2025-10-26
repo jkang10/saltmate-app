@@ -486,10 +486,13 @@ const initThree = () => {
 // --- 플레이어 이동 로직 ---
 // 키보드 이벤트 핸들러
 const handleKeyDown = (event) => {
+    // ▼▼▼ [디버깅 로그] ▼▼▼
+    console.log(`--- KEY DOWN EVENT: ${event.code} ---`);
+    // ▲▲▲ [디버깅 로그] ▲▲▲
+
     if (chatInputRef.value === document.activeElement) return; // 채팅 중이면 무시
     
-    // ▼▼▼ [핵심 수정] event.key.toLowerCase() -> event.code ▼▼▼
-    const code = event.code; // 'KeyW', 'KeyA', 'ArrowLeft' 등
+    const code = event.code;
     keysPressed[code] = true;
     // ▲▲▲ [핵심 수정] ▲▲▲
 
@@ -507,7 +510,13 @@ const handleKeyUp = (event) => {
 };
 
 // 조이스틱 이벤트 핸들러
-const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
+const handleJoystickMove = (evt, data) => { 
+    // ▼▼▼ [디버깅 로그] ▼▼▼
+    console.log(`--- JOYSTICK MOVE EVENT: force=${data.force}, distance=${data.distance} ---`);
+    // ▲▲▲ [디버깅 로그] ▲▲▲
+    
+    joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; 
+};
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트 (로컬 Z축 이동으로 복귀)
@@ -560,9 +569,15 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
 
-  // --- 이동 적용 (로컬 Z축 기준) ---
+// --- 이동 적용 (로컬 Z축 기준) ---
   if (applyMovement) {
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
+
+    // ▼▼▼ [디버깅 로그] ▼▼▼
+    // (이 로그가 찍히면 움직여야 정상입니다)
+    console.log(`--- APPLYING MOVEMENT: amount=${moveAmount} ---`);
+    // ▲▲▲ [디버깅 로그] ▲▲▲
+
     myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
     if (Math.abs(moveAmount) > 0.001) moved = true;
   }
@@ -650,7 +665,7 @@ const handleResize = () => {
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
   // ▼▼▼ [새로운 테스트 코드] 이 라인을 onMounted 최상단에 추가하세요 ▼▼▼
-  console.log('--- DEPLOY TEST VERSION 11 --- THIS IS THE NEWEST CODE ---');
+  console.log('--- DEPLOY TEST VERSION 12 --- THIS IS THE NEWEST CODE ---');
   // ▲▲▲ [새로운 테스트 코드] ▲▲▲
 
   // 로그인 확인
