@@ -636,32 +636,26 @@ const animate = () => {
   updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
   updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
 
-// [수정] 카메라 추적 로직: 아바타를 '부드럽게(Lerp)' 따라가는 3인칭 카메라로 변경
+  // 카메라 추적 로직 수정 (아바타를 부드럽게 Lerp로 따라가도록)
   if (myAvatar) {
       const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 오프셋 (높이 3.0, 뒤로 5.0)
       
-      // 이 값이 클수록 카메라가 더 빠릿하게(딱딱하게) 따라오고, 작을수록 굼뜨게(부드럽게) 따라옵니다. (4.0 ~ 8.0 추천)
-      const lerpFactor = deltaTime * 5.0; 
+      // Lerp Factor로 부드럽게 카메라를 아바타 주변으로 이동
+      const lerpFactor = deltaTime * 5.0;
 
-      // 1. 아바타의 회전을 적용하여 '이상적인' 카메라 위치(targetPosition) 계산
+      // 카메라 위치 계산
       const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
       const targetPosition = myAvatar.position.clone().add(cameraOffset);
 
-      // 2. 카메라의 현재 위치에서 '이상적인' 위치로 부드럽게 이동 (Lerp)
-      //    camera.position.copy(targetPosition); // <--- '즉시' 복사 대신 lerp 사용
-      camera.position.lerp(targetPosition, lerpFactor);
+      camera.position.lerp(targetPosition, lerpFactor); // 카메라 위치 보간
 
-      // 3. 카메라가 바라볼 '이상적인' 지점 계산 (아바타 상반신)
+      // 카메라가 아바타를 부드럽게 바라보도록 처리
       const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-      
-      // 4. (1단계에서 추가한) 전역 변수 'cameraLookAtTarget'을 '이상적인' 지점으로 부드럽게 이동 (Lerp)
       cameraLookAtTarget.lerp(targetLookAt, lerpFactor);
-
-      // 5. 부드럽게 이동된 지점을 카메라가 바라보도록 설정
-      camera.lookAt(cameraLookAtTarget);
+      camera.lookAt(cameraLookAtTarget); // 최종적으로 카메라가 바라볼 방향 설정
   }
 
-  renderer.render(scene, camera); // 렌더링
+  renderer.render(scene, camera); // 씬 렌더링
 };
 
 // --- 창 크기 조절 처리 ---
