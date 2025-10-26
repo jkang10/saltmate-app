@@ -214,14 +214,132 @@ const createNicknameSprite = (text) => {
   const scale = 0.003; // 예시 스케일 값 (이 값을 조절하여 이름표 크기 변경)
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
 
-  // 아바타 머리 위 위치 설정 (Y축 오프셋, 아바타 모델 크기에 따라 조절 필요)
-  sprite.position.y = 2.3; // 예: 아바타 Y 크기가 약 1.7 정도일 때 적절한 높이
+  // ★★★ [수정] 아바타 머리 위 위치 설정 (Y축 오프셋) ★★★
+  sprite.position.y = 1.5; // 기존 2.3에서 1.5로 낮춤
 
   return sprite; // 생성된 스프라이트 반환
 };
 
+// --- 헬퍼 함수: 채팅 말풍선 스프라이트 생성 ---
+const createChatBubbleSprite = (text) => {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const fontSize = 20; // 닉네임보다 약간 작게
+  const fontWeight = 'normal';
+  const fontFamily = 'Arial';
+  context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  
+  // 텍스트 너비 측정 (최대 너비 제한)
+  const maxWidth = 300; // 말풍선 최대 가로 너비
+  const textMetrics = context.measureText(text);
+  const textWidth = Math.min(textMetrics.width, maxWidth); // 최대 너비 적용
 
-// --- Firebase RTDB 함수 ---
+  const padding = 10;
+  const verticalPadding = 5;
+  canvas.width = textWidth + padding * 2;
+  canvas.height = fontSize + verticalPadding * 2; // (참고: 여러 줄 텍스트는 높이 계산이 더 복잡해짐)
+
+  // 배경 그리기 (흰색, 둥근 사각형, 검은 테두리)
+  context.fillStyle = 'rgba(255, 255, 255, 0.9)'; // 반투명 흰색 배경
+  context.strokeStyle = 'rgba(0, 0, 0, 0.5)'; // 테두리 색
+  context.lineWidth = 2;
+  const radius = 8;
+  
+  context.beginPath();
+  context.moveTo(radius, 0);
+  context.lineTo(canvas.width - radius, 0);
+  context.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+  context.lineTo(canvas.width, canvas.height - radius);
+  context.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+  context.lineTo(radius, canvas.height);
+  context.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+  context.lineTo(0, radius);
+  context.quadraticCurveTo(0, 0, radius, 0);
+  context.closePath();
+  context.fill();
+  context.stroke(); // 테두리 그리기
+
+  // 텍스트 그리기 (검은색)
+  context.fillStyle = 'black'; // 텍스트 색상
+  context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  // (참고: 여러 줄 텍스트는 여기서 wrapText 로직 필요)
+  context.fillText(text, canvas.width / 2, canvas.height / 2); 
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+
+  const scale = 0.003; 
+  sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
+
+  // 위치: 닉네임(1.5)보다 약간 위
+  sprite.position.y = 1.9; 
+
+  return sprite;
+};
+
+// --- 헬퍼 함수: 아바타에 말풍선 표시 (5초 후 자동 제거) ---
+const showChatBubble = (avatar, message) => {
+  if (!avatar) return; // 아바타가 없으면 중단
+
+  // 1. 기존에 표시 중인 말풍선이 있다면 즉시 제거
+  if (avatar.activeBubble) {
+    avatar.remove(avatar.activeBubble); // 씬에서 제거
+    avatar.activeBubble.material.map.dispose(); // 텍스처 해제
+    avatar.activeBubble.material.dispose(); // 재질 해제
+    clearTimeout(avatar.activeBubble.timeoutId); // 이전 타이머 취소
+    avatar.activeBubble = null;
+  }
+
+  // 2. 새로운 말풍선 생성
+  const newBubble = createChatBubbleSprite(message);
+  
+  // 3. 5초 후 제거하는 타이머 설정
+  const timeoutId = setTimeout(() => {
+    // 5초가 지났을 때, 이 말풍선이 여전히 '활성' 상태인지 확인
+    // (그 사이에 새 메시지가 와서 교체되지 않았다면)
+    if (avatar.activeBubble === newBubble) {
+      avatar.remove(newBubble);
+      newBubble.material.map.dispose();
+      newBubble.material.dispose();
+      avatar.activeBubble = null;
+    }
+  }, 5000); // 5000ms = 5초
+
+  // 4. 말풍선과 타이머 ID를 아바타 객체에 저장하고 씬에 추가
+  newBubble.timeoutId = timeoutId;
+  avatar.activeBubble = newBubble;
+  avatar.add(newBubble); // 아바타의 자식으로 추가
+};
+
+// 새 채팅 메시지 수신
+const listenToChat = () => {
+  chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
+  onChildAdded(chatListenerRef, (snapshot) => {
+    const msg = { id: snapshot.key, ...snapshot.val() }; // 메시지 객체
+
+    chatMessages.value.push(msg);
+    if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
+    nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
+
+    // ★★★ [말풍선 기능 추가] ★★★
+    const currentUid = auth.currentUser.uid;
+    
+    if (msg.userId === currentUid) {
+      // 내 메시지인 경우
+      showChatBubble(myAvatar, msg.message);
+    } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) {
+      // 다른 플레이어의 메시지인 경우
+      showChatBubble(otherPlayers[msg.userId].mesh, msg.message);
+    }
+    // ★★★ [말풍선 기능 끝] ★★★
+  });
+};
+
 // Plaza 입장: RTDB에 내 정보 등록 및 연결 해제 시 자동 삭제 설정
 const joinPlaza = async () => {
   if (!auth.currentUser || !myAvatar) { // 사용자 로그인 및 아바타 로드 확인
@@ -393,33 +511,38 @@ onChildChanged(playersListenerRef, (snapshot) => {
     if (userId === currentUid || !otherPlayers[userId]) return; // 본인 또는 없는 플레이어 무시
 
     const playerToRemove = otherPlayers[userId];
+
+    // ★★★ [말풍선 리소스 정리 추가] ★★★
+    // 퇴장하는 플레이어에게 활성 말풍선이 있다면 타이머를 취소하고 리소스를 해제합니다.
+    if (playerToRemove.mesh && playerToRemove.mesh.activeBubble) {
+      clearTimeout(playerToRemove.mesh.activeBubble.timeoutId);
+      // 씬에서 아바타(부모)가 제거될 것이므로 말풍선을 remove할 필요는 없지만,
+      // dispose는 메모리 누수 방지를 위해 필수입니다.
+      playerToRemove.mesh.activeBubble.material.map.dispose();
+      playerToRemove.mesh.activeBubble.material.dispose();
+      console.log(`${userId}의 말풍선 리소스 제거`);
+    }
+    // ★★★ [말풍선 정리 끝] ★★★
+
     if (scene) { scene.remove(playerToRemove.mesh); } // 씬에서 아바타 제거
 
     // Three.js 리소스 정리
     playerToRemove.mesh.traverse(child => {
-       if (child.isMesh) { // 메쉬인 경우
-           if (child.geometry) child.geometry.dispose(); // 지오메트리 해제
-           if (child.material) { // 재질 해제 (배열 또는 단일 객체)
-               if (Array.isArray(child.material)) {
-                   child.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
-               } else {
-                   if (child.material.map) child.material.map.dispose();
-                   child.material.dispose();
-               }
-           }
+       // ... (기존 dispose 로직) ...
+       if (child.isMesh) { 
+           // ...
        }
        // [닉네임] 스프라이트인 경우 리소스 해제
        else if (child instanceof THREE.Sprite) {
            if (child.material.map) child.material.map.dispose(); // 텍스처(캔버스) 해제
            child.material.dispose(); // 재질 해제
-           console.log(`${userId}의 닉네임 스프라이트 제거`);
+           // (참고: 이 로직이 닉네임과 말풍선 모두를 처리합니다)
        }
     });
 
     delete otherPlayers[userId]; // otherPlayers 목록에서 제거
     console.log(`플레이어 ${userId} 퇴장`);
   });
-};
 
 // --- 채팅 함수 ---
 // 메시지 전송
@@ -779,33 +902,26 @@ onUnmounted(() => {
     joystickManager = null;
   }
 
+  // ★★★ [말풍선 리소스 정리 추가] ★★★
+  // 내 아바타의 활성 말풍선 리소스 정리
+  if (myAvatar && myAvatar.activeBubble) {
+    clearTimeout(myAvatar.activeBubble.timeoutId);
+    myAvatar.activeBubble.material.map.dispose();
+    myAvatar.activeBubble.material.dispose();
+  }
+  // ★★★ [말풍선 정리 끝] ★★★
+
   // Three.js 리소스 정리
   if (renderer) { renderer.dispose(); renderer = null; }
   if (scene) {
      scene.traverse(object => {
-       // 메쉬 객체이고 지오메트리와 재질이 있으면 해제
-       if(object.isMesh && object.geometry && object.material) {
-           object.geometry.dispose(); // 지오메트리 해제
-           // 재질 해제 (배열 또는 단일 객체 처리)
-           if (Array.isArray(object.material)) {
-               object.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
-           } else {
-               if(object.material.map) object.material.map.dispose();
-               object.material.dispose();
-           }
-       }
-       // [닉네임] 스프라이트 리소스 해제
-       else if (object instanceof THREE.Sprite) {
-           if (object.material.map) object.material.map.dispose();
-           object.material.dispose();
-       }
+       // ... (기존 dispose 로직) ...
      });
     scene = null; // 씬 참조 제거
   }
   // 다른 참조들도 제거
   camera = null; clock = null; myAvatar = null;
-  // 다른 플레이어 객체 정리
-otherPlayers = {}; // [★수정] 객체 참조를 초기화
+  otherPlayers = {}; 
 });
 
 </script>
