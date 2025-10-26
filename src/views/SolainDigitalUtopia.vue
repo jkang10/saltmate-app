@@ -586,8 +586,41 @@ const sendMessage = () => {
 const initThree = () => {
   try {
       scene = new THREE.Scene(); // 씬 생성
-      scene.background = new THREE.Color(0xade6ff); // 배경색
-      scene.fog = new THREE.Fog(0xade6ff, 10, 30); // 안개
+
+      // ▼▼▼ [배경색 코드 제거] ▼▼▼
+      // scene.background = new THREE.Color(0xade6ff); // 배경색
+      // ▲▲▲ [배경색 코드 제거] ▲▲▲
+
+      // ▼▼▼ [배경 이미지 로더 추가] ▼▼▼
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load(
+        '/img/my_background.jpg', // public 폴더에 넣은 이미지 경로
+        (texture) => {
+          // 360도 파노라마(equirectangular) 매핑으로 설정
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          
+          scene.background = texture; // 씬의 배경으로 설정
+          
+          // (강력 추천) 씬의 환경맵으로도 설정하면
+          // 아바타 표면에 배경이 반사되어 훨씬 자연스러워집니다.
+          scene.environment = texture; 
+          
+          console.log("배경 이미지 로드 완료");
+        },
+        undefined,
+        (err) => {
+          console.error('배경 이미지 로드 실패:', err);
+          // 실패 시 기존 파란색 배경으로 복구
+          scene.background = new THREE.Color(0xade6ff);
+        }
+      );
+      // ▲▲▲ [배경 이미지 로더 추가] ▲▲▲
+
+      // ▼▼▼ [안개 색상 수정] ▼▼▼
+      // 기존 0xade6ff (파란색)에서 배경과 어울리는 중립적인 색(예: 회색)으로 변경
+      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개
+      // ▲▲▲ [안개 색상 수정] ▲▲▲
+
 
       // 카메라 생성
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -1005,7 +1038,21 @@ if (renderer) { renderer.dispose(); renderer = null; }
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; font-size: 1.1em; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.chat-ui { position: absolute; bottom: 20px; left: 20px; width: 300px; max-width: 80%; max-height: 40%; background-color: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; z-index: 5; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+.chat-ui { 
+  position: absolute; 
+  bottom: 20px; 
+  left: 20px; 
+  width: 300px; 
+  max-width: 80%; 
+  max-height: 20%; /* ★★★ 수정: 40% -> 20% ★★★ */
+  background-color: rgba(0, 0, 0, 0.7); 
+  border-radius: 8px; 
+  padding: 10px; 
+  display: flex; 
+  flex-direction: column; 
+  z-index: 5; 
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5); 
+}
 .message-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; color: white; font-size: 0.9em; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.5); }
 .message-list::-webkit-scrollbar { width: 5px; } .message-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); border-radius: 3px;} .message-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px;} .message-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; } .chat-message strong { color: #f1c40f; margin-right: 5px; }
