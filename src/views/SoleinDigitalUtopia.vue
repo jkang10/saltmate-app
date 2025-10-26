@@ -586,7 +586,7 @@ const updatePlayerMovement = (deltaTime) => {
     if (Math.abs(moveAmount) > 0.001) moved = true;
   }
 
-  // --- 경계 처리 ---
+// --- 경계 처리 ---
   const boundary = 14.5; // 바닥 경계
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
@@ -594,10 +594,11 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = 0; // Y축 고정
 
   // ▼▼▼ [핵심 수정] ▼▼▼
-  // 'myAvatar'의 위치/회전이 변경되었으므로,
-  // 'matrixWorld'를 강제로 즉시 업데이트하도록 지시합니다.
-  // 이것이 'visuals'와 'myNickname' 자식 객체들이 
-  // 부모의 새 위치를 상속받도록 보장합니다.
+  // 1. .position, .rotation 변경 사항을 .matrix (로컬 매트릭스)에 강제로 반영합니다.
+  myAvatar.updateMatrix(); 
+  
+  // 2. 'matrixWorld'를 강제로 즉시 업데이트하도록 지시합니다.
+  //    (이것은 .matrix를 기반으로 계산되므로 updateMatrix()가 선행되어야 합니다)
   myAvatar.updateMatrixWorld(true); // 'true'는 자식 객체까지 강제 업데이트
   // ▲▲▲ [핵심 수정] ▲▲▲
 
