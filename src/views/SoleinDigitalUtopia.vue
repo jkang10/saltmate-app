@@ -573,7 +573,20 @@ const updatePlayerMovement = (deltaTime) => {
 // --- 이동 적용 (로컬 Z축 기준) ---
   if (applyMovement) {
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-    myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
+
+    // ▼▼▼ [핵심 수정] myAvatar.translateZ(moveAmount); 를 아래 3줄로 대체합니다. ▼▼▼
+    
+    // 1. 이동할 방향과 거리를 로컬 Z축 벡터로 생성합니다.
+    const velocity = new THREE.Vector3(0, 0, moveAmount);
+    // 2. 이 벡터에 아바타의 현재 회전(쿼터니언)을 적용하여 월드 좌표계의 이동 벡터로 변환합니다.
+    velocity.applyQuaternion(myAvatar.quaternion);
+    // 3. 변환된 벡터를 아바타의 현재 위치에 더합니다.
+    myAvatar.position.add(velocity);
+    
+    // [기존 코드] myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
+    // ▲▲▲ [핵심 수정] ▲▲▲
+
+
     if (Math.abs(moveAmount) > 0.001) moved = true;
   }
 
@@ -581,6 +594,8 @@ const updatePlayerMovement = (deltaTime) => {
   const boundary = 14.5; // 바닥 경계
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
+  
+  // ▼▼▼ [수정] Y축 고정 코드를 '이동 적용' 섹션이 아닌 '경계 처리' 섹션의 마지막으로 이동 ▼▼▼
   myAvatar.position.y = 0; // Y축 고정
 
   // --- 상태 변경 시 RTDB 업데이트 (Throttled) ---
