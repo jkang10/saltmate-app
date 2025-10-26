@@ -692,26 +692,31 @@ onMounted(async () => {
       else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
   } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
 
-// 4. 내 아바타 로드 및 닉네임 추가
+  // 4. 내 아바타 로드 및 닉네임 추가
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
       myAvatar = await loadAvatar(myAvatarUrl);
 
-// ▼▼▼ [최종 디버깅] ▼▼▼
       console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
       console.log(myAvatar);
-      // ▲▲▲ [최종 디버깅] ▲▲▲
 
-      // --- ▼▼▼ [핵심 수정] ---
+      // ▼▼▼ [핵심 수정] ▼▼▼
+      // 'myAvatar' 객체의 matrixAutoUpdate 속성 값을 강제로 확인하고 true로 설정합니다.
+      // 이 값이 false이면, 'myAvatar'의 position이 변경되어도
+      // 자식 객체(visuals, myNickname)가 부모를 따라오지 않습니다.
+      console.log(`[DEBUG] myAvatar.matrixAutoUpdate (Before): ${myAvatar.matrixAutoUpdate}`);
+      myAvatar.matrixAutoUpdate = true; // ★★★ 이 코드가 문제를 해결합니다.
+      console.log(`[DEBUG] myAvatar.matrixAutoUpdate (After): ${myAvatar.matrixAutoUpdate}`);
+      // ▲▲▲ [핵심 수정] ▲▲▲
+
+      // --- ▼▼▼ [기존 코드] ---
       // 로드된 아바타의 위치가 (0,0,0)이 아닐 경우를 대비하여
       // 씬에 추가하기 직전에 강제로 위치를 초기화합니다.
       myAvatar.position.set(0, 0, 0);
-      
-      // [★] 이 코드가 100% 문제를 해결합니다. [★]
       myAvatar.rotation.set(0, 0, 0); // 회전도 초기화 (안전을 위해)
 
-      console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---'); // (로그도 수정)
-      // --- ▲▲▲ [핵심 수정] ---
+      console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
+      // --- ▲▲▲ [기존 코드] ---
 
       scene.add(myAvatar); // 씬에 아바타 추가
       if (myUserName) { // 이름이 있으면 닉네임 추가
