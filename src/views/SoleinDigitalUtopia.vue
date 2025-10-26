@@ -518,92 +518,85 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트 (로컬 Z축 이동으로 복귀)
 const updatePlayerMovement = (deltaTime) => {
-  if (!myAvatar || !isReady.value) return; // 유효성 검사
+  if (!myAvatar || !isReady.value) return;
 
-  let moved = false;                     // 이동/회전 발생 여부 플래그
-  let rotationAmount = 0;                // 이번 프레임 회전량 (키보드)
-  let applyRotation = false;             // 회전 적용 여부
-  let applyMovement = false;             // 이동 적용 여부
-  let moveDirectionZ = 0;                // 로컬 Z축 이동 방향 (-1: 전진, 1: 후진)
-  let currentSpeedFactor = 1.0;          // 속도 계수 (조이스틱 힘)
-  let targetRotationY = myAvatar.rotation.y; // 목표 Y 회전 (조이스틱 Lerp용)
+  let moved = false;
+  let rotationAmount = 0;
+  let applyRotation = false;
+  let applyMovement = false;
+  let moveDirectionZ = 0;
+  let currentSpeedFactor = 1.0;
+  let targetRotationY = myAvatar.rotation.y;
 
   // --- 조이스틱 입력 처리 ---
   if (joystickData.value.active) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 목표 회전값
-    moveDirectionZ = -1; // 조이스틱은 항상 전방 이동
-    currentSpeedFactor = joystickData.value.force; // 속도 조절
+    targetRotationY = -joystickData.value.angle + Math.PI / 2;
+    moveDirectionZ = -1;
+    currentSpeedFactor = joystickData.value.force;
     applyRotation = true;
     applyMovement = joystickData.value.distance > 10;
   }
-// --- 키보드 입력 처리 ---
+  // --- 키보드 입력 처리 ---
   else {
-    // 회전 (A/D 또는 좌/우 화살표)
-    // ▼▼▼ [핵심 수정] 'a', 'd' -> 'KeyA', 'KeyD' ▼▼▼
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    // ▲▲▲ [핵심 수정] ▲▲▲
     
-    // 이동 (W/S 또는 위/아래 화살표)
-    // ▼▼▼ [핵심 수정] 'w', 's' -> 'KeyW', 'KeyS' ▼▼▼
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 전방(-Z) 로컬
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; }  // 후방(+Z) 로컬
-    // ▲▲▲ [핵심 수정] ▲▲▲
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; }
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
-    if (joystickData.value.active) { // 조이스틱: 부드러운 Lerp 회전
+    if (joystickData.value.active) {
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
         const rotationChange = diff * deltaTime * 8;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
-    } else { // 키보드: 즉시 회전 적용
+    } else {
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
-// --- 이동 적용 (로컬 Z축 기준) ---
+  // --- 이동 적용 (로컬 Z축 기준) ---
   if (applyMovement) {
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-
-    // ▼▼▼ [핵심 수정] myAvatar.translateZ(moveAmount); 를 아래 3줄로 대체합니다. ▼▼▼
     
-    // 1. 이동할 방향과 거리를 로컬 Z축 벡터로 생성합니다.
     const velocity = new THREE.Vector3(0, 0, moveAmount);
-    // 2. 이 벡터에 아바타의 현재 회전(쿼터니언)을 적용하여 월드 좌표계의 이동 벡터로 변환합니다.
     velocity.applyQuaternion(myAvatar.quaternion);
-    // 3. 변환된 벡터를 아바타의 현재 위치에 더합니다.
     myAvatar.position.add(velocity);
-    
-    // [기존 코드] myAvatar.translateZ(moveAmount); // 로컬 Z축으로 이동
-    // ▲▲▲ [핵심 수정] ▲▲▲
-
 
     if (Math.abs(moveAmount) > 0.001) moved = true;
   }
 
-// --- 경계 처리 ---
-  const boundary = 14.5; // 바닥 경계
+  // --- 경계 처리 ---
+  const boundary = 14.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  
-  myAvatar.position.y = 0; // Y축 고정
+  myAvatar.position.y = 0;
 
-  // ▼▼▼ [핵심 수정] ▼▼▼
-  // 1. .position, .rotation 변경 사항을 .matrix (로컬 매트릭스)에 강제로 반영합니다.
-  myAvatar.updateMatrix(); 
-  
-  // 2. 'matrixWorld'를 강제로 즉시 업데이트하도록 지시합니다.
-  //    (이것은 .matrix를 기반으로 계산되므로 updateMatrix()가 선행되어야 합니다)
-  myAvatar.updateMatrixWorld(true); // 'true'는 자식 객체까지 강제 업데이트
-  // ▲▲▲ [핵심 수정] ▲▲▲
-
-  // --- 상태 변경 시 RTDB 업데이트 (Throttled) ---
-  if (moved) { throttledUpdate(); } // 이동 또는 회전 시 업데이트 요청
+  // ★★★ [핵심 수정] 매트릭스 업데이트 방식 변경 ★★★
+  if (moved) {
+    // 1. myAvatar의 로컬 매트릭스 업데이트
+    myAvatar.updateMatrix();
+    
+    // 2. ★★★ 모든 자식(visuals 포함)의 월드 매트릭스를 강제 업데이트 ★★★
+    myAvatar.updateMatrixWorld(true);
+    
+    // 3. ★★★ visuals 그룹 내부의 모든 객체도 강제 업데이트 ★★★
+    if (myAvatar.children.length > 0) {
+      myAvatar.children.forEach(child => {
+        if (child.isGroup) { // visuals 그룹인 경우
+          child.updateMatrix();
+          child.updateMatrixWorld(true);
+        }
+      });
+    }
+    
+    throttledUpdate();
+  }
 };
 
 // --- 다른 플레이어 부드러운 이동 처리 ---
