@@ -136,6 +136,7 @@ const loadAvatar = (url) => {
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0);
         visuals.matrixAutoUpdate = true; 
+	console.log('--- [최종 확인] visuals.matrixAutoUpdate가 true로 설정되었습니다! ---', visuals.matrixAutoUpdate);
 
         model.add(visuals);
         
