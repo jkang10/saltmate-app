@@ -102,10 +102,17 @@ const loadAvatar = (url) => {
         // 1. 로드된 씬(모델 내용물)을 가져옵니다.
         const gltfScene = gltf.scene.clone(); 
         
-        // 2. 씬의 경계 상자(Bounding Box)를 계산합니다.
+// 2. 씬의 경계 상자(Bounding Box)를 계산합니다.
         const box = new THREE.Box3().setFromObject(gltfScene);
         const center = box.getCenter(new THREE.Vector3());
-        
+
+        // ▼▼▼ [디버깅 로그 추가] ▼▼▼
+        console.log(`--- AVATAR PIVOT DEBUG (${url}) ---`);
+        console.log('BBox min:', box.min.x, box.min.y, box.min.z);
+        console.log('BBox max:', box.max.x, box.max.y, box.max.z);
+        console.log('Calculated Center:', center.x, center.y, center.z);
+        // ▲▲▲ [디버깅 로그 추가] ▲▲▲
+
         // 3. 씬(내용물)의 위치를 조정하여 피벗을 (X,Z 중앙), (Y 바닥)으로 맞춥니다.
         gltfScene.position.x -= center.x;
         gltfScene.position.y -= box.min.y; // Y축은 바닥(min.y)에 맞춥니다.
