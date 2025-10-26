@@ -103,36 +103,40 @@ const loadAvatar = (url) => {
       return;
     }
 
-    loader.load(url,
-    (gltf) => {
+(gltf) => {
         // ▼▼▼ [핵심 수정] 기존 로직을 'model' 컨테이너를 사용하는 방식으로 변경합니다.
         
-// [1] gltf.scene을 복제합니다. 이것은 '시각적'인 모델입니다.
+        // [1] gltf.scene을 복제합니다. 이것은 '시각적'인 모델입니다.
         const avatarModel = gltf.scene.clone(); 
         
         // [2] 피벗 보정... (이 부분은 동일)
         const box = new THREE.Box3().setFromObject(avatarModel);
-        // ... (중간 생략) ...
+        
+        // ▼▼▼ [오류 수정] 이 라인이 누락되었습니다! ▼▼▼
+        const center = box.getCenter(new THREE.Vector3());
+        // ▲▲▲ [오류 수정] ▲▲▲
+
+        // ... (중간 생략) ...  <-- 이 주석은 제거하셔도 됩니다.
+        
         avatarModel.traverse((child) => {
           if (child.isMesh) {
-            child.geometry.translate(-center.x, -box.min.y, -center.z);
+            // 이제 'center'가 정의되었으므로 이 코드가 정상 작동합니다.
+            child.geometry.translate(-center.x, -box.min.y, -center.z); 
             child.castShadow = true;
             child.receiveShadow = false;
           }
         });
         
         // [3] '시각적 모델'의 크기와 위치를 설정합니다. (이 부분은 동일)
+        // ... (이하 코드 동일) ...
         avatarModel.scale.set(0.7, 0.7, 0.7);
-        avatarModel.position.set(0, 0, 0); // 컨테이너(model) 기준 0,0,0
+        avatarModel.position.set(0, 0, 0); 
 
         
         // ▼▼▼ [핵심 수정] ▼▼▼
         // [4] ★★★ '시각적 모델(avatarModel)' 그룹 자체를 추가하는 대신,
-        //     그 '자식 객체(메쉬 등)'들을 'model' 컨테이너로 직접 이동시킵니다.
+        // ... (이하 코드 동일) ...
         
-        // model.add(avatarModel); // <--- 이 줄을 주석 처리하거나 삭제합니다.
-
-        // avatarModel의 모든 자식이 model의 자식이 될 때까지 반복
         while (avatarModel.children.length > 0) {
             model.add(avatarModel.children[0]);
         }
