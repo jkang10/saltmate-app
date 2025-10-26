@@ -650,10 +650,16 @@ onMounted(async () => {
       else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
   } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
 
-  // 4. 내 아바타 로드 및 닉네임 추가
+// 4. 내 아바타 로드 및 닉네임 추가
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
       myAvatar = await loadAvatar(myAvatarUrl);
+
+      // ▼▼▼ [최종 디버깅] ▼▼▼
+      console.log('--- MY AVATAR OBJECT DEBUG ---');
+      console.log(myAvatar);
+      // ▲▲▲ [최종 디버깅] ▲▲▲
+
       scene.add(myAvatar); // 씬에 아바타 추가
       if (myUserName) { // 이름이 있으면 닉네임 추가
           const myNickname = createNicknameSprite(myUserName);
