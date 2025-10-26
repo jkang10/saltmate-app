@@ -591,8 +591,15 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // ▼▼▼ [수정] Y축 고정 코드를 '이동 적용' 섹션이 아닌 '경계 처리' 섹션의 마지막으로 이동 ▼▼▼
   myAvatar.position.y = 0; // Y축 고정
+
+  // ▼▼▼ [핵심 수정] ▼▼▼
+  // 'myAvatar'의 위치/회전이 변경되었으므로,
+  // 'matrixWorld'를 강제로 즉시 업데이트하도록 지시합니다.
+  // 이것이 'visuals'와 'myNickname' 자식 객체들이 
+  // 부모의 새 위치를 상속받도록 보장합니다.
+  myAvatar.updateMatrixWorld(true); // 'true'는 자식 객체까지 강제 업데이트
+  // ▲▲▲ [핵심 수정] ▲▲▲
 
   // --- 상태 변경 시 RTDB 업데이트 (Throttled) ---
   if (moved) { throttledUpdate(); } // 이동 또는 회전 시 업데이트 요청
