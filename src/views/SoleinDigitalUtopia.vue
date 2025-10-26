@@ -84,83 +84,69 @@ let joystickManager = null; // nipplejs 인스턴스
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
   return new Promise((resolve) => {
-    // [★수정] '유령' 컨테이너(래퍼) 객체를 생성합니다.
-    // 이것이 myAvatar가 되며, 실제 이동/회전을 담당합니다.
+    // 1. model은 'myAvatar'가 될 '컨테이너(래퍼)' 그룹입니다.
     const model = new THREE.Group();
-    model.position.set(0, 0, 0); // 컨테이너의 위치는 항상 0,0,0에서 시작
+    model.position.set(0, 0, 0); // 컨테이너의 위치
 
+    // 2. URL이 없거나 GLB가 아닐 경우 기본 큐브 로직
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5;
+      cube.position.y = 0.5; // 큐브를 바닥 위에 놓음
       
-      // [★수정] 큐브를 씬이 아닌 'model' 컨테이너에 추가합니다.
+      // 큐브를 'model' 컨테이너의 자식으로 추가
       model.add(cube);
-      // [★수정] 'model' 컨테이너를 반환합니다.
+      // 'model' 컨테이너를 반환
       resolve(model); 
       return;
     }
     
-    // ▼▼▼ [오류 수정] 이 라인이 누락되었습니다! ▼▼▼
+    // 3. GLB 로더 실행
     loader.load(url,
-    // ▲▲▲ [오류 수정] ▲▲▲
-
-(gltf) => {
-        // ▼▼▼ [핵심 수정] 기존 로직을 'model' 컨테이너를 사용하는 방식으로 변경합니다.
-        
-        // [1] gltf.scene을 복제합니다. 이것은 '시각적'인 모델입니다.
+    (gltf) => {
+        // 4. gltf.scene을 복제한 'avatarModel'은 순수한 '시각적 모델'입니다.
         const avatarModel = gltf.scene.clone(); 
         
-        // [2] 피벗 보정... (이 부분은 동일)
+        // 5. 피벗 보정 (모델의 발을 (0,0,0)에 맞춤)
         const box = new THREE.Box3().setFromObject(avatarModel);
-        
-        // ▼▼▼ [오류 수정] 이 라인이 누락되었습니다! ▼▼▼
-        const center = box.getCenter(new THREE.Vector3());
-        // ▲▲▲ [오류 수정] ▲▲▲
-
-        // ... (중간 생략) ...  <-- 이 주석은 제거하셔도 됩니다.
+        const center = box.getCenter(new THREE.Vector3()); // center 정의
         
         avatarModel.traverse((child) => {
           if (child.isMesh) {
-            // 이제 'center'가 정의되었으므로 이 코드가 정상 작동합니다.
+            // 지오메트리 자체를 이동시켜 피벗을 보정
             child.geometry.translate(-center.x, -box.min.y, -center.z); 
             child.castShadow = true;
             child.receiveShadow = false;
           }
         });
         
-        // [3] '시각적 모델'의 크기와 위치를 설정합니다. (이 부분은 동일)
-        // ... (이하 코드 동일) ...
+        // 6. 'avatarModel'(시각적 모델) 자체의 스케일과 위치를 조정합니다.
+        //    이것은 컨테이너(model) 내부에서의 스케일/위치입니다.
         avatarModel.scale.set(0.7, 0.7, 0.7);
-        avatarModel.position.set(0, 0, 0); 
+        avatarModel.position.set(0, 0, 0); // 컨테이너 기준 (0,0,0)
 
-        
-        // ▼▼▼ [핵심 수정] ▼▼▼
-        // [4] ★★★ '시각적 모델(avatarModel)' 그룹 자체를 추가하는 대신,
-        // ... (이하 코드 동일) ...
-        
-        while (avatarModel.children.length > 0) {
-            model.add(avatarModel.children[0]);
-        }
+        // 7. ★★★ [핵심 수정] ★★★
+        // 'avatarModel'(시각적 모델)을 'model'(컨테이너)의 자식으로 추가합니다.
+        // (기존의 while 루프 방식 대신 이 방식을 사용합니다)
+        model.add(avatarModel);
 
-        // [5] ★★★ '유령' 컨테이너(model)를 반환합니다.
-        resolve(model); 
-        // ▲▲▲ [핵심 수정] ▲▲▲
-
+        // 8. 'model'(컨테이너)를 반환합니다. 이것이 onMounted에서 'myAvatar'가 됩니다.
+        resolve(model);
       },
-      undefined, 
+      undefined, // 'onProgress' 콜백 (사용 안 함)
       (error) => {
+        // 9. 로드 실패 시 에러 큐브 로직
         console.error('아바타 로딩 실패:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
         
-        // [★수정] 실패 시 큐브도 'model' 컨테이너에 추가합니다.
+        // 에러 큐브도 'model' 컨테이너에 추가
         model.add(cube);
-        // [★수정] 'model' 컨테이너를 반환합니다.
+        // 'model' 컨테이너를 반환
         resolve(model);
       }
     );
