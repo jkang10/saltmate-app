@@ -128,11 +128,15 @@ const loadAvatar = (url) => {
         avatarModel.position.set(0, 0, 0); // 컨테이너 기준 (0,0,0)
 
         // 7. ★★★ [핵심 수정] ★★★
+        
+        // 'avatarModel'의 matrixAutoUpdate를 강제로 true로 설정합니다.
+        // 이것이 false이면 부모의 움직임을 상속받지 못합니다.
+        avatarModel.matrixAutoUpdate = true; 
+        
         // 'avatarModel'(시각적 모델)을 'model'(컨테이너)의 자식으로 추가합니다.
-        // (기존의 while 루프 방식 대신 이 방식을 사용합니다)
         model.add(avatarModel);
 
-        // 8. 'model'(컨테이너)를 반환합니다. 이것이 onMounted에서 'myAvatar'가 됩니다.
+        // 8. 'model'(컨테이너)를 반환합니다.
         resolve(model);
       },
       undefined, // 'onProgress' 콜백 (사용 안 함)
