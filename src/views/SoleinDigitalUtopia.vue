@@ -166,11 +166,13 @@ const createNicknameSprite = (text) => {
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`; // 폰트 설정
   const textMetrics = context.measureText(text); // 텍스트 너비 측정
   const textWidth = textMetrics.width;
+  const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
   const padding = 10; // 좌우 여백
   const verticalPadding = 5; // 상하 여백
   canvas.width = textWidth + padding * 2; // 캔버스 너비 설정
   canvas.height = fontSize + verticalPadding * 2; // 캔버스 높이 설정
+
 
   // 배경 그리기 (반투명 검정 라운드 사각형)
   context.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 배경색 설정
@@ -246,30 +248,38 @@ const joinPlaza = async () => {
 };
 
 // 내 상태 (위치, 회전) RTDB에 업데이트
+// 내 상태 (위치, 회전) RTDB에 업데이트
 const updateMyStateInRTDB = () => {
   if (!playerRef || !myAvatar || !isReady.value) return; // 유효성 검사
 
-  // [★수정] 업데이트할 newState (3개 항목만)
-  const currentRotationY = myAvatar.rotation.y; // 현재 회전값
+  // ▼▼▼ [핵심 수정] ▼▼▼
+  // NaN, Infinity 등이 Firebase로 전송되는 것을 막기 위해
+  // 모든 값을 전송 전에 확인합니다.
+  const { x, y, z } = myAvatar.position;
+  const currentRotationY = myAvatar.rotation.y;
+
   const newState = {
-    position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z },
-    // [★수정] rotationY가 유효한 숫자인지 확인 (NaN, undefined 방지)
-    rotationY: (typeof currentRotationY === 'number' && isFinite(currentRotationY)) ? currentRotationY : 0,
+    position: {
+      x: isFiniteNumber(x) ? x : 0,
+      y: isFiniteNumber(y) ? y : 0,
+      z: isFiniteNumber(z) ? z : 0,
+    },
+    // rotationY는 이미 방어 코드가 있었지만, 헬퍼 함수로 통일합니다.
+    rotationY: isFiniteNumber(currentRotationY) ? currentRotationY : 0,
     timestamp: serverTimestamp(),
   };
+  // ▲▲▲ [핵심 수정] ▲▲▲
 
-// [★수정] set 대신 update를 사용하여 newState 객체만 전송합니다.
-  update(playerRef, newState) // <--- set을 update로 변경
+  // [기존 코드] set 대신 update를 사용하여 newState 객체만 전송합니다.
+  update(playerRef, newState) // <--- 이 update가 더 이상 실패하지 않습니다.
     .catch((error) => {
-      // 이 에러가 콘솔을 도배하는 것을 막기 위해 isReady를 false로 변경합니다.
+      // (이하 동일)
       if (isReady.value) {
         console.error("!!! RTDB UPDATE FAILED (DB 규칙 확인 필요) !!!", error.message);
         isReady.value = false; // 에러 반복 방지를 위해 이동 및 업데이트 중지
         
-        // [★수정] alert 대신 로딩 화면을 다시 띄워 사용자에게 명확히 알림
         isLoading.value = true;
         loadingMessage.value = `실시간 연결 끊김: ${error.message}`;
-        // alert("서버와의 실시간 연결이 끊겼습니다. (DB 쓰기 오류)");
       }
     });
 };
@@ -476,14 +486,25 @@ const initThree = () => {
 // 키보드 이벤트 핸들러
 const handleKeyDown = (event) => {
     if (chatInputRef.value === document.activeElement) return; // 채팅 중이면 무시
-    const key = event.key.toLowerCase();
-    keysPressed[key] = true;
+    
+    // ▼▼▼ [핵심 수정] event.key.toLowerCase() -> event.code ▼▼▼
+    const code = event.code; // 'KeyW', 'KeyA', 'ArrowLeft' 등
+    keysPressed[code] = true;
+    // ▲▲▲ [핵심 수정] ▲▲▲
+
     // 화살표 키 입력 시 기본 스크롤 동작 방지
-    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+    // [수정] 'Key'가 포함된 코드로 변경
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
         event.preventDefault();
     }
 };
-const handleKeyUp = (event) => { keysPressed[event.key.toLowerCase()] = false; };
+
+const handleKeyUp = (event) => {
+    // ▼▼▼ [핵심 수정] event.key.toLowerCase() -> event.code ▼▼▼
+    keysPressed[event.code] = false;
+    // ▲▲▲ [핵심 수정] ▲▲▲
+};
+
 // 조이스틱 이벤트 핸들러
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
@@ -508,14 +529,19 @@ const updatePlayerMovement = (deltaTime) => {
     applyRotation = true;
     applyMovement = joystickData.value.distance > 10;
   }
-  // --- 키보드 입력 처리 ---
+// --- 키보드 입력 처리 ---
   else {
     // 회전 (A/D 또는 좌/우 화살표)
-    if (keysPressed['a'] || keysPressed['arrowleft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['d'] || keysPressed['arrowright']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
+    // ▼▼▼ [핵심 수정] 'a', 'd' -> 'KeyA', 'KeyD' ▼▼▼
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
+    // ▲▲▲ [핵심 수정] ▲▲▲
+    
     // 이동 (W/S 또는 위/아래 화살표)
-    if (keysPressed['w'] || keysPressed['arrowup']) { moveDirectionZ = -1; applyMovement = true; } // 전방(-Z) 로컬
-    if (keysPressed['s'] || keysPressed['arrowdown']) { moveDirectionZ = 1; applyMovement = true; }  // 후방(+Z) 로컬
+    // ▼▼▼ [핵심 수정] 'w', 's' -> 'KeyW', 'KeyS' ▼▼▼
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 전방(-Z) 로컬
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; }  // 후방(+Z) 로컬
+    // ▲▲▲ [핵심 수정] ▲▲▲
   }
 
   // --- 회전 적용 ---
