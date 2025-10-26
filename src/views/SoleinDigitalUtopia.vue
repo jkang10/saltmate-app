@@ -578,23 +578,12 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = 0;
 
   // ★★★ [핵심 수정] 매트릭스 업데이트 방식 변경 ★★★
-  if (moved) {
-    // 1. myAvatar의 로컬 매트릭스 업데이트
-    myAvatar.updateMatrix();
-    
-    // 2. ★★★ 모든 자식(visuals 포함)의 월드 매트릭스를 강제 업데이트 ★★★
-    myAvatar.updateMatrixWorld(true);
-    
-    // 3. ★★★ visuals 그룹 내부의 모든 객체도 강제 업데이트 ★★★
-    if (myAvatar.children.length > 0) {
-      myAvatar.children.forEach(child => {
-        if (child.isGroup) { // visuals 그룹인 경우
-          child.updateMatrix();
-          child.updateMatrixWorld(true);
-        }
-      });
-    }
-    
+if (moved) {
+    // loadAvatar에서 matrixAutoUpdate = true 로 설정했기 때문에
+    // position, rotation 변경만으로 렌더러가 자동으로 매트릭스를 업데이트합니다.
+    // 수동 업데이트 코드는 충돌을 일으키므로 제거합니다.
+
+    // 서버에 위치 정보를 전송하는 throttledUpdate()만 호출합니다.
     throttledUpdate();
   }
 };
