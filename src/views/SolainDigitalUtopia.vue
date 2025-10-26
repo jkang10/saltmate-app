@@ -689,10 +689,16 @@ const updatePlayerMovement = (deltaTime) => {
   // --- 이동 적용 (★ 키보드/조이스틱 로직 분리) ---
   if (applyMovement) {
     
-    if (joystickData.value.active) {
+if (joystickData.value.active) {
         // [★새 로직] 조이스틱: 월드 좌표계 기준으로 즉시 이동
         // 조이스틱의 각도와 힘(force)을 사용
-        const moveAngle = joystickData.value.angle.radian;
+        
+        // [기존 코드] (679 라인)
+        // const moveAngle = joystickData.value.angle.radian;
+        
+        // [수정 코드] (679 라인)
+        const moveAngle = joystickData.value.angle; // .radian 제거
+
         const currentSpeedFactor = joystickData.value.force;
         const moveAmount = moveSpeed * currentSpeedFactor * deltaTime;
 
