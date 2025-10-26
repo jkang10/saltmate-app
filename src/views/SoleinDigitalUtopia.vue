@@ -701,26 +701,11 @@ try {
     console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
     console.log(loadedModel);
 
-    // ★★★ [핵심 수정] myAvatar를 먼저 씬에 추가하지 말고, 완전히 구성한 후 추가 ★★★
-    myAvatar = new THREE.Group();
+    // ★★★ [최종 해결책] loadedModel을 그대로 myAvatar로 사용 ★★★
+    myAvatar = loadedModel; // loadAvatar가 반환한 model을 그대로 사용!
     myAvatar.position.set(0, 0, 0);
     myAvatar.rotation.set(0, 0, 0);
-    myAvatar.matrixAutoUpdate = true;
-
-    const visuals = loadedModel.children[0]; 
-    if (visuals) {
-        visuals.traverse((child) => {
-            child.matrixAutoUpdate = true;
-        });
-        
-        myAvatar.add(visuals); 
-        visuals.matrixAutoUpdate = true;
-        console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
-    } else {
-        console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
-        throw new Error("Avatar visuals not found.");
-    }
-
+    
     // 닉네임 추가
     if (myUserName) {
         const myNickname = createNicknameSprite(myUserName);
@@ -730,18 +715,11 @@ try {
 
     console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
     
-    // ★★★ [핵심 수정] 모든 구성이 완료된 후에 씬에 추가 ★★★
-    // 추가 전에 매트릭스를 한 번 강제 업데이트
-    myAvatar.updateMatrix();
-    myAvatar.updateMatrixWorld(true);
-    
-    // ★★★ 이제 씬에 추가 ★★★
+    // 씬에 추가
     scene.add(myAvatar);
     
-    // ★★★ [추가 디버깅] 씬 추가 후 위치 확인 ★★★
     console.log('[DEBUG] myAvatar added to scene, position:', myAvatar.position);
-    console.log('[DEBUG] myAvatar.matrixAutoUpdate:', myAvatar.matrixAutoUpdate);
-    console.log('[DEBUG] visuals.matrixAutoUpdate:', visuals.matrixAutoUpdate);
+    console.log('[DEBUG] myAvatar.children.length:', myAvatar.children.length);
 
 } catch (error) {
     console.error("내 아바타 로드 중 에러 발생:", error);
@@ -750,18 +728,12 @@ try {
     if (!myAvatar) { 
         myAvatar = new THREE.Group(); 
         myAvatar.matrixAutoUpdate = true;
-        scene.add(myAvatar);
     }
     
     try {
         const fallbackModel = await loadAvatar(null);
-        const fallbackVisuals = fallbackModel.children[0];
-        if (fallbackVisuals) {
-            fallbackVisuals.traverse((child) => {
-                child.matrixAutoUpdate = true;
-            });
-            myAvatar.add(fallbackVisuals);
-        }
+        myAvatar = fallbackModel; // 에러 시에도 전체 모델 사용
+        scene.add(myAvatar);
     } catch (e) {
         console.error("기본 아바타 로드조차 실패.", e);
         isLoading.value = false;
