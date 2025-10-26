@@ -84,81 +84,80 @@ let joystickManager = null; // nipplejs 인스턴스
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
   return new Promise((resolve) => {
-    // 1. 'model'은 'myAvatar'가 될 *최상위* 컨테이너입니다.
-    //    이 객체는 오직 '이동'과 '회전'만 담당합니다. (스케일 X)
     const model = new THREE.Group();
     model.position.set(0, 0, 0);
 
-    // 2. 'visuals' 그룹은 '스케일'만 담당할 *내부* 컨테이너입니다.
-    //    아바타의 모든 메쉬(시각적 모델)는 이 그룹의 자식이 됩니다.
     const visuals = new THREE.Group();
 
-    // 3. URL이 없거나 GLB가 아닐 경우 기본 큐브 로직
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5; // 큐브를 바닥 위에 놓음
+      cube.position.y = 0.5;
       
-      visuals.add(cube); // 큐브를 'visuals' 그룹에 추가
-      visuals.scale.set(0.7, 0.7, 0.7); // (기본 큐브도 스케일 통일)
-      model.add(visuals); // 'visuals'를 'model'에 추가
+      visuals.add(cube);
+      visuals.scale.set(0.7, 0.7, 0.7);
+      model.add(visuals);
       
-      resolve(model); // 최상위 'model' 반환
+      resolve(model);
       return;
     }
     
-    // 4. GLB 로더 실행
-loader.load(url,
-  (gltf) => {
-    const avatarModel = gltf.scene.clone(); 
-    
-    const box = new THREE.Box3().setFromObject(avatarModel);
-    const center = box.getCenter(new THREE.Vector3()); 
-    
-    avatarModel.traverse((child) => {
-      child.matrixAutoUpdate = true; 
-      
-      if (child.isMesh) {
-        child.geometry.translate(-center.x, -box.min.y, -center.z); 
-        child.castShadow = true;
-        child.receiveShadow = false;
-      }
-    });
-    
-    // ★★★ [핵심 수정] ★★★
-    // avatarModel의 모든 자식을 visuals에 추가하기 전에
-    // avatarModel 자체의 matrixAutoUpdate를 true로 설정
-    avatarModel.matrixAutoUpdate = true;
-    
-    while (avatarModel.children.length > 0) {
-      const child = avatarModel.children[0];
-      // 각 자식도 명시적으로 true 설정
-      child.matrixAutoUpdate = true;
-      visuals.add(child);
-    }
+    loader.load(url,
+      (gltf) => {
+        const avatarModel = gltf.scene.clone(); 
+        
+        const box = new THREE.Box3().setFromObject(avatarModel);
+        const center = box.getCenter(new THREE.Vector3()); 
+        
+        // ★★★ [핵심 수정 1] traverse는 나중에 실행 ★★★
+        avatarModel.traverse((child) => {
+          if (child.isMesh) {
+            child.geometry.translate(-center.x, -box.min.y, -center.z); 
+            child.castShadow = true;
+            child.receiveShadow = false;
+          }
+        });
+        
+        avatarModel.matrixAutoUpdate = true;
+        
+        // ★★★ [핵심 수정 2] 자식들을 visuals로 옮긴 후 traverse 실행 ★★★
+        while (avatarModel.children.length > 0) {
+          const child = avatarModel.children[0];
+          visuals.add(child);
+        }
 
-    visuals.scale.set(0.7, 0.7, 0.7);
-    visuals.position.set(0, 0, 0);
-    visuals.matrixAutoUpdate = true; 
+        // ★★★ [핵심 수정 3] 옮긴 후에 matrixAutoUpdate 설정 ★★★
+        visuals.traverse((child) => {
+          child.matrixAutoUpdate = true;
+        });
 
-    model.add(visuals);
-    resolve(model);
-  },
-      undefined, // 'onProgress' 콜백 (사용 안 함)
+        visuals.scale.set(0.7, 0.7, 0.7);
+        visuals.position.set(0, 0, 0);
+        visuals.matrixAutoUpdate = true; 
+
+        model.add(visuals);
+        
+        // ★★★ [디버깅 로그 추가] ★★★
+        console.log('[loadAvatar] visuals children count:', visuals.children.length);
+        console.log('[loadAvatar] First child matrixAutoUpdate:', 
+                    visuals.children[0]?.matrixAutoUpdate);
+        
+        resolve(model);
+      },
+      undefined,
       (error) => {
-        // 12. 로드 실패 시 에러 큐브 로직
         console.error('아바타 로딩 실패:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
         
-        visuals.add(cube); // 에러 큐브도 'visuals'에 추가
+        visuals.add(cube);
         visuals.scale.set(0.7, 0.7, 0.7);
-        model.add(visuals); // 'visuals'를 'model'에 추가
-        resolve(model); // 최상위 'model' 반환
+        model.add(visuals);
+        resolve(model);
       }
     );
   });
