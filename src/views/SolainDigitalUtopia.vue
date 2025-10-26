@@ -662,12 +662,15 @@ const initThree = () => {
 
           // 4. 그림자 설정 (★중요★)
           // 자동차가 그림자를 만들고, 다른 그림자를 받을 수 있도록 설정
-          car.traverse((child) => {
-            if (child.isMesh) {
-              child.castShadow = true;    // 이 객체가 그림자를 생성
-              child.receiveShadow = true; // 이 객체가 그림자를 받음
-            }
-          });
+	car.traverse((child) => {
+	  if (child.isMesh) {
+	    // ▼▼▼ 재질 강제 변경 코드 추가 ▼▼▼
+	    child.material = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 밝은 빨간색, 양면 렌더링
+	    // ▲▲▲
+	    child.castShadow = true;
+	    child.receiveShadow = true;
+	  }
+	});
 
           // 5. 씬(scene)에 추가
           scene.add(car);
