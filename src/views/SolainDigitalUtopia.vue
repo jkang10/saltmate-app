@@ -164,24 +164,30 @@ const loadAvatar = (url) => {
 
 // --- 헬퍼 함수: 닉네임 스프라이트 생성 ---
 const createNicknameSprite = (text) => {
+  const resolutionScale = 2; // ★★★ 해상도 배율 (2배) ★★★
+
   const canvas = document.createElement('canvas'); // 캔버스 요소 생성
   const context = canvas.getContext('2d'); // 2D 컨텍스트 가져오기
-  const fontSize = 24; // 폰트 크기
+  
+  // ★★★ [수정] 모든 수치를 resolutionScale 기준으로 조절 ★★★
+  const fontSize = 24 * resolutionScale; // 48px
   const fontWeight = 'bold'; // 폰트 굵기
   const fontFamily = 'Arial'; // 폰트 종류
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`; // 폰트 설정
   const textMetrics = context.measureText(text); // 텍스트 너비 측정
   const textWidth = textMetrics.width;
 
-  const padding = 10; // 좌우 여백
-  const verticalPadding = 5; // 상하 여백
+  const padding = 10 * resolutionScale; // 20px
+  const verticalPadding = 5 * resolutionScale; // 10px
   canvas.width = textWidth + padding * 2; // 캔버스 너비 설정
   canvas.height = fontSize + verticalPadding * 2; // 캔버스 높이 설정
 
 
   // 배경 그리기 (반투명 검정 라운드 사각형)
   context.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 배경색 설정
-  const radius = 8; // 모서리 둥글기 반지름
+  const radius = 8 * resolutionScale; // 16px
+  // ★★★ [수정 끝] ★★★
+
   // 라운드 사각형 경로 정의
   context.beginPath();
   context.moveTo(radius, 0);
@@ -211,39 +217,45 @@ const createNicknameSprite = (text) => {
   const sprite = new THREE.Sprite(material); // 스프라이트 객체 생성
 
   // 스프라이트 크기 조절 (월드 좌표 기준 크기, 아바타 크기와 시야각에 따라 조절 필요)
-  const scale = 0.003; // 예시 스케일 값 (이 값을 조절하여 이름표 크기 변경)
+  // ★★★ [수정] 캔버스 해상도가 2배가 되었으므로, scale 값을 조절하여 최종 크기를 맞춥니다.
+  const scale = 0.0025; // 기존 0.003에서 0.0025로 변경 (결과적으로 약 1.66배 커짐)
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
 
-  // ★★★ [수정] 아바타 머리 위 위치 설정 (Y축 오프셋) ★★★
-  sprite.position.y = 1.5; // 기존 2.3에서 1.5로 낮춤
+  // 아바타 머리 위 위치 설정 (Y축 오프셋)
+  sprite.position.y = 1.5; // 높이는 그대로 유지
 
   return sprite; // 생성된 스프라이트 반환
 };
 
 // --- 헬퍼 함수: 채팅 말풍선 스프라이트 생성 ---
 const createChatBubbleSprite = (text) => {
+  const resolutionScale = 2; // ★★★ 해상도 배율 (2배) ★★★
+
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
-  const fontSize = 20; // 닉네임보다 약간 작게
+  
+  // ★★★ [수정] 모든 수치를 resolutionScale 기준으로 조절 ★★★
+  const fontSize = 20 * resolutionScale; // 40px
   const fontWeight = 'normal';
   const fontFamily = 'Arial';
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   
   // 텍스트 너비 측정 (최대 너비 제한)
-  const maxWidth = 300; // 말풍선 최대 가로 너비
+  const maxWidth = 300 * resolutionScale; // 600px
   const textMetrics = context.measureText(text);
   const textWidth = Math.min(textMetrics.width, maxWidth); // 최대 너비 적용
 
-  const padding = 10;
-  const verticalPadding = 5;
+  const padding = 10 * resolutionScale; // 20px
+  const verticalPadding = 5 * resolutionScale; // 10px
   canvas.width = textWidth + padding * 2;
   canvas.height = fontSize + verticalPadding * 2; // (참고: 여러 줄 텍스트는 높이 계산이 더 복잡해짐)
 
   // 배경 그리기 (흰색, 둥근 사각형, 검은 테두리)
   context.fillStyle = 'rgba(255, 255, 255, 0.9)'; // 반투명 흰색 배경
   context.strokeStyle = 'rgba(0, 0, 0, 0.5)'; // 테두리 색
-  context.lineWidth = 2;
-  const radius = 8;
+  context.lineWidth = 2 * resolutionScale; // 4px
+  const radius = 8 * resolutionScale; // 16px
+  // ★★★ [수정 끝] ★★★
   
   context.beginPath();
   context.moveTo(radius, 0);
@@ -273,10 +285,12 @@ const createChatBubbleSprite = (text) => {
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
   const sprite = new THREE.Sprite(material);
 
-  const scale = 0.003; 
+  // ★★★ [수정] 닉네임과 동일한 스케일 적용
+  const scale = 0.0025; 
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
 
   // 위치: 닉네임(1.5)보다 약간 위
+  // (닉네임 스프라이트 자체의 높이도 커졌으므로, y=1.9 위치가 적절할 것입니다)
   sprite.position.y = 1.9; 
 
   return sprite;
