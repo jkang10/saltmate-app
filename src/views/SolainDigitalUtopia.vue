@@ -544,6 +544,7 @@ onChildChanged(playersListenerRef, (snapshot) => {
     console.log(`플레이어 ${userId} 퇴장`);
   });
 
+};
 // --- 채팅 함수 ---
 // 메시지 전송
 const sendMessage = () => {
@@ -556,16 +557,6 @@ const sendMessage = () => {
   if (chatInputRef.value) {
     chatInputRef.value.blur();
   }
-};
-
-// 새 채팅 메시지 수신
-const listenToChat = () => {
-  chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
-  onChildAdded(chatListenerRef, (snapshot) => {
-    chatMessages.value.push({ id: snapshot.key, ...snapshot.val() });
-    if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
-    nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
-  });
 };
 
 // --- Three.js 초기화 함수 ---
