@@ -646,67 +646,96 @@ const updatePlayerMovement = (deltaTime) => {
   let rotationAmount = 0;
   let applyRotation = false;
   let applyMovement = false;
-  let moveDirectionZ = 0;
-  let currentSpeedFactor = 1.0;
+  let moveDirectionZ_Keyboard = 0; // [★수정] 키보드용 Z이동 변수
   let targetRotationY = myAvatar.rotation.y;
 
   // --- 조이스틱 입력 처리 ---
   if (joystickData.value.active) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2;
-    moveDirectionZ = -1;
-    currentSpeedFactor = joystickData.value.force;
+    // 조이스틱은 회전과 이동을 동시에 적용
+    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 아바타가 바라볼 방향
     applyRotation = true;
     applyMovement = joystickData.value.distance > 10;
+    
+    // [★제거] moveDirectionZ = -1; 
+    // [★제거] currentSpeedFactor (이동 로직에서 직접 계산)
   }
   // --- 키보드 입력 처리 ---
   else {
+    // 키보드는 회전과 이동을 별개로 적용 (탱크 컨트롤)
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
     
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ_Keyboard = -1; applyMovement = true; } // 로컬 '앞'
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ_Keyboard = 1; applyMovement = true; } // 로컬 '뒤'
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
     if (joystickData.value.active) {
+        // 조이스틱: 목표 방향으로 부드럽게 회전 (Lerp)
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationChange = diff * deltaTime * 8;
+        const rotationChange = diff * deltaTime * 8; // 부드러운 회전
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
     } else {
+        // 키보드: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
-  // --- 이동 적용 (로컬 Z축 기준) ---
+  // --- 이동 적용 (★ 키보드/조이스틱 로직 분리) ---
   if (applyMovement) {
-    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
     
-    const velocity = new THREE.Vector3(0, 0, moveAmount);
-    velocity.applyQuaternion(myAvatar.quaternion);
-    myAvatar.position.add(velocity);
+    if (joystickData.value.active) {
+        // [★새 로직] 조이스틱: 월드 좌표계 기준으로 즉시 이동
+        // 조이스틱의 각도와 힘(force)을 사용
+        const moveAngle = joystickData.value.angle.radian;
+        const currentSpeedFactor = joystickData.value.force;
+        const moveAmount = moveSpeed * currentSpeedFactor * deltaTime;
 
-    if (Math.abs(moveAmount) > 0.001) moved = true;
+        // 월드 벡터 계산 (X: cos, Z: -sin)
+        // nipplejs의 0도는 '오른쪽'(+X), 90도는 '위'(-Z)
+        const velocity = new THREE.Vector3(
+            Math.cos(moveAngle) * moveAmount,
+            0,
+            -Math.sin(moveAngle) * moveAmount
+        );
+        
+        // 쿼터니언(아바타 방향)을 적용하지 *않고* 월드 좌표에 바로 더함
+        myAvatar.position.add(velocity); 
+        
+        if (Math.abs(moveAmount) > 0.001) moved = true;
+
+    } else {
+        // [★기존 로직] 키보드: 로컬 좌표계(탱크 컨트롤)로 이동
+        // (키보드는 W/S만 있으므로 currentSpeedFactor가 1.0으로 고정됨)
+        const moveAmount = moveDirectionZ_Keyboard * moveSpeed * deltaTime;
+        
+        const velocity = new THREE.Vector3(0, 0, moveAmount);
+        velocity.applyQuaternion(myAvatar.quaternion); // 쿼터니언 적용 (O)
+        myAvatar.position.add(velocity);
+        
+        if (Math.abs(moveAmount) > 0.001) moved = true;
+    }
   }
 
-  // --- 경계 처리 ---
+  // --- 경계 처리 --- (이하 동일)
   const boundary = 14.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   myAvatar.position.y = 0;
 
-  // ★★★ [핵심 수정] 매트릭스 업데이트 방식 변경 ★★★
-if (moved) {
-    // loadAvatar에서 matrixAutoUpdate = true 로 설정했기 때문에
-    // position, rotation 변경만으로 렌더러가 자동으로 매트릭스를 업데이트합니다.
-    // 수동 업데이트 코드는 충돌을 일으키므로 제거합니다.
+  // ★★★ [수정] 매트릭스 업데이트 방식 변경 ★★★
+  if (moved) {
+      // loadAvatar에서 matrixAutoUpdate = true 로 설정했기 때문에
+      // position, rotation 변경만으로 렌더러가 자동으로 매트릭스를 업데이트합니다.
+      // 수동 업데이트 코드는 충돌을 일으키므로 제거합니다.
 
-    // 서버에 위치 정보를 전송하는 throttledUpdate()만 호출합니다.
-    throttledUpdate();
+      // 서버에 위치 정보를 전송하는 throttledUpdate()만 호출합니다.
+      throttledUpdate();
   }
 };
 
