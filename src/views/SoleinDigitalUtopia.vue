@@ -139,15 +139,21 @@ const loadAvatar = (url) => {
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0); // (내부 위치는 0)
 
-        // 9. 스케일링된 'visuals' 그룹을 최상위 'model' 컨테이너에 추가합니다.
+        // 9. ★★★ [핵심 수정] ★★★
+        // 'visuals' 그룹이 부모('model')의 움직임을
+        // 상속받도록 matrixAutoUpdate를 'true'로 강제합니다.
+        // (닉네임은 움직이는데 아바타만 안 움직이는 문제 해결)
+        visuals.matrixAutoUpdate = true; 
+
+        // 10. 스케일링된 'visuals' 그룹을 최상위 'model' 컨테이너에 추가합니다.
         model.add(visuals);
 
-        // 10. 최상위 'model'(컨테이너)를 반환합니다.
+        // 11. 최상위 'model'(컨테이너)를 반환합니다.
         resolve(model);
       },
       undefined, // 'onProgress' 콜백 (사용 안 함)
       (error) => {
-        // 11. 로드 실패 시 에러 큐브 로직
+        // 12. 로드 실패 시 에러 큐브 로직
         console.error('아바타 로딩 실패:', error, 'URL:', url);
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
