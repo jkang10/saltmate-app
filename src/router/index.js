@@ -222,8 +222,8 @@ const routes = [
   },
 {
   path: '/plaza',
-  name: 'SoleinDigitalUtopia',
-  component: () => import('@/views/SoleinDigitalUtopia.vue'),
+  name: 'SolainDigitalUtopia',
+  component: () => import('@/views/SolainDigitalUtopia.vue'),
   meta: { requiresAuth: true }
 },
   {
