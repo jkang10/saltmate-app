@@ -111,21 +111,29 @@ const loadAvatar = (url) => {
     
     // 4. GLB 로더 실행
     loader.load(url,
-    (gltf) => {
+(gltf) => {
         // 5. gltf.scene을 복제합니다. (이것은 메쉬를 꺼내기 위한 임시 홀더입니다)
         const avatarModel = gltf.scene.clone(); 
         
-        // 6. 피벗 보정 (모델의 발을 (0,0,0)에 맞춤)
+        // 6. 피벗 보정 + ★★★ [핵심 수정] ★★★
         const box = new THREE.Box3().setFromObject(avatarModel);
         const center = box.getCenter(new THREE.Vector3()); 
         
         avatarModel.traverse((child) => {
-          if (child.isMesh) {
-            // 지오메트리 자체를 이동시켜 피벗을 보정
-            child.geometry.translate(-center.x, -box.min.y, -center.z); 
-            child.castShadow = true;
-            child.receiveShadow = false;
-          }
+            
+            // ▼▼▼ [핵심 수정] ▼▼▼
+            // GLB 내부의 모든 객체(그룹, 메쉬 등)가
+            // 부모의 움직임을 상속받도록 강제로 설정합니다.
+            // 이것이 아바타만 안 움직이는 문제를 해결합니다.
+            child.matrixAutoUpdate = true; 
+            // ▲▲▲ [핵심 수정] ▲▲▲
+
+            if (child.isMesh) {
+              // 지오메트리 자체를 이동시켜 피벗을 보정
+              child.geometry.translate(-center.x, -box.min.y, -center.z); 
+              child.castShadow = true;
+              child.receiveShadow = false;
+            }
         });
         
         // 7. ★★★ [핵심 수정] ★★★
@@ -706,45 +714,63 @@ onMounted(async () => {
       else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
   } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
 
-  // 4. 내 아바타 로드 및 닉네임 추가
+// 4. 내 아바타 로드 및 닉네임 추가
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
-      myAvatar = await loadAvatar(myAvatarUrl);
+      // 1. [★수정] 'loadAvatar'가 반환하는 "손상된" 그룹을 임시 변수 'loadedModel'에 담습니다.
+      const loadedModel = await loadAvatar(myAvatarUrl);
 
       console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
-      console.log(myAvatar);
+      console.log(loadedModel); // 임시로 로드된 모델 확인
 
-      // ▼▼▼ [핵심 수정] ▼▼▼
-      // 'myAvatar' 객체의 matrixAutoUpdate 속성 값을 강제로 확인하고 true로 설정합니다.
-      // 이 값이 false이면, 'myAvatar'의 position이 변경되어도
-      // 자식 객체(visuals, myNickname)가 부모를 따라오지 않습니다.
-      console.log(`[DEBUG] myAvatar.matrixAutoUpdate (Before): ${myAvatar.matrixAutoUpdate}`);
-      myAvatar.matrixAutoUpdate = true; // ★★★ 이 코드가 문제를 해결합니다.
-      console.log(`[DEBUG] myAvatar.matrixAutoUpdate (After): ${myAvatar.matrixAutoUpdate}`);
-      // ▲▲▲ [핵심 수정] ▲▲▲
-
-      // --- ▼▼▼ [기존 코드] ---
-      // 로드된 아바타의 위치가 (0,0,0)이 아닐 경우를 대비하여
-      // 씬에 추가하기 직전에 강제로 위치를 초기화합니다.
+      // 2. [★수정] 'myAvatar'를 깨끗한(Clean) 새 그룹으로 생성합니다.
+      //    이 객체가 실제 이동/회전을 담당할 "진짜" 플레이어 컨테이너입니다.
+      myAvatar = new THREE.Group();
       myAvatar.position.set(0, 0, 0);
-      myAvatar.rotation.set(0, 0, 0); // 회전도 초기화 (안전을 위해)
+      myAvatar.rotation.set(0, 0, 0);
+      myAvatar.matrixAutoUpdate = true; // (기본값이지만 명시)
+
+      // 3. [★수정] 'loadedModel'에서 'visuals' 그룹(첫 번째 자식)을 "꺼내옵니다".
+      const visuals = loadedModel.children[0]; 
+      if (visuals) {
+          // 'visuals'를 'loadedModel'에서 분리하고 'myAvatar'의 자식으로 "재배치(Reparent)"합니다.
+          myAvatar.add(visuals); 
+      } else {
+          console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
+          throw new Error("Avatar visuals not found.");
+      }
 
       console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
-      // --- ▲▲▲ [기존 코드] ---
+      
+      // 4. [★수정] "깨끗한" 'myAvatar'를 씬에 추가합니다.
+      scene.add(myAvatar); 
 
-      scene.add(myAvatar); // 씬에 아바타 추가
-      if (myUserName) { // 이름이 있으면 닉네임 추가
+      // 5. 닉네임도 "깨끗한" 'myAvatar'에 추가합니다.
+      if (myUserName) {
           const myNickname = createNicknameSprite(myUserName);
+          myNickname.matrixAutoUpdate = true; // (혹시 몰라 명시)
           myAvatar.add(myNickname); // 아바타 자식으로 추가
       }
-      // 초기 카메라는 animate 루프에서 위치 잡음
-  } catch (error) { /* 에러 처리 (기본 큐브 추가) */
+
+  } catch (error) { /* 에러 처리 (기존과 동일) */
         console.error("내 아바타 로드 중 에러 발생:", error);
         loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
-        if (myAvatar) { // 기본 큐브라도 로드되었다면 씬에 추가
+        
+        // [★수정] 에러 시에도 'myAvatar'가 'new THREE.Group()'이 되도록 보장
+        if (!myAvatar) { 
+            myAvatar = new THREE.Group(); 
             scene.add(myAvatar);
-        } else { // 만약 기본 큐브 로드조차 실패했다면
-            console.error("기본 아바타 로드 실패.");
+        }
+        
+        // 기본 큐브 로드를 시도 (loadAvatar는 실패 시에도 큐브가 담긴 그룹을 반환함)
+        try {
+            const fallbackModel = await loadAvatar(null); // null을 보내 기본 큐브 로드
+            const fallbackVisuals = fallbackModel.children[0];
+            if (fallbackVisuals) {
+                myAvatar.add(fallbackVisuals);
+            }
+        } catch (e) {
+            console.error("기본 아바타 로드조차 실패.", e);
             isLoading.value = false;
             return;
         }
