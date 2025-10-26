@@ -656,8 +656,8 @@ const initThree = () => {
           const car = gltf.scene; // 2. 로드된 3D 객체
 
           // 3. 위치, 크기, 회전 설정 (원하는 값으로 조절하세요)
-          car.position.set(0, 0, 0);       // 예: x=2, y=0, z=-3 위치
-          car.scale.set(2, 2, 2);   // 예: 크기를 절반으로 줄임
+          car.position.set(2, 0, -3);       // 예: x=2, y=0, z=-3 위치
+          car.scale.set(20, 20, 20);   // 예: 크기를 절반으로 줄임
           car.rotation.y = -Math.PI / 4;  // 예: -45도 회전 (약간 비스듬히)
 
        // 4. 그림자 설정 (★중요★)
