@@ -102,6 +102,10 @@ const loadAvatar = (url) => {
       resolve(model); 
       return;
     }
+    
+    // ▼▼▼ [오류 수정] 이 라인이 누락되었습니다! ▼▼▼
+    loader.load(url,
+    // ▲▲▲ [오류 수정] ▲▲▲
 
 (gltf) => {
         // ▼▼▼ [핵심 수정] 기존 로직을 'model' 컨테이너를 사용하는 방식으로 변경합니다.
