@@ -694,73 +694,80 @@ onMounted(async () => {
   } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
 
 // 4. 내 아바타 로드 및 닉네임 추가
-  loadingMessage.value = '내 아바타 로딩 중...';
-  try {
-      // 1. [★수정] 'loadAvatar'가 반환하는 "손상된" 그룹을 임시 변수 'loadedModel'에 담습니다.
-      const loadedModel = await loadAvatar(myAvatarUrl);
+loadingMessage.value = '내 아바타 로딩 중...';
+try {
+    const loadedModel = await loadAvatar(myAvatarUrl);
 
-      console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
-      console.log(loadedModel); // 임시로 로드된 모델 확인
+    console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
+    console.log(loadedModel);
 
-      // 2. [★수정] 'myAvatar'를 깨끗한(Clean) 새 그룹으로 생성합니다.
-      //    이 객체가 실제 이동/회전을 담당할 "진짜" 플레이어 컨테이너입니다.
-      myAvatar = new THREE.Group();
-      myAvatar.position.set(0, 0, 0);
-      myAvatar.rotation.set(0, 0, 0);
-      myAvatar.matrixAutoUpdate = true; // (기본값이지만 명시)
+    // ★★★ [핵심 수정] myAvatar를 먼저 씬에 추가하지 말고, 완전히 구성한 후 추가 ★★★
+    myAvatar = new THREE.Group();
+    myAvatar.position.set(0, 0, 0);
+    myAvatar.rotation.set(0, 0, 0);
+    myAvatar.matrixAutoUpdate = true;
 
-      // 3. [★수정] 'loadedModel'에서 'visuals' 그룹(첫 번째 자식)을 "꺼내옵니다".
-const visuals = loadedModel.children[0]; 
-if (visuals) {
-  // ★ visuals와 그 모든 자식의 matrixAutoUpdate를 강제로 true 설정
-  visuals.traverse((child) => {
-    child.matrixAutoUpdate = true;
-  });
-  
-  myAvatar.add(visuals); 
-  visuals.matrixAutoUpdate = true;
-  console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
-
-      } else {
-          console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
-          throw new Error("Avatar visuals new found."); // (오타 수정: not found)
-      }
-
-      console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
-      
-      // 4. [★수정] "깨끗한" 'myAvatar'를 씬에 추가합니다.
-      scene.add(myAvatar); 
-
-      // 5. 닉네임도 "깨끗한" 'myAvatar'에 추가합니다.
-      if (myUserName) {
-          const myNickname = createNicknameSprite(myUserName);
-          myNickname.matrixAutoUpdate = true; // (혹시 몰라 명시)
-          myAvatar.add(myNickname); // 아바타 자식으로 추가
-      }
-
-  } catch (error) { /* 에러 처리 (기존과 동일) */
-        console.error("내 아바타 로드 중 에러 발생:", error);
-        loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
+    const visuals = loadedModel.children[0]; 
+    if (visuals) {
+        visuals.traverse((child) => {
+            child.matrixAutoUpdate = true;
+        });
         
-        // [★수정] 에러 시에도 'myAvatar'가 'new THREE.Group()'이 되도록 보장
-        if (!myAvatar) { 
-            myAvatar = new THREE.Group(); 
-            scene.add(myAvatar);
+        myAvatar.add(visuals); 
+        visuals.matrixAutoUpdate = true;
+        console.log('[DEBUG] visuals.matrixAutoUpdate set to TRUE after reparenting.');
+    } else {
+        console.error("loadAvatar가 visuals 그룹을 반환하지 못했습니다.");
+        throw new Error("Avatar visuals not found.");
+    }
+
+    // 닉네임 추가
+    if (myUserName) {
+        const myNickname = createNicknameSprite(myUserName);
+        myNickname.matrixAutoUpdate = true;
+        myAvatar.add(myNickname);
+    }
+
+    console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
+    
+    // ★★★ [핵심 수정] 모든 구성이 완료된 후에 씬에 추가 ★★★
+    // 추가 전에 매트릭스를 한 번 강제 업데이트
+    myAvatar.updateMatrix();
+    myAvatar.updateMatrixWorld(true);
+    
+    // ★★★ 이제 씬에 추가 ★★★
+    scene.add(myAvatar);
+    
+    // ★★★ [추가 디버깅] 씬 추가 후 위치 확인 ★★★
+    console.log('[DEBUG] myAvatar added to scene, position:', myAvatar.position);
+    console.log('[DEBUG] myAvatar.matrixAutoUpdate:', myAvatar.matrixAutoUpdate);
+    console.log('[DEBUG] visuals.matrixAutoUpdate:', visuals.matrixAutoUpdate);
+
+} catch (error) {
+    console.error("내 아바타 로드 중 에러 발생:", error);
+    loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
+    
+    if (!myAvatar) { 
+        myAvatar = new THREE.Group(); 
+        myAvatar.matrixAutoUpdate = true;
+        scene.add(myAvatar);
+    }
+    
+    try {
+        const fallbackModel = await loadAvatar(null);
+        const fallbackVisuals = fallbackModel.children[0];
+        if (fallbackVisuals) {
+            fallbackVisuals.traverse((child) => {
+                child.matrixAutoUpdate = true;
+            });
+            myAvatar.add(fallbackVisuals);
         }
-        
-        // 기본 큐브 로드를 시도 (loadAvatar는 실패 시에도 큐브가 담긴 그룹을 반환함)
-        try {
-            const fallbackModel = await loadAvatar(null); // null을 보내 기본 큐브 로드
-            const fallbackVisuals = fallbackModel.children[0];
-            if (fallbackVisuals) {
-                myAvatar.add(fallbackVisuals);
-            }
-        } catch (e) {
-            console.error("기본 아바타 로드조차 실패.", e);
-            isLoading.value = false;
-            return;
-        }
-   }
+    } catch (e) {
+        console.error("기본 아바타 로드조차 실패.", e);
+        isLoading.value = false;
+        return;
+    }
+}
 
    // 5. 조이스틱 초기화 (nextTick 사용)
   await nextTick(); // DOM 요소가 렌더링될 때까지 기다림
