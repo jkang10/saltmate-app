@@ -587,10 +587,25 @@ const initThree = () => {
   try {
       scene = new THREE.Scene(); // 씬 생성
 
-      // 배경 이미지 로더 (이전과 동일)
+      // ▼▼▼ [복구] 배경 이미지 로더 추가 ▼▼▼
       const textureLoader = new THREE.TextureLoader();
-      textureLoader.load( /* ... */ );
-      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개
+      textureLoader.load(
+        '/my_background.jpg', // public 폴더에 넣은 이미지 경로 확인
+        (texture) => {
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          scene.background = texture; // 씬의 배경으로 설정
+          scene.environment = texture; // 씬의 환경맵으로 설정
+          console.log("배경 이미지 로드 완료");
+        },
+        undefined,
+        (err) => {
+          console.error('배경 이미지 로드 실패:', err);
+          scene.background = new THREE.Color(0xade6ff); // 실패 시 파란색 배경
+        }
+      );
+      // ▲▲▲ [복구] 배경 이미지 로더 추가 끝 ▲▲▲
+
+      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개 (색상 확인)
 
       // 카메라 생성 (이전과 동일)
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
