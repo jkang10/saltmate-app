@@ -82,6 +82,18 @@ export default {
 </script>
 
 <style scoped>
-.avatar-container { width: 100%; height: 100vh; padding: 0; margin: 0; }
-.rpm-iframe { width: 100%; height: 100%; border: none; }
+.avatar-container {
+  /* [수정 1] 헤더 높이(70px)만큼 위쪽 여백 추가 */
+  margin-top: 70px; 
+  /* [수정 2] 전체 높이에서 헤더 높이만큼 빼기 */
+  height: calc(100vh - 70px); 
+  width: 100%; 
+  padding: 0; 
+  overflow: hidden; /* 스크롤 방지 */
+}
+.rpm-iframe {
+  width: 100%;
+  height: 100%; /* 컨테이너 높이에 맞춤 */
+  border: none;
+}
 </style>
