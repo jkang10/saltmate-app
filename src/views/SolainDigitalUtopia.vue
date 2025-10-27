@@ -84,11 +84,13 @@ let joystickManager = null; // nipplejs 인스턴스
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url) => {
   return new Promise((resolve) => {
-    // 1. 'model'은 아바타의 최상위 부모 그룹입니다. (이것이 myAvatar가 됩니다)
     const model = new THREE.Group();
     model.position.set(0, 0, 0);
+    // [애니메이션 추가] 믹서와 액션을 저장할 객체 추가
+    model.userData.mixer = null;
+    model.userData.actions = {};
 
-    // 2. URL이 없거나 GLB가 아닌 경우, 기본 큐브를 생성합니다.
+    // URL 없거나 GLB 아닐 때 기본 큐브 생성 (이전과 동일)
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const visuals = new THREE.Group(); // 이 경우에도 visuals 그룹으로 감싸줍니다.
@@ -101,47 +103,57 @@ const loadAvatar = (url) => {
       visuals.scale.set(0.7, 0.7, 0.7);
       model.add(visuals); // model에 visuals를 추가
       
-      resolve(model); // model을 반환
-      return;
+resolve(model); return;
     }
-    
-    // 3. GLB 파일 로드
+
     loader.load(url,
       (gltf) => {
-        // ★★★ [핵심 수정] ★★★
-        // gltf.scene 객체 자체를 'visuals'로 사용합니다.
-        // 불필요한 복제(clone)나 자식 이동(while 루프)을 하지 않습니다.
-        const visuals = gltf.scene; 
-        
-        // 4. 모델의 바운딩 박스를 계산하여 중앙에 맞춥니다.
+        const visuals = gltf.scene;
         const box = new THREE.Box3().setFromObject(visuals);
-        const center = box.getCenter(new THREE.Vector3()); 
-        
-        // 5. 지오메트리 원점을 발밑 중앙으로 이동시키고, matrixAutoUpdate를 설정합니다.
+        const center = box.getCenter(new THREE.Vector3());
+
         visuals.traverse((child) => {
           if (child.isMesh) {
-            // 지오메트리 변환
-            child.geometry.translate(-center.x, -box.min.y, -center.z); 
-            child.castShadow = true;
-            child.receiveShadow = false;
+            child.geometry.translate(-center.x, -box.min.y, -center.z);
+            // [렉 진단 주석] 그림자 비활성화 상태 유지
+            // child.castShadow = true;
+            // child.receiveShadow = false;
           }
-          // ★ 모든 자식 객체의 matrixAutoUpdate를 true로 강제 설정
           child.matrixAutoUpdate = true;
         });
 
-        // 6. 'visuals' (gltf.scene) 그룹 자체의 변환(transform)을 설정합니다.
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0);
-        visuals.rotation.set(0, 0, 0); // <-- 회전 값도 명시적으로 리셋
-        visuals.matrixAutoUpdate = true; // <-- 'visuals' 그룹 자체도 true로 설정
-
-        // 7. 'visuals' 그룹을 최상위 'model' 그룹에 추가합니다.
+        visuals.rotation.set(0, 0, 0);
+        visuals.matrixAutoUpdate = true;
         model.add(visuals);
-        
-        console.log('[loadAvatar] 수정된 로직: gltf.scene을 visuals로 사용 완료.');
-        
-        // 8. 최상위 'model' 그룹을 반환합니다.
-        resolve(model);
+
+        // --- [애니메이션 추가] ---
+        if (gltf.animations && gltf.animations.length > 0) {
+          // 1. AnimationMixer 생성
+          const mixer = new THREE.AnimationMixer(visuals); // visuals 그룹을 대상으로 믹서 생성
+          model.userData.mixer = mixer; // model 객체에 믹서 저장
+
+          // 2. 'Idle'과 'Walk' 애니메이션 클립 찾기
+          const idleClip = THREE.AnimationClip.findByName(gltf.animations, 'Idle');
+          const walkClip = THREE.AnimationClip.findByName(gltf.animations, 'Walk');
+
+          if (idleClip) {
+            const idleAction = mixer.clipAction(idleClip);
+            idleAction.play(); // 기본으로 Idle 재생
+            model.userData.actions.idle = idleAction;
+            console.log(`[${url}] Idle 애니메이션 로드 및 재생 시작`);
+          } else { console.warn(`[${url}] 'Idle' 애니메이션 클립을 찾을 수 없습니다.`); }
+
+          if (walkClip) {
+            const walkAction = mixer.clipAction(walkClip);
+            model.userData.actions.walk = walkAction; // Walk 액션 저장 (재생은 아직 안 함)
+            console.log(`[${url}] Walk 애니메이션 로드 완료`);
+          } else { console.warn(`[${url}] 'Walk' 애니메이션 클립을 찾을 수 없습니다.`); }
+        } else { console.warn(`[${url}] 모델에 애니메이션 데이터가 없습니다.`); }
+        // --- [애니메이션 추가 끝] ---
+
+        resolve(model); // model (믹서와 액션 정보 포함) 반환
       },
       undefined,
       (error) => {
@@ -435,58 +447,56 @@ const throttledUpdate = () => {
 
 // 다른 플레이어들의 입장/상태변경/퇴장 실시간 감지
 const listenToOtherPlayers = () => {
-  playersListenerRef = dbRef(rtdb, plazaPlayersPath); // 전체 플레이어 경로 참조
-  const currentUid = auth.currentUser.uid; // 내 UID
+  playersListenerRef = dbRef(rtdb, plazaPlayersPath);
+  const currentUid = auth.currentUser.uid;
 
-  // 새 플레이어 입장 감지 (onChildAdded)
-onChildAdded(playersListenerRef, async (snapshot) => {
-    const userId = snapshot.key; // 입장한 플레이어의 UID
-    if (userId === currentUid || otherPlayers[userId]) return; // 본인이거나 이미 목록에 있으면 무시
+  onChildAdded(playersListenerRef, async (snapshot) => {
+    const userId = snapshot.key;
+    if (userId === currentUid || otherPlayers[userId]) return;
 
-    const playerData = snapshot.val(); // 입장한 플레이어 데이터
-    console.log(`플레이어 입장 감지: ${playerData.userName || userId}`); // 입장 감지 로그 추가
+    const playerData = snapshot.val();
+    console.log(`플레이어 입장 감지: ${playerData.userName || userId}`);
 
-    // [★RACE CONDITION FIX]
-    // 1. 플레이어 객체를 *즉시* 생성합니다 (mesh는 null로).
+    // 플레이어 객체 즉시 생성 (mesh, mixer, actions는 null)
     otherPlayers[userId] = {
-      mesh: null, // 메쉬는 아직 로드 중
-      targetPosition: new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z), // DB에서 직접 초기화
+      mesh: null,
+      mixer: null, // [애니메이션 추가] 믹서 추가
+      actions: {}, // [애니메이션 추가] 액션 객체 추가
+      targetPosition: new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z),
       targetRotationY: playerData.rotationY,
-      userName: playerData.userName || '익명' // (닉네임도 미리 저장)
+      userName: playerData.userName || '익명',
+      isMoving: false // [애니메이션 추가] 이동 상태 플래그
     };
 
     try {
-      // 2. 아바타를 비동기로 로드합니다.
-      const avatarMesh = await loadAvatar(playerData.avatarUrl); // 아바타 모델 로드
-      console.log(`${playerData.userName || userId} 아바타 로드 완료`);
+      // 아바타 로드 (애니메이션 정보 포함된 model 반환)
+      const loadedModel = await loadAvatar(playerData.avatarUrl);
+      console.log(`${playerData.userName || userId} 아바타 로드 완료 (애니메이션 포함)`);
 
-      // 3. 로드 완료 시 씬에 추가하고 메쉬를 할당합니다.
-      if (scene && otherPlayers[userId]) { // 씬이 존재하고, 그 사이에 퇴장하지 않았다면
-          // 초기 위치 및 회전 설정
-          avatarMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
-          avatarMesh.rotation.y = playerData.rotationY;
+      if (scene && otherPlayers[userId]) {
+          loadedModel.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
+          loadedModel.rotation.y = playerData.rotationY;
 
-          // [닉네임] 닉네임 스프라이트 생성 및 추가
           if (otherPlayers[userId].userName !== '익명') {
               const otherNickname = createNicknameSprite(otherPlayers[userId].userName);
-              avatarMesh.add(otherNickname); // 아바타의 자식으로 추가
+              loadedModel.add(otherNickname);
               console.log(`${playerData.userName || userId} 닉네임 추가 완료`);
           }
+          scene.add(loadedModel);
 
-          scene.add(avatarMesh); // 씬에 아바타 추가
-          
-          // 4. 로드된 메쉬를 객체에 할당합니다.
-          otherPlayers[userId].mesh = avatarMesh; 
-          
-          console.log(`${playerData.userName || userId} 씬에 추가 완료`);
+          // [애니메이션 추가] 로드된 메쉬, 믹서, 액션 할당
+          otherPlayers[userId].mesh = loadedModel;
+          otherPlayers[userId].mixer = loadedModel.userData.mixer;
+          otherPlayers[userId].actions = loadedModel.userData.actions;
+
+          console.log(`${playerData.userName || userId} 씬에 추가 완료 (애니메이션 설정 포함)`);
       } else {
-          // 씬이 없거나, 로드 중에 플레이어가 나가버린 경우
           console.warn(`${userId} 씬에 추가 실패 (씬이 없거나 이미 퇴장함)`);
-          if (otherPlayers[userId]) { delete otherPlayers[userId]; } // 필요없는 객체 정리
+          if (otherPlayers[userId]) { delete otherPlayers[userId]; }
       }
     } catch (error) {
       console.error(`${userId} 플레이어 처리 중 오류 발생:`, error);
-      if (otherPlayers[userId]) { delete otherPlayers[userId]; } // 실패 시 객체 정리
+      if (otherPlayers[userId]) { delete otherPlayers[userId]; }
     }
   });
 
@@ -801,43 +811,86 @@ if (joystickData.value.active) {
   }
 
   // --- 경계 처리 --- (이하 동일)
-  const boundary = 14.5;
+const boundary = 14.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   myAvatar.position.y = 0;
 
-  // ★★★ [수정] 매트릭스 업데이트 방식 변경 ★★★
-  if (moved) {
-      // loadAvatar에서 matrixAutoUpdate = true 로 설정했기 때문에
-      // position, rotation 변경만으로 렌더러가 자동으로 매트릭스를 업데이트합니다.
-      // 수동 업데이트 코드는 충돌을 일으키므로 제거합니다.
+  if (moved) { throttledUpdate(); }
 
-      // 서버에 위치 정보를 전송하는 throttledUpdate()만 호출합니다.
-      throttledUpdate();
+  // --- [애니메이션 추가] 이동 상태에 따라 애니메이션 전환 ---
+  const mixer = myAvatar.userData.mixer;
+  const actions = myAvatar.userData.actions;
+  const idleAction = actions.idle;
+  const walkAction = actions.walk;
+
+  if (mixer && idleAction && walkAction) {
+    if (moved) {
+      // 걷는 중: Walk 재생, Idle 페이드 아웃
+      if (!walkAction.isRunning()) {
+        walkAction.reset().play();
+        idleAction.crossFadeTo(walkAction, 0.3); // 0.3초 동안 부드럽게 전환
+        console.log("Start Walking Animation"); // 디버깅 로그
+      }
+    } else {
+      // 멈춤: Idle 재생, Walk 페이드 아웃
+      if (!idleAction.isRunning()) {
+        idleAction.reset().play();
+        walkAction.crossFadeTo(idleAction, 0.3);
+        console.log("Start Idle Animation"); // 디버깅 로그
+      }
+    }
+  } else if (mixer && idleAction && !walkAction) {
+    // Walk 애니메이션이 없을 경우 Idle만 계속 재생
+    if (!idleAction.isRunning()) idleAction.reset().play();
   }
+  // --- [애니메이션 추가 끝] ---
 };
 
 // --- 다른 플레이어 부드러운 이동 처리 ---
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 8; // 보간 속도
+  const lerpFactor = deltaTime * 8;
+  const moveThreshold = 0.01; // 이동으로 간주할 최소 거리
+
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
-
-    // [★RACE CONDITION FIX] 메쉬가 아직 로드되지 않았다면(null) 건너뜁니다.
     if (!player.mesh) continue;
 
-    const mesh = player.mesh; // 이제 mesh는 null이 아님
+    const mesh = player.mesh;
+
+    // 현재 위치와 목표 위치 사이 거리 계산
+    const distance = mesh.position.distanceTo(player.targetPosition);
+    const wasMoving = player.isMoving; // 이전 프레임 이동 상태
+    player.isMoving = distance > moveThreshold; // 현재 이동 상태 업데이트
 
     // 위치 보간
     mesh.position.lerp(player.targetPosition, lerpFactor);
 
-    // 회전 보간 (Y축, 최단 각도)
+    // 회전 보간 (이전과 동일)
     let currentY = mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
     currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     mesh.rotation.y += diff * lerpFactor;
-    // 기울어짐 방지
     mesh.rotation.x = 0; mesh.rotation.z = 0;
+
+    // --- [애니메이션 추가] 다른 플레이어 애니메이션 제어 ---
+    const mixer = player.mixer;
+    const actions = player.actions;
+    const idleAction = actions.idle;
+    const walkAction = actions.walk;
+
+    if (mixer && idleAction && walkAction) {
+      if (player.isMoving && !wasMoving) { // 멈춤 -> 이동 시작
+        walkAction.reset().play();
+        idleAction.crossFadeTo(walkAction, 0.3);
+      } else if (!player.isMoving && wasMoving) { // 이동 -> 멈춤
+        idleAction.reset().play();
+        walkAction.crossFadeTo(idleAction, 0.3);
+      }
+    } else if (mixer && idleAction && !walkAction) {
+       if (!idleAction.isRunning()) idleAction.reset().play();
+    }
+    // --- [애니메이션 추가 끝] ---
   }
 };
 
@@ -847,6 +900,20 @@ const animate = () => {
   requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta();
+
+  // --- [애니메이션 추가] 믹서 업데이트 ---
+  // 내 아바타 믹서 업데이트
+  if (myAvatar && myAvatar.userData.mixer) {
+    myAvatar.userData.mixer.update(deltaTime);
+  }
+  // 다른 플레이어 믹서 업데이트
+  for (const userId in otherPlayers) {
+    const player = otherPlayers[userId];
+    if (player.mixer) {
+      player.mixer.update(deltaTime);
+    }
+  }
+  // --- [애니메이션 추가 끝] ---
 
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
