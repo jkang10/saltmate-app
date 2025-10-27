@@ -81,16 +81,51 @@ const keysPressed = reactive({}); // 현재 눌린 키 상태 (Vue 반응형 객
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 }); // 조이스틱 상태 (Vue ref)
 let joystickManager = null; // nipplejs 인스턴스
 
+// --- [신규] 헬퍼 함수: 애니메이션 파일 로드 ---
+const loadAnimations = async () => {
+  const animationPaths = {
+    idle: '/animations/M_Standing_Idle_Variations_008.glb', // Idle 애니메이션 경로
+    walk: '/animations/F_Walk_003.glb'                     // Walk 애니메이션 경로
+  };
+  const loadedAnimations = { idle: null, walk: null };
+
+  try {
+    const [idleGltf, walkGltf] = await Promise.all([
+      loader.loadAsync(animationPaths.idle),
+      loader.loadAsync(animationPaths.walk)
+    ]);
+
+    if (idleGltf.animations && idleGltf.animations.length > 0) {
+      loadedAnimations.idle = idleGltf.animations[0]; // 첫 번째 애니메이션 클립 사용
+      console.log('Idle 애니메이션 클립 로드 성공:', loadedAnimations.idle.name);
+    } else {
+      console.error('Idle 애니메이션 파일에 클립이 없습니다:', animationPaths.idle);
+    }
+
+    if (walkGltf.animations && walkGltf.animations.length > 0) {
+      loadedAnimations.walk = walkGltf.animations[0]; // 첫 번째 애니메이션 클립 사용
+      console.log('Walk 애니메이션 클립 로드 성공:', loadedAnimations.walk.name);
+    } else {
+      console.error('Walk 애니메이션 파일에 클립이 없습니다:', animationPaths.walk);
+    }
+
+    return loadedAnimations; // { idle: AnimationClip | null, walk: AnimationClip | null } 반환
+
+  } catch (error) {
+    console.error('애니메이션 로딩 중 오류 발생:', error);
+    return loadedAnimations; // 실패 시에도 null 값 반환
+  }
+};
+
 // --- 헬퍼 함수: 아바타 로드 ---
-const loadAvatar = (url) => {
+const loadAvatar = (url, animations) => { // ★ animations 인자 추가 ★
   return new Promise((resolve) => {
     const model = new THREE.Group();
     model.position.set(0, 0, 0);
-    // [애니메이션 추가] 믹서와 액션을 저장할 객체 추가
     model.userData.mixer = null;
     model.userData.actions = {};
 
-    // URL 없거나 GLB 아닐 때 기본 큐브 생성 (이전과 동일)
+    // URL 없거나 GLB 아닐 때 기본 큐브 생성 (변경 없음)
     if (!url || !url.endsWith('.glb')) {
       console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const visuals = new THREE.Group(); // 이 경우에도 visuals 그룹으로 감싸줍니다.
@@ -109,51 +144,52 @@ resolve(model); return;
     loader.load(url,
       (gltf) => {
         const visuals = gltf.scene;
-        const box = new THREE.Box3().setFromObject(visuals);
-        const center = box.getCenter(new THREE.Vector3());
-
+        // ... (모델 위치, 스케일, 그림자 등 설정 코드 - 변경 없음) ...
         visuals.traverse((child) => {
           if (child.isMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
-            // [렉 진단 주석] 그림자 비활성화 상태 유지
-            // child.castShadow = true;
+            // child.castShadow = true; // 그림자 관련 코드는 필요시 주석 해제
             // child.receiveShadow = false;
           }
           child.matrixAutoUpdate = true;
         });
-
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0);
         visuals.rotation.set(0, 0, 0);
         visuals.matrixAutoUpdate = true;
         model.add(visuals);
 
-        // --- [애니메이션 추가] ---
-        if (gltf.animations && gltf.animations.length > 0) {
-          // 1. AnimationMixer 생성
-          const mixer = new THREE.AnimationMixer(visuals); // visuals 그룹을 대상으로 믹서 생성
-          model.userData.mixer = mixer; // model 객체에 믹서 저장
+        // --- ★ [애니메이션 로직 수정] ★ ---
+        // 기존: gltf.animations 에서 찾기 -> 삭제!
 
-          // 2. 'Idle'과 'Walk' 애니메이션 클립 찾기
-          const idleClip = THREE.AnimationClip.findByName(gltf.animations, 'Idle');
-          const walkClip = THREE.AnimationClip.findByName(gltf.animations, 'Walk');
+        // 수정: 미리 로드된 animations 객체를 사용
+        if (animations && animations.idle && animations.walk) {
+          const mixer = new THREE.AnimationMixer(visuals);
+          model.userData.mixer = mixer;
 
-          if (idleClip) {
-            const idleAction = mixer.clipAction(idleClip);
-            idleAction.play(); // 기본으로 Idle 재생
-            model.userData.actions.idle = idleAction;
-            console.log(`[${url}] Idle 애니메이션 로드 및 재생 시작`);
-          } else { console.warn(`[${url}] 'Idle' 애니메이션 클립을 찾을 수 없습니다.`); }
+          const idleAction = mixer.clipAction(animations.idle); // 미리 로드한 idle 클립 사용
+          idleAction.play(); // 기본 재생
+          model.userData.actions.idle = idleAction;
 
-          if (walkClip) {
-            const walkAction = mixer.clipAction(walkClip);
-            model.userData.actions.walk = walkAction; // Walk 액션 저장 (재생은 아직 안 함)
-            console.log(`[${url}] Walk 애니메이션 로드 완료`);
-          } else { console.warn(`[${url}] 'Walk' 애니메이션 클립을 찾을 수 없습니다.`); }
-        } else { console.warn(`[${url}] 모델에 애니메이션 데이터가 없습니다.`); }
-        // --- [애니메이션 추가 끝] ---
+          const walkAction = mixer.clipAction(animations.walk); // 미리 로드한 walk 클립 사용
+          model.userData.actions.walk = walkAction; // 저장만 하고 재생은 X
 
-        resolve(model); // model (믹서와 액션 정보 포함) 반환
+          console.log(`[${url}] 외부 Idle, Walk 애니메이션 적용 완료`);
+        } else {
+          console.warn(`[${url}] 미리 로드된 Idle 또는 Walk 애니메이션 클립이 없습니다.`);
+          // (선택) Idle이라도 있으면 Idle만 적용
+          if (animations && animations.idle) {
+             const mixer = new THREE.AnimationMixer(visuals);
+             model.userData.mixer = mixer;
+             const idleAction = mixer.clipAction(animations.idle);
+             idleAction.play();
+             model.userData.actions.idle = idleAction;
+             console.log(`[${url}] 외부 Idle 애니메이션만 적용`);
+          }
+        }
+        // --- ★ [애니메이션 로직 수정 끝] ★ ---
+
+        resolve(model);
       },
       undefined,
       (error) => {
@@ -956,101 +992,139 @@ const handleResize = () => {
 
 // --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
-  // ▼▼▼ [새로운 테스트 코드] 이 라인을 onMounted 최상단에 추가하세요 ▼▼▼
   console.log('--- DEPLOY TEST VERSION 14 --- THIS IS THE NEWEST CODE ---');
-  // ▲▲▲ [새로운 테스트 코드] ▲▲▲
 
   // 로그인 확인
-  if (!auth.currentUser) { console.error("로그인되지 않음."); loadingMessage.value = "로그인이 필요합니다."; isLoading.value = false; return; }
+  if (!auth.currentUser) {
+    console.error("로그인되지 않음.");
+    loadingMessage.value = "로그인이 필요합니다.";
+    isLoading.value = false; // 로딩 상태 해제
+    return;
+  }
   const currentUid = auth.currentUser.uid;
 
   // 1. Three.js 초기화
   const initSuccess = initThree(); // 초기화 함수 호출 및 성공 여부 확인
   if (!initSuccess) { // initThree 내부에서 캔버스 못 찾으면 false 반환
-      loadingMessage.value = "3D 환경 초기화 실패."; isLoading.value = false; return;
+      loadingMessage.value = "3D 환경 초기화 실패.";
+      isLoading.value = false; // 로딩 상태 해제
+      return;
   }
 
-  // 2. 이벤트 리스너 등록
+  // ★★★ [신규] 애니메이션 파일 미리 로드 ★★★
+  loadingMessage.value = '애니메이션 로딩 중...';
+  const preloadedAnimations = await loadAnimations(); // 비동기 로드 기다림
+  if (!preloadedAnimations.idle || !preloadedAnimations.walk) {
+    loadingMessage.value = '기본 애니메이션 로드 실패. 애니메이션 없이 진행합니다.';
+    // 애니메이션 로드 실패 시 경고만 하고 계속 진행할 수 있음 (선택)
+    // isLoading.value = false; // 또는 여기서 로딩 중단
+    // return;
+  }
+  // ★★★ [신규] ★★★
+
+  // 2. 이벤트 리스너 등록 및 애니메이션 시작
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  animate(); // 애니메이션 시작
+  animate(); // 애니메이션 루프 시작
 
   // 3. Firestore에서 사용자 정보 가져오기
   loadingMessage.value = '내 정보 로딩 중...';
   try {
-      const userDoc = await getDoc(doc(db, 'users', currentUid)); // db, doc, getDoc 사용 확인
-      if (userDoc.exists()) { myAvatarUrl = userDoc.data().avatarUrl || ''; myUserName = userDoc.data().name || '익명'; }
-      else { console.error("Firestore 사용자 문서 없음!"); myUserName = '익명'; }
-  } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); loadingMessage.value = '내 정보 로딩 실패.'; isLoading.value = false; return; }
+      const userDoc = await getDoc(doc(db, 'users', currentUid));
+      if (userDoc.exists()) {
+          myAvatarUrl = userDoc.data().avatarUrl || ''; // 아바타 URL 가져오기
+          myUserName = userDoc.data().name || '익명'; // 사용자 이름 가져오기
+      } else {
+          console.error("Firestore 사용자 문서 없음!");
+          myUserName = '익명'; // 문서 없으면 기본 이름 사용
+      }
+  } catch (error) {
+      console.error("Firestore 정보 가져오기 실패:", error);
+      loadingMessage.value = '내 정보 로딩 실패.';
+      isLoading.value = false; // 로딩 상태 해제
+      return;
+  }
 
-// 4. 내 아바타 로드 및 닉네임 추가
-loadingMessage.value = '내 아바타 로딩 중...';
-try {
-    const loadedModel = await loadAvatar(myAvatarUrl);
+  // 4. 내 아바타 로드 및 닉네임 추가
+  loadingMessage.value = '내 아바타 로딩 중...';
+  try {
+    // ★★★ loadAvatar 호출 시 preloadedAnimations 전달 ★★★
+    const loadedModel = await loadAvatar(myAvatarUrl, preloadedAnimations);
 
-    console.log('--- MY AVATAR OBJECT DEBUG (Before Reset) ---');
-    console.log(loadedModel);
+    myAvatar = loadedModel; // 로드된 모델 할당
+    myAvatar.position.set(0, 0, 0); // 초기 위치 설정
+    myAvatar.rotation.set(0, 0, 0); // 초기 회전 설정
 
-    // ★★★ [최종 해결책] loadedModel을 그대로 myAvatar로 사용 ★★★
-    myAvatar = loadedModel; // loadAvatar가 반환한 model을 그대로 사용!
-    myAvatar.position.set(0, 0, 0);
-    myAvatar.rotation.set(0, 0, 0);
-    
-    // 닉네임 추가
-    if (myUserName) {
+    // 사용자 이름이 있으면 닉네임 스프라이트 추가
+    if (myUserName && myUserName !== '익명') {
         const myNickname = createNicknameSprite(myUserName);
-        myNickname.matrixAutoUpdate = true;
-        myAvatar.add(myNickname);
+        myNickname.matrixAutoUpdate = true; // 닉네임도 자동 업데이트 활성화
+        myAvatar.add(myNickname); // 아바타 객체에 닉네임 추가
     }
 
-    console.log('--- AVATAR POSITION/ROTATION FORCED TO (0,0,0) ---');
-    
-    // 씬에 추가
-    scene.add(myAvatar);
-    
+    scene.add(myAvatar); // 씬에 내 아바타 추가
+
     console.log('[DEBUG] myAvatar added to scene, position:', myAvatar.position);
     console.log('[DEBUG] myAvatar.children.length:', myAvatar.children.length);
 
-} catch (error) {
+  } catch (error) { // 아바타 로드 실패 시 처리
     console.error("내 아바타 로드 중 에러 발생:", error);
     loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
-    
-    if (!myAvatar) { 
-        myAvatar = new THREE.Group(); 
+
+    if (!myAvatar) { // myAvatar 객체가 아직 없으면 기본 그룹 생성
+        myAvatar = new THREE.Group();
         myAvatar.matrixAutoUpdate = true;
     }
-    
-    try {
-        const fallbackModel = await loadAvatar(null);
-        myAvatar = fallbackModel; // 에러 시에도 전체 모델 사용
-        scene.add(myAvatar);
-    } catch (e) {
-        console.error("기본 아바타 로드조차 실패.", e);
-        isLoading.value = false;
-        return;
-    }
-}
 
-   // 5. 조이스틱 초기화 (nextTick 사용)
+    try { // 기본 아바타 로드 시도
+      // ★★★ 기본 아바타 로드 시에도 preloadedAnimations 전달 ★★★
+      const fallbackModel = await loadAvatar(null, preloadedAnimations); // null URL로 기본 큐브 로드
+      myAvatar = fallbackModel; // 기본 아바타 모델 할당
+      scene.add(myAvatar); // 씬에 기본 아바타 추가
+    } catch (e) { // 기본 아바타 로드조차 실패한 경우
+        console.error("기본 아바타 로드조차 실패.", e);
+        isLoading.value = false; // 로딩 상태 해제
+        return; // 진행 중단
+    }
+  }
+
+  // 5. 조이스틱 초기화 (nextTick 사용)
   await nextTick(); // DOM 요소가 렌더링될 때까지 기다림
   const joystickZone = document.getElementById('joystick-zone');
-  if (joystickZone) {
+  if (joystickZone) { // 조이스틱 영역 요소가 있는지 확인
     try {
-        joystickManager = nipplejs.create({
-          zone: joystickZone, mode: 'static', position: { right: '80px', bottom: '80px' }, color: 'rgba(255, 255, 255, 0.5)', size: 100
+        joystickManager = nipplejs.create({ // nipplejs 인스턴스 생성 및 설정
+          zone: joystickZone,
+          mode: 'static', // 조이스틱 모드 (static, dynamic, semi)
+          position: { right: '80px', bottom: '80px' }, // 화면 오른쪽 아래 위치
+          color: 'rgba(255, 255, 255, 0.5)', // 반투명 흰색
+          size: 100 // 조이스틱 크기
         });
-        joystickManager.on('move', handleJoystickMove); joystickManager.on('end', handleJoystickEnd);
+        // 조이스틱 이벤트 리스너 등록
+        joystickManager.on('move', handleJoystickMove); // 움직일 때
+        joystickManager.on('end', handleJoystickEnd);   // 놓았을 때
         console.log("조이스틱 생성 완료"); // 생성 확인 로그
-    } catch (e) { console.error("조이스틱 생성 실패:", e); }
-  } else { console.warn("조이스틱 영역 없음."); }
+    } catch (e) {
+        console.error("조이스틱 생성 실패:", e); // 생성 실패 시 에러 로그
+    }
+  } else {
+    console.warn("조이스틱 영역('#joystick-zone')을 찾을 수 없습니다."); // 요소 없으면 경고 로그
+  }
 
   // 6. RTDB 연결 및 리스너 시작
   loadingMessage.value = '다른 플레이어 접속 중...';
-  await joinPlaza();
-  if(isReady.value){ listenToOtherPlayers(); listenToChat(); }
-  else { loadingMessage.value = 'Plaza 연결 실패.'; return; } // joinPlaza 실패 시 로딩 메시지 유지
-  isLoading.value = false; // 최종 로딩 완료
+  await joinPlaza(); // Plaza 입장 시도 (RTDB에 내 정보 등록)
+  if(isReady.value){ // joinPlaza 성공 시 isReady가 true가 됨
+    // ★★★ listenToOtherPlayers 호출 시 preloadedAnimations 전달 ★★★
+    listenToOtherPlayers(preloadedAnimations); // 다른 플레이어 리스너 시작 (애니메이션 객체 전달)
+    listenToChat(); // 채팅 리스너 시작
+  }
+  else { // joinPlaza 실패 시
+    loadingMessage.value = 'Plaza 연결 실패.'; // 실패 메시지 표시
+    return; // 진행 중단
+  }
+  isLoading.value = false; // 모든 로딩 및 초기화 완료
 });
 
 onUnmounted(() => {
