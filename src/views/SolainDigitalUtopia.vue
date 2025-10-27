@@ -651,36 +651,38 @@ const initThree = () => {
 
       // ▼▼▼ [신규] 자동차 모델 로드 ▼▼▼
       loader.load(
-        '/models/2006_subaru_impreza_wrx_sti.glb', // 1. public 폴더 기준 경로
-        (gltf) => {
-          const car = gltf.scene; // 2. 로드된 3D 객체
+	loader.load(
+		'/models/2006_subaru_impreza_wrx_sti.glb', // 1. public 폴더 기준 경로
+		(gltf) => {
+		  const car = gltf.scene; // 2. 로드된 3D 객체
 
-          // 3. 위치, 크기, 회전 설정 (원하는 값으로 조절하세요)
-          car.position.set(2, 0, -3);       // 예: x=2, y=0, z=-3 위치
-          car.scale.set(20, 20, 20);   // 예: 크기를 절반으로 줄임
-          car.rotation.y = -Math.PI / 4;  // 예: -45도 회전 (약간 비스듬히)
+		  // 3. 위치, 크기, 회전 설정
+		  car.position.set(2, 0, -3);       // 위치는 그대로 두거나 원하는 대로 조절
+		  // ★★★ 스케일을 60배로 크게 변경 ★★★
+		  car.scale.set(60, 60, 60);
+		  car.rotation.y = -Math.PI / 4;  // 회전은 그대로 두거나 원하는 대로 조절
 
-       // 4. 그림자 설정 (★중요★)
-       // 자동차가 그림자를 만들고, 다른 그림자를 받을 수 있도록 설정
-	car.traverse((child) => {
-	  if (child.isMesh) {
-	    // ▼▼▼ 재질 강제 변경 코드 추가 ▼▼▼
-	    child.material = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 밝은 빨간색, 양면 렌더링
-	    // ▲▲▲
-	    child.castShadow = true;
-	    child.receiveShadow = true;
-	  }
-	});
+		  // 4. 그림자 설정
+		  car.traverse((child) => {
+		    if (child.isMesh) {
+		      // ▼▼▼ [핵심] 재질 강제 변경 코드 삭제 ▼▼▼
+		      // child.material = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 이 줄 삭제!
+		      // ▲▲▲ 삭제 완료 ▲▲▲
 
-          // 5. 씬(scene)에 추가
-          scene.add(car);
-          console.log('자동차 모델 로드 완료');
-        },
-        undefined, // (진행률 콜백, 무시)
-        (error) => {
-          console.error('자동차 모델 로드 실패:', error);
-        }
-      );
+		      child.castShadow = true;
+		      child.receiveShadow = true;
+		    }
+		  });
+
+		  // 5. 씬(scene)에 추가
+		  scene.add(car);
+		  console.log('자동차 모델 로드 완료 (스케일 60 적용)');
+		},
+		undefined, // (진행률 콜백, 무시)
+		(error) => {
+		  console.error('자동차 모델 로드 실패:', error);
+		}
+	      );
       // ▲▲▲ [신규] 자동차 모델 로드 끝 ▲▲▲
 
 
