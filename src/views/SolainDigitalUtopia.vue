@@ -650,7 +650,6 @@ const initThree = () => {
       const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
 
       // ▼▼▼ [신규] 자동차 모델 로드 ▼▼▼
-      loader.load(
 	loader.load(
 		'/models/2006_subaru_impreza_wrx_sti.glb', // 1. public 폴더 기준 경로
 		(gltf) => {
