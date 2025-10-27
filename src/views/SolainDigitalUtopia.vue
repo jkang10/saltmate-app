@@ -661,7 +661,7 @@ const initThree = () => {
           console.error('배경 이미지 로드 실패:', err);
           scene.background = new THREE.Color(0xade6ff); // 실패 시 파란색 배경
         }
-      );
+      
       // ▲▲▲ [복구] 배경 이미지 로더 추가 끝 ▲▲▲
 
       scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개 (색상 확인)
