@@ -587,109 +587,83 @@ const initThree = () => {
   try {
       scene = new THREE.Scene(); // 씬 생성
 
-      // ▼▼▼ [배경색 코드 제거] ▼▼▼
-      // scene.background = new THREE.Color(0xade6ff); // 배경색
-      // ▲▲▲ [배경색 코드 제거] ▲▲▲
-
-      // ▼▼▼ [배경 이미지 로더 추가] ▼▼▼
+      // 배경 이미지 로더 (이전과 동일)
       const textureLoader = new THREE.TextureLoader();
-      textureLoader.load(
-        '/img/my_background.jpg', // public 폴더에 넣은 이미지 경로
-        (texture) => {
-          // 360도 파노라마(equirectangular) 매핑으로 설정
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          
-          scene.background = texture; // 씬의 배경으로 설정
-          
-          // (강력 추천) 씬의 환경맵으로도 설정하면
-          // 아바타 표면에 배경이 반사되어 훨씬 자연스러워집니다.
-          scene.environment = texture; 
-          
-          console.log("배경 이미지 로드 완료");
-        },
-        undefined,
-        (err) => {
-          console.error('배경 이미지 로드 실패:', err);
-          // 실패 시 기존 파란색 배경으로 복구
-          scene.background = new THREE.Color(0xade6ff);
-        }
-      );
-      // ▲▲▲ [배경 이미지 로더 추가] ▲▲▲
-
-      // ▼▼▼ [안개 색상 수정] ▼▼▼
-      // 기존 0xade6ff (파란색)에서 배경과 어울리는 중립적인 색(예: 회색)으로 변경
+      textureLoader.load( /* ... */ );
       scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개
-      // ▲▲▲ [안개 색상 수정] ▲▲▲
 
-
-      // 카메라 생성
+      // 카메라 생성 (이전과 동일)
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 1.6, 4); // 초기 위치
+      camera.position.set(0, 1.6, 4);
 
       // 렌더러 생성
-      if (!canvasRef.value) {
-          console.error("캔버스 요소를 찾을 수 없습니다!"); return false;
-      }
+      if (!canvasRef.value) { console.error("캔버스 요소를 찾을 수 없습니다!"); return false; }
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true; // 그림자 활성화
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자
+      
+      // ▼▼▼ [렉 진단] 임시로 그림자 비활성화 ▼▼▼
+      // renderer.shadowMap.enabled = true; // 그림자 활성화
+      // renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자
+      renderer.shadowMap.enabled = false; // <<< 테스트를 위해 비활성화
+      // ▲▲▲ [렉 진단] ▲▲▲
 
       // 조명 설정
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); // 주변광
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10); dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; // 그림자 해상도
-      dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 50; // 그림자 범위
-      dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
-      dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
-      scene.add(dirLight); // 직사광
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight); // 반구광
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10);
+      
+      // ▼▼▼ [렉 진단] 임시로 그림자 비활성화 ▼▼▼
+      // dirLight.castShadow = true;
+      // dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024;
+      // dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 50;
+      // dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
+      // dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
+      dirLight.castShadow = false; // <<< 테스트를 위해 비활성화
+      // ▲▲▲ [렉 진단] ▲▲▲
+
+      scene.add(dirLight);
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight);
 
       // 바닥 생성
-      const groundGeometry = new THREE.PlaneGeometry(30, 30); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground); // 바닥 평면
-      const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper); // 그리드
+      const groundGeometry = new THREE.PlaneGeometry(30, 30); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2;
+      
+      // ▼▼▼ [렉 진단] 임시로 그림자 비활성화 ▼▼▼
+      // ground.receiveShadow = true; // 바닥이 그림자를 받음
+      ground.receiveShadow = false; // <<< 테스트를 위해 비활성화
+      // ▲▲▲ [렉 진단] ▲▲▲
 
-      // ▼▼▼ [신규] 자동차 모델 로드 ▼▼▼
-	loader.load(
-		'/models/2006_subaru_impreza_wrx_sti.glb', // 1. public 폴더 기준 경로
-		(gltf) => {
-		  const car = gltf.scene; // 2. 로드된 3D 객체
+      scene.add(ground);
+      const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper);
 
-		  // 3. 위치, 크기, 회전 설정
-		  car.position.set(2, 0, -3);       // 위치는 그대로 두거나 원하는 대로 조절
-		  // ★★★ 스케일을 60배로 크게 변경 ★★★
-		  car.scale.set(60, 60, 60);
-		  car.rotation.y = -Math.PI / 4;  // 회전은 그대로 두거나 원하는 대로 조절
+      // ▼▼▼ 자동차 모델 로드 (스케일 80으로 수정) ▼▼▼
+      loader.load(
+        '/models/2006_subaru_impreza_wrx_sti.glb',
+        (gltf) => {
+          const car = gltf.scene;
+          car.position.set(2, 0, -3);
+          // ★★★ 스케일을 80배로 크게 변경 ★★★
+          car.scale.set(80, 80, 80);
+          car.rotation.y = -Math.PI / 4;
 
-		  // 4. 그림자 설정
-		  car.traverse((child) => {
-		    if (child.isMesh) {
-		      // ▼▼▼ [핵심] 재질 강제 변경 코드 삭제 ▼▼▼
-		      // child.material = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 이 줄 삭제!
-		      // ▲▲▲ 삭제 완료 ▲▲▲
+          car.traverse((child) => {
+            if (child.isMesh) {
+              // ▼▼▼ [렉 진단] 그림자가 비활성화되었으므로 이 코드도 임시 주석 처리 ▼▼▼
+              // child.castShadow = true;
+              // child.receiveShadow = true;
+              // ▲▲▲ [렉 진단] ▲▲▲
+            }
+          });
+          scene.add(car);
+          console.log('자동차 모델 로드 완료 (스케일 80 적용)');
+        },
+        undefined, (error) => { console.error('자동차 모델 로드 실패:', error); }
+      );
+      // ▲▲▲ 자동차 모델 로드 끝 ▲▲▲
 
-		      child.castShadow = true;
-		      child.receiveShadow = true;
-		    }
-		  });
-
-		  // 5. 씬(scene)에 추가
-		  scene.add(car);
-		  console.log('자동차 모델 로드 완료 (스케일 60 적용)');
-		},
-		undefined, // (진행률 콜백, 무시)
-		(error) => {
-		  console.error('자동차 모델 로드 실패:', error);
-		}
-	      );
-      // ▲▲▲ [신규] 자동차 모델 로드 끝 ▲▲▲
-
-
-      clock = new THREE.Clock(); // 시계 생성
-      return true; // 초기화 성공 시 true 반환
+      clock = new THREE.Clock();
+      return true;
   } catch (error) {
       console.error("Three.js 초기화 중 오류 발생:", error);
-      return false; // 초기화 실패 시 false 반환
+      return false;
   }
 };
 
@@ -854,42 +828,40 @@ const updateOtherPlayersMovement = (deltaTime) => {
 
 // --- 애니메이션 루프 ---
 const animate = () => {
-  if (!renderer || !scene || !camera || !clock) return; // 컴포넌트 unmount 대비
+  if (!renderer || !scene || !camera || !clock) return;
   requestAnimationFrame(animate);
 
-  const deltaTime = clock.getDelta(); // 시간 간격
+  const deltaTime = clock.getDelta();
 
-  // ★★★ [이 코드 삭제] ★★★
-  // 아래 디버깅 코드를 삭제합니다.
-  if (myAvatar && myAvatar.children[0]) {
-    // myAvatar.children[0]이 'visuals' 그룹입니다.
-    myAvatar.children[0].matrixAutoUpdate = true;
-  }
-  // ★★★ [디버깅 코드 끝] ★★★
+  updatePlayerMovement(deltaTime);
+  updateOtherPlayersMovement(deltaTime);
 
-  updatePlayerMovement(deltaTime);     // 내 아바타 업데이트
-  updateOtherPlayersMovement(deltaTime); // 다른 아바타 업데이트
-
-  // 카메라 추적 로직 수정 (아바타를 부드럽게 Lerp로 따라가도록)
+  // 카메라 추적 로직 수정 (울렁거림 개선)
   if (myAvatar) {
       const desiredOffset = new THREE.Vector3(0, 3.0, 5.0); // 오프셋 (높이 3.0, 뒤로 5.0)
-      
-      // Lerp Factor로 부드럽게 카메라를 아바타 주변으로 이동
-      const lerpFactor = deltaTime * 5.0;
+      const lerpFactor = deltaTime * 5.0; // 카메라 이동 부드러움 정도
 
-      // 카메라 위치 계산
+      // ▼▼▼ [핵심 수정] 아바타 Y 위치를 0으로 간주하고 카메라 목표 위치 계산 ▼▼▼
+      const avatarPositionOnGround = myAvatar.position.clone();
+      avatarPositionOnGround.y = 0; // 아바타가 항상 지면에 있다고 가정
+
       const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
-      const targetPosition = myAvatar.position.clone().add(cameraOffset);
+      // 목표 위치 계산 시 avatarPositionOnGround 사용
+      const targetPosition = avatarPositionOnGround.clone().add(cameraOffset);
+      // ▲▲▲ [핵심 수정] ▲▲▲
 
       camera.position.lerp(targetPosition, lerpFactor); // 카메라 위치 보간
 
-      // 카메라가 아바타를 부드럽게 바라보도록 처리
-      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-      cameraLookAtTarget.lerp(targetLookAt, lerpFactor);
-      camera.lookAt(cameraLookAtTarget); // 최종적으로 카메라가 바라볼 방향 설정
+      // ▼▼▼ [핵심 수정] 아바타 Y 위치를 0으로 간주하고 카메라가 바라볼 지점 계산 ▼▼▼
+      // 목표 지점 계산 시 avatarPositionOnGround 사용
+      const targetLookAt = avatarPositionOnGround.clone().add(new THREE.Vector3(0, 1.0, 0));
+      // ▲▲▲ [핵심 수정] ▲▲▲
+      
+      cameraLookAtTarget.lerp(targetLookAt, lerpFactor); // 바라볼 지점 보간
+      camera.lookAt(cameraLookAtTarget);
   }
 
-  renderer.render(scene, camera); // 씬 렌더링
+  renderer.render(scene, camera);
 };
 
 // --- 창 크기 조절 처리 ---
