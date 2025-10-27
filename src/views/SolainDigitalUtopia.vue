@@ -111,11 +111,11 @@ const loadAnimations = async () => {
 
     return loadedAnimations; // { idle: AnimationClip | null, walk: AnimationClip | null } 반환
 
-  } catch (error) {
+} catch (error) {
     console.error('애니메이션 로딩 중 오류 발생:', error);
     return loadedAnimations; // 실패 시에도 null 값 반환
   }
-};
+}; // ★★★ [수정] 이 닫는 괄호와 세미콜론(};)을 추가하세요 ★★★
 
 // --- 헬퍼 함수: 아바타 로드 ---
 const loadAvatar = (url, animations) => { // ★ animations 인자 추가 ★
