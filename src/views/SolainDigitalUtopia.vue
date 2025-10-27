@@ -141,74 +141,87 @@ const loadAvatar = (url, animations) => { // ★ animations 인자 추가 ★
 resolve(model); return;
     }
 
-    loader.load(url,
-      (gltf) => {
-        const visuals = gltf.scene;
-        // ... (모델 위치, 스케일, 그림자 등 설정 코드 - 변경 없음) ...
-        visuals.traverse((child) => {
-          if (child.isMesh) {
-            child.geometry.translate(-center.x, -box.min.y, -center.z);
-            // child.castShadow = true; // 그림자 관련 코드는 필요시 주석 해제
-            // child.receiveShadow = false;
-          }
-          child.matrixAutoUpdate = true;
-        });
-        visuals.scale.set(0.7, 0.7, 0.7);
-        visuals.position.set(0, 0, 0);
-        visuals.rotation.set(0, 0, 0);
-        visuals.matrixAutoUpdate = true;
-        model.add(visuals);
+loader.load(url, // 아바타 모델 URL 로드 시작
+  // --- 성공 콜백 함수 ---
+  (gltf) => {
+    const visuals = gltf.scene; // 로드된 3D 모델의 루트 객체
 
-        // --- ★ [애니메이션 로직 수정] ★ ---
-        // 기존: gltf.animations 에서 찾기 -> 삭제!
+    // 모델의 경계 상자(크기)를 계산하고 중심점을 찾음
+    const box = new THREE.Box3().setFromObject(visuals);
+    const center = box.getCenter(new THREE.Vector3());
 
-        // 수정: 미리 로드된 animations 객체를 사용
-        if (animations && animations.idle && animations.walk) {
-          const mixer = new THREE.AnimationMixer(visuals);
-          model.userData.mixer = mixer;
+    // 모델 내부의 모든 자식 객체(주로 Mesh)를 순회
+    visuals.traverse((child) => {
+      if (child.isMesh) { // 만약 메쉬 객체라면
+        // 모델의 원점을 발밑 중앙으로 이동 (y축은 바닥 기준)
+        child.geometry.translate(-center.x, -box.min.y, -center.z);
 
-          const idleAction = mixer.clipAction(animations.idle); // 미리 로드한 idle 클립 사용
-          idleAction.play(); // 기본 재생
-          model.userData.actions.idle = idleAction;
-
-          const walkAction = mixer.clipAction(animations.walk); // 미리 로드한 walk 클립 사용
-          model.userData.actions.walk = walkAction; // 저장만 하고 재생은 X
-
-          console.log(`[${url}] 외부 Idle, Walk 애니메이션 적용 완료`);
-        } else {
-          console.warn(`[${url}] 미리 로드된 Idle 또는 Walk 애니메이션 클립이 없습니다.`);
-          // (선택) Idle이라도 있으면 Idle만 적용
-          if (animations && animations.idle) {
-             const mixer = new THREE.AnimationMixer(visuals);
-             model.userData.mixer = mixer;
-             const idleAction = mixer.clipAction(animations.idle);
-             idleAction.play();
-             model.userData.actions.idle = idleAction;
-             console.log(`[${url}] 외부 Idle 애니메이션만 적용`);
-          }
-        }
-        // --- ★ [애니메이션 로직 수정 끝] ★ ---
-
-        resolve(model);
-      },
-      undefined,
-      (error) => {
-        // 9. 로드 실패 시 에러 큐브 생성
-        console.error('아바타 로딩 실패:', error, 'URL:', url);
-        const visuals = new THREE.Group();
-        const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.y = 0.5;
-        
-        visuals.add(cube);
-        visuals.scale.set(0.7, 0.7, 0.7);
-        model.add(visuals);
-        resolve(model);
+        // --- 그림자 설정 (현재 주석 처리된 상태) ---
+        // child.castShadow = true;    // 이 메쉬가 그림자를 생성하도록 설정
+        // child.receiveShadow = false; // 이 메쉬가 다른 그림자를 받지는 않도록 설정 (아바타는 보통 그림자를 받지 않음)
       }
-    );
-  });
-};
+      // 모든 자식 객체의 matrixAutoUpdate를 true로 설정 (위치/회전 변경 시 자동 업데이트되도록)
+      child.matrixAutoUpdate = true;
+    });
+
+    // 아바타의 전체 크기, 위치, 회전 설정
+    visuals.scale.set(0.7, 0.7, 0.7); // 크기 조절 (0.7배)
+    visuals.position.set(0, 0, 0);   // 부모(model) 그룹 내에서의 위치 (0,0,0)
+    visuals.rotation.set(0, 0, 0);   // 부모(model) 그룹 내에서의 회전 (0,0,0)
+    visuals.matrixAutoUpdate = true; // visuals 그룹 자체도 자동 업데이트 활성화
+    model.add(visuals); // 최종 모델 그룹(model)에 아바타 메쉬 그룹(visuals) 추가
+
+    // --- 미리 로드된 애니메이션 적용 로직 ---
+    if (animations && animations.idle && animations.walk) { // 미리 로드된 idle, walk 클립이 모두 있다면
+      const mixer = new THREE.AnimationMixer(visuals); // 애니메이션 믹서 생성 (visuals 그룹 대상)
+      model.userData.mixer = mixer; // model 객체에 믹서 저장
+
+      const idleAction = mixer.clipAction(animations.idle); // 미리 로드된 idle 클립으로 액션 생성
+      idleAction.play(); // Idle 액션 기본 재생
+      model.userData.actions.idle = idleAction; // model 객체에 idle 액션 저장
+
+      const walkAction = mixer.clipAction(animations.walk); // 미리 로드된 walk 클립으로 액션 생성
+      model.userData.actions.walk = walkAction; // model 객체에 walk 액션 저장 (재생은 아직 안 함)
+
+      console.log(`[${url}] 외부 Idle, Walk 애니메이션 적용 완료`);
+    } else { // 미리 로드된 애니메이션 중 하나라도 없다면
+      console.warn(`[${url}] 미리 로드된 Idle 또는 Walk 애니메이션 클립이 없습니다.`);
+      // Idle 클립이라도 있으면 Idle 애니메이션만 적용
+      if (animations && animations.idle) {
+         const mixer = new THREE.AnimationMixer(visuals);
+         model.userData.mixer = mixer;
+         const idleAction = mixer.clipAction(animations.idle);
+         idleAction.play();
+         model.userData.actions.idle = idleAction;
+         console.log(`[${url}] 외부 Idle 애니메이션만 적용`);
+      }
+    }
+    // --- 애니메이션 적용 로직 끝 ---
+
+    resolve(model); // 모든 처리가 완료된 model 객체를 Promise 결과로 반환
+  },
+
+  // --- 진행률 콜백 함수 (사용하지 않으므로 undefined) ---
+  undefined,
+
+  // --- 에러 콜백 함수 ---
+  (error) => {
+    console.error('아바타 로딩 실패:', error, 'URL:', url); // 콘솔에 에러 로그 출력
+
+    // 로드 실패 시, 에러 표시용 빨간색 큐브를 생성하여 대신 반환
+    const visuals = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); // 큐브 지오메트리
+    const material = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // 빨간색 재질
+    const cube = new THREE.Mesh(geometry, material); // 큐브 메쉬 생성
+    cube.position.y = 0.5; // 큐브 위치 (바닥 위)
+
+    visuals.add(cube); // visuals 그룹에 큐브 추가
+    visuals.scale.set(0.7, 0.7, 0.7); // 크기 조절
+    model.add(visuals); // 최종 model 그룹에 visuals 그룹 추가
+
+    resolve(model); // 에러 상황이지만, 기본 큐브 모델을 Promise 결과로 반환
+  }
+); // loader.load 호출 끝
 
 // --- 헬퍼 함수: 닉네임 스프라이트 생성 ---
 const createNicknameSprite = (text) => {
