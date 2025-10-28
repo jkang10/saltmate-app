@@ -643,79 +643,130 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
+// 매 프레임 호출: 내 아바타 위치/회전 업데이트
 const updatePlayerMovement = (deltaTime) => {
-  if (!myAvatar || !isReady.value) return;
-  let moved = false;
-  let rotationAmount = 0;
-  let applyRotation = false;
-  let applyMovement = false;
-  let moveDirectionZ_Keyboard = 0;
-  let targetRotationY = myAvatar.rotation.y;
+  // 아바타, 준비 상태, 씬 객체가 없으면 함수 종료 (안정성 강화)
+  if (!myAvatar || !isReady.value || !scene) return;
 
-  if (joystickData.value.active) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2;
-    applyRotation = true;
-    applyMovement = joystickData.value.distance > 10;
-  } else {
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ_Keyboard = -1; applyMovement = true; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ_Keyboard = 1; applyMovement = true; }
+  // --- Raycaster 인스턴스 (지면 높이 감지용) ---
+  // (성능을 위해 setup 스코프에 const raycaster = new THREE.Raycaster(); 선언 권장)
+  const raycaster = new THREE.Raycaster();
+  const down = new THREE.Vector3(0, -1, 0); // 아래 방향 벡터
+
+  // --- 이동/회전 상태 변수 초기화 ---
+  let moved = false; // 이번 프레임에 이동했는지 여부
+  let rotationAmount = 0; // 키보드 회전량
+  let applyRotation = false; // 회전을 적용할지 여부
+  let applyMovement = false; // 이동을 적용할지 여부
+  let moveDirectionZ_Keyboard = 0; // 키보드 전후 이동 방향 (-1: 앞, 1: 뒤)
+  let targetRotationY = myAvatar.rotation.y; // 목표 Y축 회전값 (현재 값으로 초기화)
+
+  // --- 조이스틱 입력 처리 ---
+  if (joystickData.value.active) { // 조이스틱이 활성화되어 있다면
+    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 각도에 따라 목표 회전값 계산
+    applyRotation = true; // 회전 적용 플래그 활성화
+    applyMovement = joystickData.value.distance > 10; // 일정 거리 이상 움직였을 때만 이동 적용
+  }
+  // --- 키보드 입력 처리 ---
+  else { // 조이스틱 비활성화 시 키보드 입력 확인
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; } // 왼쪽 회전
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; } // 오른쪽 회전
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ_Keyboard = -1; applyMovement = true; } // 앞으로 이동
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ_Keyboard = 1; applyMovement = true; } // 뒤로 이동
   }
 
-  if (applyRotation) {
-    if (joystickData.value.active) {
+  // --- 회전 적용 ---
+  if (applyRotation) { // 회전을 적용해야 한다면
+    if (joystickData.value.active) { // 조이스틱 사용 시: 부드러운 회전 (Lerp)
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-        currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
-        let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+        // 각도를 0 ~ 2PI 범위로 정규화
+        currentY = (currentY % PI2 + PI2) % PI2;
+        targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
+        // 최단 회전 방향 계산
+        let diff = targetRotationY - currentY;
+        if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+        // 변화량 계산 및 적용 (deltaTime * 8 은 회전 속도 조절)
         const rotationChange = diff * deltaTime * 8;
         myAvatar.rotation.y += rotationChange;
-        if (Math.abs(rotationChange) > 0.001) moved = true;
-    } else {
+        if (Math.abs(rotationChange) > 0.001) moved = true; // 실제로 회전했으면 moved 플래그 설정
+    } else { // 키보드 사용 시: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
-        if (Math.abs(rotationAmount) > 0.001) moved = true;
+        if (Math.abs(rotationAmount) > 0.001) moved = true; // 실제로 회전했으면 moved 플래그 설정
     }
   }
 
-  if (applyMovement) {
-    if (joystickData.value.active) {
-        const moveAngle = joystickData.value.angle;
-        const currentSpeedFactor = joystickData.value.force;
-        const moveAmount = moveSpeed * currentSpeedFactor * deltaTime;
+  // --- 이동 적용 ---
+  if (applyMovement) { // 이동을 적용해야 한다면
+    if (joystickData.value.active) { // 조이스틱 사용 시: 월드 좌표 기준 이동
+        const moveAngle = joystickData.value.angle; // 조이스틱 각도 (라디안)
+        const currentSpeedFactor = joystickData.value.force; // 조이스틱 민 강도 (0~1)
+        const moveAmount = moveSpeed * currentSpeedFactor * deltaTime; // 실제 이동 거리 계산
+        // 월드 X, Z 방향 벡터 계산 (Y는 0)
         const velocity = new THREE.Vector3(Math.cos(moveAngle) * moveAmount, 0, -Math.sin(moveAngle) * moveAmount);
-        myAvatar.position.add(velocity);
-        if (Math.abs(moveAmount) > 0.001) moved = true;
-    } else {
-        const moveAmount = moveDirectionZ_Keyboard * moveSpeed * deltaTime;
-        const velocity = new THREE.Vector3(0, 0, moveAmount);
-        velocity.applyQuaternion(myAvatar.quaternion);
-        myAvatar.position.add(velocity);
-        if (Math.abs(moveAmount) > 0.001) moved = true;
+        myAvatar.position.add(velocity); // 아바타 위치에 이동 벡터 더하기
+        if (Math.abs(moveAmount) > 0.001) moved = true; // 실제로 이동했으면 moved 플래그 설정
+    } else { // 키보드 사용 시: 아바타 기준 로컬 좌표 이동 (탱크 컨트롤)
+        const moveAmount = moveDirectionZ_Keyboard * moveSpeed * deltaTime; // 실제 이동 거리 계산
+        const velocity = new THREE.Vector3(0, 0, moveAmount); // 아바타 앞/뒤 방향 벡터 (Z축)
+        velocity.applyQuaternion(myAvatar.quaternion); // 아바타의 현재 방향(쿼터니언)을 적용하여 월드 벡터로 변환
+        myAvatar.position.add(velocity); // 아바타 위치에 이동 벡터 더하기
+        if (Math.abs(moveAmount) > 0.001) moved = true; // 실제로 이동했으면 moved 플래그 설정
     }
   }
 
-  const boundary = 14.5;
-  myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
-  myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  myAvatar.position.y = 0;
+  // --- 경계 처리 (X, Z만) ---
+  const boundaryX = 24.5; // 도시 맵 크기(약 50)에 맞춰 경계 확장
+  const boundaryZ = 24.5;
+  myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
+  myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
 
-  if (moved) { throttledUpdate(); }
+  // --- Raycasting으로 Y 위치 고정 ---
+  const cityMap = scene.getObjectByName("cityMap"); // 이름으로 도시 맵 객체 찾기
+  let groundY = 0; // 기본 바닥 높이
 
-  const mixer = myAvatar.userData.mixer;
-  const actions = myAvatar.userData.actions;
-  const idleAction = actions.idle;
-  const walkAction = actions.walk;
-  if (mixer && idleAction && walkAction) {
-    if (moved && !walkAction.isRunning()) {
-      walkAction.reset().play();
-      idleAction.crossFadeTo(walkAction, 0.3);
-    } else if (!moved && !idleAction.isRunning()) {
-      idleAction.reset().play();
-      walkAction.crossFadeTo(idleAction, 0.3);
-    }
-  } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) {
-    idleAction.reset().play();
+  if (cityMap) { // 도시 맵 객체가 로드되었다면
+      // 아바타 위치 바로 위(Y+1)에서 아래(-Y) 방향으로 Ray 설정
+      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
+      const intersects = raycaster.intersectObject(cityMap, true); // 도시 맵과 그 자식 메쉬들과의 교차점 확인
+
+      if (intersects.length > 0) { // 교차점이 있다면
+          groundY = intersects[0].point.y; // 가장 가까운 교차점의 Y 좌표를 지면 높이로 사용
+      } else { // 교차점이 없다면 (예: 맵 밖으로 나간 경우)
+          // 도시 맵의 기본 Y 위치(가장 낮은 지점 기준 오프셋)를 사용하거나, 이전 Y 위치 유지 등의 처리
+          groundY = cityMap.position.y;
+          // console.warn("아바타 아래에서 지면을 찾지 못함!"); // 콘솔에 너무 자주 출력될 수 있으므로 주석 처리 권장
+      }
   }
+  myAvatar.position.y = groundY; // 계산된 또는 기본 지면 높이로 아바타의 Y 위치를 강제 설정
+  // --- Y 위치 고정 끝 ---
+
+  // ▼▼▼ [임시 로그 추가] 아바타의 현재 좌표를 콘솔에 출력 ▼▼▼
+  console.log(`Avatar Position - X: ${myAvatar.position.x.toFixed(2)}, Y: ${myAvatar.position.y.toFixed(2)}, Z: ${myAvatar.position.z.toFixed(2)}`);
+  // ▲▲▲ [임시 로그 추가 끝] ▲▲▲
+
+  // 이동했으면 서버에 상태 업데이트 (Throttled)
+  if (moved) {
+    throttledUpdate();
+  }
+
+  // --- 애니메이션 전환 로직 ---
+  const mixer = myAvatar.userData.mixer; // 아바타의 애니메이션 믹서 가져오기
+  const actions = myAvatar.userData.actions; // 아바타의 애니메이션 액션들 가져오기
+  const idleAction = actions.idle; // Idle 액션
+  const walkAction = actions.walk; // Walk 액션
+
+  if (mixer && idleAction && walkAction) { // 믹서와 두 액션이 모두 준비되었다면
+    if (moved && !walkAction.isRunning()) { // 이동했고 Walk가 실행 중이 아니라면
+      walkAction.reset().play(); // Walk 애니메이션 재생
+      idleAction.crossFadeTo(walkAction, 0.3); // Idle에서 Walk로 0.3초간 부드럽게 전환
+    } else if (!moved && !idleAction.isRunning()) { // 멈췄고 Idle이 실행 중이 아니라면
+      idleAction.reset().play(); // Idle 애니메이션 재생
+      walkAction.crossFadeTo(idleAction, 0.3); // Walk에서 Idle로 0.3초간 부드럽게 전환
+    }
+  } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) { // Walk는 없지만 Idle은 있다면
+    idleAction.reset().play(); // Idle 애니메이션만 계속 재생
+  }
+  // --- 애니메이션 전환 로직 끝 ---
 };
 
 const updateOtherPlayersMovement = (deltaTime) => {
@@ -836,9 +887,10 @@ onMounted(async () => {
         myNickname.matrixAutoUpdate = true;
         myAvatar.add(myNickname);
     }
-    scene.add(myAvatar);
-    console.log('[DEBUG] myAvatar added to scene, position:', myAvatar.position);
-    console.log('[DEBUG] myAvatar.children.length:', myAvatar.children.length);
+scene.add(myAvatar);
+// ★★★ 이 로그가 현재 아바타의 초기 좌표를 보여줍니다 ★★★
+console.log('[DEBUG] myAvatar added to scene, position:', myAvatar.position);
+console.log('[DEBUG] myAvatar.children.length:', myAvatar.children.length);
   } catch (error) {
     console.error("내 아바타 로드 중 에러 발생:", error);
     loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
