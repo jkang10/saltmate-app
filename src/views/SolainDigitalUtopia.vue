@@ -562,8 +562,7 @@ scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
         (gltf) => {
           try {
               const city = gltf.scene;
-              // ★ 도시 맵 객체에 이름 부여 (Raycasting에서 사용)
-              city.name = "cityMap";
+              city.name = "cityMap"; // 이름 부여
 
               const box = new THREE.Box3().setFromObject(city);
               const size = box.getSize(new THREE.Vector3());
@@ -589,39 +588,42 @@ scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
               scene.add(city);
               console.log(`도시 맵 로드 완료 (원본 재질 사용, 스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- ★ Raycasting으로 시작 지점 도로 높이 찾기 ★ ---
-              const startX = 0;
-              const startZ = 5;
+              // --- ★★★ 새로운 시작 좌표 적용 ★★★ ---
+              const startX = 12.92;
+              const startY = 1.83; // 콘솔에서 확인한 Y값 사용
+              const startZ = -0.90;
+
+              // Raycasting 로직은 Y값 확인용으로 남겨두거나 제거해도 됨 (여기서는 주석 처리)
+              /*
               const raycaster = new THREE.Raycaster();
               const down = new THREE.Vector3(0, -1, 0);
-              // 시작 지점 약간 위에서 아래로 Ray 발사
               raycaster.set(new THREE.Vector3(startX, 10, startZ), down);
-              const intersects = raycaster.intersectObject(city, true); // city 객체와 그 자식들 모두 검사
+              const intersects = raycaster.intersectObject(city, true);
+              let confirmedHeight = groundLevelY; // 기본값
+              if (intersects.length > 0) { confirmedHeight = intersects[0].point.y; }
+              console.log(`확인된 시작 지점 높이: ${confirmedHeight.toFixed(2)}, 사용할 높이: ${startY}`);
+              */
+              // --- ★★★ ---
 
-              let roadHeight = groundLevelY; // 기본값은 가장 낮은 높이
-              if (intersects.length > 0) {
-                roadHeight = intersects[0].point.y; // 첫 번째 교차점의 Y 좌표 사용
-                console.log(`시작 지점 (X:${startX}, Z:${startZ})의 도로 높이: ${roadHeight.toFixed(2)}`);
-              } else {
-                console.warn(`시작 지점 (X:${startX}, Z:${startZ}) 아래에서 지면을 찾지 못했습니다. 기본 높이(${groundLevelY.toFixed(2)})를 사용합니다.`);
-              }
-              // --- ★ Raycasting 끝 ★ ---
-
-              // --- 아바타/카메라 초기 위치를 찾은 도로 높이 기준으로 재설정 ---
+              // --- 아바타/카메라 초기 위치 설정 ---
               if (myAvatar) {
-                myAvatar.position.set(startX, roadHeight, startZ);
-                console.log(`내 아바타 초기 위치 설정: Y=${myAvatar.position.y.toFixed(2)}`);
+                myAvatar.position.set(startX, startY, startZ);
+                console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY}, Z=${startZ}`);
               }
-              camera.position.set(startX, roadHeight + 1.6, startZ + 4); // 아바타 위치 기준 상대적 설정
-              cameraLookAtTarget.set(startX, roadHeight + 1.0, startZ);
+              // 카메라 위치도 새 시작 위치 기준으로 설정 (뒤쪽 위)
+              camera.position.set(startX, startY + 1.6, startZ + 4);
+              // 카메라는 아바타의 약간 위를 바라보도록 설정
+              cameraLookAtTarget.set(startX, startY + 1.0, startZ);
               // --- 위치 재설정 끝 ---
 
           } catch(processError) {
               console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
           }
         },
-        undefined, (error) => { console.error('자동차 모델 로드 실패:', error); }
+        undefined,
+        (error) => { console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error); /* ... */ }
       );
+      // --- 도시 맵 로드 끝 ---
 
       clock = new THREE.Clock();
       return true;
