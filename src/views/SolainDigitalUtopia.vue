@@ -556,8 +556,8 @@ const initThree = () => {
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
 
-      // --- 도시 맵 로드 ---
-loader.load(
+// --- 도시 맵 로드 ---
+      loader.load(
         '/models/low_poly_city_pack.glb',
         (gltf) => {
           try {
@@ -572,74 +572,36 @@ loader.load(
               city.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
               const scaledBox = new THREE.Box3().setFromObject(city);
-              const scaledMinY = scaledBox.min.y; // 스케일 적용 후 최소 Y값
-
-              // ★ 맵의 바닥 높이 계산 (맵 자체를 아래로 내려서 가장 낮은 지점이 y=0에 오도록 함)
-              const groundLevelY = -scaledMinY;
+              const scaledMinY = scaledBox.min.y;
+              const groundLevelY = -scaledMinY; // ★ 맵의 바닥 Y 레벨 계산
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
 
-              // ▼▼▼ [핵심 수정] 강제 재질 적용 코드 삭제 ▼▼▼
-              // const forcedMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
               city.traverse(child => {
                 if (child.isMesh) {
-                  // child.material = forcedMaterial; // <-- 이 줄 삭제!
                   child.castShadow = true;
                   child.receiveShadow = true;
                 }
               });
-              // ▲▲▲ 삭제 완료 ▲▲▲
 
               scene.add(city);
               console.log(`도시 맵 로드 완료 (원본 재질 사용, 스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- 아바타/카메라/자동차 초기 위치를 도시 맵 바닥 높이 기준으로 재설정 ---
+              // --- ★ 아바타/카메라 초기 위치를 도시 맵 바닥 높이 기준으로 재설정 ★ ---
               if (myAvatar) {
-                // ★ 아바타 Y 위치를 groundLevelY 로 설정
+                // 시작 위치 설정 (예: 맵 중앙 근처, Y는 바닥 높이)
                 myAvatar.position.set(0, groundLevelY, 5);
+                console.log(`내 아바타 초기 위치 설정: Y=${myAvatar.position.y.toFixed(2)}`);
               }
-              // ★ 카메라 Y 위치도 groundLevelY 기준으로 설정
+              // 카메라 위치도 바닥 높이 기준으로 재설정
               camera.position.set(0, groundLevelY + 1.6, 9);
               cameraLookAtTarget.set(0, groundLevelY + 1.0, 5);
+              // --- ★ 위치 재설정 끝 ★ ---
 
-              const carObject = scene.getObjectByName("car");
-              if (carObject) {
-                 // ★ 자동차 Y 위치도 groundLevelY + 약간 위로 설정
-                 carObject.position.set(2, groundLevelY + 0.1, -3);
-                 console.log(`자동차 Y 위치를 ${carObject.position.y.toFixed(2)} 로 재설정`);
-              }
+              // 자동차 관련 코드 완전 삭제됨
 
           } catch(processError) {
               console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
           }
-        },
-        undefined,
-        (error) => {
-          console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
-          if (error.message) console.error("에러 메시지:", error.message);
-          if (error.error) console.error("세부 에러:", error.error);
-          if (error.target && error.target.src) console.error("요청 URL:", error.target.src);
-        }
-      );
-      // --- 도시 맵 로드 끝 ---
-
-      // 자동차 모델 로드 (Y 위치 조정 필요)
-      loader.load(
-        '/models/2006_subaru_impreza_wrx_sti.glb',
-        (gltf) => {
-          const car = gltf.scene;
-          car.name = "car";
-          // ★ Y 위치는 도시맵 로드 성공 콜백에서 재설정되므로, 여기서는 일단 0으로 둠
-          car.position.set(2, 0, -3);
-          car.scale.set(80, 80, 80);
-          car.rotation.y = -Math.PI / 4;
-          car.traverse((child) => {
-            if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-            }
-          });
-          scene.add(car);
-          console.log('자동차 모델 로드 완료 (스케일 80 적용)');
         },
         undefined, (error) => { console.error('자동차 모델 로드 실패:', error); }
       );
