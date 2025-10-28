@@ -742,10 +742,6 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = groundY; // 계산된 또는 기본 지면 높이로 아바타의 Y 위치를 강제 설정
   // --- Y 위치 고정 끝 ---
 
-  // ▼▼▼ [임시 로그 추가] 아바타의 현재 좌표를 콘솔에 출력 ▼▼▼
-  console.log(`Avatar Position - X: ${myAvatar.position.x.toFixed(2)}, Y: ${myAvatar.position.y.toFixed(2)}, Z: ${myAvatar.position.z.toFixed(2)}`);
-  // ▲▲▲ [임시 로그 추가 끝] ▲▲▲
-
   // 이동했으면 서버에 상태 업데이트 (Throttled)
   if (moved) {
     throttledUpdate();
