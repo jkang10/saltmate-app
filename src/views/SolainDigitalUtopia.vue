@@ -528,10 +528,10 @@ const initThree = () => {
           scene.background = new THREE.Color(0xade6ff);
         }
       );
-      scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
+scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 1.6, 4);
+      camera.position.set(0, 1.6, 4); // ★ 초기 카메라 위치 (맵 로드 후 재조정됨)
 
       if (!canvasRef.value) { console.error("캔버스 요소를 찾을 수 없습니다!"); return false; }
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
@@ -562,6 +562,9 @@ const initThree = () => {
         (gltf) => {
           try {
               const city = gltf.scene;
+              // ★ 도시 맵 객체에 이름 부여 (Raycasting에서 사용)
+              city.name = "cityMap";
+
               const box = new THREE.Box3().setFromObject(city);
               const size = box.getSize(new THREE.Vector3());
               const center = box.getCenter(new THREE.Vector3());
@@ -573,7 +576,7 @@ const initThree = () => {
 
               const scaledBox = new THREE.Box3().setFromObject(city);
               const scaledMinY = scaledBox.min.y;
-              const groundLevelY = -scaledMinY; // ★ 맵의 바닥 Y 레벨 계산
+              const groundLevelY = -scaledMinY; // 가장 낮은 지점 기준 Y 오프셋
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
 
               city.traverse(child => {
@@ -586,18 +589,32 @@ const initThree = () => {
               scene.add(city);
               console.log(`도시 맵 로드 완료 (원본 재질 사용, 스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- ★ 아바타/카메라 초기 위치를 도시 맵 바닥 높이 기준으로 재설정 ★ ---
+              // --- ★ Raycasting으로 시작 지점 도로 높이 찾기 ★ ---
+              const startX = 0;
+              const startZ = 5;
+              const raycaster = new THREE.Raycaster();
+              const down = new THREE.Vector3(0, -1, 0);
+              // 시작 지점 약간 위에서 아래로 Ray 발사
+              raycaster.set(new THREE.Vector3(startX, 10, startZ), down);
+              const intersects = raycaster.intersectObject(city, true); // city 객체와 그 자식들 모두 검사
+
+              let roadHeight = groundLevelY; // 기본값은 가장 낮은 높이
+              if (intersects.length > 0) {
+                roadHeight = intersects[0].point.y; // 첫 번째 교차점의 Y 좌표 사용
+                console.log(`시작 지점 (X:${startX}, Z:${startZ})의 도로 높이: ${roadHeight.toFixed(2)}`);
+              } else {
+                console.warn(`시작 지점 (X:${startX}, Z:${startZ}) 아래에서 지면을 찾지 못했습니다. 기본 높이(${groundLevelY.toFixed(2)})를 사용합니다.`);
+              }
+              // --- ★ Raycasting 끝 ★ ---
+
+              // --- 아바타/카메라 초기 위치를 찾은 도로 높이 기준으로 재설정 ---
               if (myAvatar) {
-                // 시작 위치 설정 (예: 맵 중앙 근처, Y는 바닥 높이)
-                myAvatar.position.set(0, groundLevelY, 5);
+                myAvatar.position.set(startX, roadHeight, startZ);
                 console.log(`내 아바타 초기 위치 설정: Y=${myAvatar.position.y.toFixed(2)}`);
               }
-              // 카메라 위치도 바닥 높이 기준으로 재설정
-              camera.position.set(0, groundLevelY + 1.6, 9);
-              cameraLookAtTarget.set(0, groundLevelY + 1.0, 5);
-              // --- ★ 위치 재설정 끝 ★ ---
-
-              // 자동차 관련 코드 완전 삭제됨
+              camera.position.set(startX, roadHeight + 1.6, startZ + 4); // 아바타 위치 기준 상대적 설정
+              cameraLookAtTarget.set(startX, roadHeight + 1.0, startZ);
+              // --- 위치 재설정 끝 ---
 
           } catch(processError) {
               console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
