@@ -525,10 +525,10 @@ const initThree = () => {
         undefined,
         (err) => {
           console.error('배경 이미지 로드 실패:', err);
-          scene.background = new THREE.Color(0xade6ff);
+          scene.background = new THREE.Color(0xade6ff); // 실패 시 파란색 배경
         }
       );
-      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30);
+      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개 설정
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1.6, 4);
@@ -537,47 +537,70 @@ const initThree = () => {
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
 
-      // --- 그림자 설정 (렉 진단 후 다시 활성화) ---
-      renderer.shadowMap.enabled = true; // 그림자 활성화
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+      // 광원 설정 (변경 없음)
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10);
 
-      // --- 그림자 설정 (렉 진단 후 다시 활성화) ---
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 1024; // 그림자 해상도
-      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.mapSize.width = 2048; // 그림자 해상도 증가 (도시 맵을 위해)
+      dirLight.shadow.mapSize.height = 2048;
       dirLight.shadow.camera.near = 0.5;
-      dirLight.shadow.camera.far = 50;
-      dirLight.shadow.camera.left = -15;
-      dirLight.shadow.camera.right = 15;
-      dirLight.shadow.camera.top = 15;
-      dirLight.shadow.camera.bottom = -15;
+      dirLight.shadow.camera.far = 100; // 그림자 거리 증가
+      dirLight.shadow.camera.left = -30; // 그림자 범위 증가
+      dirLight.shadow.camera.right = 30;
+      dirLight.shadow.camera.top = 30;
+      dirLight.shadow.camera.bottom = -30;
 
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight);
 
-      const groundGeometry = new THREE.PlaneGeometry(30, 30);
-      const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88bb88, side: THREE.DoubleSide });
-      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-      ground.rotation.x = -Math.PI / 2;
-      // --- 그림자 설정 (렉 진단 후 다시 활성화) ---
-      ground.receiveShadow = true; // 바닥이 그림자를 받음
-      scene.add(ground);
-      const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper);
+      // --- ★ [수정] 기존 ground 플레인 제거 및 도시 맵 로드 ★ ---
+      // 기존 groundGeometry 및 groundMaterial 코드 삭제
 
-      // 자동차 모델 로드 (스케일 80)
+      // 도시 맵 모델 로드
+      loader.load(
+        '/models/low_poly_city_pack.glb',
+        (gltf) => {
+          const city = gltf.scene;
+          city.scale.set(0.1, 0.1, 0.1); // 도시 맵 크기 조절 (필요에 따라 조절)
+          city.position.set(0, 0, 0); // 도시 맵 위치 설정 (바닥에 닿도록 y 조정 필요)
+
+          // 도시 맵 전체를 순회하며 그림자 설정 및 Y축 보정
+          let minY = Infinity;
+          city.traverse(child => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              child.geometry.computeBoundingBox();
+              minY = Math.min(minY, child.geometry.boundingBox.min.y * city.scale.y);
+            }
+          });
+
+          // 도시 맵 전체를 Y축으로 보정하여 지면에 닿도록 함
+          city.position.y = -minY;
+          scene.add(city);
+          console.log('도시 맵 로드 완료 및 배치');
+        },
+        undefined, (error) => { console.error('도시 맵 로드 실패:', error); }
+      );
+      // --- ★ [수정 끝] ★ ---
+
+      // 기존 GridHelper는 도시 맵이 있으므로 필요 없으면 제거 가능 (일단 주석 처리)
+      // const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper);
+
+      // 자동차 모델 로드 (스케일 80) (변경 없음)
       loader.load(
         '/models/2006_subaru_impreza_wrx_sti.glb',
         (gltf) => {
           const car = gltf.scene;
-          car.position.set(2, 0, -3);
+          car.position.set(2, 0.05, -3); // 바닥에 살짝 띄우기 위해 y값 조정
           car.scale.set(80, 80, 80);
           car.rotation.y = -Math.PI / 4;
           car.traverse((child) => {
             if (child.isMesh) {
-              // --- 그림자 설정 (렉 진단 후 다시 활성화) ---
               child.castShadow = true;
               child.receiveShadow = true;
             }

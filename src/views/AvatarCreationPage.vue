@@ -83,17 +83,36 @@ export default {
 
 <style scoped>
 .avatar-container {
-  /* [수정 1] 헤더 높이(70px)만큼 위쪽 여백 추가 */
-  margin-top: 70px; 
-  /* [수정 2] 전체 높이에서 헤더 높이만큼 빼기 */
-  height: calc(100vh - 70px); 
-  width: 100%; 
-  padding: 0; 
+  /* position: fixed;를 사용하여 헤더 위에 덮어씌웁니다. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw; /* 화면 전체 너비 */
+  height: 100vh; /* 화면 전체 높이 */
+  z-index: 1001; /* App.vue의 헤더(z-index: 1000)보다 높게 설정 */
+  background-color: #f0f0f0; /* 배경색 지정 (선택 사항) */
+  padding: 0;
+  margin: 0; /* 기존 margin 제거 */
   overflow: hidden; /* 스크롤 방지 */
+  display: flex; /* 혹시 모를 내부 정렬 위해 추가 */
+  justify-content: center;
+  align-items: center;
 }
 .rpm-iframe {
   width: 100%;
-  height: 100%; /* 컨테이너 높이에 맞춤 */
+  height: 100%;
   border: none;
+}
+
+/* 모바일 화면 (예: 768px 이하)에서 iframe 주변에 약간의 여백을 주어
+   Ready Player Me UI가 잘리지 않도록 합니다. */
+@media (max-width: 768px) {
+  .avatar-container {
+    /* 모바일에서는 상단 헤더 공간만큼 패딩을 줄 수 있습니다. */
+    /* padding-top: 70px; */ /* 헤더 높이만큼 패딩 (필요 시 주석 해제) */
+    /* height: calc(100vh - 70px); */ /* 패딩 적용 시 높이 조정 (필요 시 주석 해제) */
+  }
+  /* iframe 자체 크기를 조정할 수도 있습니다. */
+  /* .rpm-iframe { height: calc(100% - 70px); } */
 }
 </style>
