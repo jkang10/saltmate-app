@@ -525,10 +525,10 @@ const initThree = () => {
         undefined,
         (err) => {
           console.error('배경 이미지 로드 실패:', err);
-          scene.background = new THREE.Color(0xade6ff); // 실패 시 파란색 배경
+          scene.background = new THREE.Color(0xade6ff);
         }
       );
-      scene.fog = new THREE.Fog(0xaaaaaa, 10, 30); // 안개 설정
+      scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1.6, 4);
@@ -540,63 +540,86 @@ const initThree = () => {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      // 광원 설정 (변경 없음)
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(5, 15, 10);
-
+      // 광원 설정
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(20, 30, 15);
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 2048; // 그림자 해상도 증가 (도시 맵을 위해)
+      dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
-      dirLight.shadow.camera.near = 0.5;
-      dirLight.shadow.camera.far = 100; // 그림자 거리 증가
-      dirLight.shadow.camera.left = -30; // 그림자 범위 증가
-      dirLight.shadow.camera.right = 30;
-      dirLight.shadow.camera.top = 30;
-      dirLight.shadow.camera.bottom = -30;
-
+      dirLight.shadow.camera.near = 1;
+      dirLight.shadow.camera.far = 100;
+      dirLight.shadow.camera.left = -40;
+      dirLight.shadow.camera.right = 40;
+      dirLight.shadow.camera.top = 40;
+      dirLight.shadow.camera.bottom = -40;
+      dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x99cc99, 0.5); scene.add(hemiLight);
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
 
-      // --- ★ [수정] 기존 ground 플레인 제거 및 도시 맵 로드 ★ ---
-      // 기존 groundGeometry 및 groundMaterial 코드 삭제
-
-      // 도시 맵 모델 로드
+      // --- 도시 맵 로드 ---
       loader.load(
         '/models/low_poly_city_pack.glb',
-        (gltf) => {
-          const city = gltf.scene;
-          city.scale.set(0.1, 0.1, 0.1); // 도시 맵 크기 조절 (필요에 따라 조절)
-          city.position.set(0, 0, 0); // 도시 맵 위치 설정 (바닥에 닿도록 y 조정 필요)
+        (gltf) => { // ★★★ 성공 콜백 ★★★
+          try { // 성공 콜백 내에서도 에러 발생 가능성 대비
+              const city = gltf.scene;
+              const box = new THREE.Box3().setFromObject(city);
+              const size = box.getSize(new THREE.Vector3());
+              const center = box.getCenter(new THREE.Vector3());
+              console.log('도시 모델 원본 크기:', size);
 
-          // 도시 맵 전체를 순회하며 그림자 설정 및 Y축 보정
-          let minY = Infinity;
-          city.traverse(child => {
-            if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              child.geometry.computeBoundingBox();
-              minY = Math.min(minY, child.geometry.boundingBox.min.y * city.scale.y);
-            }
-          });
+              const desiredMaxSize = 50;
+              const scaleFactor = desiredMaxSize / Math.max(size.x, size.z);
+              city.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
-          // 도시 맵 전체를 Y축으로 보정하여 지면에 닿도록 함
-          city.position.y = -minY;
-          scene.add(city);
-          console.log('도시 맵 로드 완료 및 배치');
+              const scaledBox = new THREE.Box3().setFromObject(city);
+              const scaledMinY = scaledBox.min.y;
+
+              city.position.set(-center.x * scaleFactor, -scaledMinY, -center.z * scaleFactor);
+
+              // ★★★ 재질 강제 적용 및 그림자 설정 ★★★
+              const forcedMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, side: THREE.DoubleSide }); // 녹색으로 강제 적용
+              city.traverse(child => {
+                if (child.isMesh) {
+                  child.material = forcedMaterial; // 재질 강제 변경
+                  child.castShadow = true;
+                  child.receiveShadow = true;
+                }
+              });
+              // ★★★ 재질 적용 끝 ★★★
+
+              scene.add(city);
+              console.log(`도시 맵 로드 완료 (강제 재질 적용됨, 스케일: ${scaleFactor.toFixed(2)}, 위치 Y: ${city.position.y.toFixed(2)})`);
+
+              // 아바타/카메라/자동차 위치 재설정 (변경 없음)
+              if (myAvatar) myAvatar.position.set(0, city.position.y, 5); // 도시맵 바닥 높이에 맞춤
+              camera.position.set(0, city.position.y + 1.6, 9);
+              cameraLookAtTarget.set(0, city.position.y + 1.0, 5);
+              const carObject = scene.getObjectByName("car");
+              if (carObject) carObject.position.set(2, city.position.y + 0.1, -3);
+
+          } catch(processError) {
+              console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
+          }
         },
-        undefined, (error) => { console.error('도시 맵 로드 실패:', error); }
+        undefined, // 진행 콜백 (무시)
+        (error) => { // ★★★ 에러 콜백 강화 ★★★
+          console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
+          // 에러 객체의 상세 정보 로깅
+          if (error.message) console.error("에러 메시지:", error.message);
+          if (error.error) console.error("세부 에러:", error.error); // loader의 내부 에러
+          if (error.target && error.target.src) console.error("요청 URL:", error.target.src);
+        }
       );
-      // --- ★ [수정 끝] ★ ---
+      // --- 도시 맵 로드 끝 ---
 
-      // 기존 GridHelper는 도시 맵이 있으므로 필요 없으면 제거 가능 (일단 주석 처리)
-      // const gridHelper = new THREE.GridHelper(30, 30, 0xcccccc, 0xcccccc); scene.add(gridHelper);
-
-      // 자동차 모델 로드 (스케일 80) (변경 없음)
+      // 자동차 모델 로드 (Y 위치 조정, 이름 설정)
       loader.load(
         '/models/2006_subaru_impreza_wrx_sti.glb',
         (gltf) => {
           const car = gltf.scene;
-          car.position.set(2, 0.05, -3); // 바닥에 살짝 띄우기 위해 y값 조정
+          car.name = "car";
+          // ★ Y 위치는 도시맵 로드 성공 콜백에서 재설정되므로 초기값은 크게 중요하지 않음
+          car.position.set(2, 0.1, -3);
           car.scale.set(80, 80, 80);
           car.rotation.y = -Math.PI / 4;
           car.traverse((child) => {
@@ -611,11 +634,11 @@ const initThree = () => {
         undefined, (error) => { console.error('자동차 모델 로드 실패:', error); }
       );
 
-      clock = new THREE.Clock();
-      return true;
+      clock = new THREE.Clock(); // 시계 생성
+      return true; // 초기화 성공
   } catch (error) {
       console.error("Three.js 초기화 중 오류 발생:", error);
-      return false;
+      return false; // 초기화 실패
   }
 };
 
