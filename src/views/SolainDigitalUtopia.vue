@@ -758,57 +758,6 @@ const updatePlayerMovement = (deltaTime) => {
   // --- 애니메이션 전환 로직 끝 ---
 };
 
-  // --- 경계 처리 (X, Z만) ---
-  const boundaryX = 24.5; // 도시 맵 크기(약 50)에 맞춰 경계 확장
-  const boundaryZ = 24.5;
-  myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
-  myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
-
-  // --- Raycasting으로 Y 위치 고정 ---
-  const cityMap = scene.getObjectByName("cityMap"); // 이름으로 도시 맵 객체 찾기
-  let groundY = 0; // 기본 바닥 높이
-
-  if (cityMap) { // 도시 맵 객체가 로드되었다면
-      // 아바타 위치 바로 위(Y+1)에서 아래(-Y) 방향으로 Ray 설정
-      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
-      const intersects = raycaster.intersectObject(cityMap, true); // 도시 맵과 그 자식 메쉬들과의 교차점 확인
-
-      if (intersects.length > 0) { // 교차점이 있다면
-          groundY = intersects[0].point.y; // 가장 가까운 교차점의 Y 좌표를 지면 높이로 사용
-      } else { // 교차점이 없다면 (예: 맵 밖으로 나간 경우)
-          // 도시 맵의 기본 Y 위치(가장 낮은 지점 기준 오프셋)를 사용하거나, 이전 Y 위치 유지 등의 처리
-          groundY = cityMap.position.y;
-          // console.warn("아바타 아래에서 지면을 찾지 못함!"); // 콘솔에 너무 자주 출력될 수 있으므로 주석 처리 권장
-      }
-  }
-  myAvatar.position.y = groundY; // 계산된 또는 기본 지면 높이로 아바타의 Y 위치를 강제 설정
-  // --- Y 위치 고정 끝 ---
-
-  // 이동했으면 서버에 상태 업데이트 (Throttled)
-  if (moved) {
-    throttledUpdate();
-  }
-
-  // --- 애니메이션 전환 로직 ---
-  const mixer = myAvatar.userData.mixer; // 아바타의 애니메이션 믹서 가져오기
-  const actions = myAvatar.userData.actions; // 아바타의 애니메이션 액션들 가져오기
-  const idleAction = actions.idle; // Idle 액션
-  const walkAction = actions.walk; // Walk 액션
-
-  if (mixer && idleAction && walkAction) { // 믹서와 두 액션이 모두 준비되었다면
-    if (moved && !walkAction.isRunning()) { // 이동했고 Walk가 실행 중이 아니라면
-      walkAction.reset().play(); // Walk 애니메이션 재생
-      idleAction.crossFadeTo(walkAction, 0.3); // Idle에서 Walk로 0.3초간 부드럽게 전환
-    } else if (!moved && !idleAction.isRunning()) { // 멈췄고 Idle이 실행 중이 아니라면
-      idleAction.reset().play(); // Idle 애니메이션 재생
-      walkAction.crossFadeTo(idleAction, 0.3); // Walk에서 Idle로 0.3초간 부드럽게 전환
-    }
-  } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) { // Walk는 없지만 Idle은 있다면
-    idleAction.reset().play(); // Idle 애니메이션만 계속 재생
-  }
-  // --- 애니메이션 전환 로직 끝 ---
-};
-
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 8;
   const moveThreshold = 0.01;
