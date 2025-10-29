@@ -30,6 +30,9 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+// ▼▼▼ [신규] OrbitControls import 추가 ▼▼▼
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+// ▲▲▲ 추가 완료 ▲▲▲
 import { auth, db, rtdb } from '@/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import {
@@ -64,7 +67,8 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let cameraLookAtTarget = new THREE.Vector3(0, 1.0, 0);
+// let cameraLookAtTarget = new THREE.Vector3(0, 1.0, 0); // OrbitControls 사용 시 불필요
+let controls; // ★ OrbitControls 인스턴스 저장 변수 ★
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -250,7 +254,12 @@ const createNicknameSprite = (text) => {
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   sprite.position.y = 1.5;
-  return sprite;
+
+  // ▼▼▼ [수정] matrixAutoUpdate 추가 ▼▼▼
+  sprite.matrixAutoUpdate = true;
+  // ▲▲▲ 수정 완료 ▲▲▲
+
+  return sprite; // 생성된 스프라이트 반환
 };
 
 // --- 헬퍼 함수: 채팅 말풍선 스프라이트 생성 ---
@@ -534,15 +543,21 @@ const initThree = () => {
       // 안개 설정 (맵 크기에 맞게 범위 조정)
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
 
+      // --- 시작 좌표 정의 ---
+      const startX = 37.16;
+      const startY = 5.49; // 콘솔에서 확인한 Y값
+      const startZ = 7.85;
+      // --- ---
+
       // 카메라 생성
       camera = new THREE.PerspectiveCamera(
         75, // 시야각 (Field of View)
         window.innerWidth / window.innerHeight, // 종횡비 (Aspect Ratio)
-        0.1, // Near 클리핑 평면 (카메라에 가장 가까운 렌더링 거리)
-        1000 // Far 클리핑 평면 (카메라에서 가장 먼 렌더링 거리)
+        0.1, // Near 클리핑 평면
+        1000 // Far 클리핑 평면
       );
-      // 카메라 초기 위치 (맵 로드 후 최종 위치로 재설정됨)
-      camera.position.set(0, 1.6, 4);
+      // ★ 카메라 초기 위치를 새 시작점 기준으로 설정
+      camera.position.set(startX, startY + 1.6, startZ + 4);
 
       // 렌더러 생성 및 설정
       if (!canvasRef.value) { // 캔버스 요소가 없으면 에러 처리
@@ -559,53 +574,62 @@ const initThree = () => {
       renderer.shadowMap.enabled = true; // 그림자 맵 활성화
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
+      // --- OrbitControls 초기화 ---
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; // 부드러운 움직임 효과
+      controls.dampingFactor = 0.1;
+      controls.screenSpacePanning = false; // 패닝(화면 이동) 비활성화
+      controls.minDistance = 2; // 최소 줌 거리
+      controls.maxDistance = 20; // 최대 줌 거리
+      // ★ OrbitControls 타겟을 아바타 시작 위치 약간 위로 설정
+      controls.target.set(startX, startY + 1.0, startZ);
+      controls.update(); // 초기 상태 업데이트
+      // --- OrbitControls 초기화 끝 ---
+
       // --- 광원 설정 ---
-      // 주변광 (씬 전체를 은은하게 비춤)
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // 색상, 강도
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // 주변광
       scene.add(ambientLight);
 
-      // 방향광 (태양광처럼 특정 방향에서 비춤, 그림자 생성 주 광원)
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // 색상, 강도
-      dirLight.position.set(50, 80, 40); // 광원 위치 (맵 크기에 맞게 조정)
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // 방향광
+      dirLight.position.set(50, 80, 40); // 광원 위치
       dirLight.castShadow = true; // 그림자 생성 활성화
 
       // 방향광 그림자 설정
-      dirLight.shadow.mapSize.width = 2048; // 그림자 맵 해상도 (품질)
+      dirLight.shadow.mapSize.width = 2048; // 그림자 맵 해상도
       dirLight.shadow.mapSize.height = 2048;
-      dirLight.shadow.camera.near = 1; // 그림자 렌더링 시작 거리
+      dirLight.shadow.camera.near = 1;
       dirLight.shadow.camera.far = 200; // 그림자 렌더링 끝 거리
       // 그림자 카메라 범위 (맵 크기에 맞게 확장)
       dirLight.shadow.camera.left = -80;
       dirLight.shadow.camera.right = 80;
       dirLight.shadow.camera.top = 80;
       dirLight.shadow.camera.bottom = -80;
-      dirLight.shadow.bias = -0.001; // 그림자 자체 아티팩트(self-shadow artifacts) 줄이기
+      dirLight.shadow.bias = -0.001; // 그림자 자체 아티팩트 줄이기
       scene.add(dirLight); // 씬에 방향광 추가
 
-      // 반구광 (하늘과 땅에서 오는 빛을 시뮬레이션)
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); // 하늘색, 땅색, 강도
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); // 반구광
       scene.add(hemiLight);
       // --- 광원 설정 끝 ---
 
       // --- 도시 맵 로드 ---
       loader.load(
-        '/models/low_poly_city_pack.glb', // 로드할 GLB 파일 경로 (public 폴더 기준)
+        '/models/low_poly_city_pack.glb', // 로드할 GLB 파일 경로
         // --- 로드 성공 콜백 ---
         (gltf) => {
           try { // 콜백 내부 에러 처리
               const city = gltf.scene; // 로드된 3D 객체
               city.name = "cityMap"; // Raycasting 등에서 쉽게 찾기 위해 이름 부여
 
-              // 모델의 원본 경계 상자 계산 (크기 및 중심점 파악용)
+              // 모델의 원본 경계 상자 계산
               const box = new THREE.Box3().setFromObject(city);
               const size = box.getSize(new THREE.Vector3());
               const center = box.getCenter(new THREE.Vector3());
-              console.log('도시 모델 원본 크기:', size); // 콘솔에 원본 크기 출력
+              console.log('도시 모델 원본 크기:', size);
 
               // 원하는 맵 크기에 맞춰 스케일 비율 계산
-              const desiredMaxSize = 150; // 맵의 목표 크기 (월드 유닛 기준)
+              const desiredMaxSize = 150; // 맵의 목표 크기
               const scaleFactor = desiredMaxSize / Math.max(size.x, size.z);
-              city.scale.set(scaleFactor, scaleFactor, scaleFactor); // 계산된 비율로 스케일 적용
+              city.scale.set(scaleFactor, scaleFactor, scaleFactor); // 스케일 적용
 
               // 스케일 적용 후 경계 상자를 다시 계산하여 가장 낮은 Y 좌표 찾기
               const scaledBox = new THREE.Box3().setFromObject(city);
@@ -627,21 +651,12 @@ const initThree = () => {
               scene.add(city);
               console.log(`도시 맵 로드 완료 (스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- 아바타/카메라 초기 위치를 맵 기준으로 재설정 ---
-              const startX = 5; // 시작 X 좌표
-              const startZ = 10; // 시작 Z 좌표
-              // 시작 Y 좌표는 계산된 맵 바닥 높이 사용
-              // (Raycasting은 updatePlayerMovement에서 실시간 지면 높이 추적에 사용됨)
-              const startY = groundLevelY;
-
-              if (myAvatar) { // 내 아바타 객체가 이미 로드되었다면 (보통 이 시점엔 로드됨)
-                myAvatar.position.set(startX, startY, startZ); // 계산된 시작 위치로 설정
+              // --- 아바타 초기 위치 설정 (새 시작 좌표 사용) ---
+              if (myAvatar) { // 내 아바타 객체가 로드된 상태인지 확인
+                // Y 좌표는 시작점 Y 값(startY) 사용
+                myAvatar.position.set(startX, startY, startZ);
                 console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
               }
-              // 카메라 위치도 아바타 시작 위치 기준으로 설정 (뒤쪽 위)
-              camera.position.set(startX, startY + 1.6, startZ + 4);
-              // 카메라는 아바타의 약간 위를 바라보도록 설정
-              cameraLookAtTarget.set(startX, startY + 1.0, startZ);
               // --- 위치 재설정 끝 ---
 
           } catch(processError) { // 맵 처리 중 에러 발생 시
@@ -848,43 +863,39 @@ const updateOtherPlayersMovement = (deltaTime) => {
 };
 
 // --- 애니메이션 루프 ---
-// --- 애니메이션 루프 ---
 const animate = () => {
-  if (!renderer || !scene || !camera || !clock) return;
-  requestAnimationFrame(animate);
-  const deltaTime = clock.getDelta();
+  if (!renderer || !scene || !camera || !clock) return; // 필수 요소 없으면 중단
+  requestAnimationFrame(animate); // 다음 프레임 요청
+  const deltaTime = clock.getDelta(); // 프레임 간 시간 간격
 
-  // 믹서 업데이트 (변경 없음)
+  // 믹서 업데이트 (아바타 애니메이션)
   if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
 
-  // 이동 로직 호출 (변경 없음)
+  // 이동 로직 호출
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
 
-  // --- ★ 카메라 추적 로직 수정 ★ ---
+  // --- ▼▼▼ 기존 카메라 추적 로직 완전 삭제 ▼▼▼ ---
+  /*
   if (myAvatar) {
-      // 고정된 오프셋 (뒤쪽 위)
-      const desiredOffset = new THREE.Vector3(0, 3.0, 5.0);
-      const lerpFactor = deltaTime * 5.0; // 부드러움 정도
-
-      // ▼▼▼ 아바타 회전을 적용하지 않고 카메라 목표 위치 계산 ▼▼▼
-      // const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion); // <-- 이 줄 삭제 또는 주석 처리
-      const cameraOffset = desiredOffset.clone(); // <-- 고정 오프셋 사용
-      const targetPosition = myAvatar.position.clone().add(cameraOffset); // 아바타 위치 + 고정 오프셋
-      // ▲▲▲ 수정 끝 ▲▲▲
-
-      camera.position.lerp(targetPosition, lerpFactor); // 카메라 위치 보간
-
-      // ▼▼▼ 아바타 회전과 상관없이 아바타의 특정 높이를 바라보도록 수정 ▼▼▼
-      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // 아바타 머리 근처 높이
-      // ▲▲▲ 수정 끝 ▲▲▲
-
-      cameraLookAtTarget.lerp(targetLookAt, lerpFactor); // 바라볼 지점 보간
-      camera.lookAt(cameraLookAtTarget); // 카메라가 항상 아바타 중심 약간 위를 보도록 함
+      // ... (camera.position.lerp, cameraLookAtTarget.lerp, camera.lookAt 코드 모두 삭제) ...
   }
-  // --- ★ 카메라 추적 로직 수정 끝 ★ ---
+  */
+  // --- ▲▲▲ 삭제 완료 ▲▲▲ ---
 
+  // --- ▼▼▼ [신규] OrbitControls 업데이트 ▼▼▼ ---
+  if (controls) {
+    // ★ OrbitControls의 타겟을 항상 내 아바타 위치로 부드럽게 업데이트
+    if (myAvatar) {
+      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // 아바타 머리 근처
+      controls.target.lerp(targetLookAt, deltaTime * 5.0); // 부드럽게 타겟 이동
+    }
+    controls.update(); // 컨트롤 상태 업데이트 (Damping 등 적용)
+  }
+  // --- ▲▲▲ 업데이트 추가 끝 ▲▲▲ ---
+
+  // 씬 렌더링
   renderer.render(scene, camera);
 };
 
@@ -989,47 +1000,80 @@ console.log('[DEBUG] myAvatar.children.length:', myAvatar.children.length);
 });
 
 onUnmounted(() => {
+  // 이벤트 리스너 제거
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
+
+  // RTDB 리스너 제거
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
+
+  // RTDB 내 정보 제거 (세션 종료 시)
   if (playerRef) remove(playerRef);
+
+  // 조이스틱 제거
   if (joystickManager) {
     joystickManager.off('move', handleJoystickMove);
     joystickManager.off('end', handleJoystickEnd);
-    joystickManager.destroy();
-    joystickManager = null;
+    joystickManager.destroy(); // 조이스틱 인스턴스 파괴
+    joystickManager = null; // 참조 제거
   }
+
+  // 내 아바타의 활성 말풍선 리소스 정리
   if (myAvatar && myAvatar.activeBubble) {
-    clearTimeout(myAvatar.activeBubble.timeoutId);
-    myAvatar.activeBubble.material.map.dispose();
-    myAvatar.activeBubble.material.dispose();
+    clearTimeout(myAvatar.activeBubble.timeoutId); // 타이머 취소
+    if (myAvatar.activeBubble.material.map) {
+        myAvatar.activeBubble.material.map.dispose(); // 텍스처 해제
+    }
+    myAvatar.activeBubble.material.dispose(); // 재질 해제
+    myAvatar.activeBubble = null; // 참조 제거
   }
-  if (renderer) { renderer.dispose(); renderer = null; }
+
+  // OrbitControls 리소스 해제
+  if (controls) {
+    controls.dispose(); // 이벤트 리스너 등 제거
+    controls = null; // 참조 제거
+  }
+
+  // Three.js 리소스 정리
+  if (renderer) {
+    renderer.dispose(); // WebGL 컨텍스트 관련 리소스 해제
+    renderer = null; // 참조 제거
+  }
   if (scene) {
+     // 씬 내부의 모든 객체를 순회하며 지오메트리, 재질, 텍스처 해제
      scene.traverse(object => {
-       if (object.isMesh) {
-         if (object.geometry) { object.geometry.dispose(); }
+       if (object.isMesh) { // 메쉬 객체인 경우
+         if (object.geometry) {
+           object.geometry.dispose(); // 지오메트리 해제
+         }
+         // 재질(Material)이 배열일 경우 (예: MultiMaterial)
          if (Array.isArray(object.material)) {
            object.material.forEach(material => {
-             if (material.map) material.map.dispose();
-             material.dispose();
+             if (material.map) material.map.dispose(); // 텍스처 해제
+             material.dispose(); // 재질 해제
            });
-         } else if (object.material) {
-           if (object.material.map) object.material.map.dispose();
-           object.material.dispose();
          }
-       } else if (object instanceof THREE.Sprite) {
-         if (object.material.map) object.material.map.dispose();
-         object.material.dispose();
+         // 재질이 단일 객체일 경우
+         else if (object.material) {
+           if (object.material.map) object.material.map.dispose(); // 텍스처 해제
+           object.material.dispose(); // 재질 해제
+         }
+       } else if (object instanceof THREE.Sprite) { // 스프라이트 객체인 경우 (닉네임, 말풍선)
+         if (object.material.map) object.material.map.dispose(); // 텍스처(캔버스) 해제
+         object.material.dispose(); // 재질 해제
        }
+       // (추가) 다른 종류의 객체 (Light, Group 등)에 대한 dispose 로직도 필요시 추가 가능
      });
-    scene = null;
+    scene = null; // 씬 참조 제거
   }
-  camera = null; clock = null; myAvatar = null;
-  otherPlayers = {};
-});
+  // 다른 전역 참조들도 제거
+  camera = null;
+  clock = null;
+  myAvatar = null;
+  otherPlayers = {}; // 다른 플레이어 목록 초기화
+}); // onUnmounted 함수 끝
 
 </script>
 
