@@ -647,74 +647,116 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트
 const updatePlayerMovement = (deltaTime) => {
-  // 아바타, 준비 상태, 씬 객체가 없으면 함수 종료 (안정성 강화)
   if (!myAvatar || !isReady.value || !scene) return;
 
-  // --- Raycaster 인스턴스 (지면 높이 감지용) ---
-  // (성능을 위해 setup 스코프에 const raycaster = new THREE.Raycaster(); 선언 권장)
   const raycaster = new THREE.Raycaster();
-  const down = new THREE.Vector3(0, -1, 0); // 아래 방향 벡터
+  const down = new THREE.Vector3(0, -1, 0);
 
-  // --- 이동/회전 상태 변수 초기화 ---
-  let moved = false; // 이번 프레임에 이동했는지 여부
-  let rotationAmount = 0; // 키보드 회전량
-  let applyRotation = false; // 회전을 적용할지 여부
-  let applyMovement = false; // 이동을 적용할지 여부
-  let moveDirectionZ_Keyboard = 0; // 키보드 전후 이동 방향 (-1: 앞, 1: 뒤)
-  let targetRotationY = myAvatar.rotation.y; // 목표 Y축 회전값 (현재 값으로 초기화)
+  let moved = false;
+  let rotationAmount = 0;
+  let applyRotation = false;
+  let applyMovement = false;
+  let moveDirectionZ = 0; // ★ 키보드/조이스틱 통합 이동 방향 변수 (-1: 앞) ★
+  let targetRotationY = myAvatar.rotation.y;
 
   // --- 조이스틱 입력 처리 ---
-  if (joystickData.value.active) { // 조이스틱이 활성화되어 있다면
-    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 각도에 따라 목표 회전값 계산
-    applyRotation = true; // 회전 적용 플래그 활성화
-    applyMovement = joystickData.value.distance > 10; // 일정 거리 이상 움직였을 때만 이동 적용
+  if (joystickData.value.active && joystickData.value.distance > 10) { // 일정 거리 이상 움직였을 때만
+    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 방향으로 회전 목표 설정
+    applyRotation = true;
+    applyMovement = true;
+    moveDirectionZ = -1; // ★ 조이스틱은 항상 앞으로 이동하도록 설정 ★
   }
   // --- 키보드 입력 처리 ---
-  else { // 조이스틱 비활성화 시 키보드 입력 확인
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; } // 왼쪽 회전
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; } // 오른쪽 회전
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ_Keyboard = -1; applyMovement = true; } // 앞으로 이동
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ_Keyboard = 1; applyMovement = true; } // 뒤로 이동
+  else if (!joystickData.value.active) { // 조이스틱 사용 안 할 때만 키보드 처리
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 앞으로
+    // --- ★ 뒤로 가기('S') 로직 주석 처리 (옵션) ---
+    // 뒤로 가는 키를 누르면 제자리에서 멈추도록 하거나, 회전 후 앞으로 가도록 할 수 있습니다.
+    // 여기서는 일단 'S' 키를 무시하여 뒤로 걷는 동작을 없앱니다.
+    // if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; } // 뒤로
   }
 
   // --- 회전 적용 ---
-  if (applyRotation) { // 회전을 적용해야 한다면
-    if (joystickData.value.active) { // 조이스틱 사용 시: 부드러운 회전 (Lerp)
+  if (applyRotation) {
+    if (joystickData.value.active) { // 조이스틱: 목표 방향으로 부드럽게 회전
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-        // 각도를 0 ~ 2PI 범위로 정규화
-        currentY = (currentY % PI2 + PI2) % PI2;
-        targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
-        // 최단 회전 방향 계산
-        let diff = targetRotationY - currentY;
-        if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        // 변화량 계산 및 적용 (deltaTime * 8 은 회전 속도 조절)
+        currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
+        let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
         const rotationChange = diff * deltaTime * 8;
         myAvatar.rotation.y += rotationChange;
-        if (Math.abs(rotationChange) > 0.001) moved = true; // 실제로 회전했으면 moved 플래그 설정
-    } else { // 키보드 사용 시: 즉시 회전
+        if (Math.abs(rotationChange) > 0.001) moved = true;
+    } else { // 키보드 A/D: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
-        if (Math.abs(rotationAmount) > 0.001) moved = true; // 실제로 회전했으면 moved 플래그 설정
+        if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
   // --- 이동 적용 ---
-  if (applyMovement) { // 이동을 적용해야 한다면
-    if (joystickData.value.active) { // 조이스틱 사용 시: 월드 좌표 기준 이동
-        const moveAngle = joystickData.value.angle; // 조이스틱 각도 (라디안)
-        const currentSpeedFactor = joystickData.value.force; // 조이스틱 민 강도 (0~1)
-        const moveAmount = moveSpeed * currentSpeedFactor * deltaTime; // 실제 이동 거리 계산
-        // 월드 X, Z 방향 벡터 계산 (Y는 0)
-        const velocity = new THREE.Vector3(Math.cos(moveAngle) * moveAmount, 0, -Math.sin(moveAngle) * moveAmount);
-        myAvatar.position.add(velocity); // 아바타 위치에 이동 벡터 더하기
-        if (Math.abs(moveAmount) > 0.001) moved = true; // 실제로 이동했으면 moved 플래그 설정
-    } else { // 키보드 사용 시: 아바타 기준 로컬 좌표 이동 (탱크 컨트롤)
-        const moveAmount = moveDirectionZ_Keyboard * moveSpeed * deltaTime; // 실제 이동 거리 계산
-        const velocity = new THREE.Vector3(0, 0, moveAmount); // 아바타 앞/뒤 방향 벡터 (Z축)
-        velocity.applyQuaternion(myAvatar.quaternion); // 아바타의 현재 방향(쿼터니언)을 적용하여 월드 벡터로 변환
-        myAvatar.position.add(velocity); // 아바타 위치에 이동 벡터 더하기
-        if (Math.abs(moveAmount) > 0.001) moved = true; // 실제로 이동했으면 moved 플래그 설정
+  if (applyMovement && moveDirectionZ === -1) { // ★ 앞으로 이동할 때만 적용 ★
+    let currentSpeedFactor = 1.0; // 키보드는 최고 속도
+    if (joystickData.value.active) {
+      currentSpeedFactor = joystickData.value.force; // 조이스틱은 민 강도에 따라 속도 조절
     }
+    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime; // 실제 이동 거리
+
+    // ★ 키보드/조이스틱 모두 아바타의 로컬 Z축(앞 방향)으로 이동하도록 통일 ★
+    const velocity = new THREE.Vector3(0, 0, moveAmount);
+    velocity.applyQuaternion(myAvatar.quaternion); // 아바타의 현재 방향 적용
+    myAvatar.position.add(velocity);
+
+    if (Math.abs(moveAmount) > 0.001) moved = true;
+  } else {
+    // 이동하지 않거나 뒤로가기 키가 눌렸을 때 (현재는 S키 무시)
+    moved = moved || false; // 회전만 했을 수도 있으므로 기존 moved 값 유지
   }
+
+  // --- 경계 처리 (X, Z만) ---
+  const boundaryX = 24.5;
+  const boundaryZ = 24.5;
+  myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
+  myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
+
+  // --- Raycasting으로 Y 위치 고정 ---
+  const cityMap = scene.getObjectByName("cityMap");
+  let groundY = myAvatar.position.y; // 기본값은 현재 높이 유지 (맵 로드 전 대비)
+  if (cityMap) {
+      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
+      const intersects = raycaster.intersectObject(cityMap, true);
+      if (intersects.length > 0) {
+          groundY = intersects[0].point.y;
+      } else {
+          groundY = cityMap.position.y; // 지면 못 찾으면 맵 기본 높이
+      }
+  }
+  myAvatar.position.y = groundY;
+  // --- Y 위치 고정 끝 ---
+
+  // 이동/회전했으면 서버에 상태 업데이트
+  if (moved) {
+    throttledUpdate();
+  }
+
+  // --- 애니메이션 전환 로직 ---
+  const mixer = myAvatar.userData.mixer;
+  const actions = myAvatar.userData.actions;
+  const idleAction = actions.idle;
+  const walkAction = actions.walk;
+
+  if (mixer && idleAction && walkAction) {
+    // ★ moved 플래그가 true일 때만 Walk 재생 ★
+    if (moved && !walkAction.isRunning()) {
+      walkAction.reset().play();
+      idleAction.crossFadeTo(walkAction, 0.3);
+    } else if (!moved && !idleAction.isRunning()) { // moved가 false (멈춤)일 때 Idle 재생
+      idleAction.reset().play();
+      walkAction.crossFadeTo(idleAction, 0.3);
+    }
+  } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) {
+    idleAction.reset().play();
+  }
+  // --- 애니메이션 전환 로직 끝 ---
+};
 
   // --- 경계 처리 (X, Z만) ---
   const boundaryX = 24.5; // 도시 맵 크기(약 50)에 맞춰 경계 확장
