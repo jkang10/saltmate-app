@@ -84,36 +84,39 @@ let joystickManager = null;
 // --- [신규] 헬퍼 함수: 애니메이션 파일 로드 ---
 const loadAnimations = async () => {
   const animationPaths = {
-    idle: '/animations/M_Standing_Idle_Variations_008.glb', // Idle 애니메이션 경로
-    walk: '/animations/F_Walk_003.glb'                     // Walk 애니메이션 경로
+    idle: '/animations/M_Standing_Idle_Variations_008.glb',
+    walk: '/animations/F_Walk_003.glb',
+    walkBackward: '/animations/M_Walk_Backwards_001.glb', // 뒤로 걷기
+    strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb',  // 왼쪽 게걸음
+    strafeRight: '/animations/M_Walk_Strafe_Right_002.glb' // 오른쪽 게걸음
   };
-  const loadedAnimations = { idle: null, walk: null };
+  const loadedAnimations = { idle: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null };
+  const keys = Object.keys(animationPaths);
 
   try {
-    const [idleGltf, walkGltf] = await Promise.all([
-      loader.loadAsync(animationPaths.idle),
-      loader.loadAsync(animationPaths.walk)
-    ]);
+    const gltfResults = await Promise.all(
+      Object.values(animationPaths).map(path => loader.loadAsync(path).catch(e => {
+        console.error(`애니메이션 로드 실패: ${path}`, e); // 개별 파일 로드 실패 시 에러 로깅
+        return null; // 실패 시 null 반환
+      }))
+    );
 
-    if (idleGltf.animations && idleGltf.animations.length > 0) {
-      loadedAnimations.idle = idleGltf.animations[0]; // 첫 번째 애니메이션 클립 사용
-      console.log('Idle 애니메이션 클립 로드 성공:', loadedAnimations.idle.name);
-    } else {
-      console.error('Idle 애니메이션 파일에 클립이 없습니다:', animationPaths.idle);
-    }
+    gltfResults.forEach((gltf, index) => {
+      const key = keys[index];
+      if (gltf && gltf.animations && gltf.animations.length > 0) {
+        loadedAnimations[key] = gltf.animations[0];
+        console.log(`${key} 애니메이션 클립 로드 성공:`, loadedAnimations[key].name);
+      } else if (gltf) {
+        console.error(`${key} 애니메이션 파일에 클립이 없습니다:`, animationPaths[key]);
+      }
+      // null인 경우는 위 catch에서 이미 로깅됨
+    });
 
-    if (walkGltf.animations && walkGltf.animations.length > 0) {
-      loadedAnimations.walk = walkGltf.animations[0]; // 첫 번째 애니메이션 클립 사용
-      console.log('Walk 애니메이션 클립 로드 성공:', loadedAnimations.walk.name);
-    } else {
-      console.error('Walk 애니메이션 파일에 클립이 없습니다:', animationPaths.walk);
-    }
+    return loadedAnimations;
 
-    return loadedAnimations; // { idle: AnimationClip | null, walk: AnimationClip | null } 반환
-
-  } catch (error) {
-    console.error('애니메이션 로딩 중 오류 발생:', error);
-    return loadedAnimations; // 실패 시에도 null 값 반환
+  } catch (error) { // Promise.all 자체의 에러 (거의 발생 안 함)
+    console.error('애니메이션 로딩 중 전체 오류 발생:', error);
+    return loadedAnimations;
   }
 };
 
@@ -123,7 +126,7 @@ const loadAvatar = (url, animations) => {
     const model = new THREE.Group();
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
-    model.userData.actions = {};
+    model.userData.actions = {}; // 액션 저장 객체 초기화
 
     // URL 없거나 GLB 아닐 때 기본 큐브 생성
     if (!url || !url.endsWith('.glb')) {
@@ -163,31 +166,30 @@ const loadAvatar = (url, animations) => {
         visuals.matrixAutoUpdate = true;
         model.add(visuals);
 
-        // --- 미리 로드된 애니메이션 적용 로직 ---
-        if (animations && animations.idle && animations.walk) {
+// --- ★ [애니메이션 로직 수정] 추가된 애니메이션 적용 ★ ---
+        if (animations && Object.values(animations).some(clip => clip !== null)) { // 로드된 애니메이션이 하나라도 있다면
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
 
-          const idleAction = mixer.clipAction(animations.idle);
-          idleAction.play();
-          model.userData.actions.idle = idleAction;
+          // 각 애니메이션 클립에 대해 액션 생성 및 저장
+          for (const key in animations) {
+            if (animations[key]) { // 클립이 null이 아니면
+              const action = mixer.clipAction(animations[key]);
+              model.userData.actions[key] = action; // actions 객체에 저장 (예: actions.idle, actions.walkBackward)
 
-          const walkAction = mixer.clipAction(animations.walk);
-          model.userData.actions.walk = walkAction;
-
-          console.log(`[${url}] 외부 Idle, Walk 애니메이션 적용 완료`);
-        } else {
-          console.warn(`[${url}] 미리 로드된 Idle 또는 Walk 애니메이션 클립이 없습니다.`);
-          if (animations && animations.idle) {
-             const mixer = new THREE.AnimationMixer(visuals);
-             model.userData.mixer = mixer;
-             const idleAction = mixer.clipAction(animations.idle);
-             idleAction.play();
-             model.userData.actions.idle = idleAction;
-             console.log(`[${url}] 외부 Idle 애니메이션만 적용`);
+              // Idle 액션만 기본 재생
+              if (key === 'idle') {
+                action.play();
+              }
+            } else {
+              console.warn(`[${url}] '${key}' 애니메이션 클립이 로드되지 않아 적용할 수 없습니다.`);
+            }
           }
+           console.log(`[${url}] 로드된 외부 애니메이션 적용 완료`, Object.keys(model.userData.actions));
+        } else {
+          console.warn(`[${url}] 미리 로드된 애니메이션 클립이 하나도 없습니다.`);
         }
-        // --- 애니메이션 적용 로직 끝 ---
+        // --- ★ [애니메이션 로직 수정 끝] ★ ---
 
         resolve(model);
       },
@@ -528,14 +530,14 @@ const initThree = () => {
           scene.background = new THREE.Color(0xade6ff);
         }
       );
-// ★ 안개 범위 확장 (맵 크기 증가에 따라)
-      scene.fog = new THREE.Fog(0xaaaaaa, 50, 150);
+      // ★ 안개 범위 확장 (맵 크기 증가에 따라)
+      scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1.6, 4); // ★ 초기 카메라 위치 (맵 로드 후 재조정됨)
 
       if (!canvasRef.value) { console.error("캔버스 요소를 찾을 수 없습니다!"); return false; }
-      renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
+renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
 
       renderer.shadowMap.enabled = true;
@@ -544,18 +546,13 @@ const initThree = () => {
       // 광원 설정
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      // ★ 광원 위치 더 멀리 조정
-      dirLight.position.set(40, 60, 30);
+      // ★ 광원 위치 더 멀리, 그림자 범위 더 넓게
+      dirLight.position.set(50, 80, 40);
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 2048;
-      dirLight.shadow.mapSize.height = 2048;
-      // ★ 그림자 카메라 범위 확장
-      dirLight.shadow.camera.near = 1;
-      dirLight.shadow.camera.far = 150; // 더 멀리
-      dirLight.shadow.camera.left = -60; // 더 넓게
-      dirLight.shadow.camera.right = 60;
-      dirLight.shadow.camera.top = 60;
-      dirLight.shadow.camera.bottom = -60;
+      dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 1; dirLight.shadow.camera.far = 200; // 더 멀리
+      dirLight.shadow.camera.left = -80; dirLight.shadow.camera.right = 80; // 더 넓게
+      dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
@@ -573,8 +570,8 @@ const initThree = () => {
               const center = box.getCenter(new THREE.Vector3());
               console.log('도시 모델 원본 크기:', size);
 
-              // ★★★ desiredMaxSize 값을 늘려서 맵 스케일 조정 (예: 120) ★★★
-              const desiredMaxSize = 120; // 이전 50 -> 120
+              // ★★★ desiredMaxSize 값을 150으로 증가 ★★★
+              const desiredMaxSize = 150;
               const scaleFactor = desiredMaxSize / Math.max(size.x, size.z);
               city.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
@@ -583,21 +580,17 @@ const initThree = () => {
               const groundLevelY = -scaledMinY;
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
 
-              city.traverse(child => {
-                if (child.isMesh) {
-                  child.castShadow = true;
-                  child.receiveShadow = true;
-                }
-              });
-
+              city.traverse(/* ... 그림자 설정 ... */);
               scene.add(city);
-              console.log(`도시 맵 로드 완료 (원본 재질 사용, 스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
+              console.log(`도시 맵 로드 완료 (스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- 시작 좌표 적용 (X, Z는 그대로, Y만 groundLevelY 사용) ---
-              const startX = 12.92;
-              const startY = groundLevelY; // ★ Raycasting 대신 계산된 바닥 높이 사용
-              const startZ = -0.90;
+              // --- ★★★ 시작 좌표 변경 (건물 피해서) ★★★ ---
+              const startX = 5; // 이전 12.92 -> 5
+              const startZ = 10; // 이전 -0.90 -> 10
+              const startY = groundLevelY; // Y는 바닥 높이 그대로 사용 (Raycasting은 updatePlayerMovement에서 함)
+              // --- ★★★ ---
 
+              // --- 아바타/카메라 초기 위치 설정 ---
               if (myAvatar) {
                 myAvatar.position.set(startX, startY, startZ);
                 console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
@@ -639,63 +632,88 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
-  // --- 이동/회전 상태 변수 초기화 ---
-  let moved = false;
-  let rotationAmount = 0;
-  let applyRotation = false;
-  let applyMovement = false;
-  let moveDirectionZ = 0; // -1: 앞, 1: 뒤
-  let targetRotationY = myAvatar.rotation.y;
+  // --- 상태 변수 초기화 ---
+  let moved = false; // 이동 또는 회전 여부
+  let applyRotation = false; // 회전 적용 여부
+  let targetRotationY = myAvatar.rotation.y; // 목표 회전값
+  let moveDirection = { x: 0, z: 0 }; // 이동 방향 벡터 (x: 좌우, z: 앞뒤)
+  let currentAnimation = 'idle'; // 현재 재생해야 할 애니메이션 이름
 
-  // --- 입력 처리 (조이스틱, 키보드) ---
+  // --- 입력 처리 (조이스틱) ---
   if (joystickData.value.active && joystickData.value.distance > 10) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2;
+    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 방향으로 회전
     applyRotation = true;
-    applyMovement = true;
-    moveDirectionZ = -1;
-  } else if (!joystickData.value.active) {
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      moveDirectionZ = 1; // 이동 방향만 뒤로 설정 (회전 X)
-      applyMovement = true;
+    moveDirection.z = -1; // 조이스틱은 항상 앞으로 이동
+    moved = true; // 조이스틱 사용 시 항상 moved=true (회전 포함)
+    currentAnimation = 'walk'; // 걷기 애니메이션
+  }
+  // --- 입력 처리 (키보드) ---
+  else if (!joystickData.value.active) {
+    let rotationAmount = 0; // 키보드 A/D 회전량
+
+    // ★★★ 좌우 이동 (A/D) 로직 ★★★
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
+      moveDirection.x = 1; // 왼쪽으로 이동 (+X 방향, 아바타 기준)
+      moved = true;
+      currentAnimation = 'strafeLeft'; // 왼쪽 게걸음 애니메이션
     }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
+      moveDirection.x = -1; // 오른쪽으로 이동 (-X 방향, 아바타 기준)
+      moved = true;
+      currentAnimation = 'strafeRight'; // 오른쪽 게걸음 애니메이션
+    }
+    // ★★★ 좌우 이동 끝 ★★★
+
+    // --- 앞뒤 이동 (W/S) 로직 ---
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+      moveDirection.z = -1; // 앞으로 이동 (-Z 방향, 아바타 기준)
+      moved = true;
+      // 좌우 이동 중이 아니면 걷기 애니메이션 우선
+      if (currentAnimation === 'idle') currentAnimation = 'walk';
+    }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
+      moveDirection.z = 1; // 뒤로 이동 (+Z 방향, 아바타 기준)
+      moved = true;
+      // 앞/좌/우 이동 중이 아니면 뒷걸음질 애니메이션 우선
+      if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+    }
+    // --- 앞뒤 이동 끝 ---
+
+    // 키보드 회전은 더 이상 사용하지 않음 (A/D는 이동으로 변경됨)
+    // if (applyRotation) { myAvatar.rotation.y += rotationAmount; moved = true; }
   }
 
-  // --- 회전 적용 ---
-  if (applyRotation) {
-    if (joystickData.value.active) { // 조이스틱만 부드러운 회전
-        let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-        currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
-        let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationSpeedFactor = 8;
-        const rotationChange = diff * deltaTime * rotationSpeedFactor;
-        myAvatar.rotation.y += rotationChange;
-        if (Math.abs(rotationChange) > 0.001) moved = true;
-    } else { // 키보드 A/D: 즉시 회전
-        myAvatar.rotation.y += rotationAmount;
-        if (Math.abs(rotationAmount) > 0.001) moved = true;
-    }
+  // --- 회전 적용 (조이스틱 사용 시 부드럽게) ---
+  if (applyRotation && joystickData.value.active) {
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      const rotationChange = diff * deltaTime * 8;
+      myAvatar.rotation.y += rotationChange;
+      // moved = true; // 조이스틱 사용 시 이미 moved=true
   }
 
   // --- 이동 적용 ---
-  if (applyMovement && moveDirectionZ !== 0) {
+  if (moved) {
     let currentSpeedFactor = 1.0;
     if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
-    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-    const velocity = new THREE.Vector3(0, 0, moveAmount);
+
+    // 이동 벡터 생성 (X와 Z 방향 모두 고려)
+    const velocity = new THREE.Vector3(
+      moveDirection.x * moveSpeed * 0.7 * deltaTime, // 좌우 이동은 약간 느리게 (0.7배)
+      0,
+      moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
+    );
+
+    // 아바타의 현재 방향 기준으로 월드 이동 벡터 계산
     velocity.applyQuaternion(myAvatar.quaternion);
-    myAvatar.position.add(velocity);
-    if (Math.abs(moveAmount) > 0.001) moved = true;
-  } else {
-    moved = moved || false;
+    myAvatar.position.add(velocity); // 위치 업데이트
   }
 
   // --- 경계 처리 및 Y 위치 고정 ---
-  const boundaryX = 59.5; const boundaryZ = 59.5;
-  myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
-  myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
+  const boundary = 74.5; // ★ 경계 확장 (맵 크기 150 기준) ★
+  myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
+  myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
@@ -703,35 +721,53 @@ const updatePlayerMovement = (deltaTime) => {
       const down = new THREE.Vector3(0, -1, 0);
       raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
       const intersects = raycaster.intersectObject(cityMap, true);
-      if (intersects.length > 0) { groundY = intersects[0].point.y; }
-      else { groundY = cityMap.position.y; }
+      groundY = intersects.length > 0 ? intersects[0].point.y : cityMap.position.y;
   }
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
 
+  // ▼▼▼ [임시 로그 추가] 아바타의 현재 좌표를 콘솔에 출력 ▼▼▼
+  console.log(`Avatar Position - X: ${myAvatar.position.x.toFixed(2)}, Y: ${myAvatar.position.y.toFixed(2)}, Z: ${myAvatar.position.z.toFixed(2)}`);
+  // ▲▲▲ [임시 로그 추가 끝] ▲▲▲
+
   // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
 
-  // --- 애니메이션 전환 로직 ---
-  // ▼▼▼ [수정] 삭제되었던 mixer 변수 선언 복구 ▼▼▼
+  // --- ★★★ 애니메이션 전환 로직 개선 ★★★ ---
   const mixer = myAvatar.userData.mixer;
-  // ▲▲▲ 복구 완료 ▲▲▲
   const actions = myAvatar.userData.actions;
-  const idleAction = actions.idle;
-  const walkAction = actions.walk;
 
-  if (mixer && idleAction && walkAction) {
-    if (moved && !walkAction.isRunning()) {
-      walkAction.reset().play();
-      idleAction.crossFadeTo(walkAction, 0.3);
-    } else if (!moved && !idleAction.isRunning()) { // moved가 false (멈춤)
-      idleAction.reset().play();
-      walkAction.crossFadeTo(idleAction, 0.3);
+  // 모든 사용 가능한 액션 이름 배열 (로드된 것만)
+  const availableActions = Object.keys(actions);
+
+  if (mixer && availableActions.length > 0) {
+    // 현재 재생해야 할 애니메이션 액션 가져오기 (없으면 idle)
+    const targetAction = actions[currentAnimation] || actions.idle;
+    // 현재 재생 중인 다른 액션 찾기
+    let currentPlayingAction = null;
+    for (const key of availableActions) {
+      if (actions[key].isRunning() && actions[key] !== targetAction) {
+        currentPlayingAction = actions[key];
+        break;
+      }
     }
-  } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) {
-    idleAction.reset().play();
+
+    if (targetAction && !targetAction.isRunning()) {
+      targetAction.reset().play(); // 목표 액션 재생
+      if (currentPlayingAction) {
+        // 기존 액션에서 목표 액션으로 부드럽게 전환
+        currentPlayingAction.crossFadeTo(targetAction, 0.3);
+      }
+      // console.log(`Animation Changed: ${currentAnimation}`); // 디버깅 로그
+    } else if (!targetAction && actions.idle && !actions.idle.isRunning()) {
+      // 목표 액션도 없고 Idle도 실행 중 아니면 Idle 재생 (방어 코드)
+      actions.idle.reset().play();
+      if (currentPlayingAction) {
+        currentPlayingAction.crossFadeTo(actions.idle, 0.3);
+      }
+    }
   }
-  // --- 애니메이션 전환 로직 끝 ---
+  // --- ★★★ 애니메이션 전환 로직 끝 ★★★ ---
 }; // updatePlayerMovement 함수 끝
 
 const updateOtherPlayersMovement = (deltaTime) => {
