@@ -574,15 +574,20 @@ const initThree = () => {
       renderer.shadowMap.enabled = true; // 그림자 맵 활성화
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
-      // --- OrbitControls 초기화 ---
+// --- OrbitControls 초기화 ---
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true; // 부드러운 움직임 효과
       controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = false; // 패닝(화면 이동) 비활성화
+      controls.screenSpacePanning = false; // 패닝 비활성화
       controls.minDistance = 2; // 최소 줌 거리
       controls.maxDistance = 20; // 최대 줌 거리
-      // ★ OrbitControls 타겟을 아바타 시작 위치 약간 위로 설정
-      controls.target.set(startX, startY + 1.0, startZ);
+
+      // ▼▼▼ [수정] 카메라가 바닥 아래로 내려가지 않도록 최대 각도 제한 ▼▼▼
+      // Math.PI / 2 는 90도 (수평) 이므로, 이보다 약간 작은 값을 설정합니다.
+      controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      // ▲▲▲ 수정 완료 ▲▲▲
+
+      controls.target.set(startX, startY + 1.0, startZ); // 초기 타겟 설정
       controls.update(); // 초기 상태 업데이트
       // --- OrbitControls 초기화 끝 ---
 
