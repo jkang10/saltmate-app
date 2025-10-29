@@ -511,109 +511,164 @@ const sendMessage = () => {
 // --- Three.js 초기화 함수 ---
 const initThree = () => {
   try {
+      // 씬 생성
       scene = new THREE.Scene();
 
-      // 배경 이미지 로더 (변경 없음)
+      // 배경 이미지 로더
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load(
-        '/my_background.jpg',
-        (texture) => {
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          scene.background = texture;
-          scene.environment = texture;
+        '/my_background.jpg', // public 폴더에 있는 배경 이미지 경로
+        (texture) => { // 로드 성공 시 콜백
+          texture.mapping = THREE.EquirectangularReflectionMapping; // 360도 매핑 설정
+          scene.background = texture; // 씬 배경으로 설정
+          scene.environment = texture; // 환경맵으로 설정 (반사 등에 사용)
           console.log("배경 이미지 로드 완료");
         },
-        undefined,
-        (err) => {
+        undefined, // 진행 콜백 (사용 안 함)
+        (err) => { // 로드 실패 시 콜백
           console.error('배경 이미지 로드 실패:', err);
-          scene.background = new THREE.Color(0xade6ff);
+          scene.background = new THREE.Color(0xade6ff); // 실패 시 기본 파란색 배경
         }
-      );
-      // ★ 안개 범위 확장 (맵 크기 증가에 따라)
+      ); // textureLoader.load() 끝
+
+      // 안개 설정 (맵 크기에 맞게 범위 조정)
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
 
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 1.6, 4); // ★ 초기 카메라 위치 (맵 로드 후 재조정됨)
+      // 카메라 생성
+      camera = new THREE.PerspectiveCamera(
+        75, // 시야각 (Field of View)
+        window.innerWidth / window.innerHeight, // 종횡비 (Aspect Ratio)
+        0.1, // Near 클리핑 평면 (카메라에 가장 가까운 렌더링 거리)
+        1000 // Far 클리핑 평면 (카메라에서 가장 먼 렌더링 거리)
+      );
+      // 카메라 초기 위치 (맵 로드 후 최종 위치로 재설정됨)
+      camera.position.set(0, 1.6, 4);
 
-      if (!canvasRef.value) { console.error("캔버스 요소를 찾을 수 없습니다!"); return false; }
-renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      // 렌더러 생성 및 설정
+      if (!canvasRef.value) { // 캔버스 요소가 없으면 에러 처리
+        console.error("캔버스 요소를 찾을 수 없습니다!");
+        return false; // 초기화 실패 반환
+      }
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.value, // 렌더링할 캔버스 요소 지정
+        antialias: true // 계단 현상 완화(Anti-aliasing) 활성화
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight); // 렌더러 크기를 창 크기에 맞춤
 
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // 그림자 설정
+      renderer.shadowMap.enabled = true; // 그림자 맵 활성화
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
-      // 광원 설정
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      // ★ 광원 위치 더 멀리, 그림자 범위 더 넓게
-      dirLight.position.set(50, 80, 40);
-      dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
-      dirLight.shadow.camera.near = 1; dirLight.shadow.camera.far = 200; // 더 멀리
-      dirLight.shadow.camera.left = -80; dirLight.shadow.camera.right = 80; // 더 넓게
-      dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
-      dirLight.shadow.bias = -0.001;
-      scene.add(dirLight);
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
+      // --- 광원 설정 ---
+      // 주변광 (씬 전체를 은은하게 비춤)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // 색상, 강도
+      scene.add(ambientLight);
+
+      // 방향광 (태양광처럼 특정 방향에서 비춤, 그림자 생성 주 광원)
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // 색상, 강도
+      dirLight.position.set(50, 80, 40); // 광원 위치 (맵 크기에 맞게 조정)
+      dirLight.castShadow = true; // 그림자 생성 활성화
+
+      // 방향광 그림자 설정
+      dirLight.shadow.mapSize.width = 2048; // 그림자 맵 해상도 (품질)
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 1; // 그림자 렌더링 시작 거리
+      dirLight.shadow.camera.far = 200; // 그림자 렌더링 끝 거리
+      // 그림자 카메라 범위 (맵 크기에 맞게 확장)
+      dirLight.shadow.camera.left = -80;
+      dirLight.shadow.camera.right = 80;
+      dirLight.shadow.camera.top = 80;
+      dirLight.shadow.camera.bottom = -80;
+      dirLight.shadow.bias = -0.001; // 그림자 자체 아티팩트(self-shadow artifacts) 줄이기
+      scene.add(dirLight); // 씬에 방향광 추가
+
+      // 반구광 (하늘과 땅에서 오는 빛을 시뮬레이션)
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); // 하늘색, 땅색, 강도
+      scene.add(hemiLight);
+      // --- 광원 설정 끝 ---
 
       // --- 도시 맵 로드 ---
       loader.load(
-        '/models/low_poly_city_pack.glb',
+        '/models/low_poly_city_pack.glb', // 로드할 GLB 파일 경로 (public 폴더 기준)
+        // --- 로드 성공 콜백 ---
         (gltf) => {
-          try {
-              const city = gltf.scene;
-              city.name = "cityMap";
+          try { // 콜백 내부 에러 처리
+              const city = gltf.scene; // 로드된 3D 객체
+              city.name = "cityMap"; // Raycasting 등에서 쉽게 찾기 위해 이름 부여
 
+              // 모델의 원본 경계 상자 계산 (크기 및 중심점 파악용)
               const box = new THREE.Box3().setFromObject(city);
               const size = box.getSize(new THREE.Vector3());
               const center = box.getCenter(new THREE.Vector3());
-              console.log('도시 모델 원본 크기:', size);
+              console.log('도시 모델 원본 크기:', size); // 콘솔에 원본 크기 출력
 
-              // ★★★ desiredMaxSize 값을 150으로 증가 ★★★
-              const desiredMaxSize = 150;
+              // 원하는 맵 크기에 맞춰 스케일 비율 계산
+              const desiredMaxSize = 150; // 맵의 목표 크기 (월드 유닛 기준)
               const scaleFactor = desiredMaxSize / Math.max(size.x, size.z);
-              city.scale.set(scaleFactor, scaleFactor, scaleFactor);
+              city.scale.set(scaleFactor, scaleFactor, scaleFactor); // 계산된 비율로 스케일 적용
 
+              // 스케일 적용 후 경계 상자를 다시 계산하여 가장 낮은 Y 좌표 찾기
               const scaledBox = new THREE.Box3().setFromObject(city);
               const scaledMinY = scaledBox.min.y;
+              // 맵의 가장 낮은 지점이 월드 Y=0에 오도록 전체 맵의 Y 위치 오프셋 계산
               const groundLevelY = -scaledMinY;
+              // 맵의 중심이 월드 (0, 0, 0)에 오도록 X, Z 위치 설정 + 계산된 Y 오프셋 적용
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
 
-              city.traverse(/* ... 그림자 설정 ... */);
+              // 맵 내부의 모든 메쉬 객체 순회하며 그림자 설정
+              city.traverse(child => {
+                if (child.isMesh) {
+                  child.castShadow = true;    // 그림자 생성
+                  child.receiveShadow = true; // 그림자 받음
+                }
+              });
+
+              // 최종 설정된 맵 객체를 씬에 추가
               scene.add(city);
               console.log(`도시 맵 로드 완료 (스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- ★★★ 시작 좌표 변경 (건물 피해서) ★★★ ---
-              const startX = 5; // 이전 12.92 -> 5
-              const startZ = 10; // 이전 -0.90 -> 10
-              const startY = groundLevelY; // Y는 바닥 높이 그대로 사용 (Raycasting은 updatePlayerMovement에서 함)
-              // --- ★★★ ---
+              // --- 아바타/카메라 초기 위치를 맵 기준으로 재설정 ---
+              const startX = 5; // 시작 X 좌표
+              const startZ = 10; // 시작 Z 좌표
+              // 시작 Y 좌표는 계산된 맵 바닥 높이 사용
+              // (Raycasting은 updatePlayerMovement에서 실시간 지면 높이 추적에 사용됨)
+              const startY = groundLevelY;
 
-              // --- 아바타/카메라 초기 위치 설정 ---
-              if (myAvatar) {
-                myAvatar.position.set(startX, startY, startZ);
+              if (myAvatar) { // 내 아바타 객체가 이미 로드되었다면 (보통 이 시점엔 로드됨)
+                myAvatar.position.set(startX, startY, startZ); // 계산된 시작 위치로 설정
                 console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
               }
+              // 카메라 위치도 아바타 시작 위치 기준으로 설정 (뒤쪽 위)
               camera.position.set(startX, startY + 1.6, startZ + 4);
+              // 카메라는 아바타의 약간 위를 바라보도록 설정
               cameraLookAtTarget.set(startX, startY + 1.0, startZ);
-              // --- 위치 재설정 끝 ---	
+              // --- 위치 재설정 끝 ---
 
-          } catch(processError) {
+          } catch(processError) { // 맵 처리 중 에러 발생 시
               console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
           }
         },
+        // --- 진행 콜백 (사용 안 함) ---
         undefined,
-        (error) => { console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error); /* ... */ }
-      );
+        // --- 로드 실패 콜백 (상세 로깅) ---
+        (error) => {
+          console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
+          if (error.message) console.error("에러 메시지:", error.message);
+          if (error.error) console.error("세부 에러:", error.error);
+          if (error.target && error.target.src) console.error("요청 URL:", error.target.src);
+        }
+      ); // loader.load(도시 맵) 끝
       // --- 도시 맵 로드 끝 ---
 
+      // 시계 생성 (애니메이션 및 시간 기반 로직에 사용)
       clock = new THREE.Clock();
-      return true;
-  } catch (error) {
+      return true; // 초기화 성공 반환
+
+  } catch (error) { // try 블록 전체 에러 처리
       console.error("Three.js 초기화 중 오류 발생:", error);
-      return false;
+      return false; // 초기화 실패 반환
   }
-};
+}; // initThree 함수 끝
 
 // --- 플레이어 이동 로직 ---
 const handleKeyDown = (event) => {
