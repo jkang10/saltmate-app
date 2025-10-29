@@ -632,54 +632,54 @@ const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   // --- 상태 변수 초기화 ---
-  let moved = false; // 이동 또는 회전 여부
-  let applyRotation = false; // 회전 적용 여부
-  let targetRotationY = myAvatar.rotation.y; // 목표 회전값
-  let moveDirection = { x: 0, z: 0 }; // 이동 방향 벡터 (x: 좌우, z: 앞뒤)
-  let currentAnimation = 'idle'; // 현재 재생해야 할 애니메이션 이름
+  let moved = false;
+  // let applyRotation = false; // ★★★ applyRotation 변수 선언 삭제 ★★★
+  let targetRotationY = myAvatar.rotation.y;
+  let moveDirection = { x: 0, z: 0 };
+  let currentAnimation = 'idle';
 
   // --- 입력 처리 (조이스틱) ---
   if (joystickData.value.active && joystickData.value.distance > 10) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 방향으로 회전
-    applyRotation = true;
-    moveDirection.z = -1; // 조이스틱은 항상 앞으로 이동
-    moved = true; // 조이스틱 사용 시 항상 moved=true (회전 포함)
-    currentAnimation = 'walk'; // 걷기 애니메이션
+    targetRotationY = -joystickData.value.angle + Math.PI / 2;
+    // applyRotation = true; // ★★★ 삭제 ★★★ (아래 if문에서 직접 joystickData.value.active 확인)
+    moveDirection.z = -1;
+    moved = true;
+    currentAnimation = 'walk';
   }
   // --- 입력 처리 (키보드) ---
   else if (!joystickData.value.active) {
-
-    // ★★★ 좌우 이동 (A/D) 로직 ★★★
+    // 좌우 이동 (A/D) 로직
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
-      moveDirection.x = 1; // 왼쪽으로 이동 (+X 방향, 아바타 기준)
-      moved = true;
-      currentAnimation = 'strafeLeft'; // 왼쪽 게걸음 애니메이션
+      moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
+      // ★★★ targetRotationY, applyRotation 설정 코드 삭제 ★★★
     }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
-      moveDirection.x = -1; // 오른쪽으로 이동 (-X 방향, 아바타 기준)
-      moved = true;
-      currentAnimation = 'strafeRight'; // 오른쪽 게걸음 애니메이션
+      moveDirection.x = -1; moved = true; currentAnimation = 'strafeRight';
+      // ★★★ targetRotationY, applyRotation 설정 코드 삭제 ★★★
     }
-    // ★★★ 좌우 이동 끝 ★★★
-
-    // --- 앞뒤 이동 (W/S) 로직 ---
+    // 앞뒤 이동 (W/S) 로직
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-      moveDirection.z = -1; // 앞으로 이동 (-Z 방향, 아바타 기준)
-      moved = true;
-      // 좌우 이동 중이 아니면 걷기 애니메이션 우선
+      moveDirection.z = -1; moved = true;
       if (currentAnimation === 'idle') currentAnimation = 'walk';
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      moveDirection.z = 1; // 뒤로 이동 (+Z 방향, 아바타 기준)
-      moved = true;
-      // 앞/좌/우 이동 중이 아니면 뒷걸음질 애니메이션 우선
+      moveDirection.z = 1; moved = true;
       if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
     }
-    // --- 앞뒤 이동 끝 ---
-
-    // 키보드 회전은 더 이상 사용하지 않음 (A/D는 이동으로 변경됨)
-    // if (applyRotation) { myAvatar.rotation.y += rotationAmount; moved = true; }
   }
+
+  // --- 회전 적용 (조이스틱 사용 시 부드럽게) ---
+  // ▼▼▼ [수정] applyRotation 대신 joystickData.value.active 직접 확인 ▼▼▼
+  if (joystickData.value.active && moved) { // 조이스틱 활성 && 이동 중일 때만 회전
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      const rotationSpeedFactor = 8;
+      const rotationChange = diff * deltaTime * rotationSpeedFactor;
+      myAvatar.rotation.y += rotationChange;
+      // moved = true; // 이미 moved=true 임
+  }
+  // ▲▲▲ [수정 끝] ▲▲▲
 
   // --- 이동 적용 ---
   if (moved) {
