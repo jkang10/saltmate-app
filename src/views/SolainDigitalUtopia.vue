@@ -649,91 +649,90 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
-  const raycaster = new THREE.Raycaster();
-  const down = new THREE.Vector3(0, -1, 0);
-
+  // --- 이동/회전 상태 변수 초기화 ---
   let moved = false;
   let rotationAmount = 0;
   let applyRotation = false;
   let applyMovement = false;
-  let moveDirectionZ = 0; // -1: 앞, 1: 뒤
+  let moveDirectionZ = 0;
   let targetRotationY = myAvatar.rotation.y;
-  let isTurningAround = false; // ★ 뒤로 돌기 상태 플래그 ★
+  let isTurningAround = false;
 
-  // --- 조이스틱 입력 처리 ---
+  // --- 입력 처리 (조이스틱, 키보드) ---
   if (joystickData.value.active && joystickData.value.distance > 10) {
     targetRotationY = -joystickData.value.angle + Math.PI / 2;
     applyRotation = true;
     applyMovement = true;
-    moveDirectionZ = -1; // 조이스틱은 항상 앞으로
-  }
-  // --- 키보드 입력 처리 ---
-  else if (!joystickData.value.active) {
+    moveDirectionZ = -1;
+  } else if (!joystickData.value.active) {
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 앞으로
-
-    // ▼▼▼ [핵심 수정] 뒤로 가기(S) 로직 ▼▼▼
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      // 뒤로 가기 키를 누르면:
-      // 1. 목표 회전값을 현재 방향 + 180도로 설정
       targetRotationY = myAvatar.rotation.y + Math.PI;
-      // 2. 부드러운 회전을 위해 applyRotation 활성화 (조이스틱 회전 방식 사용)
       applyRotation = true;
-      // 3. 이동 방향은 앞으로 설정 (회전 후 전진)
       moveDirectionZ = -1;
-      // 4. 이동 적용 플래그 활성화
       applyMovement = true;
-      // 5. 뒤로 돌고 있다는 플래그 설정 (애니메이션 등에서 활용 가능)
       isTurningAround = true;
     }
-    // ▲▲▲ [핵심 수정 끝] ▲▲▲
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
-    // ▼▼▼ [핵심 수정] 조이스틱 또는 S키 눌렀을 때 부드러운 회전 적용 ▼▼▼
     if (joystickData.value.active || isTurningAround) {
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        // ★ 뒤로 돌 때는 더 빠르게 회전 (선택 사항) ★
         const rotationSpeedFactor = isTurningAround ? 12 : 8;
         const rotationChange = diff * deltaTime * rotationSpeedFactor;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
-    }
-    // ▲▲▲ [핵심 수정 끝] ▲▲▲
-    else { // 키보드 A/D: 즉시 회전
+    } else {
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
   // --- 이동 적용 ---
-  if (applyMovement && moveDirectionZ === -1) { // ★ 앞으로 이동할 때만 적용 ★
+  if (applyMovement && moveDirectionZ === -1) {
     let currentSpeedFactor = 1.0;
     if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-
     const velocity = new THREE.Vector3(0, 0, moveAmount);
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
-
     if (Math.abs(moveAmount) > 0.001) moved = true;
   } else {
     moved = moved || false;
   }
 
-  // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
+  // --- 경계 처리 (X, Z만) ---
   const boundaryX = 24.5; const boundaryZ = 24.5;
   myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
+
+  // ▼▼▼ [수정] Raycasting 로직 및 Y 위치 고정 ▼▼▼
   const cityMap = scene.getObjectByName("cityMap");
-  let groundY = myAvatar.position.y;
-  if (cityMap) { /* ... Raycasting ... */ groundY = intersects.length > 0 ? intersects[0].point.y : cityMap.position.y; }
-  myAvatar.position.y = groundY;
-  // --- Y 위치 고정 끝 ---
+  let groundY = myAvatar.position.y; // 기본값은 현재 높이
+
+  if (cityMap) {
+      // ★ Raycaster와 down 변수를 사용할 때 선언 ★
+      const raycaster = new THREE.Raycaster();
+      const down = new THREE.Vector3(0, -1, 0);
+
+      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
+      // ★ intersects 변수 선언 ★
+      const intersects = raycaster.intersectObject(cityMap, true);
+
+      // ★ if 블록 안에서 intersects 사용 ★
+      if (intersects.length > 0) {
+          groundY = intersects[0].point.y; // 찾은 지면 높이
+      } else {
+          groundY = cityMap.position.y; // 못 찾으면 맵 기본 높이
+      }
+  }
+  myAvatar.position.y = groundY; // Y 위치 고정
+  // ▲▲▲ [수정 끝] ▲▲▲
 
   // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
@@ -745,11 +744,10 @@ const updatePlayerMovement = (deltaTime) => {
   const walkAction = actions.walk;
 
   if (mixer && idleAction && walkAction) {
-    // ★ moved 플래그가 true일 때만 Walk 재생 ★
     if (moved && !walkAction.isRunning()) {
       walkAction.reset().play();
       idleAction.crossFadeTo(walkAction, 0.3);
-    } else if (!moved && !idleAction.isRunning()) { // moved가 false (멈춤)일 때 Idle 재생
+    } else if (!moved && !idleAction.isRunning()) {
       idleAction.reset().play();
       walkAction.crossFadeTo(idleAction, 0.3);
     }
