@@ -646,69 +646,54 @@ const updatePlayerMovement = (deltaTime) => {
   let applyMovement = false;
   let moveDirectionZ = 0; // -1: 앞, 1: 뒤
   let targetRotationY = myAvatar.rotation.y;
-  // let isTurningAround = false; // ★ 뒤로 돌기 상태 플래그 제거 ★
 
   // --- 입력 처리 (조이스틱, 키보드) ---
   if (joystickData.value.active && joystickData.value.distance > 10) {
     targetRotationY = -joystickData.value.angle + Math.PI / 2;
     applyRotation = true;
     applyMovement = true;
-    moveDirectionZ = -1; // 조이스틱은 항상 앞으로
+    moveDirectionZ = -1;
   } else if (!joystickData.value.active) {
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 앞으로
-
-    // ▼▼▼ [핵심 수정] 뒤로 가기(S) 로직 - 회전 없이 뒤로 이동 ▼▼▼
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
       moveDirectionZ = 1; // 이동 방향만 뒤로 설정 (회전 X)
       applyMovement = true;
-      // isTurningAround 관련 코드 제거
     }
-    // ▲▲▲ [핵심 수정 끝] ▲▲▲
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
-    // ▼▼▼ [핵심 수정] 조이스틱일 때만 부드러운 회전 적용 ▼▼▼
-    if (joystickData.value.active) {
+    if (joystickData.value.active) { // 조이스틱만 부드러운 회전
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationSpeedFactor = 8; // isTurningAround 관련 제거
+        const rotationSpeedFactor = 8;
         const rotationChange = diff * deltaTime * rotationSpeedFactor;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
-    }
-    // ▲▲▲ [핵심 수정 끝] ▲▲▲
-    else { // 키보드 A/D: 즉시 회전
+    } else { // 키보드 A/D: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
   // --- 이동 적용 ---
-  // ▼▼▼ [핵심 수정] moveDirectionZ가 0이 아닐 때 이동 로직 실행 ▼▼▼
   if (applyMovement && moveDirectionZ !== 0) {
     let currentSpeedFactor = 1.0;
     if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
-    // ★ moveDirectionZ 값(-1 또는 1)을 그대로 사용하여 이동 거리 계산 ★
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
-
     const velocity = new THREE.Vector3(0, 0, moveAmount);
-    velocity.applyQuaternion(myAvatar.quaternion); // 아바타 방향 적용
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
-
     if (Math.abs(moveAmount) > 0.001) moved = true;
   } else {
-    moved = moved || false; // 회전만 했을 수도 있음
+    moved = moved || false;
   }
-  // ▲▲▲ [핵심 수정 끝] ▲▲▲
 
-
-  // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
-  const boundaryX = 59.5; // ★ 경계 확장 (맵 크기 120 기준) ★
-  const boundaryZ = 59.5;
+  // --- 경계 처리 및 Y 위치 고정 ---
+  const boundaryX = 59.5; const boundaryZ = 59.5;
   myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
   const cityMap = scene.getObjectByName("cityMap");
@@ -724,23 +709,22 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
 
-// 이동/회전했으면 서버 업데이트
+  // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
 
   // --- 애니메이션 전환 로직 ---
-  // ▼▼▼ [수정] 아래 중복된 const mixer 선언 삭제 ▼▼▼
-  // const mixer = myAvatar.userData.mixer; // <-- 이 줄 삭제!
-  // ▲▲▲ 삭제 완료 ▲▲▲
+  // ▼▼▼ [수정] 삭제되었던 mixer 변수 선언 복구 ▼▼▼
+  const mixer = myAvatar.userData.mixer;
+  // ▲▲▲ 복구 완료 ▲▲▲
   const actions = myAvatar.userData.actions;
   const idleAction = actions.idle;
   const walkAction = actions.walk;
 
-  // 이제 여기서 'mixer' 변수를 바로 사용 (706라인에서 선언된 것을 사용)
   if (mixer && idleAction && walkAction) {
     if (moved && !walkAction.isRunning()) {
       walkAction.reset().play();
       idleAction.crossFadeTo(walkAction, 0.3);
-    } else if (!moved && !idleAction.isRunning()) {
+    } else if (!moved && !idleAction.isRunning()) { // moved가 false (멈춤)
       idleAction.reset().play();
       walkAction.crossFadeTo(idleAction, 0.3);
     }
