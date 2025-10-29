@@ -76,7 +76,6 @@ let chatListenerRef = null;
 
 // --- 플레이어 이동 관련 ---
 const moveSpeed = 2.0;
-const rotateSpeed = Math.PI;
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
@@ -649,7 +648,6 @@ const updatePlayerMovement = (deltaTime) => {
   }
   // --- 입력 처리 (키보드) ---
   else if (!joystickData.value.active) {
-    let rotationAmount = 0; // 키보드 A/D 회전량
 
     // ★★★ 좌우 이동 (A/D) 로직 ★★★
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
@@ -681,16 +679,6 @@ const updatePlayerMovement = (deltaTime) => {
 
     // 키보드 회전은 더 이상 사용하지 않음 (A/D는 이동으로 변경됨)
     // if (applyRotation) { myAvatar.rotation.y += rotationAmount; moved = true; }
-  }
-
-  // --- 회전 적용 (조이스틱 사용 시 부드럽게) ---
-  if (applyRotation && joystickData.value.active) {
-      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
-      let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      const rotationChange = diff * deltaTime * 8;
-      myAvatar.rotation.y += rotationChange;
-      // moved = true; // 조이스틱 사용 시 이미 moved=true
   }
 
   // --- 이동 적용 ---
