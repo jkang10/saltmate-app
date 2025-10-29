@@ -724,18 +724,18 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
 
-  // 이동/회전했으면 서버 업데이트
+// 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
 
-  // --- 애니메이션 전환 로직 (변경 없음) ---
-  const mixer = myAvatar.userData.mixer;
-
   // --- 애니메이션 전환 로직 ---
-  const mixer = myAvatar.userData.mixer;
+  // ▼▼▼ [수정] 아래 중복된 const mixer 선언 삭제 ▼▼▼
+  // const mixer = myAvatar.userData.mixer; // <-- 이 줄 삭제!
+  // ▲▲▲ 삭제 완료 ▲▲▲
   const actions = myAvatar.userData.actions;
   const idleAction = actions.idle;
   const walkAction = actions.walk;
 
+  // 이제 여기서 'mixer' 변수를 바로 사용 (706라인에서 선언된 것을 사용)
   if (mixer && idleAction && walkAction) {
     if (moved && !walkAction.isRunning()) {
       walkAction.reset().play();
@@ -748,7 +748,7 @@ const updatePlayerMovement = (deltaTime) => {
     idleAction.reset().play();
   }
   // --- 애니메이션 전환 로직 끝 ---
-};	
+}; // updatePlayerMovement 함수 끝
 
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 8;
