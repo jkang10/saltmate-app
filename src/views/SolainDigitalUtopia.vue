@@ -512,7 +512,7 @@ const initThree = () => {
   try {
       scene = new THREE.Scene();
 
-      // 배경 이미지 로더
+      // 배경 이미지 로더 (변경 없음)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load(
         '/my_background.jpg',
@@ -528,7 +528,8 @@ const initThree = () => {
           scene.background = new THREE.Color(0xade6ff);
         }
       );
-scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
+// ★ 안개 범위 확장 (맵 크기 증가에 따라)
+      scene.fog = new THREE.Fog(0xaaaaaa, 50, 150);
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1.6, 4); // ★ 초기 카메라 위치 (맵 로드 후 재조정됨)
@@ -542,40 +543,44 @@ scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
 
       // 광원 설정
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(20, 30, 15);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      // ★ 광원 위치 더 멀리 조정
+      dirLight.position.set(40, 60, 30);
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
+      // ★ 그림자 카메라 범위 확장
       dirLight.shadow.camera.near = 1;
-      dirLight.shadow.camera.far = 100;
-      dirLight.shadow.camera.left = -40;
-      dirLight.shadow.camera.right = 40;
-      dirLight.shadow.camera.top = 40;
-      dirLight.shadow.camera.bottom = -40;
+      dirLight.shadow.camera.far = 150; // 더 멀리
+      dirLight.shadow.camera.left = -60; // 더 넓게
+      dirLight.shadow.camera.right = 60;
+      dirLight.shadow.camera.top = 60;
+      dirLight.shadow.camera.bottom = -60;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
 
-// --- 도시 맵 로드 ---
+      // --- 도시 맵 로드 ---
       loader.load(
         '/models/low_poly_city_pack.glb',
         (gltf) => {
           try {
               const city = gltf.scene;
-              city.name = "cityMap"; // 이름 부여
+              city.name = "cityMap";
 
               const box = new THREE.Box3().setFromObject(city);
               const size = box.getSize(new THREE.Vector3());
               const center = box.getCenter(new THREE.Vector3());
               console.log('도시 모델 원본 크기:', size);
 
-              const desiredMaxSize = 50;
+              // ★★★ desiredMaxSize 값을 늘려서 맵 스케일 조정 (예: 120) ★★★
+              const desiredMaxSize = 120; // 이전 50 -> 120
               const scaleFactor = desiredMaxSize / Math.max(size.x, size.z);
               city.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
               const scaledBox = new THREE.Box3().setFromObject(city);
               const scaledMinY = scaledBox.min.y;
-              const groundLevelY = -scaledMinY; // 가장 낮은 지점 기준 Y 오프셋
+              const groundLevelY = -scaledMinY;
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
 
               city.traverse(child => {
@@ -588,33 +593,18 @@ scene.fog = new THREE.Fog(0xaaaaaa, 20, 80);
               scene.add(city);
               console.log(`도시 맵 로드 완료 (원본 재질 사용, 스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- ★★★ 새로운 시작 좌표 적용 ★★★ ---
+              // --- 시작 좌표 적용 (X, Z는 그대로, Y만 groundLevelY 사용) ---
               const startX = 12.92;
-              const startY = 1.83; // 콘솔에서 확인한 Y값 사용
+              const startY = groundLevelY; // ★ Raycasting 대신 계산된 바닥 높이 사용
               const startZ = -0.90;
 
-              // Raycasting 로직은 Y값 확인용으로 남겨두거나 제거해도 됨 (여기서는 주석 처리)
-              /*
-              const raycaster = new THREE.Raycaster();
-              const down = new THREE.Vector3(0, -1, 0);
-              raycaster.set(new THREE.Vector3(startX, 10, startZ), down);
-              const intersects = raycaster.intersectObject(city, true);
-              let confirmedHeight = groundLevelY; // 기본값
-              if (intersects.length > 0) { confirmedHeight = intersects[0].point.y; }
-              console.log(`확인된 시작 지점 높이: ${confirmedHeight.toFixed(2)}, 사용할 높이: ${startY}`);
-              */
-              // --- ★★★ ---
-
-              // --- 아바타/카메라 초기 위치 설정 ---
               if (myAvatar) {
                 myAvatar.position.set(startX, startY, startZ);
-                console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY}, Z=${startZ}`);
+                console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
               }
-              // 카메라 위치도 새 시작 위치 기준으로 설정 (뒤쪽 위)
               camera.position.set(startX, startY + 1.6, startZ + 4);
-              // 카메라는 아바타의 약간 위를 바라보도록 설정
               cameraLookAtTarget.set(startX, startY + 1.0, startZ);
-              // --- 위치 재설정 끝 ---
+              // --- 위치 재설정 끝 ---	
 
           } catch(processError) {
               console.error('!!! 도시 맵 처리 중 심각한 오류 발생:', processError);
@@ -654,88 +644,91 @@ const updatePlayerMovement = (deltaTime) => {
   let rotationAmount = 0;
   let applyRotation = false;
   let applyMovement = false;
-  let moveDirectionZ = 0;
+  let moveDirectionZ = 0; // -1: 앞, 1: 뒤
   let targetRotationY = myAvatar.rotation.y;
-  let isTurningAround = false;
+  // let isTurningAround = false; // ★ 뒤로 돌기 상태 플래그 제거 ★
 
   // --- 입력 처리 (조이스틱, 키보드) ---
   if (joystickData.value.active && joystickData.value.distance > 10) {
     targetRotationY = -joystickData.value.angle + Math.PI / 2;
     applyRotation = true;
     applyMovement = true;
-    moveDirectionZ = -1;
+    moveDirectionZ = -1; // 조이스틱은 항상 앞으로
   } else if (!joystickData.value.active) {
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 앞으로
+
+    // ▼▼▼ [핵심 수정] 뒤로 가기(S) 로직 - 회전 없이 뒤로 이동 ▼▼▼
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      targetRotationY = myAvatar.rotation.y + Math.PI;
-      applyRotation = true;
-      moveDirectionZ = -1;
+      moveDirectionZ = 1; // 이동 방향만 뒤로 설정 (회전 X)
       applyMovement = true;
-      isTurningAround = true;
+      // isTurningAround 관련 코드 제거
     }
+    // ▲▲▲ [핵심 수정 끝] ▲▲▲
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
-    if (joystickData.value.active || isTurningAround) {
+    // ▼▼▼ [핵심 수정] 조이스틱일 때만 부드러운 회전 적용 ▼▼▼
+    if (joystickData.value.active) {
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationSpeedFactor = isTurningAround ? 12 : 8;
+        const rotationSpeedFactor = 8; // isTurningAround 관련 제거
         const rotationChange = diff * deltaTime * rotationSpeedFactor;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
-    } else {
+    }
+    // ▲▲▲ [핵심 수정 끝] ▲▲▲
+    else { // 키보드 A/D: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
   }
 
   // --- 이동 적용 ---
-  if (applyMovement && moveDirectionZ === -1) {
+  // ▼▼▼ [핵심 수정] moveDirectionZ가 0이 아닐 때 이동 로직 실행 ▼▼▼
+  if (applyMovement && moveDirectionZ !== 0) {
     let currentSpeedFactor = 1.0;
     if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
+    // ★ moveDirectionZ 값(-1 또는 1)을 그대로 사용하여 이동 거리 계산 ★
     const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
+
     const velocity = new THREE.Vector3(0, 0, moveAmount);
-    velocity.applyQuaternion(myAvatar.quaternion);
+    velocity.applyQuaternion(myAvatar.quaternion); // 아바타 방향 적용
     myAvatar.position.add(velocity);
+
     if (Math.abs(moveAmount) > 0.001) moved = true;
   } else {
-    moved = moved || false;
+    moved = moved || false; // 회전만 했을 수도 있음
   }
+  // ▲▲▲ [핵심 수정 끝] ▲▲▲
 
-  // --- 경계 처리 (X, Z만) ---
-  const boundaryX = 24.5; const boundaryZ = 24.5;
+
+  // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
+  const boundaryX = 59.5; // ★ 경계 확장 (맵 크기 120 기준) ★
+  const boundaryZ = 59.5;
   myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
-
-  // ▼▼▼ [수정] Raycasting 로직 및 Y 위치 고정 ▼▼▼
   const cityMap = scene.getObjectByName("cityMap");
-  let groundY = myAvatar.position.y; // 기본값은 현재 높이
-
+  let groundY = myAvatar.position.y;
   if (cityMap) {
-      // ★ Raycaster와 down 변수를 사용할 때 선언 ★
       const raycaster = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
-
       raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
-      // ★ intersects 변수 선언 ★
       const intersects = raycaster.intersectObject(cityMap, true);
-
-      // ★ if 블록 안에서 intersects 사용 ★
-      if (intersects.length > 0) {
-          groundY = intersects[0].point.y; // 찾은 지면 높이
-      } else {
-          groundY = cityMap.position.y; // 못 찾으면 맵 기본 높이
-      }
+      if (intersects.length > 0) { groundY = intersects[0].point.y; }
+      else { groundY = cityMap.position.y; }
   }
-  myAvatar.position.y = groundY; // Y 위치 고정
-  // ▲▲▲ [수정 끝] ▲▲▲
+  myAvatar.position.y = groundY;
+  // --- Y 위치 고정 끝 ---
 
   // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
+
+  // --- 애니메이션 전환 로직 (변경 없음) ---
+  const mixer = myAvatar.userData.mixer;
 
   // --- 애니메이션 전환 로직 ---
   const mixer = myAvatar.userData.mixer;
@@ -755,7 +748,7 @@ const updatePlayerMovement = (deltaTime) => {
     idleAction.reset().play();
   }
   // --- 애니메이션 전환 로직 끝 ---
-};
+};	
 
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 8;
