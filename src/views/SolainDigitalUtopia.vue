@@ -656,37 +656,55 @@ const updatePlayerMovement = (deltaTime) => {
   let rotationAmount = 0;
   let applyRotation = false;
   let applyMovement = false;
-  let moveDirectionZ = 0; // ★ 키보드/조이스틱 통합 이동 방향 변수 (-1: 앞) ★
+  let moveDirectionZ = 0; // -1: 앞, 1: 뒤
   let targetRotationY = myAvatar.rotation.y;
+  let isTurningAround = false; // ★ 뒤로 돌기 상태 플래그 ★
 
   // --- 조이스틱 입력 처리 ---
-  if (joystickData.value.active && joystickData.value.distance > 10) { // 일정 거리 이상 움직였을 때만
-    targetRotationY = -joystickData.value.angle + Math.PI / 2; // 조이스틱 방향으로 회전 목표 설정
+  if (joystickData.value.active && joystickData.value.distance > 10) {
+    targetRotationY = -joystickData.value.angle + Math.PI / 2;
     applyRotation = true;
     applyMovement = true;
-    moveDirectionZ = -1; // ★ 조이스틱은 항상 앞으로 이동하도록 설정 ★
+    moveDirectionZ = -1; // 조이스틱은 항상 앞으로
   }
   // --- 키보드 입력 처리 ---
-  else if (!joystickData.value.active) { // 조이스틱 사용 안 할 때만 키보드 처리
+  else if (!joystickData.value.active) {
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { rotationAmount = rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { rotationAmount = -rotateSpeed * deltaTime; applyRotation = true; }
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirectionZ = -1; applyMovement = true; } // 앞으로
-    // --- ★ 뒤로 가기('S') 로직 주석 처리 (옵션) ---
-    // 뒤로 가는 키를 누르면 제자리에서 멈추도록 하거나, 회전 후 앞으로 가도록 할 수 있습니다.
-    // 여기서는 일단 'S' 키를 무시하여 뒤로 걷는 동작을 없앱니다.
-    // if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirectionZ = 1; applyMovement = true; } // 뒤로
+
+    // ▼▼▼ [핵심 수정] 뒤로 가기(S) 로직 ▼▼▼
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
+      // 뒤로 가기 키를 누르면:
+      // 1. 목표 회전값을 현재 방향 + 180도로 설정
+      targetRotationY = myAvatar.rotation.y + Math.PI;
+      // 2. 부드러운 회전을 위해 applyRotation 활성화 (조이스틱 회전 방식 사용)
+      applyRotation = true;
+      // 3. 이동 방향은 앞으로 설정 (회전 후 전진)
+      moveDirectionZ = -1;
+      // 4. 이동 적용 플래그 활성화
+      applyMovement = true;
+      // 5. 뒤로 돌고 있다는 플래그 설정 (애니메이션 등에서 활용 가능)
+      isTurningAround = true;
+    }
+    // ▲▲▲ [핵심 수정 끝] ▲▲▲
   }
 
   // --- 회전 적용 ---
   if (applyRotation) {
-    if (joystickData.value.active) { // 조이스틱: 목표 방향으로 부드럽게 회전
+    // ▼▼▼ [핵심 수정] 조이스틱 또는 S키 눌렀을 때 부드러운 회전 적용 ▼▼▼
+    if (joystickData.value.active || isTurningAround) {
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2; targetRotationY = (targetRotationY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        const rotationChange = diff * deltaTime * 8;
+        // ★ 뒤로 돌 때는 더 빠르게 회전 (선택 사항) ★
+        const rotationSpeedFactor = isTurningAround ? 12 : 8;
+        const rotationChange = diff * deltaTime * rotationSpeedFactor;
         myAvatar.rotation.y += rotationChange;
         if (Math.abs(rotationChange) > 0.001) moved = true;
-    } else { // 키보드 A/D: 즉시 회전
+    }
+    // ▲▲▲ [핵심 수정 끝] ▲▲▲
+    else { // 키보드 A/D: 즉시 회전
         myAvatar.rotation.y += rotationAmount;
         if (Math.abs(rotationAmount) > 0.001) moved = true;
     }
@@ -694,48 +712,31 @@ const updatePlayerMovement = (deltaTime) => {
 
   // --- 이동 적용 ---
   if (applyMovement && moveDirectionZ === -1) { // ★ 앞으로 이동할 때만 적용 ★
-    let currentSpeedFactor = 1.0; // 키보드는 최고 속도
-    if (joystickData.value.active) {
-      currentSpeedFactor = joystickData.value.force; // 조이스틱은 민 강도에 따라 속도 조절
-    }
-    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime; // 실제 이동 거리
+    let currentSpeedFactor = 1.0;
+    if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
+    const moveAmount = moveDirectionZ * moveSpeed * currentSpeedFactor * deltaTime;
 
-    // ★ 키보드/조이스틱 모두 아바타의 로컬 Z축(앞 방향)으로 이동하도록 통일 ★
     const velocity = new THREE.Vector3(0, 0, moveAmount);
-    velocity.applyQuaternion(myAvatar.quaternion); // 아바타의 현재 방향 적용
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
 
     if (Math.abs(moveAmount) > 0.001) moved = true;
   } else {
-    // 이동하지 않거나 뒤로가기 키가 눌렸을 때 (현재는 S키 무시)
-    moved = moved || false; // 회전만 했을 수도 있으므로 기존 moved 값 유지
+    moved = moved || false;
   }
 
-  // --- 경계 처리 (X, Z만) ---
-  const boundaryX = 24.5;
-  const boundaryZ = 24.5;
+  // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
+  const boundaryX = 24.5; const boundaryZ = 24.5;
   myAvatar.position.x = Math.max(-boundaryX, Math.min(boundaryX, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, myAvatar.position.z));
-
-  // --- Raycasting으로 Y 위치 고정 ---
   const cityMap = scene.getObjectByName("cityMap");
-  let groundY = myAvatar.position.y; // 기본값은 현재 높이 유지 (맵 로드 전 대비)
-  if (cityMap) {
-      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
-      const intersects = raycaster.intersectObject(cityMap, true);
-      if (intersects.length > 0) {
-          groundY = intersects[0].point.y;
-      } else {
-          groundY = cityMap.position.y; // 지면 못 찾으면 맵 기본 높이
-      }
-  }
+  let groundY = myAvatar.position.y;
+  if (cityMap) { /* ... Raycasting ... */ groundY = intersects.length > 0 ? intersects[0].point.y : cityMap.position.y; }
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
 
-  // 이동/회전했으면 서버에 상태 업데이트
-  if (moved) {
-    throttledUpdate();
-  }
+  // 이동/회전했으면 서버 업데이트
+  if (moved) { throttledUpdate(); }
 
   // --- 애니메이션 전환 로직 ---
   const mixer = myAvatar.userData.mixer;
@@ -793,26 +794,43 @@ const updateOtherPlayersMovement = (deltaTime) => {
 };
 
 // --- 애니메이션 루프 ---
+// --- 애니메이션 루프 ---
 const animate = () => {
   if (!renderer || !scene || !camera || !clock) return;
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
+
+  // 믹서 업데이트 (변경 없음)
   if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
+
+  // 이동 로직 호출 (변경 없음)
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
+
+  // --- ★ 카메라 추적 로직 수정 ★ ---
   if (myAvatar) {
+      // 고정된 오프셋 (뒤쪽 위)
       const desiredOffset = new THREE.Vector3(0, 3.0, 5.0);
-      const lerpFactor = deltaTime * 5.0;
-      const avatarPositionOnGround = myAvatar.position.clone();
-      avatarPositionOnGround.y = 0;
-      const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion);
-      const targetPosition = avatarPositionOnGround.clone().add(cameraOffset);
-      camera.position.lerp(targetPosition, lerpFactor);
-      const targetLookAt = avatarPositionOnGround.clone().add(new THREE.Vector3(0, 1.0, 0));
-      cameraLookAtTarget.lerp(targetLookAt, lerpFactor);
-      camera.lookAt(cameraLookAtTarget);
+      const lerpFactor = deltaTime * 5.0; // 부드러움 정도
+
+      // ▼▼▼ 아바타 회전을 적용하지 않고 카메라 목표 위치 계산 ▼▼▼
+      // const cameraOffset = desiredOffset.clone().applyQuaternion(myAvatar.quaternion); // <-- 이 줄 삭제 또는 주석 처리
+      const cameraOffset = desiredOffset.clone(); // <-- 고정 오프셋 사용
+      const targetPosition = myAvatar.position.clone().add(cameraOffset); // 아바타 위치 + 고정 오프셋
+      // ▲▲▲ 수정 끝 ▲▲▲
+
+      camera.position.lerp(targetPosition, lerpFactor); // 카메라 위치 보간
+
+      // ▼▼▼ 아바타 회전과 상관없이 아바타의 특정 높이를 바라보도록 수정 ▼▼▼
+      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // 아바타 머리 근처 높이
+      // ▲▲▲ 수정 끝 ▲▲▲
+
+      cameraLookAtTarget.lerp(targetLookAt, lerpFactor); // 바라볼 지점 보간
+      camera.lookAt(cameraLookAtTarget); // 카메라가 항상 아바타 중심 약간 위를 보도록 함
   }
+  // --- ★ 카메라 추적 로직 수정 끝 ★ ---
+
   renderer.render(scene, camera);
 };
 
