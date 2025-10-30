@@ -69,6 +69,10 @@ const MAX_CHAT_MESSAGES = 50;
 let scene, camera, renderer, clock;
 // let cameraLookAtTarget = new THREE.Vector3(0, 1.0, 0); // OrbitControls 사용 시 불필요
 let controls; // ★ OrbitControls 인스턴스 저장 변수 ★
+// ▼▼▼ [신규] 클릭 이동 관련 변수 추가 ▼▼▼
+const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
+let targetMarker = null; // 목표 지점 표시용 3D 객체
+// ▲▲▲
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -385,6 +389,47 @@ const updateMyStateInRTDB = () => {
     });
 };
 
+// --- [신규] 헬퍼 함수: 클릭/터치로 이동 ---
+const handlePointerDown = (event) => {
+  // 채팅창 입력 중일 때는 이동 로직 무시
+  if (chatInputRef.value === document.activeElement) return;
+
+  const cityMap = scene.getObjectByName("cityMap");
+  if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
+
+  // --- 기존 키보드/조이스틱 입력 초기화 ---
+  keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
+  keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
+  joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
+  
+  // --- Raycasting 로직 ---
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  // 클릭/터치 좌표를 -1 ~ +1 사이의 정규화된 장치 좌표(NDC)로 변환
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera); // 카메라에서 화면 좌표로 Ray 발사
+  const intersects = raycaster.intersectObject(cityMap, true); // 도시 맵과의 교차점 확인
+
+  if (intersects.length > 0) {
+    const targetPoint = intersects[0].point;
+    navigationTarget.value = targetPoint; // 이동 목표 지점 설정
+
+    // --- 목표 지점 시각적 마커 (녹색 원통) ---
+    if (!targetMarker) {
+      const markerGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16); // 얇은 원반
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
+      targetMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+      scene.add(targetMarker);
+    }
+    targetMarker.position.copy(targetPoint); // 마커를 클릭 지점으로 이동
+    targetMarker.position.y += 0.05; // 바닥보다 살짝 위에 표시
+    targetMarker.visible = true; // 마커 표시
+  }
+};
+
 let lastUpdateTime = 0;
 const updateInterval = 100;
 const throttledUpdate = () => {
@@ -556,9 +601,11 @@ const initThree = () => {
         0.1, // Near 클리핑 평면
         1000 // Far 클리핑 평면
       );
-      // ★ 카메라 초기 위치를 새 시작점 기준으로 설정
-      camera.position.set(startX, startY + 1.6, startZ + 4);
-
+      
+      // ▼▼▼ [수정] 카메라 초기 위치를 더 뒤로, 더 높게 설정 ▼▼▼
+      camera.position.set(startX, startY + 5, startZ + 10);
+      // ▲▲▲ 수정 완료 ▲▲▲
+      
       // 렌더러 생성 및 설정
       if (!canvasRef.value) { // 캔버스 요소가 없으면 에러 처리
         console.error("캔버스 요소를 찾을 수 없습니다!");
@@ -576,19 +623,14 @@ const initThree = () => {
 
 // --- OrbitControls 초기화 ---
       controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true; // 부드러운 움직임 효과
+      controls.enableDamping = true;
       controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = false; // 패닝 비활성화
-      controls.minDistance = 2; // 최소 줌 거리
-      controls.maxDistance = 20; // 최대 줌 거리
-
-      // ▼▼▼ [수정] 카메라가 바닥 아래로 내려가지 않도록 최대 각도 제한 ▼▼▼
-      // Math.PI / 2 는 90도 (수평) 이므로, 이보다 약간 작은 값을 설정합니다.
-      controls.maxPolarAngle = Math.PI / 2 - 0.05;
-      // ▲▲▲ 수정 완료 ▲▲▲
-
-      controls.target.set(startX, startY + 1.0, startZ); // 초기 타겟 설정
-      controls.update(); // 초기 상태 업데이트
+      controls.screenSpacePanning = false;
+      controls.minDistance = 2;
+      controls.maxDistance = 20; // ★ 최대 줌 거리를 늘려서 맵을 더 넓게 볼 수 있도록 함
+      controls.maxPolarAngle = Math.PI / 2 - 0.05; // 바닥 아래로 못 보게
+      controls.target.set(startX, startY + 1.0, startZ);
+      controls.update();
       // --- OrbitControls 초기화 끝 ---
 
       // --- 광원 설정 ---
@@ -881,24 +923,20 @@ const animate = () => {
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
 
-  // --- ▼▼▼ 기존 카메라 추적 로직 완전 삭제 ▼▼▼ ---
-  /*
-  if (myAvatar) {
-      // ... (camera.position.lerp, cameraLookAtTarget.lerp, camera.lookAt 코드 모두 삭제) ...
-  }
-  */
-  // --- ▲▲▲ 삭제 완료 ▲▲▲ ---
-
-  // --- ▼▼▼ [신규] OrbitControls 업데이트 ▼▼▼ ---
+  // OrbitControls 업데이트
   if (controls) {
-    // ★ OrbitControls의 타겟을 항상 내 아바타 위치로 부드럽게 업데이트
     if (myAvatar) {
-      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0)); // 아바타 머리 근처
-      controls.target.lerp(targetLookAt, deltaTime * 5.0); // 부드럽게 타겟 이동
+      const targetLookAt = myAvatar.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+      controls.target.lerp(targetLookAt, deltaTime * 5.0);
     }
-    controls.update(); // 컨트롤 상태 업데이트 (Damping 등 적용)
+    controls.update(); // 컨트롤 상태 업데이트
+
+    // ▼▼▼ [신규] 클릭 이동 목표 지점이 없으면 마커 숨김 ▼▼▼
+    if (targetMarker) {
+      targetMarker.visible = !!navigationTarget.value; // navigationTarget.value가 있으면 true, 없으면 false
+    }
+    // ▲▲▲ 추가 완료 ▲▲▲
   }
-  // --- ▲▲▲ 업데이트 추가 끝 ▲▲▲ ---
 
   // 씬 렌더링
   renderer.render(scene, camera);
