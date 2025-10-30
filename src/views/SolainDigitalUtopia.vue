@@ -604,11 +604,9 @@ const initThree = () => {
         0.1, // Near 클리핑 평면
         1000 // Far 클리핑 평면
       );
-      
-      // ▼▼▼ [수정] 카메라 초기 위치를 더 뒤로, 더 높게 설정 ▼▼▼
+      // ★ 카메라 초기 위치를 새 시작점 기준으로 설정
       camera.position.set(startX, startY + 5, startZ + 10);
-      // ▲▲▲ 수정 완료 ▲▲▲
-      
+
       // 렌더러 생성 및 설정
       if (!canvasRef.value) { // 캔버스 요소가 없으면 에러 처리
         console.error("캔버스 요소를 찾을 수 없습니다!");
@@ -624,16 +622,17 @@ const initThree = () => {
       renderer.shadowMap.enabled = true; // 그림자 맵 활성화
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
-// --- OrbitControls 초기화 ---
+      // --- OrbitControls 초기화 ---
       controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+      controls.enableDamping = true; // 부드러운 움직임 효과
       controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = false;
-      controls.minDistance = 2;
-      controls.maxDistance = 20; // ★ 최대 줌 거리를 늘려서 맵을 더 넓게 볼 수 있도록 함
+      controls.screenSpacePanning = false; // 패닝 비활성화
+      controls.minDistance = 2; // 최소 줌 거리
+      controls.maxDistance = 20; // 최대 줌 거리
       controls.maxPolarAngle = Math.PI / 2 - 0.05; // 바닥 아래로 못 보게
+      // ★ OrbitControls 타겟을 아바타 시작 위치 약간 위로 설정
       controls.target.set(startX, startY + 1.0, startZ);
-      controls.update();
+      controls.update(); // 초기 상태 업데이트
       // --- OrbitControls 초기화 끝 ---
 
       // --- 광원 설정 ---
@@ -649,8 +648,7 @@ const initThree = () => {
       dirLight.shadow.mapSize.height = 2048;
       dirLight.shadow.camera.near = 1;
       dirLight.shadow.camera.far = 200; // 그림자 렌더링 끝 거리
-      // 그림자 카메라 범위 (맵 크기에 맞게 확장)
-      dirLight.shadow.camera.left = -80;
+      dirLight.shadow.camera.left = -80; // 그림자 카메라 범위 (맵 크기에 맞게 확장)
       dirLight.shadow.camera.right = 80;
       dirLight.shadow.camera.top = 80;
       dirLight.shadow.camera.bottom = -80;
@@ -662,8 +660,8 @@ const initThree = () => {
       // --- 광원 설정 끝 ---
 
       // --- 도시 맵 로드 ---
-	loader.load(
-	    '/models/low_poly_city_pack.glb', // ✅ 상대 경로 확인
+      loader.load(
+        '/models/low_poly_city_pack.glb', // 로드할 GLB 파일 경로
         // --- 로드 성공 콜백 ---
         (gltf) => {
           try { // 콜백 내부 에러 처리
@@ -701,12 +699,19 @@ const initThree = () => {
               scene.add(city);
               console.log(`도시 맵 로드 완료 (스케일: ${scaleFactor.toFixed(2)}, 바닥 높이 Y: ${groundLevelY.toFixed(2)})`);
 
-              // --- 아바타 초기 위치 설정 (새 시작 좌표 사용) ---
+              // --- 아바타/카메라 초기 위치를 맵 기준으로 재설정 ---
               if (myAvatar) { // 내 아바타 객체가 로드된 상태인지 확인
                 // Y 좌표는 시작점 Y 값(startY) 사용
                 myAvatar.position.set(startX, startY, startZ);
                 console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
               }
+              // 카메라 위치도 아바타 시작 위치 기준으로 설정 (뒤쪽 위)
+              camera.position.set(startX, startY + 1.6, startZ + 4);
+
+              // ▼▼▼ [수정] 오류가 발생하는 cameraLookAtTarget.set(...) 라인 삭제 ▼▼▼
+              // cameraLookAtTarget.set(startX, startY + 1.0, startZ);
+              // ▲▲▲ 삭제 완료 ▲▲▲
+
               // --- 위치 재설정 끝 ---
 
           } catch(processError) { // 맵 처리 중 에러 발생 시
