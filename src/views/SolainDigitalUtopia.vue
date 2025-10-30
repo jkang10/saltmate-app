@@ -985,6 +985,13 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize); // 창 크기 변경 감지
   window.addEventListener('keydown', handleKeyDown); // 키보드 누름 감지
   window.addEventListener('keyup', handleKeyUp);     // 키보드 뗌 감지
+
+  // ▼▼▼ [수정] 클릭/터치 이동 리스너 추가 ▼▼▼
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
+  }
+  // ▲▲▲ 수정 완료 ▲▲▲
+
   animate(); // 렌더링 및 업데이트 루프 시작
 
   // 4. Firestore에서 사용자 정보 가져오기
@@ -1025,8 +1032,6 @@ onMounted(async () => {
     myAvatar = loadedModel; // 로드된 모델을 myAvatar 변수에 할당
 
     // 초기 위치/회전 설정은 initThree 함수 내부의 도시 맵 로드 콜백에서 진행됨
-    // myAvatar.position.set(0, 0, 0);
-    // myAvatar.rotation.set(0, 0, 0);
 
     // 사용자 이름이 있으면 닉네임 스프라이트 생성 및 추가
     if (myUserName && myUserName !== '익명') {
@@ -1103,6 +1108,12 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
 
+  // ▼▼▼ [수정] 클릭/터치 이동 리스너 제거 ▼▼▼
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
+  }
+  // ▲▲▲ 수정 완료 ▲▲▲
+
   // RTDB 리스너 제거
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
@@ -1134,6 +1145,14 @@ onUnmounted(() => {
     controls = null; // 참조 제거
   }
 
+  // 타겟 마커 리소스 해제
+  if (targetMarker) {
+      if (targetMarker.geometry) targetMarker.geometry.dispose();
+      if (targetMarker.material) targetMarker.material.dispose();
+      if (scene) scene.remove(targetMarker); // 씬에서도 제거
+      targetMarker = null;
+  }
+
   // Three.js 리소스 정리
   if (renderer) {
     renderer.dispose(); // WebGL 컨텍스트 관련 리소스 해제
@@ -1162,7 +1181,6 @@ onUnmounted(() => {
          if (object.material.map) object.material.map.dispose(); // 텍스처(캔버스) 해제
          object.material.dispose(); // 재질 해제
        }
-       // (추가) 다른 종류의 객체 (Light, Group 등)에 대한 dispose 로직도 필요시 추가 가능
      });
     scene = null; // 씬 참조 제거
   }
