@@ -71,7 +71,7 @@ let scene, camera, renderer, clock;
 let controls; // ★ OrbitControls 인스턴스 저장 변수 ★
 // ▼▼▼ [신규] 클릭 이동 관련 변수 추가 ▼▼▼
 const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
-let targetMarker = null; // 목표 지점 표시용 3D 객체
+// let targetMarker = null; // ★★★ 이 라인을 삭제하세요 ★★★
 // ▲▲▲
 const loader = new GLTFLoader();
 
