@@ -417,7 +417,8 @@ const handlePointerDown = (event) => {
     const targetPoint = intersects[0].point;
     navigationTarget.value = targetPoint; // 이동 목표 지점 설정
 
-    // --- 목표 지점 시각적 마커 (녹색 원통) ---
+    // --- [수정] 마커 생성 및 표시 코드 주석 처리 ---
+    /*
     if (!targetMarker) {
       const markerGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16); // 얇은 원반
       const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
@@ -427,6 +428,8 @@ const handlePointerDown = (event) => {
     targetMarker.position.copy(targetPoint); // 마커를 클릭 지점으로 이동
     targetMarker.position.y += 0.05; // 바닥보다 살짝 위에 표시
     targetMarker.visible = true; // 마커 표시
+    */
+    // --- [수정 끝] ---
   }
 };
 
@@ -931,11 +934,13 @@ const animate = () => {
     }
     controls.update(); // 컨트롤 상태 업데이트
 
-    // ▼▼▼ [신규] 클릭 이동 목표 지점이 없으면 마커 숨김 ▼▼▼
+    // --- [수정] 마커 숨김 처리 코드 주석 처리 ---
+    /*
     if (targetMarker) {
       targetMarker.visible = !!navigationTarget.value; // navigationTarget.value가 있으면 true, 없으면 false
     }
-    // ▲▲▲ 추가 완료 ▲▲▲
+    */
+    // --- [수정 끝] ---
   }
 
   // 씬 렌더링
@@ -1108,7 +1113,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
 
-  // ▼▼▼ [수정] 클릭/터치 이동 리스너 제거 ▼▼▼
+  // ▼▼▼ [수정] 클릭/터치 이동 리스너 제거 (이 코드는 이미 존재해야 함) ▼▼▼
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
   }
@@ -1145,13 +1150,16 @@ onUnmounted(() => {
     controls = null; // 참조 제거
   }
 
-  // 타겟 마커 리소스 해제
+  // --- [수정] 마커 리소스 해제 코드 주석 처리 ---
+  /*
   if (targetMarker) {
       if (targetMarker.geometry) targetMarker.geometry.dispose();
       if (targetMarker.material) targetMarker.material.dispose();
       if (scene) scene.remove(targetMarker); // 씬에서도 제거
       targetMarker = null;
   }
+  */
+  // --- [수정 끝] ---
 
   // Three.js 리소스 정리
   if (renderer) {
