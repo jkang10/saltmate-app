@@ -69,9 +69,10 @@ const MAX_CHAT_MESSAGES = 50;
 let scene, camera, renderer, clock;
 // let cameraLookAtTarget = new THREE.Vector3(0, 1.0, 0); // OrbitControls 사용 시 불필요
 let controls; // ★ OrbitControls 인스턴스 저장 변수 ★
-// ▼▼▼ [신규] 클릭 이동 관련 변수 추가 ▼▼▼
+// ▼▼▼ 클릭/터치 이동 관련 변수 수정 ▼▼▼
 const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
-// let targetMarker = null; // ★★★ 이 라인을 삭제하세요 ★★★
+const pointerDownPos = new THREE.Vector2(); // 클릭 시작 지점 (X, Y)
+const pointerDownTime = ref(0); // 클릭 시작 시간
 // ▲▲▲
 const loader = new GLTFLoader();
 
@@ -131,6 +132,9 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
+    // ▼▼▼ [수정] 닉네임 지연 문제 해결 ▼▼▼
+    model.matrixAutoUpdate = true;
+    // ▲▲▲ 수정 완료 ▲▲▲
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {}; // 액션 저장 객체 초기화
@@ -391,8 +395,12 @@ const updateMyStateInRTDB = () => {
 
 // --- [신규] 헬퍼 함수: 클릭/터치로 이동 ---
 const handlePointerDown = (event) => {
-  // 채팅창 입력 중일 때는 이동 로직 무시
+  // 채팅창 입력 중일 때는 무시
   if (chatInputRef.value === document.activeElement) return;
+
+  // 클릭 시작 시간과 좌표 저장
+  pointerDownTime.value = Date.now();
+  pointerDownPos.set(event.clientX, event.clientY);
 
   const cityMap = scene.getObjectByName("cityMap");
   if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
@@ -431,6 +439,48 @@ const handlePointerDown = (event) => {
     */
     // --- [수정 끝] ---
   }
+};
+
+// --- [신규] 헬퍼 함수: 클릭/터치 종료 (클릭 vs 드래그 판별) ---
+const handlePointerUp = (event) => {
+  // 채팅창 입력 중일 때는 무시
+  if (chatInputRef.value === document.activeElement) return;
+
+  const cityMap = scene.getObjectByName("cityMap");
+  if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
+
+  const DRAG_THRESHOLD_TIME = 200; // 200ms
+  const DRAG_THRESHOLD_DISTANCE = 5; // 5px
+
+  const timeElapsed = Date.now() - pointerDownTime.value;
+  const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
+
+  // --- '클릭'으로 판정 (짧은 시간, 적은 움직임) ---
+  if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
+    // 기존 키보드/조이스틱 입력 초기화
+    keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
+    keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
+    joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
+    
+    // --- Raycasting 로직 ---
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(cityMap, true);
+
+    if (intersects.length > 0) {
+      const targetPoint = intersects[0].point;
+      navigationTarget.value = targetPoint; // 이동 목표 지점 설정
+    }
+  }
+  // --- '드래그'로 판정된 경우 (OrbitControls가 처리하도록 둠) ---
+  // else {
+  //   console.log("드래그로 판정됨 (카메라 회전)");
+  // }
 };
 
 let lastUpdateTime = 0;
@@ -991,14 +1041,15 @@ onMounted(async () => {
     // 애니메이션 로드 실패 시에도 진행은 계속함 (선택 사항)
   }
 
-  // 3. 브라우저 이벤트 리스너 등록 및 애니메이션 루프 시작
-  window.addEventListener('resize', handleResize); // 창 크기 변경 감지
-  window.addEventListener('keydown', handleKeyDown); // 키보드 누름 감지
-  window.addEventListener('keyup', handleKeyUp);     // 키보드 뗌 감지
+// 3. 브라우저 이벤트 리스너 등록 및 애니메이션 루프 시작
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
 
-  // ▼▼▼ [수정] 클릭/터치 이동 리스너 추가 ▼▼▼
+  // ▼▼▼ [수정] 클릭/터치 이동 리스너 (down, up 모두 등록) ▼▼▼
   if (canvasRef.value) {
     canvasRef.value.addEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.addEventListener('pointerup', handlePointerUp); // ★ pointerup 리스너 추가
   }
   // ▲▲▲ 수정 완료 ▲▲▲
 
@@ -1118,9 +1169,10 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
 
-  // ▼▼▼ [수정] 클릭/터치 이동 리스너 제거 (이 코드는 이미 존재해야 함) ▼▼▼
+// ▼▼▼ [수정] 클릭/터치 이동 리스너 제거 (down, up 모두 제거) ▼▼▼
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.removeEventListener('pointerup', handlePointerUp); // ★ pointerup 리스무 제거 추가
   }
   // ▲▲▲ 수정 완료 ▲▲▲
 
