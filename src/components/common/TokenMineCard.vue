@@ -1,7 +1,9 @@
 <template>
-  <div class="token-mine-card" :class="{ 'mining-active': isMining }" @click="goToTokenMinePage">
+  <div class="token-mine-card" :class="{ 'mining-active': isAutoMining }" @click="goToTokenMinePage">
     <div class="card-icon">
-      <i v-if="!isMining" class="fas fa-pickaxe"></i> <i v-else class="fas fa-gem animated-shine"></i> </div>
+      <i v-if="!isAutoMining" class="fas fa-pickaxe"></i>
+      <i v-else class="fas fa-gem animated-shine"></i>
+    </div>
     <div class="card-content">
       <h3 class="card-title">나의 소금 토큰 광산</h3>
       <p class="card-description">
@@ -19,87 +21,73 @@
 <script>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { db, auth } from '@/firebaseConfig'; // firebaseConfig.js 임포트
+import { db, auth } from '@/firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 export default {
   name: 'TokenMineCard',
   setup() {
     const router = useRouter();
-    const mineState = ref({ startTime: null, nextClaimTime: null });
+    // [★수정★] 자동 채굴 상태를 저장할 ref
+    const autoMineFuel = ref(0);
     const isLoading = ref(true);
-    const now = ref(new Date());
 
     let mineUnsubscribe = null;
-    let timerInterval = null;
 
     onMounted(() => {
       const user = auth.currentUser;
       if (user) {
+        // [★수정★] gamedata/tokenMine 문서만 감지
         const mineRef = doc(db, 'users', user.uid, 'gamedata', 'tokenMine');
         mineUnsubscribe = onSnapshot(mineRef, (docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            mineState.value.startTime = data.startTime?.toDate();
-            mineState.value.nextClaimTime = data.nextClaimTime?.toDate();
+            autoMineFuel.value = docSnap.data().autoMineFuel || 0;
           } else {
-            mineState.value.startTime = null;
-            mineState.value.nextClaimTime = null;
+            autoMineFuel.value = 0;
           }
           isLoading.value = false;
         });
       } else {
         isLoading.value = false;
       }
-
-      timerInterval = setInterval(() => {
-        now.value = new Date();
-      }, 1000);
     });
 
     onUnmounted(() => {
       if (mineUnsubscribe) mineUnsubscribe();
-      if (timerInterval) clearInterval(timerInterval);
     });
 
-    const isMining = computed(() => {
-      return mineState.value.nextClaimTime && mineState.value.nextClaimTime > now.value;
+    // [★수정★] 자동 채굴 여부 판단
+    const isAutoMining = computed(() => {
+      return autoMineFuel.value > 0;
     });
 
-    const canClaim = computed(() => {
-      return mineState.value.nextClaimTime && mineState.value.nextClaimTime <= now.value;
-    });
-
+    // [★수정★] 자동 채굴 상태에 맞게 메시지 변경
     const cardMessage = computed(() => {
       if (isLoading.value) return '광산 상태를 불러오는 중...';
       if (!auth.currentUser) return '로그인 후 나의 광산을 확인하세요.';
-      if (canClaim.value) return '채굴 완료! 보상을 수령할 준비가 되었습니다.';
-      if (isMining.value) {
-        const diff = mineState.value.nextClaimTime.getTime() - now.value.getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-        return `채굴 진행 중... ${days}일 ${hours}시간 남음`;
+      if (isAutoMining.value) {
+        return `자동 채굴 진행 중... (현재 연료: ${autoMineFuel.value.toFixed(0)} P)`;
       }
-      return '일주일에 한 번 광부에게 작업을 지시하여 토큰을 채굴하세요.';
+      return '자동 채굴기 비활성. 연료를 충전해주세요.';
     });
 
+    // [★수정★] 자동 채굴 상태에 맞게 버튼 텍스트 변경
     const actionButtonText = computed(() => {
       if (!auth.currentUser) return '로그인';
-      if (canClaim.value) return '보상 수령하기';
-      if (isMining.value) return '채굴 현황 보기';
-      return '채굴 시작하기';
+      if (isAutoMining.value) return '채굴 현황 보기';
+      return '연료 충전하기';
     });
 
     const goToTokenMinePage = () => {
       if (auth.currentUser) {
         router.push('/token-mine');
       } else {
-        router.push('/login'); // 로그인 페이지로 리디렉션
+        router.push('/login');
       }
     };
 
     return {
-      isMining,
+      isAutoMining, // 이름 변경 (isMining -> isAutoMining)
       cardMessage,
       actionButtonText,
       goToTokenMinePage,
@@ -109,22 +97,23 @@ export default {
 </script>
 
 <style scoped>
-/* 솔레인 디지털 유토피아 카드와 유사한 스타일을 바탕으로 소금 광산 테마에 맞게 조정 */
+/* 기존 스타일은 제공된 TokenMineCard.vue의 것을 그대로 사용합니다. */
+/* (이전 답변에서 padding, margin 수정된 버전) */
 .token-mine-card {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: linear-gradient(135deg, #4b0082, #8a2be2); /* 보라색 계열 그라데이션 */
+  background: linear-gradient(135deg, #4b0082, #8a2be2);
   color: #fff;
   border-radius: 15px;
-  padding: 1.5rem 2rem;
-  margin-bottom: 2rem;
+  padding: 30px;
+  margin-bottom: 0;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-height: 220px; /* 카드 최소 높이 */
+  min-height: 220px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
   position: relative;
-  overflow: hidden; /* 아이콘 애니메이션을 위한 오버플로우 숨김 */
+  overflow: hidden;
 }
 
 .token-mine-card:hover {
@@ -133,24 +122,17 @@ export default {
 }
 
 .card-icon {
-  font-size: 3.5rem; /* 아이콘 크기 */
+  font-size: 3.5rem;
   margin-bottom: 1rem;
-  align-self: flex-start; /* 왼쪽 상단 정렬 */
+  align-self: flex-start;
   opacity: 0.8;
   position: relative;
 }
 
-/* 광산 테마 아이콘: FontAwesome 사용 */
-.fa-pickaxe { /* 곡괭이 아이콘 */
-  color: #c0c0c0; /* 은색 */
-}
-.fa-gem { /* 보석 아이콘 */
-  color: #ffdd00; /* 황금색 */
-}
+.fa-pickaxe { color: #c0c0c0; }
+.fa-gem { color: #ffdd00; }
 
-.animated-shine {
-  animation: shine 1.5s infinite alternate; /* 반짝이는 애니메이션 */
-}
+.animated-shine { animation: shine 1.5s infinite alternate; }
 
 @keyframes shine {
   0% { text-shadow: 0 0 5px rgba(255, 255, 255, 0.3); }
@@ -158,32 +140,13 @@ export default {
   100% { text-shadow: 0 0 5px rgba(255, 255, 255, 0.3); }
 }
 
-.card-content {
-  flex-grow: 1; /* 컨텐츠가 공간을 채우도록 */
-  text-align: left;
-  margin-top: 1rem;
-}
-
-.card-title {
-  font-size: 1.8rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  line-height: 1.3;
-}
-
-.card-description {
-  font-size: 1rem;
-  line-height: 1.5;
-  opacity: 0.9;
-}
-
-.card-action {
-  margin-top: 1.5rem;
-  align-self: flex-end; /* 오른쪽 하단 정렬 */
-}
+.card-content { flex-grow: 1; text-align: left; margin-top: 1rem; }
+.card-title { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; line-height: 1.3; }
+.card-description { font-size: 1rem; line-height: 1.5; opacity: 0.9; }
+.card-action { margin-top: 1.5rem; align-self: flex-end; }
 
 .btn-mine-action {
-  background-color: rgba(255, 255, 255, 0.2); /* 반투명 흰색 */
+  background-color: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.4);
   color: #fff;
   padding: 0.8rem 1.5rem;
@@ -201,19 +164,10 @@ export default {
   border-color: rgba(255, 255, 255, 0.6);
 }
 
-.btn-mine-action i {
-  margin-left: 0.8rem;
-  font-size: 0.9rem;
-}
+.btn-mine-action i { margin-left: 0.8rem; font-size: 0.9rem; }
 
-/* 채굴 활성화 상태일 때 카드 배경색 변화 */
+/* [★수정★] 자동 채굴 활성화 시 카드 배경색 (이전과 동일하지만 의미가 바뀜) */
 .token-mine-card.mining-active {
-  background: linear-gradient(135deg, #2c3e50, #34495e); /* 좀 더 깊은 푸른빛/회색 그라데이션 (광산 내부 느낌) */
-  /* 또는, 좀 더 희망찬 느낌을 원한다면: */
-  /* background: linear-gradient(135deg, #007bff, #00c6ff); */
+  background: linear-gradient(135deg, #2c3e50, #34495e);
 }
-
-
-/* 추가: Font Awesome 아이콘 사용을 위해 index.html에 CDN 추가 필요 */
-/* <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"> */
 </style>
