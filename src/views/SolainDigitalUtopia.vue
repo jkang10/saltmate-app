@@ -181,6 +181,10 @@ const loadAvatar = (url, animations) => {
         visuals.rotation.set(0, 0, 0);
         visuals.matrixAutoUpdate = true; // 부모 그룹(visuals)은 true 유지
         model.add(visuals);
+        
+        // ▼▼▼ [신규] visuals 그룹을 userData에 노출 ▼▼▼
+        model.userData.visuals = visuals;
+        // ▲▲▲ 수정 완료 ▲▲▲
 
         // --- 애니메이션 적용 로직 ---
         if (animations && Object.values(animations).some(clip => clip !== null)) {
@@ -1119,11 +1123,18 @@ onMounted(async () => {
 
     // 초기 위치/회전 설정은 initThree 함수 내부의 도시 맵 로드 콜백에서 진행됨
 
-    // 사용자 이름이 있으면 닉네임 스프라이트 생성 및 추가
+// 사용자 이름이 있으면 닉네임 스프라이트 생성 및 추가
     if (myUserName && myUserName !== '익명') {
         const myNickname = createNicknameSprite(myUserName);
         myNickname.matrixAutoUpdate = true; // 닉네임 위치 자동 업데이트 활성화
-        myAvatar.add(myNickname); // 아바타 객체에 닉네임 추가
+        
+        // ▼▼▼ [핵심 수정] 닉네임을 myAvatar가 아닌 visuals 그룹에 추가 ▼▼▼
+        if (myAvatar.userData.visuals) {
+            myAvatar.userData.visuals.add(myNickname); // 아바타 모델(visuals)에 닉네임 추가
+        } else {
+            myAvatar.add(myNickname); // visuals가 없는 비상시 myAvatar에 추가
+        }
+        // ▲▲▲ 수정 완료 ▲▲▲
     }
 
     // 최종 아바타 객체를 씬에 추가
