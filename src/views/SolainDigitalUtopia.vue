@@ -392,10 +392,10 @@ const handlePointerDown = (event) => {
   // 채팅창 입력 중일 때는 무시
   if (chatInputRef.value === document.activeElement) return;
 
-  // ▼▼▼ [수정] OrbitControls 임시 비활성화 ▼▼▼
-  if (controls) {
-    controls.enabled = false;
-  }
+  // ▼▼▼ [수정] 컨트롤 비활성화 로직 삭제 ▼▼▼
+  // if (controls) {
+  //   controls.enabled = false;
+  // }
   // ▲▲▲
 
   // 클릭 시작 시간과 좌표 저장
@@ -405,34 +405,33 @@ const handlePointerDown = (event) => {
 
 // --- [신규] 헬퍼 함수: 클릭/터치 종료 (클릭 vs 드래그 판별) ---
 const handlePointerUp = (event) => {
-  // 채팅창 입력 중이 아닐 때만 OrbitControls 다시 활성화
-  if (chatInputRef.value !== document.activeElement && controls) {
-    controls.enabled = true;
-  }
+  // ▼▼▼ [수정] 컨트롤 활성화 로직 삭제 ▼▼▼
+  // if (chatInputRef.value !== document.activeElement && controls) {
+  //   controls.enabled = true;
+  // }
+  // ▲▲▲
 
   const cityMap = scene.getObjectByName("cityMap");
-  if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
+  if (!cityMap) return;
 
-  const DRAG_THRESHOLD_TIME = 200; // 200ms
-  const DRAG_THRESHOLD_DISTANCE = 10; // ★ 드래그 민감도 약간 완화 (5px -> 10px)
+  const DRAG_THRESHOLD_TIME = 200;
+  const DRAG_THRESHOLD_DISTANCE = 10;
 
   const timeElapsed = Date.now() - pointerDownTime.value;
   const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
 
-  // --- '클릭'으로 판정 (짧은 시간, 적은 움직임) ---
+  // --- '클릭'으로 판정 ---
   if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
-    // 기존 키보드/조이스틱 입력 초기화
+    // 키보드/조이스틱 입력 초기화
     keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
     keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
     joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
-
-    // --- Raycasting 로직 ---
+    
+    // --- Raycasting 로직 (변경 없음) ---
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-
     pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
     raycaster.setFromCamera(pointer, camera);
     const intersects = raycaster.intersectObject(cityMap, true);
 
@@ -441,8 +440,6 @@ const handlePointerUp = (event) => {
       navigationTarget.value = targetPoint; // 이동 목표 지점 설정
     }
   }
-  // --- '드래그'로 판정된 경우 ---
-  // (아무것도 안 함, OrbitControls가 활성화되어 카메라 회전 처리)
 };
 
 let lastUpdateTime = 0;
@@ -635,16 +632,30 @@ const initThree = () => {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
       // --- OrbitControls 초기화 ---
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true; // 부드러운 움직임 효과
+controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
       controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = false; // 패닝 비활성화
-      controls.minDistance = 2; // 최소 줌 거리
-      controls.maxDistance = 20; // 최대 줌 거리
-      controls.maxPolarAngle = Math.PI / 2 - 0.05; // 바닥 아래로 못 보게
-      // ★ OrbitControls 타겟을 아바타 시작 위치 약간 위로 설정
+      controls.screenSpacePanning = false;
+      controls.minDistance = 2;
+      controls.maxDistance = 20;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      
+      // ▼▼▼ [수정] OrbitControls 이벤트 리스너 추가 ▼▼▼
+      // 컨트롤(카메라 회전/줌)이 '시작'될 때 (드래그 시작)
+      controls.addEventListener('start', () => {
+        // 클릭으로 인한 이동 목표가 있었다면 즉시 취소
+        if (navigationTarget.value) {
+          navigationTarget.value = null;
+        }
+      });
+      // ▲▲▲ 수정 완료 ▲▲▲
+
+      // ★ 시작 좌표 정의 (이전과 동일)
+      const startX = 37.16;
+      const startY = 5.49;
+      const startZ = 7.85;
       controls.target.set(startX, startY + 1.0, startZ);
-      controls.update(); // 초기 상태 업데이트
+      controls.update();
       // --- OrbitControls 초기화 끝 ---
 
       // --- 광원 설정 ---
@@ -765,34 +776,35 @@ const handleJoystickMove = (evt, data) => { joystickData.value = { active: true,
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트
-const updatePlayerMovement = (deltaTime) => {
-  if (!myAvatar || !isReady.value || !scene) return;
+if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
+  let currentSpeedFactor = 1.0; // ★ 속도 계수 변수 상단으로 이동
 
   // --- 1. 클릭/터치 이동 처리 ---
   if (navigationTarget.value != null) {
     // 1-1. 키보드/조이스틱 입력 시 클릭 이동 즉시 취소
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
+      // 바로 아래 else if 로직으로 넘어감
     } else {
       // 1-2. 목표 지점까지의 거리 계산
       const targetPos = navigationTarget.value;
       const currentPos = myAvatar.position;
       const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
+      // ★★★ [수정] 도착 시 moved=false 설정 ★★★
       if (distance < 0.2) { // 도착 판정
-        navigationTarget.value = null;
-        moved = false;
+        navigationTarget.value = null; // 목표 지점 초기화
+        moved = false; // 멈춤
         currentAnimation = 'idle';
       } else {
         // 1-3. 목표 지점 바라보도록 회전
         const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
         direction.y = 0;
         const targetRotationY = Math.atan2(direction.x, direction.z);
-
         let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
         currentY = (currentY % PI2 + PI2) % PI2;
         let diff = targetRotationY - currentY;
@@ -804,47 +816,49 @@ const updatePlayerMovement = (deltaTime) => {
         moveDirection.z = -1;
         moved = true;
         currentAnimation = 'walk';
+        currentSpeedFactor = 1.0; // 클릭 이동은 최고 속도
       }
     }
   }
   // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
-  else if (joystickData.value.active && joystickData.value.distance > 10) {
-    const targetRotationY = -joystickData.value.angle + Math.PI / 2;
-    moveDirection.z = -1;
-    moved = true;
-    currentAnimation = 'walk';
+  // ▼▼▼ [수정] else if 조건 변경 ▼▼▼
+  if (navigationTarget.value == null) { // ★ 클릭 이동 중이 아닐 때만 키보드/조이스틱 처리
+    if (joystickData.value.active && joystickData.value.distance > 10) {
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      moveDirection.z = -1;
+      moved = true;
+      currentAnimation = 'walk';
+      currentSpeedFactor = joystickData.value.force; // ★ 조이스틱 속도 설정
 
-    // 조이스틱 회전 로직
-    let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    const rotationChange = diff * deltaTime * 8;
-    myAvatar.rotation.y += rotationChange;
+      // 조이스틱 회전 로직
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      const rotationChange = diff * deltaTime * 8;
+      myAvatar.rotation.y += rotationChange;
 
-  } else if (!joystickData.value.active) { // 키보드 입력
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
-      moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
-    }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
-      moveDirection.x = -1; moved = true; currentAnimation = 'strafeRight';
-    }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-      moveDirection.z = -1; moved = true;
-      if (currentAnimation === 'idle') currentAnimation = 'walk';
-    }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      moveDirection.z = 1; moved = true;
-      if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+    } else if (!joystickData.value.active) { // 키보드 입력
+      currentSpeedFactor = 1.0; // ★ 키보드 속도 설정
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
+        moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
+      }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
+        moveDirection.x = -1; moved = true; currentAnimation = 'strafeRight';
+      }
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+        moveDirection.z = -1; moved = true;
+        if (currentAnimation === 'idle') currentAnimation = 'walk';
+      }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
+        moveDirection.z = 1; moved = true;
+        if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+      }
     }
   }
   // --- 입력 처리 끝 ---
 
   // --- 이동 적용 (moved=true일 때) ---
   if (moved) {
-    let currentSpeedFactor = 1.0;
-    if (joystickData.value.active) { currentSpeedFactor = joystickData.value.force; }
-    else if (navigationTarget.value) { currentSpeedFactor = 1.0; }
-
     const velocity = new THREE.Vector3(
       moveDirection.x * moveSpeed * 0.7 * deltaTime,
       0,
@@ -869,10 +883,6 @@ const updatePlayerMovement = (deltaTime) => {
   }
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
-
-  // ▼▼▼ [수정] 임시 로그 라인 삭제 ▼▼▼
-  // console.log(`Avatar Position - X: ${myAvatar.position.x.toFixed(2)}, Y: ${myAvatar.position.y.toFixed(2)}, Z: ${myAvatar.position.z.toFixed(2)}`);
-  // ▲▲▲ 삭제 완료 ▲▲▲
 
   // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
@@ -954,11 +964,11 @@ const animate = () => {
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
 
-  // 믹서 업데이트 (아바타 애니메이션)
+  // 믹서 업데이트 (변경 없음)
   if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
 
-// 이동 로직 호출 (변경 없음)
+  // 이동 로직 호출 (변경 없음)
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
 
@@ -971,11 +981,11 @@ const animate = () => {
     controls.update(); // 컨트롤 상태 업데이트
   }
 
-  // ▼▼▼ [신규] 닉네임 지연 문제 해결 (강제 동기화) ▼▼▼
-  if (scene) {
-      scene.updateMatrixWorld(true);
-  }
-  // ▲▲▲ 추가 완료 ▲▲▲
+  // ▼▼▼ [수정] 강제 매트릭스 업데이트 코드 삭제 ▼▼▼
+  // if (scene) {
+  //     scene.updateMatrixWorld(true);
+  // }
+  // ▲▲▲ 삭제 완료 ▲▲▲
 
   // 씬 렌더링
   renderer.render(scene, camera);
