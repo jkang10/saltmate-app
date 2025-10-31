@@ -601,7 +601,7 @@ const initThree = () => {
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
 
       // --- 시작 좌표 정의 ---
-      const startX = 37.16;
+      const startX = 37.16; // ★★★ 첫 번째 선언 (유지) ★★★
       const startY = 5.49; // 콘솔에서 확인한 Y값
       const startZ = 7.85;
       // --- ---
@@ -632,30 +632,21 @@ const initThree = () => {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 타입 설정
 
       // --- OrbitControls 초기화 ---
-controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; // 부드러운 움직임 효과
       controls.dampingFactor = 0.1;
-      controls.screenSpacePanning = false;
-      controls.minDistance = 2;
-      controls.maxDistance = 20;
-      controls.maxPolarAngle = Math.PI / 2 - 0.05;
-      
-      // ▼▼▼ [수정] OrbitControls 이벤트 리스너 추가 ▼▼▼
-      // 컨트롤(카메라 회전/줌)이 '시작'될 때 (드래그 시작)
-      controls.addEventListener('start', () => {
-        // 클릭으로 인한 이동 목표가 있었다면 즉시 취소
-        if (navigationTarget.value) {
-          navigationTarget.value = null;
-        }
-      });
-      // ▲▲▲ 수정 완료 ▲▲▲
+      controls.screenSpacePanning = false; // 패닝 비활성화
+      controls.minDistance = 2; // 최소 줌 거리
+      controls.maxDistance = 20; // 최대 줌 거리
+      controls.maxPolarAngle = Math.PI / 2 - 0.05; // 바닥 아래로 못 보게
 
-      // ★ 시작 좌표 정의 (이전과 동일)
-      const startX = 37.16;
-      const startY = 5.49;
-      const startZ = 7.85;
+      // ▼▼▼ [수정] 'start' 이벤트 리스너 삭제 (클릭 이동 방해) ▼▼▼
+      // controls.addEventListener('start', () => { ... });
+      // ▲▲▲ 삭제 완료 ▲▲▲
+
+      // ★ OrbitControls 타겟을 아바타 시작 위치 약간 위로 설정
       controls.target.set(startX, startY + 1.0, startZ);
-      controls.update();
+      controls.update(); // 초기 상태 업데이트
       // --- OrbitControls 초기화 끝 ---
 
       // --- 광원 설정 ---
@@ -724,17 +715,18 @@ controls = new OrbitControls(camera, renderer.domElement);
 
               // --- 아바타/카메라 초기 위치를 맵 기준으로 재설정 ---
               if (myAvatar) { // 내 아바타 객체가 로드된 상태인지 확인
-                // Y 좌표는 시작점 Y 값(startY) 사용
+                // ▼▼▼ [수정] 두 번째 startX, startY, startZ 선언 삭제 ▼▼▼
+                // const startX = 37.16; // (삭제)
+                // const startY = 5.49; // (삭제)
+                // const startZ = 7.85; // (삭제)
+                // ▲▲▲ 삭제 완료 ▲▲▲
+
+                // Y 좌표는 시작점 Y 값(startY) 사용 (626라인에서 선언된 변수)
                 myAvatar.position.set(startX, startY, startZ);
                 console.log(`내 아바타 초기 위치 설정: X=${startX}, Y=${startY.toFixed(2)}, Z=${startZ}`);
               }
               // 카메라 위치도 아바타 시작 위치 기준으로 설정 (뒤쪽 위)
               camera.position.set(startX, startY + 1.6, startZ + 4);
-
-              // ▼▼▼ [수정] 오류가 발생하는 cameraLookAtTarget.set(...) 라인 삭제 ▼▼▼
-              // cameraLookAtTarget.set(startX, startY + 1.0, startZ);
-              // ▲▲▲ 삭제 완료 ▲▲▲
-
               // --- 위치 재설정 끝 ---
 
           } catch(processError) { // 맵 처리 중 에러 발생 시
