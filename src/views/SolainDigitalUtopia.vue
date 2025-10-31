@@ -425,13 +425,12 @@ const handlePointerUp = (event) => {
 
   // --- '클릭'으로 판정 ---
   if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
-    // 키보드/조이스틱 입력 초기화
-    keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
-    keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
-    // ▼▼▼ [수정] Arrow keys (방향키) 초기화 추가 ▼▼▼
-    keysPressed['ArrowUp'] = false; keysPressed['ArrowDown'] = false;
-    keysPressed['ArrowLeft'] = false; keysPressed['ArrowRight'] = false;
+    
+    // ▼▼▼ [핵심 수정] keysPressed 초기화 코드 5줄 삭제 ▼▼▼
+    // (기존 keysPressed['KeyW'] = false; 등 5줄 삭제)
     // ▲▲▲ 수정 완료 ▲▲▲
+
+    // 조이스틱 입력만 초기화
     joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
     
     // --- Raycasting 로직 (변경 없음) ---
