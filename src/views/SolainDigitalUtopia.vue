@@ -769,14 +769,20 @@ const handleKeyDown = (event) => {
 const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
+
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트
-const updatePlayerMovement = (deltaTime) => { // <--- 이 라인을 761줄에 추가
+const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
-  let moved = false;
+  let moved = false; // <-- 이 한 줄만 남깁니다.
 
-// 매 프레임 호출: 내 아바타 위치/회전 업데이트
-if (!myAvatar || !isReady.value || !scene) return;
+  // ▼▼▼ [삭제] 아래 3줄을 삭제하세요 ▼▼▼
+  //
+  // // 매 프레임 호출: 내 아바타 위치/회전 업데이트
+  // if (!myAvatar || !isReady.value || !scene) return;
+  //
+  //   let moved = false;
+  // ▲▲▲ [삭제] 여기까지 ▲▲▲
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
