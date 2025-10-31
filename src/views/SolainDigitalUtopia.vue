@@ -268,7 +268,7 @@ const createNicknameSprite = (text) => {
 sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
   // ▼▼▼ [수정] 닉네임 Y 위치 1.5 -> 2.5로 변경 ▼▼▼
-  sprite.position.y = 2.5; 
+  sprite.position.y = 2.2; 
   // ▲▲▲ 수정 완료 ▲▲▲
 
   // ▼▼▼ [수정] matrixAutoUpdate 추가 ▼▼▼
