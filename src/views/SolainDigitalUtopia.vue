@@ -71,6 +71,9 @@ let scene, camera, renderer, clock;
 let controls; // ★ OrbitControls 인스턴스 저장 변수 ★
 // ▼▼▼ 클릭/터치 이동 관련 변수 수정 ▼▼▼
 const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
+
+// let targetMarker = null; // ★★★ 이 라인을 삭제하세요 ★★★
+
 const pointerDownPos = new THREE.Vector2(); // 클릭 시작 지점 (X, Y)
 const pointerDownTime = ref(0); // 클릭 시작 시간
 // ▲▲▲
