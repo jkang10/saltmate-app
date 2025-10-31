@@ -163,9 +163,7 @@ const loadAvatar = (url, animations) => {
         visuals.traverse((child) => {
           if (child.isMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
-            // --- 그림자 설정 (렉 진단 후 다시 활성화) ---
             child.castShadow = true;
-            // 아바타 메쉬는 그림자를 받지 않음 (성능 및 시각적 자연스러움)
             // child.receiveShadow = true;
           }
           child.matrixAutoUpdate = true;
@@ -177,18 +175,14 @@ const loadAvatar = (url, animations) => {
         visuals.matrixAutoUpdate = true;
         model.add(visuals);
 
-// --- ★ [애니메이션 로직 수정] 추가된 애니메이션 적용 ★ ---
-        if (animations && Object.values(animations).some(clip => clip !== null)) { // 로드된 애니메이션이 하나라도 있다면
+        // --- 애니메이션 적용 로직 ---
+        if (animations && Object.values(animations).some(clip => clip !== null)) {
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
-
-          // 각 애니메이션 클립에 대해 액션 생성 및 저장
           for (const key in animations) {
-            if (animations[key]) { // 클립이 null이 아니면
+            if (animations[key]) {
               const action = mixer.clipAction(animations[key]);
-              model.userData.actions[key] = action; // actions 객체에 저장 (예: actions.idle, actions.walkBackward)
-
-              // Idle 액션만 기본 재생
+              model.userData.actions[key] = action;
               if (key === 'idle') {
                 action.play();
               }
@@ -200,7 +194,7 @@ const loadAvatar = (url, animations) => {
         } else {
           console.warn(`[${url}] 미리 로드된 애니메이션 클립이 하나도 없습니다.`);
         }
-        // --- ★ [애니메이션 로직 수정 끝] ★ ---
+        // --- 애니메이션 적용 로직 끝 ---
 
         resolve(model);
       },
@@ -393,7 +387,7 @@ const updateMyStateInRTDB = () => {
     });
 };
 
-// --- [신규] 헬퍼 함수: 클릭/터치로 이동 ---
+// --- [수정] 헬퍼 함수: 클릭/터치 시작 ---
 const handlePointerDown = (event) => {
   // 채팅창 입력 중일 때는 무시
   if (chatInputRef.value === document.activeElement) return;
@@ -402,43 +396,12 @@ const handlePointerDown = (event) => {
   pointerDownTime.value = Date.now();
   pointerDownPos.set(event.clientX, event.clientY);
 
-  const cityMap = scene.getObjectByName("cityMap");
-  if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
-
-  // --- 기존 키보드/조이스틱 입력 초기화 ---
-  keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
-  keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
-  joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
-  
-  // --- Raycasting 로직 ---
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-
-  // 클릭/터치 좌표를 -1 ~ +1 사이의 정규화된 장치 좌표(NDC)로 변환
-  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  raycaster.setFromCamera(pointer, camera); // 카메라에서 화면 좌표로 Ray 발사
-  const intersects = raycaster.intersectObject(cityMap, true); // 도시 맵과의 교차점 확인
-
-  if (intersects.length > 0) {
-    const targetPoint = intersects[0].point;
-    navigationTarget.value = targetPoint; // 이동 목표 지점 설정
-
-    // --- [수정] 마커 생성 및 표시 코드 주석 처리 ---
-    /*
-    if (!targetMarker) {
-      const markerGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16); // 얇은 원반
-      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
-      targetMarker = new THREE.Mesh(markerGeometry, markerMaterial);
-      scene.add(targetMarker);
-    }
-    targetMarker.position.copy(targetPoint); // 마커를 클릭 지점으로 이동
-    targetMarker.position.y += 0.05; // 바닥보다 살짝 위에 표시
-    targetMarker.visible = true; // 마커 표시
-    */
-    // --- [수정 끝] ---
-  }
+  // ▼▼▼ [수정] Raycasting 및 navigationTarget.value 설정 로직 삭제 ▼▼▼
+  // const cityMap = ...
+  // const raycaster = ...
+  // const intersects = ...
+  // if (intersects.length > 0) { ... }
+  // ▲▲▲ 삭제 완료 ▲▲▲
 };
 
 // --- [신규] 헬퍼 함수: 클릭/터치 종료 (클릭 vs 드래그 판별) ---
