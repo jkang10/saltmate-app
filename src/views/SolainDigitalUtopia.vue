@@ -785,13 +785,14 @@ const updatePlayerMovement = (deltaTime) => {
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
       // 바로 아래 else if 로직으로 넘어감
+      // (moved=false, currentAnimation='idle' 유지 -> 다음 else 블록(키보드)에서 처리)
     } else {
       // 1-2. 목표 지점까지의 거리 계산
       const targetPos = navigationTarget.value;
       const currentPos = myAvatar.position;
       const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
-      // ★★★ [수정] 도착 시 moved=false 설정 ★★★
+      // ★★★ 도착 시 moved=false 설정 ★★★
       if (distance < 0.2) { // 도착 판정
         navigationTarget.value = null; // 목표 지점 초기화
         moved = false; // 멈춤
@@ -817,8 +818,8 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
   // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
-  // ▼▼▼ [수정] else if 조건 변경 ▼▼▼
-  if (navigationTarget.value == null) { // ★ 클릭 이동 중이 아닐 때만 키보드/조이스틱 처리
+  // ▼▼▼ [수정] 'if (navigationTarget.value == null)' 를 'else'로 변경 ▼▼▼
+  else { // ★ 클릭 이동 중이 아닐 때만 키보드/조이스틱 처리
     if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       moveDirection.z = -1;
