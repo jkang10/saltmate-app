@@ -121,7 +121,7 @@ export default {
   margin-bottom: 2rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-height: 200px; /* 카드 최소 높이 */
+  min-height: 220px; /* 카드 최소 높이 */
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
   position: relative;
   overflow: hidden; /* 아이콘 애니메이션을 위한 오버플로우 숨김 */

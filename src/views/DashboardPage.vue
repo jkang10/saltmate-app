@@ -186,20 +186,19 @@
             <p style="color: white; opacity: 0.9;">포인트, 게임 재화, 토큰, 쿠폰 등 모든 자산을 한눈에 확인하세요.</p>
             <span class="card-enter" style="color: white;">자세히 보기 &rarr;</span>
           </router-link>
-  	  <router-link to="/my-avatar" class="feature-card"> <div class="card-icon"><i class="fas fa-user-astronaut"></i></div>
- 	    <h3>내 아바타 꾸미기</h3>
-	    <p>나만의 아바타를 만들어 '솔레인 디지털 유니버스'의 주인공이 되어보세요!</p>
-	    <span class="card-enter">꾸미러 가기 &rarr;</span>
-	  </router-link>
-	<div class="dashboard-grid">
-	  <router-link to="/metaverse-portal" class="feature-card metaverse-portal-card">
-	    <div class="card-icon"><i class="fas fa-vr-cardboard"></i></div>
-	    <h3>솔레인 디지털 유토피아</h3>
-	    <p>가상현실 테마파크! 곧 열릴 새로운 세계를 미리 만나보세요.</p>
-	    <span class="card-enter">미리보기 &rarr;</span>
-	  </router-link>
-	  </div>
-	  <TokenMineCard />
+	<router-link to="/my-avatar" class="feature-card"> <div class="card-icon"><i class="fas fa-user-astronaut"></i></div>
+	  <h3>내 아바타 꾸미기</h3>
+	  <p>나만의 아바타를 만들어 '솔레인 디지털 유니버스'의 주인공이 되어보세요!</p>
+	  <span class="card-enter">꾸미러 가기 &rarr;</span>
+	</router-link>
+	<router-link to="/metaverse-portal" class="feature-card metaverse-portal-card">
+	  <div class="card-icon"><i class="fas fa-vr-cardboard"></i></div>
+	  <h3>솔레인 디지털 유토피아</h3>
+	  <p>가상현실 테마파크! 곧 열릴 새로운 세계를 미리 만나보세요.</p>
+	  <span class="card-enter">미리보기 &rarr;</span>
+	</router-link>
+
+	<TokenMineCard />
 	  <router-link to="/staking" class="feature-card staking">
             <div class="card-icon"><i class="fas fa-piggy-bank"></i></div>
             <h3>SaltMate 정기예금</h3>
@@ -1357,7 +1356,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   box-shadow: 0 8px 30px rgba(74, 14, 151, 0.3); /* 퍼플 계열 그림자 */
   position: relative; /* 내부 효과를 위한 설정 */
   overflow: hidden; /* 내부 효과를 위한 설정 */
-  min-height: 200px;
+  /* [수정] min-height: 200px; 라인을 삭제하여 .feature-card의 220px를 따르도록 함 */
 }
 
 /* 카드 아이콘 스타일 */
