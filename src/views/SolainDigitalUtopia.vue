@@ -751,11 +751,6 @@ const initThree = () => {
       // 시계 생성 (애니메이션 및 시간 기반 로직에 사용)
       clock = new THREE.Clock();
       return true; // 초기화 성공 반환
-// 754: // 매 프레임 호출: 내 아바타 위치/회전 업데이트
-const updatePlayerMovement = (deltaTime) => { // <--- 이 라인을 755줄에 추가
-  if (!myAvatar || !isReady.value || !scene) return;
-
-  let moved = false;
 
   } catch (error) { // try 블록 전체 에러 처리
       console.error("Three.js 초기화 중 오류 발생:", error);
@@ -774,6 +769,11 @@ const handleKeyDown = (event) => {
 const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
+// 매 프레임 호출: 내 아바타 위치/회전 업데이트
+const updatePlayerMovement = (deltaTime) => { // <--- 이 라인을 761줄에 추가
+  if (!myAvatar || !isReady.value || !scene) return;
+
+  let moved = false;
 
 // 매 프레임 호출: 내 아바타 위치/회전 업데이트
 if (!myAvatar || !isReady.value || !scene) return;
