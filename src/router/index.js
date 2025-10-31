@@ -299,6 +299,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/token-mine', // 광산 페이지 경로
+    name: 'TokenMinePage',
+    component: () => import('@/views/TokenMine.vue'), // 이전에 생성 제안한 뷰 컴포넌트
+    meta: { requiresAuth: true } // 로그인 필수
+  },
+  {
    path: '/my-avatar',
    name: 'AvatarCreationPage',
    component: () => import('@/views/AvatarCreationPage.vue'),

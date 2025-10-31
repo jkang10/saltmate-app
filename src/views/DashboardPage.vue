@@ -199,6 +199,7 @@
 	    <span class="card-enter">미리보기 &rarr;</span>
 	  </router-link>
 	  </div>
+	  <TokenMineCard />
 	  <router-link to="/staking" class="feature-card staking">
             <div class="card-icon"><i class="fas fa-piggy-bank"></i></div>
             <h3>SaltMate 정기예금</h3>
@@ -435,6 +436,7 @@ import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
 import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
 import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
+import TokenMineCard from '@/components/common/TokenMineCard.vue'; 
 
 export default {
   name: "DashboardPage",
@@ -458,6 +460,7 @@ export default {
     SaltMinePrestigeRankingsWidget,
     SaltMineClickRankingsWidget,
     DailyQuestsWidget,
+    TokenMineCard,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
@@ -1418,4 +1421,47 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 }
 
 /* ▲▲▲ 메타버스 포털 카드 스타일 끝 ▲▲▲ */
+/* 기존 DashboardPage 스타일 */
+.dashboard-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 카드 그리드 레이아웃 */
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+/* 솔레인 디지털 유토피아 카드 스타일 (기존 코드에서 가져오기 또는 새로 추가) */
+.solain-utopia-card {
+  /* 첨부해주신 이미지의 카드 스타일을 여기에 적용합니다 */
+  background: linear-gradient(135deg, #4b0082, #8a2be2); /* 보라색 계열 그라데이션 */
+  color: #fff;
+  border-radius: 15px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
+}
+.solain-utopia-card .card-icon { font-size: 3.5rem; margin-bottom: 1rem; align-self: flex-start; opacity: 0.8; }
+.solain-utopia-card .card-title { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; line-height: 1.3; }
+.solain-utopia-card .card-description { font-size: 1rem; line-height: 1.5; opacity: 0.9; }
+.solain-utopia-card .card-action { margin-top: 1.5rem; align-self: flex-end; }
+.solain-utopia-card .btn-primary {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 0.8rem 1.5rem;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  display: flex;
+  align-items: center;
+}
+.solain-utopia-card .btn-primary:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.solain-utopia-card .btn-primary i { margin-left: 0.8rem; font-size: 0.9rem; }
 </style>
