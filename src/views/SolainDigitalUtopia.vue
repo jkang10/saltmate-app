@@ -834,6 +834,13 @@ const updatePlayerMovement = (deltaTime) => {
       myAvatar.rotation.y += rotationChange;
 
     } else if (!joystickData.value.active) { // 키보드 입력
+
+      // ▼▼▼ [핵심 수정] 3가지 문제 모두 해결 ▼▼▼
+      // 키보드 조작 시 아바타의 방향을 카메라의 현재 Y축 방향(Yaw)과 동기화
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      myAvatar.rotation.y = cameraEuler.y;
+      // ▲▲▲ [수정 완료] ▲▲▲
+
       currentSpeedFactor = 1.0;
       if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
         moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
@@ -862,9 +869,12 @@ const updatePlayerMovement = (deltaTime) => {
       0,
       moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
     );
+    // [설명] velocity.applyQuaternion(myAvatar.quaternion);
+    // 위에서 아바타 회전(myAvatar.rotation.y)을 카메라와 동기화했기 때문에,
+    // 이 코드가 로컬 방향(moveDirection)을 카메라가 보는 월드 방향으로 올바르게 변환해 줍니다.
     velocity.applyQuaternion(myAvatar.quaternion);
 
-    // ▼▼▼ [수정] 충돌 감지 로직 수정 ▼▼▼
+    // ▼▼▼ 충돌 감지 로직 (변경 없음) ▼▼▼
     if (cityMap && velocity.lengthSq() > 0) {
       const avatarHeight = 1.0;
       const avatarRadius = 0.3;
@@ -879,13 +889,11 @@ const updatePlayerMovement = (deltaTime) => {
         velocity.set(0, 0, 0);
         moved = false; // 이동을 안했으므로 moved도 false로 (서버 업데이트 방지)
 
-        // ★★★ [핵심 수정] ★★★
         // 이동을 취소하고, 클릭 타겟도 초기화하여 무한 반복 방지
         currentAnimation = 'idle';
         if (navigationTarget.value != null) {
             navigationTarget.value = null;
         }
-        // ★★★ [수정 완료] ★★★
       }
     }
     // ▲▲▲ 충돌 감지 로직 끝 ▲▲▲
@@ -912,7 +920,7 @@ const updatePlayerMovement = (deltaTime) => {
   // 이동/회전했으면 서버 업데이트
   if (moved) { throttledUpdate(); }
 
-  // --- ★★★ 애니메이션 전환 로직 개선 ★★★ ---
+  // --- ★★★ 애니메이션 전환 로직 개선 ★★★ (변경 없음) ---
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
 
