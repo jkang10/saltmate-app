@@ -428,6 +428,10 @@ const handlePointerUp = (event) => {
     // 키보드/조이스틱 입력 초기화
     keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
     keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
+    // ▼▼▼ [수정] Arrow keys (방향키) 초기화 추가 ▼▼▼
+    keysPressed['ArrowUp'] = false; keysPressed['ArrowDown'] = false;
+    keysPressed['ArrowLeft'] = false; keysPressed['ArrowRight'] = false;
+    // ▲▲▲ 수정 완료 ▲▲▲
     joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
     
     // --- Raycasting 로직 (변경 없음) ---
@@ -792,8 +796,8 @@ const updatePlayerMovement = (deltaTime) => {
       const currentPos = myAvatar.position;
       const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
-      // ★★★ 도착 시 moved=false 설정 ★★★
-      if (distance < 0.2) { // 도착 판정
+      // ▼▼▼ [수정] 도착 판정 거리 0.2 -> 0.4로 변경 ▼▼▼
+      if (distance < 0.4) { // 도착 판정 (기존 0.2)
         navigationTarget.value = null; // 목표 지점 초기화
         moved = false; // 멈춤
         currentAnimation = 'idle';
@@ -818,7 +822,6 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
   // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
-  // ▼▼▼ [수정] 'if (navigationTarget.value == null)' 를 'else'로 변경 ▼▼▼
   else { // ★ 클릭 이동 중이 아닐 때만 키보드/조이스틱 처리
     if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -854,6 +857,9 @@ const updatePlayerMovement = (deltaTime) => {
   }
   // --- 입력 처리 끝 ---
 
+  // ▼▼▼ [수정] cityMap 변수 선언을 Y위치 고정 로직에서 여기로 이동 ▼▼▼
+  const cityMap = scene.getObjectByName("cityMap");
+  
   // --- 이동 적용 (moved=true일 때) ---
   if (moved) {
     const velocity = new THREE.Vector3(
@@ -862,14 +868,39 @@ const updatePlayerMovement = (deltaTime) => {
       moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
     );
     velocity.applyQuaternion(myAvatar.quaternion);
-    myAvatar.position.add(velocity);
+
+    // ▼▼▼ [신규] 충돌 감지 로직 ▼▼▼
+    if (cityMap && velocity.lengthSq() > 0) { // 이동할 때만 체크
+      const avatarHeight = 1.0; // 아바타 "가슴" 높이
+      const avatarRadius = 0.3; // 아바타 "반경"
+      // 아바타의 현재 위치 (가슴 높이)
+      const currentPosition = myAvatar.position.clone().add(new THREE.Vector3(0, avatarHeight, 0));
+      // 이동 방향
+      const movementDirection = velocity.clone().normalize();
+      // 이번 프레임에 이동할 거리
+      const movementDistance = velocity.length();
+
+      // 1. 전방 충돌 감지
+      const raycaster = new THREE.Raycaster(currentPosition, movementDirection, 0, movementDistance + avatarRadius);
+      const intersects = raycaster.intersectObject(cityMap, true);
+
+      if (intersects.length > 0) {
+        // 충돌이 감지되면 velocity를 0으로 설정하여 이동을 막음
+        velocity.set(0, 0, 0);
+        moved = false; // 이동을 안했으므로 moved도 false로 (서버 업데이트 방지)
+      }
+    }
+    // ▲▲▲ 충돌 감지 로직 끝 ▲▲▲
+
+    myAvatar.position.add(velocity); // 수정된 velocity 적용
   }
 
   // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  const cityMap = scene.getObjectByName("cityMap");
+  
+  // ▼▼▼ [수정] cityMap 변수는 이미 위에서 선언됨 ▼▼▼
   let groundY = myAvatar.position.y;
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
