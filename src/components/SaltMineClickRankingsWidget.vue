@@ -92,7 +92,7 @@ onMounted(async () => {
   flex-direction: column;
   
   /* [수정] 리스트 아이템 사이의 간격을 줄여 세로 길이를 줄입니다. */
-  gap: 8px;
+  gap: 4px;
 }
 
 .rank-item {
@@ -102,8 +102,8 @@ onMounted(async () => {
   align-items: center;
   
   /* [수정] 각 아이템의 상하 패딩을 줄여 세로 길이를 줄입니다. */
-  padding: 8px 15px;
-  
+  padding: 6px 15px;
+
   background: linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.1));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
