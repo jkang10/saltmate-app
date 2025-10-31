@@ -5,7 +5,7 @@
       <p>연료(SaltMate)를 사용하여 자동으로 채굴하거나, 일주일에 한 번 무료로 수동 채굴을 진행할 수 있습니다.</p>
     </div>
 
-    <div classs="balance-status card">
+    <div class="balance-status card">
       <h3><i class="fas fa-wallet"></i> 나의 보유 자산</h3>
       <div class="balance-grid">
         <div class="balance-item">
@@ -21,7 +21,7 @@
           <span class="token-amount">{{ formatNumber(myTokens.bnd) }}</span>
         </div>
       </div>
-      <small>(이 토큰은 Saltmate 금고에 보관되며, '출금' 메뉴에서 개인 지갑으로 전송할 수 있습니다.)</small>
+      <small class="token-note">(이 토큰은 Saltmate 금고에 보관되며, '출금' 메뉴에서 개인 지갑으로 전송할 수 있습니다.)</small>
     </div>
 
     <div class="mine-section card auto-mine">
@@ -40,8 +40,12 @@
           <span>4,000 SaltMate</span>
         </div>
         <div class="stat-item">
-          <strong>나의 주간 획득량</strong>
+          <strong>나의 주간 BND 획득량</strong>
           <span>{{ formatNumber(weeklyBndReward) }} BND</span>
+        </div>
+        <div class="stat-item lucky-cobs">
+          <strong>럭키 보상 (COBS)</strong>
+          <span>(주간 1% 확률 / 0.1~1.0개)</span>
         </div>
       </div>
 
@@ -118,40 +122,30 @@ import { httpsCallable } from 'firebase/functions';
 export default {
   name: 'TokenMine',
   setup() {
-    // --- 공통 상태 ---
+    // ... (setup 상단 상태 변수들은 변경 없음) ...
     const myTokens = reactive({ cobs: 0, bnd: 0 });
     const saltmatePoints = ref(0);
     const isLoading = ref(true);
     const isProcessing = ref(false);
     const errorMessage = ref(null);
     const now = ref(new Date());
-
-    // --- 수동 채굴(Manual) 상태 ---
     const manualMineState = reactive({ startTime: null, nextClaimTime: null });
-
-    // --- [신규] 자동 채굴(Auto) 상태 ---
     const autoMineFuel = ref(0);
     const autoMineLastChecked = ref(null);
-    const weeklyBndReward = ref(5); // 기본값 (Min)
-
-    // --- 정책 상수 ---
+    const weeklyBndReward = ref(5);
     const FUEL_COST_PER_WEEK = 4000;
     const SECONDS_PER_WEEK = 604800;
     const FUEL_RATE_PER_SECOND = FUEL_COST_PER_WEEK / SECONDS_PER_WEEK;
-
     let userUnsubscribe = null;
     let mineUnsubscribe = null;
     let timerInterval = null;
-
-    // --- Callable Functions ---
     const startManualMiningFunc = httpsCallable(functions, 'startWeeklyTokenMine');
     const claimManualRewardFunc = httpsCallable(functions, 'claimWeeklyTokenMine');
     const addAutoMineFuelFunc = httpsCallable(functions, 'addAutoMineFuel');
     const claimAutoMineRewardFunc = httpsCallable(functions, 'claimAutoMineReward');
-
-    // 리스너 설정 (수동/자동 데이터 모두 가져오기)
+    
+    // ... (setupListeners, onMounted, onUnmounted 함수는 변경 없음) ...
     const setupListeners = (uid) => {
-      // 1. users 문서 리스너 (포인트, 토큰, 자동채굴 설정값)
       const userRef = doc(db, 'users', uid);
       userUnsubscribe = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -160,27 +154,20 @@ export default {
           myTokens.bnd = tokens.bnd;
           myTokens.cobs = tokens.cobs;
           saltmatePoints.value = data.saltmatePoints || 0;
-          
-          // 회원별 자동채굴 획득량
           if (data.tokenMineStats && data.tokenMineStats.weeklyBndReward) {
             weeklyBndReward.value = data.tokenMineStats.weeklyBndReward;
           }
         }
       });
-
-      // 2. gamedata/tokenMine 문서 리스너 (수동/자동 채굴 상태)
       const mineRef = doc(db, 'users', uid, 'gamedata', 'tokenMine');
       mineUnsubscribe = onSnapshot(mineRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // 수동 채굴 상태
           manualMineState.startTime = data.startTime?.toDate();
           manualMineState.nextClaimTime = data.nextClaimTime?.toDate();
-          // 자동 채굴 상태
           autoMineFuel.value = data.autoMineFuel || 0;
           autoMineLastChecked.value = data.autoMineLastChecked?.toDate();
         } else {
-          // 초기 상태
           manualMineState.startTime = null;
           manualMineState.nextClaimTime = null;
           autoMineFuel.value = 0;
@@ -207,7 +194,7 @@ export default {
       if (timerInterval) clearInterval(timerInterval);
     });
 
-    // --- 수동 채굴 Computed ---
+    // ... (수동 채굴 Computed, 자동 채굴 Computed는 변경 없음) ...
     const isMining = computed(() => {
       return manualMineState.nextClaimTime && manualMineState.nextClaimTime > now.value;
     });
@@ -224,8 +211,6 @@ export default {
       const seconds = Math.floor((diff / 1000) % 60);
       return `${days}일 ${hours}시간 ${minutes}분 ${seconds}초`;
     });
-
-    // --- [신규] 자동 채굴 Computed ---
     const fuelPercentage = computed(() => {
       return Math.min((autoMineFuel.value / FUEL_COST_PER_WEEK) * 100, 100);
     });
@@ -236,20 +221,16 @@ export default {
     });
     const calculatedAutoReward = computed(() => {
       if (!autoMineLastChecked.value || autoMineFuel.value <= 0) return 0;
-      
       const elapsedSeconds = (now.value.getTime() - autoMineLastChecked.value.getTime()) / 1000;
       if (elapsedSeconds <= 0) return 0;
-
       const maxFuelToConsume = elapsedSeconds * FUEL_RATE_PER_SECOND;
       const consumedFuel = Math.min(autoMineFuel.value, maxFuelToConsume);
-      
       const REWARD_RATE_PER_SECOND = weeklyBndReward.value / SECONDS_PER_WEEK;
       const earnedBnd = (consumedFuel / FUEL_RATE_PER_SECOND) * REWARD_RATE_PER_SECOND;
-      
       return earnedBnd;
     });
 
-    // --- 수동 채굴 Methods ---
+    // ... (수동 채굴 Methods, 자동 채굴 addFuel Method는 변경 없음) ...
     const startManualMining = async () => {
       isProcessing.value = true;
       errorMessage.value = null;
@@ -267,24 +248,25 @@ export default {
       } catch (error) { errorMessage.value = error.message; } 
       finally { isProcessing.value = false; }
     };
-
-    // --- [신규] 자동 채굴 Methods ---
     const addFuel = async () => {
       if (saltmatePoints.value < 4000) {
         errorMessage.value = "연료로 충전할 SaltMate가 부족합니다.";
         return;
       }
-      if (!confirm("4,000 SaltMate를 사용하여 자동 채굴기 연료를 충전하시겠습니까? (1주일 작동 분량)")) return;
+      if (!confirm("4,000 SaltMate를 사용하여 자동 채굴기 연료를 충전하시겠습니까? (1주일 작동 분량, 1% 럭키 COBS 확률 적용)")) return;
       
       isProcessing.value = true;
       errorMessage.value = null;
       try {
+        // [★수정★] addAutoMineFuel 함수는 이제 COBS 보상도 반환할 수 있음
+        // (참고: COBS 보상 로직은 claimAutoMineReward로 이동했으므로 addFuel은 알림만 띄웁니다)
         await addAutoMineFuelFunc();
         alert("연료 4,000 SaltMate가 충전되었습니다. 자동 채굴이 즉시 시작/연장됩니다.");
       } catch (error) { errorMessage.value = error.message; } 
       finally { isProcessing.value = false; }
     };
-    
+
+    // [★수정★] 자동 채굴 claimAutoReward Method
     const claimAutoReward = async () => {
       if (calculatedAutoReward.value < 0.0001) {
         errorMessage.value = "정산할 보상이 없습니다.";
@@ -293,13 +275,24 @@ export default {
       isProcessing.value = true;
       errorMessage.value = null;
       try {
+        // [★수정★] 백엔드에서 earnedCobs 값을 반환받음
         const result = await claimAutoMineRewardFunc();
-        alert(`자동 채굴 보상 수령 완료! BND +${result.data.earnedBnd.toFixed(4)} (연료 ${result.data.consumedFuel.toFixed(2)} P 소모)`);
+        const { earnedBnd, consumedFuel, earnedCobs } = result.data;
+        
+        let alertMsg = `자동 채굴 보상 수령 완료!\n\nBND: +${earnedBnd.toFixed(4)}\n연료 소모: -${consumedFuel.toFixed(2)} P`;
+        
+        // [★신규★] COBS 보상이 있으면 알림에 추가
+        if (earnedCobs && earnedCobs > 0) {
+          alertMsg += `\n\n🎉🎉🎉\n축하합니다! 럭키 보상으로 COBS +${earnedCobs.toFixed(4)}를 추가 획득했습니다!`;
+        }
+        
+        alert(alertMsg);
+        
       } catch (error) { errorMessage.value = error.message; } 
       finally { isProcessing.value = false; }
     };
-
-    // 공통 Method
+    
+    // ... (formatNumber 함수는 변경 없음) ...
     const formatNumber = (num, digits = 0) => {
       if (num == null) return 0;
       return num.toLocaleString(undefined, { 
@@ -309,28 +302,9 @@ export default {
     }
 
     return {
-      myTokens,
-      saltmatePoints,
-      isLoading,
-      isProcessing,
-      errorMessage,
-      now,
-      // 수동
-      manualMineState,
-      isMining,
-      canClaim,
-      countdown,
-      startManualMining,
-      claimManualReward,
-      // 자동
-      autoMineFuel,
-      weeklyBndReward,
-      fuelPercentage,
-      remainingHours,
-      calculatedAutoReward,
-      addFuel,
-      claimAutoReward,
-      // 공통
+      myTokens, saltmatePoints, isLoading, isProcessing, errorMessage, now,
+      manualMineState, isMining, canClaim, countdown, startManualMining, claimManualReward,
+      autoMineFuel, weeklyBndReward, fuelPercentage, remainingHours, calculatedAutoReward, addFuel, claimAutoReward,
       formatNumber
     };
   }
@@ -338,7 +312,7 @@ export default {
 </script>
 
 <style scoped>
-/* 기존 스타일 */
+/* ... (기존 스타일 상단) ... */
 .token-mine-container { max-width: 800px; margin: 2rem auto; padding: 1.5rem; }
 .mine-header { text-align: center; margin-bottom: 2rem; }
 .mine-header h2 { font-size: 2.5rem; color: #333; }
@@ -354,7 +328,17 @@ export default {
 .token-name { display: block; font-weight: bold; color: #007bff; }
 .token-amount { display: block; font-size: 2rem; font-weight: bold; color: #333; margin-top: 0.5rem; }
 
-/* [신규] 섹션 공통 스타일 */
+/* [★신규★] 토큰 안내 문구 스타일 */
+.token-note {
+  display: block;
+  text-align: center;
+  margin-top: 1rem; /* 상단 그리드와 여백 */
+  margin-bottom: 0.5rem; /* 카드 하단과 여백 */
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* ... (섹션 공통 스타일) ... */
 .mine-section {
   border-left-width: 5px;
   border-left-style: solid;
@@ -370,12 +354,12 @@ export default {
 .section-header h3 { margin: 0; font-size: 1.5rem; }
 .section-description { font-size: 0.95rem; color: #555; margin-bottom: 20px; }
 
-/* [신규] 자동 채굴 스타일 */
-.mine-section.auto-mine { border-left-color: #6f42c1; } /* 보라색 테마 */
+/* [수정] 자동 채굴 스타일 */
+.mine-section.auto-mine { border-left-color: #6f42c1; }
 .icon-auto { color: #6f42c1; }
 .auto-mine-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr; /* 2열 유지 */
   gap: 1rem;
   margin-bottom: 20px;
   text-align: center;
@@ -384,6 +368,17 @@ export default {
 .stat-item strong { display: block; font-size: 0.9rem; color: #555; margin-bottom: 5px; }
 .stat-item span { font-size: 1.3rem; font-weight: bold; color: #6f42c1; }
 
+/* [★신규★] COBS 럭키 보상 아이템 스타일 */
+.stat-item.lucky-cobs {
+  grid-column: 1 / -1; /* 2열을 모두 차지하도록 */
+  background: #fff8e1; /* 연한 노란색 배경 */
+  border: 1px solid #ffe57f;
+}
+.stat-item.lucky-cobs strong { color: #f57f17; }
+.stat-item.lucky-cobs span { color: #f9a825; font-size: 1.1rem; }
+
+
+/* ... (나머지 스타일은 변경 없음) ... */
 .fuel-status h4 { margin-bottom: 10px; font-size: 1.1rem; }
 .fuel-status small { display: block; margin-top: 8px; font-size: 0.9rem; color: #777; }
 .progress-bar-container { width: 100%; background-color: #e9ecef; border-radius: 20px; height: 10px; }
@@ -397,9 +392,7 @@ export default {
 }
 .btn-fuel { background-color: #6f42c1; color: white; }
 .btn-fuel:hover { background-color: #5a32a3; }
-
-/* [기존] 수동 채굴 스타일 */
-.mine-section.manual-mine { border-left-color: #007bff; } /* 파란색 테마 */
+.mine-section.manual-mine { border-left-color: #007bff; }
 .icon-manual { color: #007bff; }
 .mine-status { text-align: center; padding-top: 1rem; }
 .mine-action, .mine-progress { padding: 1rem 0; }
@@ -408,8 +401,6 @@ export default {
 .icon-progress { color: #ffc107; font-size: 3rem; animation: spin 2s linear infinite; }
 .icon-start { color: #007bff; font-size: 3rem; }
 .countdown { font-size: 1.5rem; font-weight: bold; color: #333; margin: 0.5rem 0; }
-
-/* 버튼 공통 스타일 (기존 스타일 재활용) */
 .btn, .btn-fuel, .btn-claim, .btn-claim-manual, .btn-start, .btn-disabled {
   width: 100%;
   padding: 0.8rem 1rem;
@@ -429,6 +420,16 @@ export default {
 .btn-disabled { background-color: #e9ecef; color: #6c757d; cursor: not-allowed; }
 .btn:disabled, .btn-fuel:disabled, .btn-claim:disabled, .btn-claim-manual:disabled { opacity: 0.7; cursor: not-allowed; }
 .error-message { color: #dc3545; margin-top: 1rem; text-align: center; font-weight: bold; }
-.loading-spinner { /* ... (로딩 스피너 스타일) ... */ }
-@keyframes spin { to { transform: rotate(360deg); } }
+.loading-spinner { 
+  display: inline-block; 
+  border: 4px solid rgba(0,0,0,0.1); 
+  border-top-color: #007bff; 
+  border-radius: 50%; 
+  width: 40px; 
+  height: 40px; 
+  animation: spin 1s linear infinite; 
+}
+@keyframes spin { 
+  to { transform: rotate(360deg); } 
+}
 </style>
