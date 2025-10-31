@@ -168,8 +168,12 @@ const loadAvatar = (url, animations) => {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
             // child.receiveShadow = true;
+            
+            // ▼▼▼ [핵심 수정] 이 라인을 if 블록 안으로 이동 ▼▼▼
+            child.matrixAutoUpdate = true; 
+            // ▲▲▲ 수정 완료 ▲▲▲
           }
-          child.matrixAutoUpdate = true;
+          // (기존 192라인에 있던 child.matrixAutoUpdate = true; 는 삭제됨)
         });
 
         visuals.scale.set(0.7, 0.7, 0.7);
