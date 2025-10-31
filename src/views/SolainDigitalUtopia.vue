@@ -135,9 +135,7 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    // ▼▼▼ [확인] 이 코드가 있는지 확인 (닉네임 지연 문제) ▼▼▼
     model.matrixAutoUpdate = true;
-    // ▲▲▲
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
@@ -163,23 +161,25 @@ const loadAvatar = (url, animations) => {
         const box = new THREE.Box3().setFromObject(visuals);
         const center = box.getCenter(new THREE.Vector3());
 
+        // ▼▼▼ [핵심 수정] SkinnedMesh와 일반 Mesh를 분리하여 처리 ▼▼▼
         visuals.traverse((child) => {
-          if (child.isMesh) {
+          if (child.isSkinnedMesh) { // 1. 스킨 메쉬 (아바타 본체)
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
-            // child.receiveShadow = true;
-            
-            // ▼▼▼ [핵심 수정] 이 라인을 if 블록 안으로 이동 ▼▼▼
-            child.matrixAutoUpdate = true; 
-            // ▲▲▲ 수정 완료 ▲▲▲
+            child.matrixAutoUpdate = false; // ★ 스킨 메쉬는 false로 설정
+          } 
+          else if (child.isMesh) { // 2. 일반 메쉬 (아바타가 든 아이템 등)
+            child.geometry.translate(-center.x, -box.min.y, -center.z);
+            child.castShadow = true;
+            child.matrixAutoUpdate = true;  // ★ 일반 메쉬는 true로 설정
           }
-          // (기존 192라인에 있던 child.matrixAutoUpdate = true; 는 삭제됨)
         });
+        // ▲▲▲ 수정 완료 ▲▲▲
 
         visuals.scale.set(0.7, 0.7, 0.7);
         visuals.position.set(0, 0, 0);
         visuals.rotation.set(0, 0, 0);
-        visuals.matrixAutoUpdate = true;
+        visuals.matrixAutoUpdate = true; // 부모 그룹(visuals)은 true 유지
         model.add(visuals);
 
         // --- 애니메이션 적용 로직 ---
