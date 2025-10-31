@@ -1357,6 +1357,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   box-shadow: 0 8px 30px rgba(74, 14, 151, 0.3); /* 퍼플 계열 그림자 */
   position: relative; /* 내부 효과를 위한 설정 */
   overflow: hidden; /* 내부 효과를 위한 설정 */
+  min-height: 200px;
 }
 
 /* 카드 아이콘 스타일 */
@@ -1424,7 +1425,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 /* 기존 DashboardPage 스타일 */
 .dashboard-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 카드 그리드 레이아웃 */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 2rem;
   margin-top: 2rem;
 }
