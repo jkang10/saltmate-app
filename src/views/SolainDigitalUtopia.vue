@@ -774,17 +774,7 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
-  let moved = false; // <-- 이 한 줄만 남깁니다.
-
-  // ▼▼▼ [삭제] 아래 3줄을 삭제하세요 ▼▼▼
-  //
-  // // 매 프레임 호출: 내 아바타 위치/회전 업데이트
-  // if (!myAvatar || !isReady.value || !scene) return;
-  //
-  //   let moved = false;
-  // ▲▲▲ [삭제] 여기까지 ▲▲▲
-
-  let moved = false;
+  let moved = false; // <-- 중복 제거됨 (이것 하나만 남김)
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0; // ★ 속도 계수 변수 상단으로 이동
