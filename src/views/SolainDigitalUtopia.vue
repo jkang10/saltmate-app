@@ -265,8 +265,11 @@ const createNicknameSprite = (text) => {
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
   const sprite = new THREE.Sprite(material);
   const scale = 0.0025;
-  sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
-  sprite.position.y = 1.5;
+sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
+  
+  // ▼▼▼ [수정] 닉네임 Y 위치 1.5 -> 2.5로 변경 ▼▼▼
+  sprite.position.y = 2.5; 
+  // ▲▲▲ 수정 완료 ▲▲▲
 
   // ▼▼▼ [수정] matrixAutoUpdate 추가 ▼▼▼
   sprite.matrixAutoUpdate = true;
@@ -488,9 +491,17 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       if (scene && otherPlayers[userId]) {
           loadedModel.position.copy(otherPlayers[userId].targetPosition); // 초기 위치 설정
           loadedModel.rotation.y = otherPlayers[userId].targetRotationY; // 초기 회전 설정
-          if (otherPlayers[userId].userName !== '익명') {
+    if (otherPlayers[userId].userName !== '익명') {
               const otherNickname = createNicknameSprite(otherPlayers[userId].userName);
-              loadedModel.add(otherNickname);
+              
+              // ▼▼▼ [핵심 수정] 닉네임을 myAvatar와 동일하게 visuals 그룹에 추가 ▼▼▼
+              if (loadedModel.userData.visuals) {
+                  loadedModel.userData.visuals.add(otherNickname);
+              } else {
+                  loadedModel.add(otherNickname); // visuals가 없는 비상시
+              }
+              // ▲▲▲ 수정 완료 ▲▲▲
+              
               console.log(`${playerData.userName || userId} 닉네임 추가 완료`);
           }
           scene.add(loadedModel);
