@@ -778,26 +778,23 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
-  let moved = false; // <-- 중복 제거됨 (이것 하나만 남김)
+  let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
-  let currentSpeedFactor = 1.0; // ★ 속도 계수 변수 상단으로 이동
+  let currentSpeedFactor = 1.0;
 
   // --- 1. 클릭/터치 이동 처리 ---
   if (navigationTarget.value != null) {
     // 1-1. 키보드/조이스틱 입력 시 클릭 이동 즉시 취소
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
-      // 바로 아래 else if 로직으로 넘어감
-      // (moved=false, currentAnimation='idle' 유지 -> 다음 else 블록(키보드)에서 처리)
     } else {
       // 1-2. 목표 지점까지의 거리 계산
       const targetPos = navigationTarget.value;
       const currentPos = myAvatar.position;
       const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
-      // ▼▼▼ [수정] 도착 판정 거리 0.2 -> 0.4로 변경 ▼▼▼
-      if (distance < 0.4) { // 도착 판정 (기존 0.2)
+      if (distance < 0.4) { // 도착 판정
         navigationTarget.value = null; // 목표 지점 초기화
         moved = false; // 멈춤
         currentAnimation = 'idle';
@@ -817,18 +814,18 @@ const updatePlayerMovement = (deltaTime) => {
         moveDirection.z = -1;
         moved = true;
         currentAnimation = 'walk';
-        currentSpeedFactor = 1.0; // 클릭 이동은 최고 속도
+        currentSpeedFactor = 1.0;
       }
     }
   }
   // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
-  else { // ★ 클릭 이동 중이 아닐 때만 키보드/조이스틱 처리
+  else {
     if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       moveDirection.z = -1;
       moved = true;
       currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force; // ★ 조이스틱 속도 설정
+      currentSpeedFactor = joystickData.value.force;
 
       // 조이스틱 회전 로직
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
@@ -838,7 +835,7 @@ const updatePlayerMovement = (deltaTime) => {
       myAvatar.rotation.y += rotationChange;
 
     } else if (!joystickData.value.active) { // 키보드 입력
-      currentSpeedFactor = 1.0; // ★ 키보드 속도 설정
+      currentSpeedFactor = 1.0;
       if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
         moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
       }
@@ -857,7 +854,6 @@ const updatePlayerMovement = (deltaTime) => {
   }
   // --- 입력 처리 끝 ---
 
-  // ▼▼▼ [수정] cityMap 변수 선언을 Y위치 고정 로직에서 여기로 이동 ▼▼▼
   const cityMap = scene.getObjectByName("cityMap");
   
   // --- 이동 적용 (moved=true일 때) ---
@@ -869,18 +865,13 @@ const updatePlayerMovement = (deltaTime) => {
     );
     velocity.applyQuaternion(myAvatar.quaternion);
 
-    // ▼▼▼ [신규] 충돌 감지 로직 ▼▼▼
-    if (cityMap && velocity.lengthSq() > 0) { // 이동할 때만 체크
-      const avatarHeight = 1.0; // 아바타 "가슴" 높이
-      const avatarRadius = 0.3; // 아바타 "반경"
-      // 아바타의 현재 위치 (가슴 높이)
+    // ▼▼▼ [수정] 충돌 감지 로직 수정 ▼▼▼
+    if (cityMap && velocity.lengthSq() > 0) {
+      const avatarHeight = 1.0;
+      const avatarRadius = 0.3;
       const currentPosition = myAvatar.position.clone().add(new THREE.Vector3(0, avatarHeight, 0));
-      // 이동 방향
       const movementDirection = velocity.clone().normalize();
-      // 이번 프레임에 이동할 거리
       const movementDistance = velocity.length();
-
-      // 1. 전방 충돌 감지
       const raycaster = new THREE.Raycaster(currentPosition, movementDirection, 0, movementDistance + avatarRadius);
       const intersects = raycaster.intersectObject(cityMap, true);
 
@@ -888,6 +879,14 @@ const updatePlayerMovement = (deltaTime) => {
         // 충돌이 감지되면 velocity를 0으로 설정하여 이동을 막음
         velocity.set(0, 0, 0);
         moved = false; // 이동을 안했으므로 moved도 false로 (서버 업데이트 방지)
+
+        // ★★★ [핵심 수정] ★★★
+        // 이동을 취소하고, 클릭 타겟도 초기화하여 무한 반복 방지
+        currentAnimation = 'idle';
+        if (navigationTarget.value != null) {
+            navigationTarget.value = null;
+        }
+        // ★★★ [수정 완료] ★★★
       }
     }
     // ▲▲▲ 충돌 감지 로직 끝 ▲▲▲
@@ -900,7 +899,6 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // ▼▼▼ [수정] cityMap 변수는 이미 위에서 선언됨 ▼▼▼
   let groundY = myAvatar.position.y;
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
@@ -940,7 +938,6 @@ const updatePlayerMovement = (deltaTime) => {
         // 기존 액션에서 목표 액션으로 부드럽게 전환
         currentPlayingAction.crossFadeTo(targetAction, 0.3);
       }
-      // console.log(`Animation Changed: ${currentAnimation}`); // 디버깅 로그
     } else if (!targetAction && actions.idle && !actions.idle.isRunning()) {
       // 목표 액션도 없고 Idle도 실행 중 아니면 Idle 재생 (방어 코드)
       actions.idle.reset().play();
