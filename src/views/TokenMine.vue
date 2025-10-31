@@ -10,7 +10,7 @@
       <div class="balance-grid">
         <div class="balance-item">
           <span class="token-name">SaltMate (연료)</span>
-          <span class="token-amount">{{ formatNumber(saltmatePoints) }} P</span>
+          <span class="token-amount">{{ formatNumber(saltmatePoints) }} SaltMate</span>
         </div>
         <div class="balance-item">
           <span class="token-name">COBS</span>
@@ -60,7 +60,7 @@
 
       <div class="auto-mine-actions">
         <button @click="addFuel" :disabled="isProcessing || saltmatePoints < 4000" class="btn btn-fuel">
-          <span v-if="!isProcessing">연료 충전하기 (4,000 P)</span>
+          <span v-if="!isProcessing">연료 충전하기 (4,000 SaltMate)</span>
           <span v-else>처리 중...</span>
         </button>
         <button @click="claimAutoReward" :disabled="isProcessing || calculatedAutoReward < 0.01" class="btn btn-claim">

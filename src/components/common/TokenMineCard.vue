@@ -66,7 +66,7 @@ export default {
       if (isLoading.value) return '광산 상태를 불러오는 중...';
       if (!auth.currentUser) return '로그인 후 나의 광산을 확인하세요.';
       if (isAutoMining.value) {
-        return `자동 채굴 진행 중... (현재 연료: ${autoMineFuel.value.toFixed(0)} P)`;
+        return `자동 채굴 진행 중... (현재 연료: ${autoMineFuel.value.toFixed(0)} SaltMate)`;
       }
       return '자동 채굴기 비활성. 연료를 충전해주세요.';
     });
