@@ -5,7 +5,12 @@
       <p>최고가에 도전하여 이번 주 특별 아이템을 획득하세요!</p>
     </header>
 
-    <div v-if="auction.active" class="auction-card">
+    <div v-if="isLoading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>경매 정보를 불러오는 중입니다...</p>
+    </div>
+
+    <div v-else-if="auction.active" class="auction-card">
       <div class="prize-section">
         <div class="prize-icon-wrapper">
           <i class="fas fa-gem prize-icon"></i>
@@ -47,9 +52,18 @@
           </form>
           <p v-if="error" class="error-message">{{ error }}</p>
         </div>
-        </div>
+      </div>
     </div>
     
+    <div v-else-if="!isLoading && nextAuctionPreview" class="card-placeholder coming-soon">
+      <h3><i class="fas fa-hourglass-start"></i> 다음 경매 예고</h3>
+      <h2>{{ nextAuctionPreview.prizeName }}</h2>
+      <p>{{ nextAuctionPreview.prizeDescription }}</p>
+      <div class="next-auction-time">
+        다음 주 월요일 00:30에 시작됩니다.
+      </div>
+    </div>
+
     <div v-else class="card-placeholder">
       <p>현재 진행 중인 경매가 없습니다. 다음 주 월요일 00:30에 새로운 경매가 시작됩니다.</p>
     </div>
@@ -57,10 +71,9 @@
 </template>
 
 <script setup>
-// ... 스크립트 내용은 이전과 동일 ...
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { db, functions } from '@/firebaseConfig';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore'; // [신규 추가] getDoc
 import { httpsCallable } from 'firebase/functions';
 
 const auction = reactive({ active: null });
@@ -71,23 +84,19 @@ const countdown = ref('00:00:00');
 let unsubscribe = null;
 let countdownInterval = null;
 
+const isLoading = ref(true); // [신규 추가]
+const nextAuctionPreview = ref(null); // [신규 추가]
+
 const getWeekId = () => {
-  // ▼▼▼ [핵심 수정] 이 함수 전체를 KST 기준으로 변경합니다. ▼▼▼
-  const nowKST = new Date(); // 사용자의 브라우저 시간(KST)
-  
-  const dayOfWeek = nowKST.getDay(); // 0(일) ~ 6(토)
+  const nowKST = new Date();
+  const dayOfWeek = nowKST.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  
   const monday = new Date(nowKST);
   monday.setDate(nowKST.getDate() + diff);
-  
-  // ISOString 변환 대신 수동으로 'YYYY-MM-DD' 포맷 생성
   const y = monday.getFullYear();
   const m = String(monday.getMonth() + 1).padStart(2, '0');
   const d = String(monday.getDate()).padStart(2, '0');
-  
   return `${y}-${m}-${d}`;
-  // ▲▲▲ (수정 완료) ▲▲▲
 };
 
 const isAuctionActive = computed(() => {
@@ -97,15 +106,44 @@ const isAuctionActive = computed(() => {
 
 onMounted(() => {
   const weekId = getWeekId();
-  if (!weekId) return;
+  if (!weekId) {
+    isLoading.value = false;
+    return;
+  }
+  
   const auctionRef = doc(db, "auctions", weekId);
-  unsubscribe = onSnapshot(auctionRef, (docSnap) => {
-    if (docSnap.exists()) {
+  
+  // [★수정★] onSnapshot 로직 수정
+  unsubscribe = onSnapshot(auctionRef, async (docSnap) => {
+    if (docSnap.exists() && docSnap.data().status === 'active') {
+      // 1. 활성 경매가 있으면 표시
       auction.active = { id: docSnap.id, ...docSnap.data() };
+      nextAuctionPreview.value = null; // 예고 숨김
       startCountdown();
+      isLoading.value = false;
     } else {
+      // 2. 활성 경매가 없으면, 다음 주 예고를 불러옴
       auction.active = null;
+      if (countdownInterval) clearInterval(countdownInterval);
+      
+      try {
+        const nextAuctionRef = doc(db, "configuration", "nextAuctionSetting");
+        const nextSnap = await getDoc(nextAuctionRef);
+        if (nextSnap.exists()) {
+          nextAuctionPreview.value = nextSnap.data();
+        } else {
+          nextAuctionPreview.value = null;
+        }
+      } catch (e) {
+        console.error("다음 경매 예고 로딩 실패:", e);
+        nextAuctionPreview.value = null;
+      } finally {
+        isLoading.value = false;
+      }
     }
+  }, (error) => {
+      console.error("경매 정보 구독 실패:", error);
+      isLoading.value = false;
   });
 });
 
@@ -115,30 +153,28 @@ onUnmounted(() => {
 });
 
 const startCountdown = () => {
+    // (기존과 동일)
     if(countdownInterval) clearInterval(countdownInterval);
     if (!auction.active?.endTime) return;
-
     countdownInterval = setInterval(() => {
         const now = new Date();
         const end = auction.active.endTime.toDate();
         const diff = end.getTime() - now.getTime();
-
         if (diff <= 0) {
             countdown.value = '경매가 종료되었습니다';
             clearInterval(countdownInterval);
             return;
         }
-
         const d = Math.floor(diff / (1000 * 60 * 60 * 24));
         const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
-        
         countdown.value = `${d}일 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }, 1000);
 }
 
 const placeBid = async () => {
+  // (기존과 동일)
   if (!bidAmount.value || !auction.active?.id) return;
   isBidding.value = true;
   error.value = '';
@@ -156,9 +192,10 @@ const placeBid = async () => {
 </script>
 
 <style scoped>
+/* (기존 스타일 대부분은 동일) */
 .auction-page {
   padding: 20px;
-  background-color: #f0f2f5; /* [핵심] 다른 페이지와 동일한 밝은 회색 배경 */
+  background-color: #f0f2f5;
 }
 .page-header {
   text-align: center;
@@ -170,12 +207,34 @@ const placeBid = async () => {
   margin-bottom: 10px;
 }
 .page-header h1 i {
-  color: #c0392b; /* 경매 아이콘 색상 변경 */
+  color: #c0392b;
 }
 .page-header p {
   color: #475569;
   font-size: 1.1em;
 }
+
+/* [신규 추가] 로딩 스피너 컨테이너 */
+.loading-container {
+  text-align: center;
+  padding: 50px;
+  background: #fff;
+  border-radius: 16px;
+  max-width: 700px;
+  margin: 0 auto;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+}
+.loading-spinner {
+  border: 4px solid rgba(0,0,0,0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-bottom: 15px;
+}
+/* (spin 키프레임은 하단에 이미 있음) */
 
 .auction-card {
   max-width: 700px;
@@ -198,7 +257,7 @@ const placeBid = async () => {
 }
 .prize-icon-wrapper {
   font-size: 3.5em;
-  color: #f59e0b; /* 상품 아이콘 색상 변경 */
+  color: #f59e0b;
 }
 .prize-details h2 {
   margin: 0 0 8px;
@@ -234,7 +293,6 @@ const placeBid = async () => {
   font-size: 3.5em;
   font-weight: 700;
   color: #c0392b;
-  /* [핵심] 텍스트에 불타는 듯한 애니메이션 효과 추가 */
   animation: fire-text 2s infinite alternate;
 }
 @keyframes fire-text {
@@ -316,7 +374,6 @@ const placeBid = async () => {
   transform: translateY(-3px);
   box-shadow: 0 10px 20px rgba(192, 57, 43, 0.4);
 }
-/* [핵심] 버튼 클릭 시 물결 퍼지는 애니메이션 효과 */
 .btn-bid::after {
   content: '';
   position: absolute;
@@ -345,6 +402,7 @@ const placeBid = async () => {
 
 .error-message { color: #e53e3e; margin-top: 15px; }
 
+/* [수정] card-placeholder 스타일 */
 .card-placeholder {
   background: #ffffff;
   border-radius: 16px; 
@@ -353,6 +411,36 @@ const placeBid = async () => {
   color: #64748b;
   max-width: 700px;
   margin: 0 auto;
+  text-align: center; /* [추가] */
+}
+
+/* [★신규★] 다음 경매 예고 스타일 */
+.card-placeholder.coming-soon {
+  border: 2px dashed #007bff;
+  background: #f8f9fa;
+}
+.card-placeholder.coming-soon h3 {
+  font-size: 1.2rem;
+  color: #007bff;
+  margin: 0 0 10px;
+}
+.card-placeholder.coming-soon h2 {
+  font-size: 2rem;
+  color: #333;
+  margin: 0 0 15px;
+}
+.card-placeholder.coming-soon p {
+  font-size: 1rem;
+  color: #555;
+  margin-bottom: 25px;
+}
+.next-auction-time {
+  font-weight: bold;
+  color: #1e293b;
+  background: #e9ecef;
+  padding: 10px 15px;
+  border-radius: 8px;
+  display: inline-block;
 }
 
 .spinner-small {

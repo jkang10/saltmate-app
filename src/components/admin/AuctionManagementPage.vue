@@ -1,10 +1,39 @@
 <template>
   <div class="auction-management">
     <h3><i class="fas fa-gavel"></i> 주간 경매 관리</h3>
-    <p>다음 주에 진행될 경매의 상품을 설정합니다. 설정된 내용은 다음 주 월요일 00:30에 자동으로 반영됩니다.</p>
+    <p>현재 진행 중인 경매를 확인하고, 다음 주에 진행될 경매의 상품을 설정합니다.</p>
 
-    <div class="card">
-      <h4>다음 주 경매 상품 설정</h4>
+    <div class="card current-auction">
+      <h4><i class="fas fa-play-circle"></i> 현재 진행 중인 경매 (읽기 전용)</h4>
+      <div v-if="isLoadingCurrent" class="loading-spinner"></div>
+      <div v-else-if="currentAuction">
+        <div class="form-group">
+          <label>상품 이름</label>
+          <input type="text" :value="currentAuction.prizeName" disabled>
+        </div>
+        <div class="form-group">
+          <label>상품 설명</label>
+          <textarea :value="currentAuction.prizeDescription" rows="2" disabled></textarea>
+        </div>
+        <div class="form-group-inline">
+          <div class="form-group">
+            <label>쿠폰 종류</label>
+            <input type="text" :value="currentAuction.couponType" disabled>
+          </div>
+          <div class="form-group">
+            <label>현재 최고가</label>
+            <input type="text" :value="(currentAuction.highestBid || 0).toLocaleString() + ' SaltMate'" disabled>
+          </div>
+        </div>
+      </div>
+      <p v-else class="no-data">현재 진행 중인 경매가 없습니다.</p>
+    </div>
+
+    <div class="card next-auction">
+      <h4><i class="fas fa-edit"></i> 다음 주 경매 상품 설정</h4>
+      <p style="margin-top:-10px; margin-bottom: 20px; font-size: 0.9em; color: #555;">
+        (저장 즉시 사용자 페이지의 '다음 경매' 예고편에 반영됩니다.)
+      </p>
       <form @submit.prevent="saveNextAuction">
         <div class="form-group">
           <label for="prize-name">상품 이름</label>
@@ -21,12 +50,12 @@
             <option v-for="coupon in couponTypes" :key="coupon.id" :value="coupon.id">{{ coupon.name }}</option>
           </select>
         </div>
-	<div class="form-group-inline">
-	    <div class="form-group" v-if="requiresQuantity">
-		<label>지급 수량 (개)</label>
-		<input type="number" v-model.number="nextAuction.couponDetails.quantity" required min="1" />
-	    </div>
-	</div>
+        <div class="form-group-inline">
+            <div class="form-group" v-if="requiresQuantity">
+                <label>지급 수량 (개)</label>
+                <input type="number" v-model.number="nextAuction.couponDetails.quantity" required min="1" />
+            </div>
+        </div>
         <div class="form-group-inline" v-if="nextAuction.couponType === 'SALT_MINE_BOOST'">
             <div class="form-group">
                 <label>부스트 비율 (%)</label>
@@ -52,11 +81,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'; // watch를 import에 추가
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { db } from '@/firebaseConfig';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'; // [신규 추가] onSnapshot
 
 const isSaving = ref(false);
+const isLoadingCurrent = ref(true); // [신규 추가]
+const currentAuction = ref(null); // [신규 추가]
+
 const nextAuction = reactive({
   prizeName: '',
   prizeDescription: '',
@@ -81,8 +113,20 @@ const couponTypes = ref([
     { id: 'DEEP_SEA_GOLDENTIME', name: '해양심층수 골든타임' },
 ]);
 
-watch(() => nextAuction.couponType, () => { // [수정] (newType) 파라미터를 제거합니다.
-  // 쿠폰 종류가 변경되면 세부사항을 초기화합니다.
+// [신규 추가] 현재 KST 기준 주간 ID 계산
+const getWeekId = () => {
+  const nowKST = new Date();
+  const dayOfWeek = nowKST.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(nowKST);
+  monday.setDate(nowKST.getDate() + diff);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const d = String(monday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+watch(() => nextAuction.couponType, () => {
   nextAuction.couponDetails = {
     boostPercentage: null,
     durationMinutes: null,
@@ -91,18 +135,10 @@ watch(() => nextAuction.couponType, () => { // [수정] (newType) 파라미터�
 });
 
 const requiresQuantity = computed(() => {
-    // [핵심 수정] 부스트, 자동판매, 골든타임 쿠폰도 수량 입력이 필요하므로 조건에 추가합니다.
     const types = [
-        'SALT_MINE_BOOST', 
-        'DEEP_SEA_AUTOSELL', 
-        'DEEP_SEA_GOLDENTIME',
-        'SALTPANG_TIME_PLUS_5', 
-        'SALTPANG_SCORE_X2_10S', 
-        'ITEM_RARE_SALT', 
-        'DEEP_SEA_RESEARCH', 
-        'DEEP_SEA_MINERAL', 
-        'DEEP_SEA_PLANKTON', 
-        'DEEP_SEA_RELIC'
+        'SALT_MINE_BOOST', 'DEEP_SEA_AUTOSELL', 'DEEP_SEA_GOLDENTIME',
+        'SALTPANG_TIME_PLUS_5', 'SALTPANG_SCORE_X2_10S', 'ITEM_RARE_SALT', 
+        'DEEP_SEA_RESEARCH', 'DEEP_SEA_MINERAL', 'DEEP_SEA_PLANKTON', 'DEEP_SEA_RELIC'
     ];
     return types.includes(nextAuction.couponType);
 });
@@ -118,6 +154,24 @@ const fetchNextAuction = async () => {
   if (docSnap.exists()) {
     Object.assign(nextAuction, docSnap.data());
   }
+};
+
+// [신규 추가] 현재 경매 정보 실시간 구독
+const fetchCurrentAuction = () => {
+  const weekId = getWeekId();
+  const auctionRef = doc(db, "auctions", weekId);
+  
+  onSnapshot(auctionRef, (docSnap) => {
+    if (docSnap.exists() && docSnap.data().status === 'active') {
+      currentAuction.value = docSnap.data();
+    } else {
+      currentAuction.value = null;
+    }
+    isLoadingCurrent.value = false;
+  }, (error) => {
+    console.error("현재 경매 정보 로딩 실패:", error);
+    isLoadingCurrent.value = false;
+  });
 };
 
 const saveNextAuction = async () => {
@@ -140,7 +194,10 @@ const saveNextAuction = async () => {
   }
 };
 
-onMounted(fetchNextAuction);
+onMounted(() => {
+  fetchNextAuction();
+  fetchCurrentAuction(); // [신규 추가]
+});
 </script>
 
 <style scoped>
@@ -148,12 +205,27 @@ onMounted(fetchNextAuction);
 .auction-management { display: flex; flex-direction: column; gap: 30px; }
 .card { background-color: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); }
 h3, h4 { margin-top: 0; }
+h4 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; }
+.card.current-auction h4 { color: #28a745; }
+.card.next-auction h4 { color: #007bff; }
 .form-group { margin-bottom: 20px; }
 .form-group-inline { display: flex; gap: 20px; margin-bottom: 20px; }
 .form-group-inline .form-group { flex: 1; margin-bottom: 0; }
 label { display: block; margin-bottom: 8px; font-weight: 600; }
 input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; box-sizing: border-box; }
+input:disabled, textarea:disabled { background-color: #e9ecef; cursor: not-allowed; }
 .btn-primary { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+.no-data { color: #777; font-style: italic; }
+.loading-spinner {
+  border: 4px solid rgba(0,0,0,0.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-bottom: 15px;
+}
 .spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
