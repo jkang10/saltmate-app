@@ -322,6 +322,12 @@ const routes = [
     component: () => import('@/views/SnakeGamePage.vue'),
     meta: { requiresAuth: true }
   },
+{
+  path: '/frog-game',
+  name: 'FrogGamePage',
+  component: () => import('@/views/FrogGamePage.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: '/salt-trader',
     name: 'SaltTraderPage',

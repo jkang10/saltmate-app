@@ -363,6 +363,13 @@
           <p>소금 결정을 먹고 꼬리가 닿기 전까지 최고 점수에 도전하세요!</p>
           <span class="card-enter">도전하기 &rarr;</span>
         </router-link>
+	<router-link to="/frog-game" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-frog"></i></div>
+	  <h3>솔트 프로그</h3>
+	  <p>광산 수레와 염수 강을 건너 소금 결정을 안전하게 획득하세요!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
+	<router-link to="/quiz-game" class="feature-card game">
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
