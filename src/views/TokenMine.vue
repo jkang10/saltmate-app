@@ -132,8 +132,8 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
 // [신규] 애셋 임포트
-import mineBg from '@/assets/game_assets/saltmate_skin07.png'; //
-import pickaxeSound from '@/assets/sounds/pickaxe01.mp3'; //
+import mineBg from '@/assets/game_assets/saltmate_skin07.png';
+import pickaxeSound from '@/assets/sounds/pickaxe01.mp3';
 
 // [신규] 오디오 제어
 const audioPlayer = ref(null);
@@ -144,7 +144,9 @@ const toggleSound = () => {
     if (isSoundPlaying.value) {
       audioPlayer.value.pause();
     } else {
-      audioPlayer.value.play().catch(e => console.warn("오디오 자동재생이 차단되었습니다."));
+      // ▼▼▼ [핵심 수정] e => 를 () => 로 변경 ▼▼▼
+      audioPlayer.value.play().catch(() => console.warn("오디오 자동재생이 차단되었습니다."));
+      // ▲▲▲ (수정 완료) ▲▲▲
     }
     isSoundPlaying.value = !isSoundPlaying.value;
   }
