@@ -38,19 +38,23 @@
           :style="log.style"
         ></div>
         
-        <div 
-          v-for="cart in carts"
-          :key="cart.id"
-          class="cart"
-          :style="cart.style"
-        ></div>
+	<div 
+	  v-for="cart in carts"
+	  :key="cart.id"
+	  class="cart"
+	  :class="cart.type"
+	  :style="cart.style"
+	>
+	  <i class="fas fa-truck-moving"></i>
+	</div>
 
-        <div 
-          class="frog" 
-          :style="frogStyle"
-          :class="{ 'squashed': isDead }"
-        >
-          </div>
+	<div 
+	  class="frog" 
+	  :style="frogStyle"
+	  :class="{ 'squashed': isDead }"
+	>
+	  🐸
+	</div>
       </div>
     </div>
 
