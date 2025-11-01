@@ -370,7 +370,6 @@
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
 	<router-link to="/quiz-game" class="feature-card game">
-	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
         <p>매시간 열리는 서바이벌 퀴즈쇼의 최후의 1인이 되어보세요!</p>
