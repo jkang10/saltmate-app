@@ -38,36 +38,34 @@
           :style="log.style"
         ></div>
         
-	<div 
-	  v-for="cart in carts"
-	  :key="cart.id"
-	  class="cart"
-	  :class="cart.type"
-	  :style="cart.style"
-	>
-	  <i class="fas fa-truck-moving"></i>
-	</div>
+        <div 
+          v-for="cart in carts"
+          :key="cart.id"
+          class="cart"
+          :class="cart.type"
+          :style="cart.style"
+        >
+          </div>
 
-	<div 
-	  class="frog" 
-	  :style="frogStyle"
-	  :class="{ 'squashed': isDead }"
-	>
-	  🐸
-	</div>
+        <div 
+          class="frog" 
+          :style="frogStyle"
+          :class="{ 'squashed': isDead }"
+        >
+          🐸
+        </div>
       </div>
-    </div>
 
-    <div class="joystick-controls">
-      <button class="joy-btn joy-up" @touchstart.prevent="movePlayer(0, -1)" @click="movePlayer(0, -1)"><i class="fas fa-arrow-up"></i></button>
-      <div class="joy-middle">
-        <button class="joy-btn joy-left" @touchstart.prevent="movePlayer(-1, 0)" @click="movePlayer(-1, 0)"><i class="fas fa-arrow-left"></i></button>
-        <button class="joy-btn joy-right" @touchstart.prevent="movePlayer(1, 0)" @click="movePlayer(1, 0)"><i class="fas fa-arrow-right"></i></button>
+      <div class="joystick-controls">
+        <button class="joy-btn joy-up" @touchstart.prevent="movePlayer(0, -1)" @click="movePlayer(0, -1)"><i class="fas fa-arrow-up"></i></button>
+        <div class="joy-middle">
+          <button class="joy-btn joy-left" @touchstart.prevent="movePlayer(-1, 0)" @click="movePlayer(-1, 0)"><i class="fas fa-arrow-left"></i></button>
+          <button class="joy-btn joy-right" @touchstart.prevent="movePlayer(1, 0)" @click="movePlayer(1, 0)"><i class="fas fa-arrow-right"></i></button>
+        </div>
+        <button class="joy-btn joy-down" @touchstart.prevent="movePlayer(0, 1)" @click="movePlayer(0, 1)"><i class="fas fa-arrow-down"></i></button>
       </div>
-      <button class="joy-btn joy-down" @touchstart.prevent="movePlayer(0, 1)" @click="movePlayer(0, 1)"><i class="fas fa-arrow-down"></i></button>
-    </div>
 
-    <div v-if="gameStatus !== 'playing'" class="modal-overlay">
+    </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
       <div class="modal-content">
         <h2 v-if="gameStatus === 'loading'">잠시만 기다려주세요</h2>
         <h2 v-if="gameStatus === 'lost'">게임 오버</h2>
@@ -84,272 +82,325 @@
 </template>
 
 <script setup>
-// [script setup 내용은 이전과 100% 동일합니다]
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
-const startFrogGame = httpsCallable(functions, 'startFrogGame');
-const endFrogGame = httpsCallable(functions, 'endFrogGame');
+// --- Firebase Functions ---
+const startFrogGame = httpsCallable(functions, 'startFrogGame'); //
+const endFrogGame = httpsCallable(functions, 'endFrogGame'); //
 const router = useRouter();
 
-const TILE_SIZE = 40;
-const WIDTH_TILES = 9;
-const HEIGHT_TILES = 13;
-const GAME_WIDTH = TILE_SIZE * WIDTH_TILES;
-const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES;
+// --- 게임 설정 ---
+const TILE_SIZE = 40; //
+const WIDTH_TILES = 9; //
+const HEIGHT_TILES = 13; //
+const GAME_WIDTH = TILE_SIZE * WIDTH_TILES; //
+const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES; //
 
-const gameStatus = ref('loading');
-const score = ref(0);
-const lives = ref(3);
-const frogPosition = reactive({ x: 4, y: 12 });
-const isDead = ref(false);
-const onLogId = ref(null);
-let gameLoopId = null;
+// --- 게임 상태 (Reactive) ---
+const gameStatus = ref('loading'); // 'loading', 'playing', 'lost', 'won'
+const score = ref(0); //
+const lives = ref(3); //
+const frogPosition = reactive({ x: 4, y: 12 }); // 타일 좌표 (중앙 하단)
+const isDead = ref(false); //
+const onLogId = ref(null); // 개구리가 타고 있는 뗏목 ID
+let gameLoopId = null; //
 
+// 목표 (소금 결정)
 const goals = ref([
   { filled: false }, { filled: false }, { filled: false }, 
   { filled: false }, { filled: false }
-]);
-const logs = ref([]);
-const carts = ref([]);
+]); //
 
-let lastTimestamp = 0;
+// 뗏목/통나무 (강물)
+const logs = ref([]); //
+// 장애물 (광산 수레)
+const carts = ref([]); //
+
+// --- 게임 루프 및 상태 관리 ---
+let lastTimestamp = 0; //
 
 const gameLoop = (timestamp) => {
-  if (gameStatus.value !== 'playing') return;
-  const deltaTime = (timestamp - lastTimestamp) / 1000;
-  lastTimestamp = timestamp;
-  moveObjects(logs.value, deltaTime);
-  moveObjects(carts.value, deltaTime);
-  checkOnLog();
-  checkCollisions();
-  gameLoopId = requestAnimationFrame(gameLoop);
+  if (gameStatus.value !== 'playing') return; //
+
+  const deltaTime = (timestamp - lastTimestamp) / 1000; // 초 단위
+  lastTimestamp = timestamp; //
+
+  // 1. 장애물 및 뗏목 이동
+  moveObjects(logs.value, deltaTime); //
+  moveObjects(carts.value, deltaTime); //
+
+  // 2. 개구리가 뗏목 위에 있는지 확인
+  checkOnLog(); //
+
+  // 3. 충돌 감지
+  checkCollisions(); //
+
+  // 4. 다음 프레임 요청
+  gameLoopId = requestAnimationFrame(gameLoop); //
 };
 
 const moveObjects = (objects, deltaTime) => {
   objects.forEach(obj => {
-    obj.x += obj.speed * deltaTime;
+    obj.x += obj.speed * deltaTime; //
+    // 화면 밖으로 나가면 반대편에서 등장
     if (obj.speed > 0 && obj.x > GAME_WIDTH) {
-      obj.x = -obj.width;
+      obj.x = -obj.width; //
     } else if (obj.speed < 0 && obj.x < -obj.width) {
-      obj.x = GAME_WIDTH;
+      obj.x = GAME_WIDTH; //
     }
   });
 };
 
 const checkOnLog = () => {
-  if (frogPosition.y >= 1 && frogPosition.y <= 5) { // [수정] 강물 y좌표 수정 (1~5)
-    const frogLeft = frogPosition.x * TILE_SIZE;
-    const frogRight = frogLeft + TILE_SIZE;
+  if (frogPosition.y >= 1 && frogPosition.y <= 5) { // 강물 영역
+    const frogLeft = frogPosition.x * TILE_SIZE; //
+    const frogRight = frogLeft + TILE_SIZE; //
+    
     let isOnLog = false;
     for (const log of logs.value) {
-      if (log.row === frogPosition.y) {
-        if (frogLeft < (log.x + log.width) && frogRight > log.x) {
-          onLogId.value = log.id;
-          frogPosition.x += (log.speed / TILE_SIZE) * (1000/60 / 1000);
+      if (log.row === frogPosition.y) { //
+        if (frogLeft < (log.x + log.width) && frogRight > log.x) { //
+          onLogId.value = log.id; //
+          frogPosition.x += (log.speed / TILE_SIZE) * (1000/60 / 1000); // 뗏목 속도에 맞춰 개구리 이동
           isOnLog = true;
           break;
         }
       }
     }
     if (!isOnLog) {
-      onLogId.value = null;
-      handleDeath('염수에 빠졌습니다!');
+      onLogId.value = null; //
+      handleDeath('염수에 빠졌습니다!'); //
     }
   } else {
-    onLogId.value = null;
+    onLogId.value = null; //
   }
 };
 
 const checkCollisions = () => {
-  if (isDead.value) return;
-  if (frogPosition.y >= 7 && frogPosition.y <= 11) {
-    const frogLeft = frogPosition.x * TILE_SIZE;
-    const frogRight = frogLeft + TILE_SIZE;
+  if (isDead.value) return; //
+
+  // 1. 광산 수레 충돌 (y: 7~11)
+  if (frogPosition.y >= 7 && frogPosition.y <= 11) { //
+    const frogLeft = frogPosition.x * TILE_SIZE; //
+    const frogRight = frogLeft + TILE_SIZE; //
+
     for (const cart of carts.value) {
-      if (cart.row === frogPosition.y) {
-        if (frogLeft < (cart.x + cart.width) && frogRight > cart.x) {
-          handleDeath('광산 수레에 치였습니다!');
+      if (cart.row === frogPosition.y) { //
+        if (frogLeft < (cart.x + cart.width) && frogRight > cart.x) { //
+          handleDeath('광산 수레에 치였습니다!'); //
           return;
         }
       }
     }
   }
-  if (frogPosition.x < 0 || frogPosition.x >= WIDTH_TILES || frogPosition.y < 0) {
-    handleDeath('경계선을 이탈했습니다!');
+  
+  // 2. 화면 이탈 방지
+  if (frogPosition.x < 0 || frogPosition.x >= WIDTH_TILES || frogPosition.y < 0) { //
+    handleDeath('경계선을 이탈했습니다!'); //
     return;
   }
 };
 
 const resetFrog = () => {
-  isDead.value = false;
-  onLogId.value = null;
-  frogPosition.x = 4;
-  frogPosition.y = 12;
+  isDead.value = false; //
+  onLogId.value = null; //
+  frogPosition.x = 4; //
+  frogPosition.y = 12; //
 };
 
 const handleDeath = (reason) => {
-  if (isDead.value || gameStatus.value !== 'playing') return;
-  console.log(reason);
-  isDead.value = true;
-  lives.value -= 1;
+  if (isDead.value || gameStatus.value !== 'playing') return; // 중복 사망 방지
+  console.log(reason); //
+  isDead.value = true; //
+  lives.value -= 1; //
+  
   setTimeout(() => {
     if (lives.value > 0) {
-      resetFrog();
+      resetFrog(); //
     } else {
-      gameStatus.value = 'lost';
-      cancelAnimationFrame(gameLoopId);
-      handleEndGame(score.value);
+      // 게임 오버
+      gameStatus.value = 'lost'; //
+      cancelAnimationFrame(gameLoopId); //
+      handleEndGame(score.value); //
     }
-  }, 1000);
+  }, 1000); // 1초 후 부활 또는 게임 오버
 };
 
 const handleGoal = (goalIndex) => {
   if (goals.value[goalIndex].filled) {
-    handleDeath('이미 채워진 결정입니다!');
+    handleDeath('이미 채워진 결정입니다!'); //
     return;
   }
-  goals.value[goalIndex].filled = true;
-  score.value += 300;
-  resetFrog();
-  if (goals.value.every(g => g.filled)) {
-    score.value += 1000;
-    gameStatus.value = 'won';
-    cancelAnimationFrame(gameLoopId);
-    handleEndGame(score.value);
+  
+  goals.value[goalIndex].filled = true; //
+  score.value += 300; // 성공 보상
+  resetFrog(); //
+
+  // 모든 목표 달성
+  if (goals.value.every(g => g.filled)) { //
+    score.value += 1000; // 올 클리어 보너스
+    gameStatus.value = 'won'; //
+    cancelAnimationFrame(gameLoopId); //
+    handleEndGame(score.value); //
   }
 };
 
+// --- 플레이어 조작 ---
 const movePlayer = (dx, dy) => {
-  if (isDead.value || gameStatus.value !== 'playing') return;
-  const newX = frogPosition.x + dx;
-  const newY = frogPosition.y + dy;
-  if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 12) {
+  if (isDead.value || gameStatus.value !== 'playing') return; //
+
+  const newX = frogPosition.x + dx; //
+  const newY = frogPosition.y + dy; //
+
+  // 1. 경계 체크 (y=12 이상은 못 내려감)
+  if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 12) { //
     return;
   }
-  if (newY === 0) { // [수정] 목표 라인 y좌표 수정 (0)
-    if (newX % 2 !== 0) {
-      const goalIndex = Math.floor(newX / 2);
-      handleGoal(goalIndex);
+
+  // 2. 목표 지점 도달
+  if (newY === 0) { // 목표 라인
+    if (newX % 2 !== 0) { // 1, 3, 5, 7 칸만 목표 지점
+      const goalIndex = Math.floor(newX / 2); //
+      handleGoal(goalIndex); //
     } else {
-      handleDeath('결정 사이로 빠졌습니다!');
+      handleDeath('결정 사이로 빠졌습니다!'); //
     }
     return;
   }
-  frogPosition.x = newX;
-  frogPosition.y = newY;
+
+  // 3. 이동
+  frogPosition.x = newX; //
+  frogPosition.y = newY; //
+
+  // 4. 이동 직후 점수 (앞으로 갈 때만)
   if (dy < 0) {
-    score.value += 10;
+    score.value += 10; //
   }
 };
 
 const handleKeydown = (e) => {
-  e.preventDefault();
+  e.preventDefault(); //
   switch (e.key) {
-    case 'ArrowUp': movePlayer(0, -1); break;
-    case 'ArrowDown': movePlayer(0, 1); break;
-    case 'ArrowLeft': movePlayer(-1, 0); break;
-    case 'ArrowRight': movePlayer(1, 0); break;
+    case 'ArrowUp': movePlayer(0, -1); break; //
+    case 'ArrowDown': movePlayer(0, 1); break; //
+    case 'ArrowLeft': movePlayer(-1, 0); break; //
+    case 'ArrowRight': movePlayer(1, 0); break; //
   }
 };
 
+// --- computed 스타일 ---
 const gameAreaStyle = computed(() => ({
-  width: `${GAME_WIDTH}px`,
-  height: `${GAME_HEIGHT}px`,
+  width: `${GAME_WIDTH}px`, //
+  height: `${GAME_HEIGHT}px`, //
 }));
 
 const frogStyle = computed(() => ({
-  transform: `translate(${frogPosition.x * TILE_SIZE}px, ${frogPosition.y * TILE_SIZE}px)`,
-  width: `${TILE_SIZE}px`,
-  height: `${TILE_SIZE}px`,
+  transform: `translate(${frogPosition.x * TILE_SIZE}px, ${frogPosition.y * TILE_SIZE}px)`, //
+  width: `${TILE_SIZE}px`, //
+  height: `${TILE_SIZE}px`, //
 }));
 
+// --- 초기화 및 백엔드 연동 ---
 const initializeGameObjects = () => {
+  // 뗏목 설정 (y: 1~5)
   logs.value = [
-    { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
-    { id: 'l2', row: 1, x: TILE_SIZE * 5, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
-    { id: 'l3', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' },
-    { id: 'l4', row: 3, x: 0, width: TILE_SIZE * 4, speed: 40, type: 'raft-160' },
-    { id: 'l5', row: 4, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -120, type: 'raft-80' },
-    { id: 'l6', row: 5, x: 0, width: TILE_SIZE * 3, speed: 70, type: 'raft-120' },
+    { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' }, //
+    { id: 'l2', row: 1, x: TILE_SIZE * 5, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' }, //
+    { id: 'l3', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' }, //
+    { id: 'l4', row: 3, x: 0, width: TILE_SIZE * 4, speed: 40, type: 'raft-160' }, //
+    { id: 'l5', row: 4, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -120, type: 'raft-80' }, //
+    { id: 'l6', row: 5, x: 0, width: TILE_SIZE * 3, speed: 70, type: 'raft-120' }, //
   ];
+  // 광산 수레 설정 (y: 7~11)
   carts.value = [
-    { id: 'c1', row: 7, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' },
-    { id: 'c2', row: 8, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c3', row: 8, x: TILE_SIZE * 3, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c4', row: 9, x: 0, width: TILE_SIZE * 3, speed: -150, type: 'cart-120' },
-    { id: 'c5', row: 10, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: 110, type: 'cart-80' },
-    { id: 'c6', row: 11, x: 0, width: TILE_SIZE, speed: -70, type: 'cart-40' },
-    { id: 'c7', row: 11, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' },
+    { id: 'c1', row: 7, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' }, //
+    { id: 'c2', row: 8, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' }, //
+    { id: 'c3', row: 8, x: TILE_SIZE * 3, width: TILE_SIZE, speed: 80, type: 'cart-40' }, //
+    { id: 'c4', row: 9, x: 0, width: TILE_SIZE * 3, speed: -150, type: 'cart-120' }, //
+    { id: 'c5', row: 10, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: 110, type: 'cart-80' }, //
+    { id: 'c6', row: 11, x: 0, width: TILE_SIZE, speed: -70, type: 'cart-40' }, //
+    { id: 'c7', row: 11, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' }, //
   ];
+  
+  // 객체 스타일에 미리 계산된 값 할당
   [...logs.value, ...carts.value].forEach(obj => {
     obj.style = computed(() => ({
-      transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`,
-      width: `${obj.width}px`,
-      height: `${TILE_SIZE}px`,
+      transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`, //
+      width: `${obj.width}px`, //
+      height: `${TILE_SIZE}px`, //
     }));
   });
 };
 
 const handleStartGame = async () => {
   if (!auth.currentUser) {
-    alert("로그인이 필요합니다.");
-    router.push('/login');
+    alert("로그인이 필요합니다."); //
+    router.push('/login'); //
     return;
   }
   try {
-    await startFrogGame();
-    score.value = 0;
-    lives.value = 3;
-    goals.value.forEach(g => g.filled = false);
-    resetFrog();
-    initializeGameObjects();
-    gameStatus.value = 'playing';
-    window.addEventListener('keydown', handleKeydown);
-    lastTimestamp = performance.now();
-    gameLoopId = requestAnimationFrame(gameLoop);
+    await startFrogGame(); //
+    // 성공 시 게임 시작
+    score.value = 0; //
+    lives.value = 3; //
+    goals.value.forEach(g => g.filled = false); //
+    resetFrog(); //
+    initializeGameObjects(); //
+    gameStatus.value = 'playing'; //
+    
+    // PC 키보드 리스너 추가
+    window.addEventListener('keydown', handleKeydown); //
+    // 게임 루프 시작
+    lastTimestamp = performance.now(); //
+    gameLoopId = requestAnimationFrame(gameLoop); //
+
   } catch (error) {
-    console.error("게임 시작 오류:", error);
-    alert(`게임 시작 실패: ${error.message}`);
-    router.push('/dashboard');
+    console.error("게임 시작 오류:", error); //
+    alert(`게임 시작 실패: ${error.message}`); //
+    router.push('/dashboard'); //
   }
 };
 
 const handleEndGame = async (finalScore) => {
-  window.removeEventListener('keydown', handleKeydown);
+  // 리스너 제거
+  window.removeEventListener('keydown', handleKeydown); //
+  
   if (finalScore > 0) {
     try {
-      await endFrogGame({ score: finalScore });
+      await endFrogGame({ score: finalScore }); //
+      // 점수 저장 성공
     } catch (error) {
-      console.error("점수 저장 오류:", error);
-      alert(`점수 저장 실패: ${error.message}`);
+      console.error("점수 저장 오류:", error); //
+      alert(`점수 저장 실패: ${error.message}`); //
     }
   }
 };
 
 const goToDashboard = () => {
-  router.push('/dashboard');
+  router.push('/dashboard'); //
 };
 
 onMounted(() => {
-  handleStartGame();
+  handleStartGame(); //
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('keydown', handleKeydown); //
   if (gameLoopId) {
-    cancelAnimationFrame(gameLoopId);
+    cancelAnimationFrame(gameLoopId); //
   }
+  // 사용자가 페이지를 강제로 떠날 경우, 게임이 진행중이었다면 종료 처리 (점수 없음)
   if (gameStatus.value === 'playing') {
-    handleEndGame(0);
+    handleEndGame(0); //
   }
 });
+
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] 이 클래스를 수정하세요 ▼▼▼ */
 .frog-game-page {
   --tile-size: 40px;
   --game-width: 360px;
@@ -362,19 +413,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* [수정] center -> flex-start (상단부터 정렬) */
-  justify-content: flex-start; 
-  /* [수정] padding을 상/하단 분리, 하단에 150px 여유 공간 확보 */
-  padding: 10px 10px 150px 10px; 
+  justify-content: flex-start; /* 상단부터 정렬 */
+  padding: 10px; /* 상하좌우 최소 여백 */
   background-color: #1a1a2e;
   width: 100%;
-  /* [수정] height -> min-height (내용이 길어지면 스크롤 허용) */
-  min-height: 100vh; 
+  min-height: 100vh; /* 최소 화면 높이 */
   box-sizing: border-box;
-  position: relative;
 }
 
-/* ( .game-stats-glass ... .frog ... .frog.squashed ... @keyframes squash ... 는 변경 없음 ) */
 .game-stats-glass {
   display: flex;
   justify-content: space-between;
@@ -406,6 +452,7 @@ onUnmounted(() => {
   font-size: 1.2rem;
   color: #2ecc71;
 }
+
 .game-area-wrapper {
   width: 100%;
   max-width: var(--game-width);
@@ -414,6 +461,7 @@ onUnmounted(() => {
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
   flex-shrink: 0;
+  position: relative; /* 조이스틱의 기준점 */
 }
 .game-area {
   position: relative;
@@ -430,6 +478,7 @@ onUnmounted(() => {
 .mid-zone { top: calc(var(--tile-size) * 6); background-color: var(--color-safe); }
 .water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 5); background-color: var(--color-water); }
 .goal-zone { top: 0; background-color: var(--color-goal); }
+
 .goal {
   position: absolute;
   top: 0;
@@ -450,6 +499,7 @@ onUnmounted(() => {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
 .log, .cart {
   position: absolute;
   will-change: transform;
@@ -463,8 +513,9 @@ onUnmounted(() => {
 .cart-80 { background-image: url('@/assets/game_assets/card_80xx40.png'); }
 .cart-120 { background-image: url('@/assets/game_assets/card_120xx40.png'); }
 .cart i {
-  display: none;
+  display: none; /* 디버깅용 아이콘 숨김 */
 }
+
 .frog {
   position: absolute;
   top: 0;
@@ -488,11 +539,9 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* ▼▼▼ [핵심 수정] 조이스틱 클래스를 수정하세요 ▼▼▼ */
 .joystick-controls {
   position: absolute;
-  /* [수정] 모바일 하단 바(safe area)를 고려하여 여백을 줍니다. */
-  bottom: calc(15px + env(safe-area-inset-bottom));
+  bottom: calc(15px + env(safe-area-inset-bottom)); /* 하단 여백 + 아이폰 하단바 대응 */
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -504,8 +553,6 @@ onUnmounted(() => {
   -webkit-user-select: none;
   width: 210px;
 }
-
-/* (이하 .joy-middle, .joy-btn, media query, modal 등 나머지 스타일은 100% 동일하게 유지) */
 .joy-middle {
   display: flex;
   width: 100%;
@@ -536,6 +583,7 @@ onUnmounted(() => {
     display: none;
   }
 }
+
 .modal-overlay {
   position: fixed;
   top: 0;
