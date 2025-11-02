@@ -83,28 +83,25 @@
 </template>
 
 <script setup>
+// (Script setup 내용은 이전과 100% 동일합니다)
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
-// --- Firebase Functions ---
 const startFrogGame = httpsCallable(functions, 'startFrogGame');
 const endFrogGame = httpsCallable(functions, 'endFrogGame');
 const router = useRouter();
 
-// --- 게임 설정 (맵 확장) ---
 const TILE_SIZE = 40;
 const WIDTH_TILES = 9;
 const HEIGHT_TILES = 16;
 const GAME_WIDTH = TILE_SIZE * WIDTH_TILES;
 const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES;
-
-// --- 게임 상태 ---
 const gameStatus = ref('loading');
 const score = ref(0);
 const lives = ref(3);
-const frogPosition = reactive({ x: 4, y: 15 }); // 출발 Y좌표 15
+const frogPosition = reactive({ x: 4, y: 15 });
 const isDead = ref(false);
 const onLogId = ref(null);
 let gameLoopId = null;
@@ -115,8 +112,6 @@ const goals = ref([
 const logs = ref([]);
 const carts = ref([]);
 let lastTimestamp = 0;
-
-// --- 게임 루프 ---
 const gameLoop = (timestamp) => {
   if (gameStatus.value !== 'playing') return;
   const deltaTime = (timestamp - lastTimestamp) / 1000;
@@ -127,8 +122,6 @@ const gameLoop = (timestamp) => {
   checkCollisions();
   gameLoopId = requestAnimationFrame(gameLoop);
 };
-
-// --- 객체 이동 ---
 const moveObjects = (objects, deltaTime) => {
   objects.forEach(obj => {
     obj.x += obj.speed * deltaTime;
@@ -139,10 +132,7 @@ const moveObjects = (objects, deltaTime) => {
     }
   });
 };
-
-// --- 충돌 및 뗏목 감지 ---
 const checkOnLog = () => {
-  // 강물 Y좌표: 1~6
   if (frogPosition.y >= 1 && frogPosition.y <= 6) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
@@ -165,11 +155,8 @@ const checkOnLog = () => {
     onLogId.value = null;
   }
 };
-
 const checkCollisions = () => {
   if (isDead.value) return;
-
-  // 광산 수레 Y좌표: 8~13
   if (frogPosition.y >= 8 && frogPosition.y <= 13) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
@@ -182,21 +169,17 @@ const checkCollisions = () => {
       }
     }
   }
-  
   if (frogPosition.x < 0 || frogPosition.x >= WIDTH_TILES || frogPosition.y < 0) {
     handleDeath('경계선을 이탈했습니다!');
     return;
   }
 };
-
-// --- 사망/골/리셋 ---
 const resetFrog = () => {
   isDead.value = false;
   onLogId.value = null;
   frogPosition.x = 4;
-  frogPosition.y = 15; // 출발 Y좌표 15
+  frogPosition.y = 15;
 };
-
 const handleDeath = (reason) => {
   if (isDead.value || gameStatus.value !== 'playing') return;
   console.log(reason);
@@ -212,7 +195,6 @@ const handleDeath = (reason) => {
     }
   }, 1000);
 };
-
 const handleGoal = (goalIndex) => {
   if (goals.value[goalIndex].filled) {
     handleDeath('이미 채워진 결정입니다!');
@@ -228,18 +210,13 @@ const handleGoal = (goalIndex) => {
     handleEndGame(score.value);
   }
 };
-
-// --- 플레이어 조작 (점수 버그 수정) ---
 const movePlayer = (dx, dy) => {
   if (isDead.value || gameStatus.value !== 'playing') return;
   const newX = frogPosition.x + dx;
   const newY = frogPosition.y + dy;
-  
-  // Y좌표 하단 제한: 15
   if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 15) {
     return;
   }
-  // 목표 지점 Y좌표: 0
   if (newY === 0) {
     if (newX % 2 !== 0) {
       const goalIndex = Math.floor(newX / 2);
@@ -251,16 +228,10 @@ const movePlayer = (dx, dy) => {
   }
   frogPosition.x = newX;
   frogPosition.y = newY;
-
-  // ▼▼▼ [핵심 수정] 출발 지점(Y=14, 15)에서는 위로 가도 점수 X ▼▼▼
-  // (Y=13은 광산길이므로 이때부터 점수 획득)
   if (dy < 0 && newY <= 13) {
     score.value += 10;
   }
-  // ▲▲▲ (수정 완료) ▲▲▲
 };
-
-// --- 키보드 핸들러 ---
 const handleKeydown = (e) => {
   e.preventDefault();
   switch (e.key) {
@@ -270,8 +241,6 @@ const handleKeydown = (e) => {
     case 'ArrowRight': movePlayer(1, 0); break;
   }
 };
-
-// --- Computed 스타일 ---
 const gameAreaStyle = computed(() => ({
   width: `${GAME_WIDTH}px`,
   height: `${GAME_HEIGHT}px`,
@@ -281,10 +250,7 @@ const frogStyle = computed(() => ({
   width: `${TILE_SIZE}px`,
   height: `${TILE_SIZE}px`,
 }));
-
-// --- 객체 초기화 (맵 확장) ---
 const initializeGameObjects = () => {
-  // 뗏목 설정 (y: 1~6) - 6줄
   logs.value = [
     { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
     { id: 'l2', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' },
@@ -293,7 +259,6 @@ const initializeGameObjects = () => {
     { id: 'l5', row: 5, x: 0, width: TILE_SIZE * 3, speed: 70, type: 'raft-120' },
     { id: 'l6', row: 6, x: TILE_SIZE * 3, width: TILE_SIZE * 3, speed: -50, type: 'raft-120' },
   ];
-  // 광산 수레 설정 (y: 8~13) - 6줄
   carts.value = [
     { id: 'c1', row: 8, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' },
     { id: 'c2', row: 9, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' },
@@ -304,7 +269,6 @@ const initializeGameObjects = () => {
     { id: 'c7', row: 12, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' },
     { id: 'c8', row: 13, x: 0, width: TILE_SIZE * 2, speed: 130, type: 'cart-80' },
   ];
-  
   [...logs.value, ...carts.value].forEach(obj => {
     obj.style = computed(() => ({
       transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`,
@@ -313,8 +277,6 @@ const initializeGameObjects = () => {
     }));
   });
 };
-
-// --- 게임 시작/종료/마운트 ---
 const handleStartGame = async () => {
   if (!auth.currentUser) {
     alert("로그인이 필요합니다.");
@@ -380,17 +342,23 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* 세로 중앙 정렬 */
+  /* [★수정★] 세로 중앙 정렬로 변경 */
+  justify-content: center; 
   padding: 10px;
   background-color: #1a1a2e;
   width: 100%;
-  min-height: 100vh;
+  /* [★수정★] 100vh -> 100dvh (동적 뷰포트 높이) */
+  min-height: 100dvh;
   box-sizing: border-box;
+  overflow: hidden; /* [★추가★] 스크롤 방지 */
 }
 
+/* [★수정★] 게임 영역 래퍼가 모든 UI의 기준점 */
 .game-area-wrapper {
   width: 100%;
   max-width: var(--game-width);
+  /* [★수정★] 9:16 비율이 되도록 최대 높이 설정 */
+  max-height: calc(100dvh - 20px); /* 패딩 10px * 2 */
   aspect-ratio: 9 / 16; /* 9:16 비율 (360x640) */
   overflow: hidden;
   border-radius: 8px;
@@ -399,6 +367,7 @@ onUnmounted(() => {
   position: relative; /* 모든 오버레이 UI의 기준 */
 }
 
+/* [★수정★] 점수판을 래퍼 안으로 이동 (오버레이) */
 .game-stats-glass {
   position: absolute;
   top: 10px;

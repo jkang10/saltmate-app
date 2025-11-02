@@ -71,11 +71,12 @@
           <p v-else class="qr-error">{{ qrModal.error }}</p>
         </div>
       </div>
-      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
+// (script setup 내용은 이전과 100% 동일합니다)
 import { ref, onMounted, onUnmounted, watch, reactive, computed } from "vue";
 import { auth, db, functions, rtdb } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
@@ -87,7 +88,6 @@ import QrcodeVue from 'qrcode.vue';
 
 const router = useRouter();
 const route = useRoute();
-
 const isLoggedIn = ref(false);
 const userName = ref("");
 const isNavActive = ref(false);
@@ -107,11 +107,8 @@ let authUnsubscribe = null;
 let presenceRef = null;
 let matchmakingUnsubscribe = null;
 
-// [★수정★] 'isGamePage' 정의는 그대로 유지
 const isGamePage = computed(() => route.meta.isGamePage === true);
-
 const managePresence = (user) => {
-  // ( ... 기존 함수 내용 ... )
   if (user) {
     presenceRef = dbRef(rtdb, `presence/${user.uid}`);
     const connectedRef = dbRef(rtdb, ".info/connected");
@@ -128,9 +125,7 @@ const managePresence = (user) => {
     }
   }
 };
-
 const listenToSaltPrice = () => {
-  // ( ... 기존 함수 내용 ... )
   const marketRef = doc(db, "configuration", "saltMarket");
   saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -144,9 +139,7 @@ const listenToSaltPrice = () => {
     }
   });
 };
-
 const listenToMatchmakingQueue = () => {
-  // ( ... 기존 함수 내용 ... )
   const statsRef = doc(db, 'matchmakingQueue', '--stats--');
   matchmakingUnsubscribe = onSnapshot(statsRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -157,9 +150,7 @@ const listenToMatchmakingQueue = () => {
     }
   });
 };
-
 const checkAuthState = () => {
-  // ( ... 기존 함수 내용 ... )
   authUnsubscribe = onAuthStateChanged(auth, async (user) => {
     managePresence(user);
     if (user) {
@@ -188,9 +179,7 @@ const checkAuthState = () => {
     }
   });
 };
-
 const generateQR = async () => {
-  // ( ... 기존 함수 내용 ... )
   qrModal.visible = true;
   qrModal.isLoading = true;
   qrModal.qrId = null;
@@ -211,14 +200,10 @@ const generateQR = async () => {
     qrModal.isLoading = false;
   }
 };
-
 const closeQrModal = () => {
-  // ( ... 기존 함수 내용 ... )
   qrModal.visible = false;
 };
-
 const logout = async () => {
-  // ( ... 기존 함수 내용 ... )
   try {
     if (auth.currentUser) {
       const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
@@ -231,18 +216,13 @@ const logout = async () => {
     console.error("로그아웃 실패:", error);
   }
 };
-
 const toggleNav = () => {
-  // ( ... 기존 함수 내용 ... )
   isNavActive.value = !isNavActive.value;
 };
-
 onMounted(() => {
   checkAuthState();
 });
-
 onUnmounted(() => {
-  // ( ... 기존 함수 내용 ... )
   if (authUnsubscribe) authUnsubscribe();
   if (saltPriceUnsubscribe) saltPriceUnsubscribe();
   if (matchmakingUnsubscribe) matchmakingUnsubscribe();
@@ -251,24 +231,44 @@ onUnmounted(() => {
     remove(userPresenceRef);
   }
 });
-
 watch(() => router.currentRoute.value, () => {
   isNavActive.value = false;
 });
 </script>
 
 <style scoped>
-/* [★신규★] 게임 모드일 때 main-content의 패딩과 마진을 제거합니다. */
-.main-content.game-mode {
-  margin-top: 0 !important;
-  padding: 0 !important;
-  height: 100vh; /* 게임 페이지가 전체 높이를 차지하도록 */
+/* ▼▼▼ [핵심 수정] CSS 수정 ▼▼▼ */
+
+/* 모바일 (768px 이하)에서 'game-mode' 클래스가 #app에 적용되었을 때 */
+@media (max-width: 768px) {
+  #app.game-mode .navbar {
+    display: none; /* 1. 헤더를 숨깁니다. */
+  }
+  
+  #app.game-mode .main-content {
+    margin-top: 0 !important; /* 2. 헤더가 차지하던 70px 마진을 제거합니다. */
+    padding: 0 !important; /* 3. 게임 페이지가 패딩 없이 꽉 차도록 합니다. */
+    height: 100dvh; /* [★수정★] 100vh -> 100dvh (동적 뷰포트 높이) */
+  }
 }
 
-/* [핵심] 신규 플로팅 아이콘 버튼 스타일 */
+/* PC (769px 이상)에서는 'game-mode'여도 헤더가 보이고 main-content 마진 유지 */
+#app.game-mode .main-content {
+  /* [★추가★] PC에서는 게임이어도 헤더 마진(70px) 유지 */
+  margin-top: 70px;
+}
+@media (max-width: 768px) {
+  #app.game-mode .main-content {
+    margin-top: 0 !important; /* 모바일에서만 마진 제거 */
+  }
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
+
+/* (이하 기존 스타일은 모두 동일) */
 .fab-matchmaking-button {
   position: fixed;
-  top: 130px; /* [수정] 공지사항 바 아래로 위치 조정 */
+  top: 130px; 
   right: 25px;
   width: 55px;
   height: 55px;
@@ -286,12 +286,11 @@ watch(() => router.currentRoute.value, () => {
   transition: all 0.3s ease;
   text-decoration: none;
 }
-/* [핵심 추가] 화면 너비가 768px 이하일 때 (모바일) 적용될 스타일 */
 @media (max-width: 768px) {
   .fab-matchmaking-button {
-    top: 140px;  /* 모바일에서는 좀 더 아래로 내립니다. */
-    right: 15px; /* 오른쪽 여백을 줄입니다. */
-    width: 50px;   /* 아이콘 크기를 살짝 줄입니다. */
+    top: 140px;
+    right: 15px;
+    width: 50px;
     height: 50px;
     font-size: 1.4em;
   }
@@ -340,8 +339,6 @@ watch(() => router.currentRoute.value, () => {
     opacity: 0;
   }
 }
-
-/* --- 나머지 스타일은 기존과 동일 --- */
 .salt-ticker {
   display: flex;
   align-items: center;
