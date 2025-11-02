@@ -11,23 +11,24 @@
 
 <script>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-// [수정 1] Firestore 및 Auth 모듈 import 주석 해제 및 경로 확인
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '@/firebaseConfig';
-// [수정 2] Vue Router의 useRouter 훅 import 추가
+// [★수정★] Firestore (updateDoc) 대신 Firebase Functions (httpsCallable)를 import 합니다.
+import { functions, auth } from '@/firebaseConfig'; //
+import { httpsCallable } from 'firebase/functions'; //
 import { useRouter } from 'vue-router';
 
 export default {
   name: 'AvatarCreationPage',
   setup() {
     const rpmFrame = ref(null);
-    // [수정 2] useRouter 훅 사용
     const router = useRouter();
 
     const subdomain = 'saltmate';
     const iframeSrc = computed(() => {
       return `https://${subdomain}.readyplayer.me/avatar?frameApi`;
     });
+
+    // [★신규★] saveAvatarCustomization 함수에 대한 호출기(callable)를 생성합니다.
+    const saveAvatarFunc = httpsCallable(functions, 'saveAvatarCustomization'); //
 
     const handleMessage = (event) => {
       if (event.source !== rpmFrame.value?.contentWindow) return;
@@ -41,35 +42,42 @@ export default {
       }
 
       if (data.eventName === 'v1.avatar.exported') {
-        console.log('아바타 URL 수신 성공:', data.data.url);
-        const avatarGlbUrl = data.data.url;
-        saveUrlToFirestore(avatarGlbUrl);
+        console.log('아바타 데이터 수신 성공:', data.data);
+        const glbUrl = data.data.url;
+        // [★신규★] Ready Player Me가 제공하는 2D 렌더링(초상화) 이미지 URL
+        const renderUrl = data.data.renderUrl; 
+        
+        // [★수정★] 이전 함수 대신 새 함수를 호출합니다.
+        saveAvatarData(glbUrl, renderUrl);
       }
     };
 
-    const saveUrlToFirestore = async (url) => {
+    // [★수정★] Firestore 직접 저장 대신, 백엔드 함수를 호출하는 로직으로 변경
+    const saveAvatarData = async (glbUrl, renderUrl) => {
       try {
-        // [수정 1] Firestore 저장 로직 주석 해제
         const user = auth.currentUser;
         if (user) {
-          const userDocRef = doc(db, 'users', user.uid);
-          await updateDoc(userDocRef, {
-            avatarUrl: url // Firestore에 avatarUrl 필드로 저장
-          });
-          console.log('Firestore에 avatarUrl 저장 완료!');
-          // [수정 2] router 변수 사용하여 페이지 이동 (주석 해제)
-          // router.push({ name: 'SoleinDigitalUtopia' }); // 저장 후 이동할 페이지 이름 확인 필요
-          // [대안] 대시보드로 이동하려면
+          // 백엔드 saveAvatarCustomization 함수는 'avatarData'라는 객체를 인자로 받습니다.
+          //
+          const avatarDataPayload = {
+            glbUrl: glbUrl, // 3D 모델 URL
+            renderUrl: renderUrl // 쇼케이스용 2D 이미지 URL
+          };
+
+          // 백엔드 함수를 호출합니다.
+          await saveAvatarFunc({ avatarData: avatarDataPayload });
+
+          console.log('Firestore에 avatar 객체 및 타임스탬프 저장 완료!');
+          alert('아바타가 성공적으로 저장되었습니다!');
+          
           router.push({ name: 'DashboardPage' });
         } else {
            console.error('사용자 인증 정보를 찾을 수 없습니다.');
-           alert('로그인 상태를 확인해주세요.'); // 사용자에게 알림
+           alert('로그인 상태를 확인해주세요.');
         }
-        // [수정 3] 시뮬레이션 alert 제거 (또는 console.log로 변경)
-        // alert(`아바타 URL 저장 성공 (시뮬레이션): ${url}`);
       } catch (error) {
-        console.error('Firestore 저장 중 오류 발생:', error);
-        alert(`아바타 저장 중 오류가 발생했습니다: ${error.message}`); // 사용자에게 오류 알림
+        console.error('아바타 저장 중 오류 발생 (Cloud Function 호출):', error);
+        alert(`아바타 저장 중 오류가 발생했습니다: ${error.message}`);
       }
     };
 
@@ -88,13 +96,13 @@ export default {
   top: 0;
   left: 0;
   width: 100vw; /* 화면 전체 너비 */
-  height: 100vh; /* 화면 전체 높이 */
+  height: 100dvh; /* [★수정★] 100vh -> 100dvh (모바일 브라우저 UI 고려) */
   z-index: 1001; /* App.vue의 헤더(z-index: 1000)보다 높게 설정 */
   background-color: #f0f0f0; /* 배경색 지정 (선택 사항) */
   padding: 0;
-  margin: 0; /* 기존 margin 제거 */
-  overflow: hidden; /* 스크롤 방지 */
-  display: flex; /* 혹시 모를 내부 정렬 위해 추가 */
+  margin: 0;
+  overflow: hidden;
+  display: flex;
   justify-content: center;
   align-items: center;
 }
