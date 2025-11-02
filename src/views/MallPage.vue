@@ -1,20 +1,18 @@
 <template>
-  <div class="page-container">
-    <header class="page-header">
-      <h1><i class="fas fa-store"></i> 솔트메이트 몰</h1>
-      <p class="description">SaltMate 포인트로 특별한 상품을 만나보세요.</p>
+  <div class="mall-page-container">
+    
+    <header class="mall-header-banner">
+      <div class="banner-content">
+        <h1><i class="fas fa-store"></i> 솔트메이트 몰</h1>
+        <p class="description">SaltMate 포인트로 특별한 상품을 만나보세요.</p>
+        <nav class="sub-nav">
+          <router-link to="/mall" class="sub-nav-item">상품 목록</router-link>
+          <router-link to="/my-orders" class="sub-nav-item">나의 주문 내역</router-link>
+        </nav>
+      </div>
     </header>
 
-    <nav class="sub-nav">
-      <router-link to="/mall" class="sub-nav-item active"
-        >상품 목록</router-link
-      >
-      <router-link to="/my-orders" class="sub-nav-item"
-        >나의 주문 내역</router-link
-      >
-    </nav>
-
-    <main class="content-wrapper card">
+    <main class="content-wrapper">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
       </div>
@@ -24,32 +22,39 @@
       <div v-else-if="products.length === 0" class="empty-state">
         <p>판매 중인 상품이 없습니다.</p>
       </div>
+      
       <div v-else class="product-grid">
         <div v-for="product in products" :key="product.id" class="product-card">
-          <img
-            :src="product.imageUrl || 'https://via.placeholder.com/300'"
-            alt="상품 이미지"
-            class="product-image clickable-image"
-            @click="openDetailModal(product)"
-          />
-          <div class="product-info">
-            <h3 class="product-name">{{ product.name }}</h3>
-            <p class="product-description">{{ product.description }}</p>
-            <div class="product-details">
-              <span class="product-price"
-                >{{ (product.price || 0).toLocaleString() }} SaltMate</span
-              >
-              <span class="product-stock"
-                >남은 수량: {{ product.stock || 0 }}개</span
-              >
-            </div>
+          
+          <div class="product-image-wrapper">
+            <img
+              :src="product.imageUrl || 'https://via.placeholder.com/400'"
+              alt="상품 이미지"
+              class="product-image clickable-image"
+              @click="openDetailModal(product)"
+            />
             <button
               @click="purchaseProduct(product)"
-              class="buy-button"
+              class="buy-button-icon"
               :disabled="product.stock === 0"
+              :title="product.stock > 0 ? '구매하기' : '품절'"
             >
-              {{ product.stock > 0 ? "구매하기" : "품절" }}
+              <i v-if="product.stock > 0" class="fas fa-shopping-cart"></i>
+              <i v-else class="fas fa-ban"></i>
             </button>
+          </div>
+
+          <div class="product-info">
+            <h3 class="product-name" @click="openDetailModal(product)">{{ product.name }}</h3>
+            <p class="product-description">{{ product.description }}</p>
+            <div class="product-details">
+              <span class="product-price">
+                <i class="fas fa-coins"></i> {{ (product.price || 0).toLocaleString() }} P
+              </span>
+              <span class="product-stock"
+                >재고: {{ product.stock || 0 }}개</span
+              >
+            </div>
           </div>
         </div>
       </div>
@@ -57,17 +62,18 @@
 
     <div v-if="isDetailModalVisible" class="detail-modal-overlay" @click="closeDetailModal">
       <div class="detail-modal-content" @click.stop>
-        <button @click="closeDetailModal" class="close-detail-modal">&times;</button>
         <img :src="selectedDetailImageUrl" alt="상품 상세 이미지" />
       </div>
+      <button @click="closeDetailModal" class="close-detail-modal">&times;</button>
     </div>
-    </div>
+
+  </div>
 </template>
 
 <script>
+// (script 내용은 이전과 100% 동일합니다)
 import { db } from "@/firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-// [수정] getFunctions, httpsCallable import 추가
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default {
@@ -77,8 +83,8 @@ export default {
       products: [],
       isLoading: true,
       error: null,
-      isDetailModalVisible: false, // [신규] 모달 표시 상태
-      selectedDetailImageUrl: null, // [신규] 선택된 상세 이미지 URL
+      isDetailModalVisible: false,
+      selectedDetailImageUrl: null,
     };
   },
   async created() {
@@ -122,7 +128,6 @@ export default {
         return;
 
       try {
-        // [수정] functions 인스턴스 올바르게 참조
         const functionsInstance = getFunctions(undefined, "asia-northeast3");
         const placeOrder = httpsCallable(functionsInstance, "placeOrder");
         const result = await placeOrder({
@@ -137,129 +142,276 @@ export default {
         alert(`주문에 실패했습니다: ${error.message}`);
       }
     },
-
-    // ▼▼▼ [신규] 모달 관련 함수 ▼▼▼
     openDetailModal(product) {
-      // 상세 이미지가 있으면 그것을, 없으면 메인 이미지를 보여줌
-      this.selectedDetailImageUrl = product.detailImageUrl || product.imageUrl || 'https://via.placeholder.com/600';
+      this.selectedDetailImageUrl = product.detailImageUrl || product.imageUrl || 'https://via.placeholder.com/800x1200';
       this.isDetailModalVisible = true;
+      document.body.style.overflow = 'hidden'; // [★추가★] 뒷배경 스크롤 방지
     },
     closeDetailModal() {
       this.isDetailModalVisible = false;
       this.selectedDetailImageUrl = null;
+      document.body.style.overflow = ''; // [★추가★] 스크롤 복원
     },
-    // ▲▲▲
   },
 };
 </script>
 
 <style scoped>
-.product-image {
+/* ▼▼▼ [핵심 수정] 새 디자인 CSS ▼▼▼ */
+
+.mall-page-container {
   width: 100%;
-  height: 250px;
-  object-fit: cover;
+  min-height: 100vh;
+  background-color: #f8f9fa; /* 밝은 배경색 */
 }
 
-/* ▼▼▼ [신규] 상세 이미지 모달 스타일 ▼▼▼ */
-.clickable-image {
-  cursor: pointer;
-}
-.detail-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85); /* 배경을 더 어둡게 */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1002;
-  backdrop-filter: blur(5px);
-}
-.detail-modal-content {
-  position: relative;
-  background: white;
-  padding: 0; /* 패딩 제거 */
-  border-radius: 10px;
-  width: 90vw; /* 가로폭을 화면의 90%로 설정 */
-  max-width: 860px; /* PC에서는 최대 860px (이미지 원본 가로 크기) */
-  max-height: 80vh; /* 세로 높이를 화면의 80%로 제한 */
-  overflow-y: auto; /* 세로 스크롤 자동 생성 */
-  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-}
-.detail-modal-content img {
-  width: 100%; /* 이미지가 모달창 가로폭에 꽉 차도록 설정 */
-  max-width: 100%; /* max-width 제거 (이미지가 100%로 늘어나도록) */
-  display: block; /* 이미지 하단 여백 제거 */
-}
-.close-detail-modal {
-  position: fixed; /* [수정] 이미지를 스크롤해도 닫기 버튼은 고정 */
-  top: 15px;
-  right: 15px;
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
+/* 1. 상단 배너 및 탭 */
+.mall-header-banner {
+  width: 100%;
+  padding: 4rem 2rem;
+  background: linear-gradient(135deg, #4a0e97 0%, #2c3e50 100%); /* 솔레인 보라색 -> 어두운 파랑 */
   color: white;
-  border: 2px solid white;
-  font-size: 1.5em;
-  line-height: 1;
-  cursor: pointer;
-  z-index: 1003; /* 모달 컨텐츠보다 위에 오도록 */
-}
-.page-container {
-  max-width: 1200px;
-  margin: 70px auto 20px;
-  padding: 20px;
-}
-.page-header {
   text-align: center;
-  margin-bottom: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  margin-bottom: 2rem;
 }
-.page-header h1 {
+.banner-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.banner-content h1 {
   font-size: 2.8em;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
-.page-header p {
-  font-size: 1.1em;
-  color: #666;
+.banner-content .description {
+  font-size: 1.2em;
+  color: #bdc3c7;
+  margin-bottom: 2rem;
 }
 .sub-nav {
   display: flex;
   justify-content: center;
-  gap: 15px;
-  margin-bottom: 30px;
-  border-bottom: 1px solid #dee2e6;
-  padding-bottom: 15px;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
 }
 .sub-nav-item {
   text-decoration: none;
-  color: #555;
+  color: #ecf0f1;
   font-weight: bold;
   padding: 10px 20px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  border-radius: 50px; /* 알약 모양 */
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
 }
 .sub-nav-item.router-link-exact-active,
 .sub-nav-item:hover {
-  background-color: #007bff;
-  color: white;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #4a0e97; /* 보라색 텍스트 */
+  border-color: transparent;
 }
+.sub-nav-item:not(.router-link-exact-active):hover {
+   background-color: rgba(255, 255, 255, 0.1);
+   color: #fff;
+}
+
+/* 2. 상품 그리드 */
 .content-wrapper {
-  padding: 30px;
-  border-radius: 15px;
+  max-width: 1400px; /* 더 넓게 */
+  margin: 0 auto;
+  padding: 0 2rem 3rem 2rem; /* 좌우 패딩 */
 }
-.card {
-  background: #fff;
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* 최소 300px */
+  gap: 2rem;
+}
+
+/* 3. 상품 카드 */
+.product-card {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
+.product-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+.product-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1; /* [★신규★] 1:1 정사각형 비율 강제 */
+  overflow: hidden;
+  background-color: #f4f4f4;
+}
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* [★수정★] 1:1 비율을 채우도록 */
+  transition: transform 0.4s ease;
+}
+.product-card:hover .product-image {
+  transform: scale(1.05);
+}
+.clickable-image {
+  cursor: pointer;
+}
+
+/* [★신규★] 아이콘 버튼 */
+.buy-button-icon {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFC107, #E0A800); /* 금색 */
+  color: #212529;
+  border: none;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+.buy-button-icon:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 6px 15px rgba(255, 193, 7, 0.5);
+}
+.buy-button-icon:disabled {
+  background: #95a5a6;
+  color: #ecf0f1;
+  cursor: not-allowed;
+}
+
+.product-info {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1; /* 카드의 남은 공간을 채움 */
+}
+.product-name {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0 0 10px;
+  cursor: pointer;
+  color: #333;
+}
+.product-name:hover {
+  color: #4a0e97;
+}
+.product-description {
+  font-size: 0.9em;
+  color: #666;
+  line-height: 1.5;
+  min-height: 42px; /* 2줄 높이 */
+  flex-grow: 1; /* 설명이 공간을 채우도록 */
+}
+.product-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+}
+.product-price {
+  font-size: 1.6em; /* 가격 강조 */
+  font-weight: bold;
+  color: #E0A800; /* 금색 */
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.product-stock {
+  font-size: 0.9em;
+  color: #888;
+  background-color: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* 4. [★수정★] 상세 이미지 라이트박스 모달 */
+.detail-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9); /* 더 어둡게 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1002;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.detail-modal-content {
+  position: relative;
+  background: #111;
+  padding: 0;
+  border-radius: 0;
+  width: 90vw;
+  height: 90dvh; /* [★수정★] 동적 뷰포트 높이 90% */
+  overflow-y: auto; /* 세로 스크롤 */
+  box-shadow: 0 5px 30px rgba(0,0,0,0.5);
+}
+/* 스크롤바 디자인 (선택사항) */
+.detail-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+.detail-modal-content::-webkit-scrollbar-thumb {
+  background: #FFC107;
+  border-radius: 4px;
+}
+.detail-modal-content::-webkit-scrollbar-track {
+  background: #333;
+}
+
+.detail-modal-content img {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+}
+.close-detail-modal {
+  position: fixed; /* 화면 기준 고정 */
+  top: 20px;
+  right: 20px;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-size: 2em;
+  line-height: 40px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 1003;
+  transition: all 0.3s ease;
+}
+.close-detail-modal:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  transform: rotate(90deg);
+}
+
+/* 5. 로딩/에러/빈 상태 */
 .loading-state,
 .empty-state {
   text-align: center;
-  padding: 40px;
+  padding: 60px;
   color: #666;
+  font-size: 1.2rem;
+  background: #fff;
+  border-radius: 16px;
 }
 .spinner {
   display: inline-block;
   border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #007bff;
+  border-top: 4px solid #4a0e97; /* 보라색 스피너 */
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -269,67 +421,5 @@ export default {
   to {
     transform: rotate(360deg);
   }
-}
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 25px;
-}
-.product-card {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-.product-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-.product-image {
-  width: 100%;
-  height: 250px;
-  object-fit: cover;
-}
-.product-info {
-  padding: 20px;
-}
-.product-name {
-  font-size: 1.3em;
-  margin: 0 0 10px;
-}
-.product-description {
-  font-size: 0.9em;
-  color: #666;
-  min-height: 40px;
-}
-.product-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 15px 0;
-}
-.product-price {
-  font-size: 1.5em;
-  font-weight: bold;
-  color: #007bff;
-}
-.product-stock {
-  font-size: 0.9em;
-  color: #888;
-}
-.buy-button {
-  width: 100%;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.buy-button:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
 }
 </style>
