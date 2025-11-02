@@ -1,40 +1,41 @@
 <template>
   <div class="frog-game-page">
     
+    <div class="game-stats-glass">
+      <div class="stat-item">
+        <span>점수</span>
+        <strong>{{ score }}</strong>
+      </div>
+      <div class="stat-item">
+        <span>남은 목숨</span>
+        <div class="lives">
+          <i v-for="n in lives" :key="n" class="fas fa-frog"></i>
+        </div>
+      </div>
+    </div>
+
     <div 
       class="game-area-wrapper" 
       ref="gameAreaWrapper"
       @touchstart.prevent="handleTouchStart"
       @touchend.prevent="handleTouchEnd"
     >
-      
-      <div class="game-stats-glass">
-        <div class="stat-item">
-          <span>점수</span>
-          <strong>{{ score }}</strong>
-        </div>
-        <div class="stat-item">
-          <span>남은 목숨</span>
-          <div class="lives">
-            <i v-for="n in lives" :key="n" class="fas fa-frog"></i>
-          </div>
-        </div>
-      </div>
-
       <div class="game-area" :style="gameAreaStyle">
-        <div class="zone start-zone"></div>
-        <div class="zone road-zone"></div>
-        <div class="zone mid-zone"></div>
-        <div class="zone water-zone"></div>
-        <div class="zone goal-zone"></div>
+        <div class="zone start-zone" :style="zoneStyle(14, 2)"></div>
+        <div class="zone road-zone" :style="zoneStyle(8, 6)"></div>
+        <div class="zone mid-zone" :style="zoneStyle(7, 1)"></div>
+        <div class="zone water-zone" :style="zoneStyle(1, 6)"></div>
+        <div class="zone goal-zone" :style="zoneStyle(0, 1)"></div>
+
         <div 
           v-for="(goal, index) in goals" 
           :key="'goal-' + index"
           class="goal"
-          :style="{ left: `${(index * 2 + 1) * TILE_SIZE}px` }"
+          :style="goalStyle(index)"
         >
           <div v-if="goal.filled" class="goal-filled">💎</div>
         </div>
+
         <div 
           v-for="log in logs"
           :key="log.id"
@@ -42,6 +43,7 @@
           :class="log.type"
           :style="log.style"
         ></div>
+        
         <div 
           v-for="cart in carts"
           :key="cart.id"
@@ -49,6 +51,7 @@
           :class="cart.type"
           :style="cart.style"
         ></div>
+
         <div 
           class="frog" 
           :style="frogStyle"
@@ -58,7 +61,7 @@
         </div>
       </div>
 
-      </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
+    </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
       <div class="modal-content">
         <h2 v-if="gameStatus === 'loading'">잠시만 기다려주세요</h2>
         <h2 v-if="gameStatus === 'lost'">게임 오버</h2>
@@ -75,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -85,12 +88,12 @@ const startFrogGame = httpsCallable(functions, 'startFrogGame');
 const endFrogGame = httpsCallable(functions, 'endFrogGame');
 const router = useRouter();
 
-// --- 게임 설정 (맵 확장) ---
-const TILE_SIZE = 40;
+// --- [★수정★] 동적 게임 설정 ---
+const TILE_SIZE = ref(40); // 기본값, onMounted에서 재계산됨
 const WIDTH_TILES = 9;
 const HEIGHT_TILES = 16;
-const GAME_WIDTH = TILE_SIZE * WIDTH_TILES;
-const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES;
+const GAME_WIDTH = computed(() => TILE_SIZE.value * WIDTH_TILES);
+const GAME_HEIGHT = computed(() => TILE_SIZE.value * HEIGHT_TILES);
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
@@ -108,59 +111,52 @@ const logs = ref([]);
 const carts = ref([]);
 let lastTimestamp = 0;
 
-// --- [★신규★] 스와이프(터치) 컨트롤 변수 ---
-const gameAreaWrapper = ref(null); // <template>의 래퍼 엘리먼트
+// --- 스와이프(터치) 컨트롤 변수 ---
+const gameAreaWrapper = ref(null);
 const touchStartX = ref(0);
 const touchStartY = ref(0);
-const SWIPE_THRESHOLD = 30; // 30px 이상 움직여야 스와이프로 인정
+const SWIPE_THRESHOLD = 30;
+const moveLock = ref(false); // [★추가★] 한 번의 스와이프로 한 칸만 이동하도록
 
 // --- 게임 루프 ---
 const gameLoop = (timestamp) => {
   if (gameStatus.value !== 'playing') return;
-  
   const deltaTime = (timestamp - lastTimestamp) / 1000;
   lastTimestamp = timestamp;
 
   moveObjects(logs.value, deltaTime);
   moveObjects(carts.value, deltaTime);
-  
-  // ▼▼▼ [★핵심 수정★] 뗏목 버그 수정을 위해 deltaTime을 전달합니다. ▼▼▼
   checkOnLog(deltaTime); 
-  // ▲▲▲ (수정 완료) ▲▲▲
-
   checkCollisions();
   
   gameLoopId = requestAnimationFrame(gameLoop);
 };
 
-// --- 객체 이동 (변경 없음) ---
+// --- 객체 이동 ---
 const moveObjects = (objects, deltaTime) => {
   objects.forEach(obj => {
     obj.x += obj.speed * deltaTime;
-    if (obj.speed > 0 && obj.x > GAME_WIDTH) {
+    // [★수정★] GAME_WIDTH.value로 변경
+    if (obj.speed > 0 && obj.x > GAME_WIDTH.value) {
       obj.x = -obj.width;
     } else if (obj.speed < 0 && obj.x < -obj.width) {
-      obj.x = GAME_WIDTH;
+      obj.x = GAME_WIDTH.value;
     }
   });
 };
 
-// --- [★수정★] 뗏목 버그 수정 ---
-const checkOnLog = (deltaTime) => { // deltaTime 파라미터 추가
+// --- 충돌 및 뗏목 감지 ---
+const checkOnLog = (deltaTime) => {
   // 강물 Y좌표: 1~6
   if (frogPosition.y >= 1 && frogPosition.y <= 6) { 
-    const frogLeft = frogPosition.x * TILE_SIZE;
-    const frogRight = frogLeft + TILE_SIZE;
+    const frogLeft = frogPosition.x * TILE_SIZE.value;
+    const frogRight = frogLeft + TILE_SIZE.value;
     let isOnLog = false;
     for (const log of logs.value) {
       if (log.row === frogPosition.y) {
         if (frogLeft < (log.x + log.width) && frogRight > log.x) {
           onLogId.value = log.id;
-          
-          // ▼▼▼ [★핵심 수정★] 잘못된 고정 프레임 계산 대신, 실제 경과 시간(deltaTime)으로 이동시킵니다. ▼▼▼
-          frogPosition.x += (log.speed * deltaTime) / TILE_SIZE;
-          // ▲▲▲ (수정 완료) ▲▲▲
-
+          frogPosition.x += (log.speed * deltaTime) / TILE_SIZE.value; // [★수정★]
           isOnLog = true;
           break;
         }
@@ -175,13 +171,13 @@ const checkOnLog = (deltaTime) => { // deltaTime 파라미터 추가
   }
 };
 
-// --- 충돌 감지 (변경 없음) ---
 const checkCollisions = () => {
   if (isDead.value) return;
+
   // 광산 수레 Y좌표: 8~13
   if (frogPosition.y >= 8 && frogPosition.y <= 13) { 
-    const frogLeft = frogPosition.x * TILE_SIZE;
-    const frogRight = frogLeft + TILE_SIZE;
+    const frogLeft = frogPosition.x * TILE_SIZE.value;
+    const frogRight = frogLeft + TILE_SIZE.value;
     for (const cart of carts.value) {
       if (cart.row === frogPosition.y) {
         if (frogLeft < (cart.x + cart.width) && frogRight > cart.x) {
@@ -191,13 +187,14 @@ const checkCollisions = () => {
       }
     }
   }
+  
   if (frogPosition.x < 0 || frogPosition.x >= WIDTH_TILES || frogPosition.y < 0) {
     handleDeath('경계선을 이탈했습니다!');
     return;
   }
 };
 
-// --- 사망/골/리셋 (변경 없음) ---
+// --- 사망/골/리셋 ---
 const resetFrog = () => {
   isDead.value = false;
   onLogId.value = null;
@@ -237,10 +234,14 @@ const handleGoal = (goalIndex) => {
 
 // --- 플레이어 조작 (점수 버그 수정됨) ---
 const movePlayer = (dx, dy) => {
-  if (isDead.value || gameStatus.value !== 'playing') return;
+  if (isDead.value || gameStatus.value !== 'playing' || moveLock.value) return; // [★수정★] moveLock 추가
+  
+  moveLock.value = true; // [★추가★] 이동 시작 시 잠금
+  
   const newX = frogPosition.x + dx;
   const newY = frogPosition.y + dy;
   if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 15) {
+    moveLock.value = false; // [★추가★] 잘못된 이동이면 잠금 해제
     return;
   }
   if (newY === 0) {
@@ -250,16 +251,21 @@ const movePlayer = (dx, dy) => {
     } else {
       handleDeath('결정 사이로 빠졌습니다!');
     }
-    return;
+  } else {
+    frogPosition.x = newX;
+    frogPosition.y = newY;
+    if (dy < 0 && newY <= 13) {
+      score.value += 10;
+    }
   }
-  frogPosition.x = newX;
-  frogPosition.y = newY;
-  if (dy < 0 && newY <= 13) {
-    score.value += 10;
-  }
+  
+  // [★추가★] 0.1초 뒤에 잠금 해제 (연속 이동 방지)
+  setTimeout(() => {
+    moveLock.value = false;
+  }, 100); 
 };
 
-// --- PC 키보드 핸들러 (변경 없음) ---
+// --- PC 키보드 핸들러 ---
 const handleKeydown = (e) => {
   e.preventDefault();
   switch (e.key) {
@@ -270,17 +276,15 @@ const handleKeydown = (e) => {
   }
 };
 
-// --- [★신규★] 모바일 스와이프 핸들러 ---
+// --- 모바일 스와이프 핸들러 ---
 const handleTouchStart = (e) => {
   if (gameStatus.value !== 'playing') return;
-  // e.preventDefault(); // 이미 <template>에서 .prevent로 처리함
   touchStartX.value = e.changedTouches[0].clientX;
   touchStartY.value = e.changedTouches[0].clientY;
 };
 
 const handleTouchEnd = (e) => {
-  if (gameStatus.value !== 'playing') return;
-  // e.preventDefault(); // 이미 <template>에서 .prevent로 처리함
+  if (gameStatus.value !== 'playing' || moveLock.value) return; // [★수정★] moveLock 추가
   
   const touchEndX = e.changedTouches[0].clientX;
   const touchEndY = e.changedTouches[0].clientY;
@@ -289,62 +293,68 @@ const handleTouchEnd = (e) => {
   const dy = touchEndY - touchStartY.value;
 
   if (Math.abs(dx) > Math.abs(dy)) {
-    // 수평 스와이프
     if (Math.abs(dx) > SWIPE_THRESHOLD) {
-      if (dx > 0) {
-        movePlayer(1, 0); // 오른쪽
-      } else {
-        movePlayer(-1, 0); // 왼쪽
-      }
+      movePlayer(dx > 0 ? 1 : -1, 0); // 좌/우
     }
   } else {
-    // 수직 스와이프
     if (Math.abs(dy) > SWIPE_THRESHOLD) {
-      if (dy > 0) {
-        movePlayer(0, 1); // 아래
-      } else {
-        movePlayer(0, -1); // 위
-      }
+      movePlayer(0, dy > 0 ? 1 : -1); // 상/하
     }
   }
 };
 
-// --- Computed 스타일 (변경 없음) ---
+// --- [★수정★] Computed 스타일 (동적 TILE_SIZE) ---
 const gameAreaStyle = computed(() => ({
-  width: `${GAME_WIDTH}px`,
-  height: `${GAME_HEIGHT}px`,
+  width: `${GAME_WIDTH.value}px`,
+  height: `${GAME_HEIGHT.value}px`,
+  // [★추가★] Z-Fold 화면에 맞게 게임 보드를 축소
+  transform: `scale(${TILE_SIZE.value / 40})`,
+  transformOrigin: 'top left',
 }));
 const frogStyle = computed(() => ({
-  transform: `translate(${frogPosition.x * TILE_SIZE}px, ${frogPosition.y * TILE_SIZE}px)`,
-  width: `${TILE_SIZE}px`,
-  height: `${TILE_SIZE}px`,
+  transform: `translate(${frogPosition.x * TILE_SIZE.value}px, ${frogPosition.y * TILE_SIZE.value}px)`,
+  width: `${TILE_SIZE.value}px`,
+  height: `${TILE_SIZE.value}px`,
 }));
+// [★추가★] Zone 스타일 동적 계산
+const zoneStyle = (topTile, heightTile) => ({
+  top: `${topTile * TILE_SIZE.value}px`,
+  height: `${heightTile * TILE_SIZE.value}px`,
+});
+// [★추가★] Goal 스타일 동적 계산
+const goalStyle = (index) => ({
+  left: `${(index * 2 + 1) * TILE_SIZE.value}px`,
+  width: `${TILE_SIZE.value}px`,
+  height: `${TILE_SIZE.value}px`,
+});
 
-// --- 객체 초기화 (맵 확장) (변경 없음) ---
+// --- 객체 초기화 (맵 확장) ---
 const initializeGameObjects = () => {
+  // [★수정★] TILE_SIZE.value를 사용하도록 수정
   logs.value = [
-    { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
-    { id: 'l2', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' },
-    { id: 'l3', row: 3, x: 0, width: TILE_SIZE * 4, speed: 40, type: 'raft-160' },
-    { id: 'l4', row: 4, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -120, type: 'raft-80' },
-    { id: 'l5', row: 5, x: 0, width: TILE_SIZE * 3, speed: 70, type: 'raft-120' },
-    { id: 'l6', row: 6, x: TILE_SIZE * 3, width: TILE_SIZE * 3, speed: -50, type: 'raft-120' },
+    { id: 'l1', row: 1, x: 0, width: TILE_SIZE.value * 3, speed: 60, type: 'raft-120' },
+    { id: 'l2', row: 2, x: GAME_WIDTH.value, width: TILE_SIZE.value * 2, speed: -90, type: 'raft-80' },
+    { id: 'l3', row: 3, x: 0, width: TILE_SIZE.value * 4, speed: 40, type: 'raft-160' },
+    { id: 'l4', row: 4, x: GAME_WIDTH.value, width: TILE_SIZE.value * 2, speed: -120, type: 'raft-80' },
+    { id: 'l5', row: 5, x: 0, width: TILE_SIZE.value * 3, speed: 70, type: 'raft-120' },
+    { id: 'l6', row: 6, x: TILE_SIZE.value * 3, width: TILE_SIZE.value * 3, speed: -50, type: 'raft-120' },
   ];
   carts.value = [
-    { id: 'c1', row: 8, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' },
-    { id: 'c2', row: 9, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c3', row: 9, x: TILE_SIZE * 3, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c4', row: 10, x: 0, width: TILE_SIZE * 3, speed: -150, type: 'cart-120' },
-    { id: 'c5', row: 11, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: 110, type: 'cart-80' },
-    { id: 'c6', row: 12, x: 0, width: TILE_SIZE, speed: -70, type: 'cart-40' },
-    { id: 'c7', row: 12, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' },
-    { id: 'c8', row: 13, x: 0, width: TILE_SIZE * 2, speed: 130, type: 'cart-80' },
+    { id: 'c1', row: 8, x: 0, width: TILE_SIZE.value * 2, speed: -100, type: 'cart-80' },
+    { id: 'c2', row: 9, x: GAME_WIDTH.value, width: TILE_SIZE.value, speed: 80, type: 'cart-40' },
+    { id: 'c3', row: 9, x: TILE_SIZE.value * 3, width: TILE_SIZE.value, speed: 80, type: 'cart-40' },
+    { id: 'c4', row: 10, x: 0, width: TILE_SIZE.value * 3, speed: -150, type: 'cart-120' },
+    { id: 'c5', row: 11, x: GAME_WIDTH.value, width: TILE_SIZE.value * 2, speed: 110, type: 'cart-80' },
+    { id: 'c6', row: 12, x: 0, width: TILE_SIZE.value, speed: -70, type: 'cart-40' },
+    { id: 'c7', row: 12, x: TILE_SIZE.value * 4, width: TILE_SIZE.value, speed: -70, type: 'cart-40' },
+    { id: 'c8', row: 13, x: 0, width: TILE_SIZE.value * 2, speed: 130, type: 'cart-80' },
   ];
+  
   [...logs.value, ...carts.value].forEach(obj => {
     obj.style = computed(() => ({
-      transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`,
+      transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE.value}px)`,
       width: `${obj.width}px`,
-      height: `${TILE_SIZE}px`,
+      height: `${TILE_SIZE.value}px`,
     }));
   });
 };
@@ -388,10 +398,31 @@ const goToDashboard = () => {
   router.push('/dashboard');
 };
 
-// --- 마운트/언마운트 ---
-onMounted(() => {
-  handleStartGame();
-  // [★삭제★] 터치 리스너는 <template>에서 @touchstart.prevent 등으로 직접 바인딩
+// --- [★수정★] 마운트 로직 (동적 TILE_SIZE 계산) ---
+onMounted(async () => {
+  // 1. Vue가 렌더링을 완료할 때까지 기다림
+  await nextTick();
+  
+  // 2. 게임 래퍼의 실제 크기를 측정
+  const wrapperEl = gameAreaWrapper.value;
+  if (wrapperEl) {
+    const wrapperWidth = wrapperEl.clientWidth;
+    const wrapperHeight = wrapperEl.clientHeight;
+
+    // 3. 가로(9) 기준, 세로(16) 기준 TILE_SIZE를 각각 계산
+    const sizeFromWidth = wrapperWidth / WIDTH_TILES;
+    const sizeFromHeight = wrapperHeight / HEIGHT_TILES;
+
+    // 4. 두 값 중 *더 작은 값*을 최종 TILE_SIZE로 선택
+    // (Z-Fold에서는 너비 기준, 일반 폰에서는 높이 기준이 됨)
+    TILE_SIZE.value = Math.min(sizeFromWidth, sizeFromHeight);
+    
+    // 5. TILE_SIZE가 확정된 후 게임 시작
+    handleStartGame();
+  } else {
+    // 래퍼를 찾지 못한 경우 (예외 처리)
+    handleStartGame();
+  }
 });
 
 onUnmounted(() => {
@@ -402,16 +433,14 @@ onUnmounted(() => {
   if (gameStatus.value === 'playing') {
     handleEndGame(0);
   }
-  // [★삭제★] 터치 리스너 제거 로직 삭제
 });
 </script>
 
 <style scoped>
 /* ▼▼▼ [핵심 수정] CSS 전체 수정 ▼▼▼ */
 .frog-game-page {
-  --tile-size: 40px;
-  --game-width: 360px;
-  --game-height: 640px; /* 16칸 */
+  /* [★수정★] 변수들을 CSS가 아닌 JS(Computed)에서 제어하므로 삭제 */
+  /* --tile-size, --game-width, --game-height 등 삭제 */
   --color-road: #78553a;
   --color-water: #3b82f6;
   --color-safe: #c7d2fe;
@@ -420,39 +449,33 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* 세로 중앙 정렬 */
+  justify-content: flex-start; /* [★수정★] 상단 정렬 */
   padding: 10px;
   background-color: #1a1a2e;
   width: 100%;
-  min-height: 100dvh; /* 동적 뷰포트 높이 */
+  min-height: 100dvh;
   box-sizing: border-box;
-  overflow: hidden; /* 스크롤 방지 */
-}
-
-.game-area-wrapper {
-  width: 100%;
-  max-width: var(--game-width);
-  max-height: calc(100dvh - 20px); /* 패딩 10px * 2 */
-  aspect-ratio: 9 / 16; /* 9:16 비율 (360x640) */
   overflow: hidden;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-  flex-shrink: 0;
-  position: relative;
-  /* [★신규★] 스와이프 시 화면이 당겨지는 현상 방지 */
-  touch-action: none;
 }
 
+/* [★수정★] 게임 영역 래퍼 */
+.game-area-wrapper {
+  /* [★수정★] 점수판을 밖으로 뺐으므로 래퍼가 남은 공간을 모두 차지 */
+  width: 100%;
+  flex-grow: 1; /* 남은 세로 공간 모두 차지 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+  touch-action: none; /* 스와이프 제스처 */
+}
+
+/* [★수정★] 점수판 (게임 영역 밖, 상단) */
 .game-stats-glass {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  z-index: 100;
-  
   display: flex;
   justify-content: space-between;
-  width: auto;
+  width: 100%;
   max-width: 500px;
   padding: 12px 20px;
   background: rgba(44, 62, 80, 0.8);
@@ -463,6 +486,8 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   box-sizing: border-box;
+  flex-shrink: 0; /* 줄어들지 않음 */
+  margin-bottom: 10px; /* 게임 영역과 간격 */
 }
 .stat-item {
   display: flex;
@@ -482,37 +507,35 @@ onUnmounted(() => {
   color: #2ecc71;
 }
 
+/* [★수정★] 게임 맵 (JS가 크기를 제어) */
 .game-area {
   position: relative;
   background-color: #ccc;
   overflow: hidden;
-  width: 100%;
-  height: 100%;
+  /* width, height, transform은 JS의 :style 바인딩으로 제어됨 */
 }
 
-/* Zone 배경 Y좌표 (16칸 기준) */
+/* [★수정★] Zone 배경 (JS가 크기와 위치 제어) */
 .zone {
   position: absolute;
   width: 100%;
-  height: var(--tile-size);
+  /* top, height는 JS의 :style 바인딩으로 제어됨 */
 }
-.start-zone { top: calc(var(--tile-size) * 14); height: calc(var(--tile-size) * 2); background-color: var(--color-safe); }
-.road-zone { top: calc(var(--tile-size) * 8); height: calc(var(--tile-size) * 6); background-color: var(--color-road); }
-.mid-zone { top: calc(var(--tile-size) * 7); background-color: var(--color-safe); }
-.water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 6); background-color: var(--color-water); }
-.goal-zone { top: 0; background-color: var(--color-goal); }
+.start-zone { background-color: var(--color-safe); }
+.road-zone { background-color: var(--color-road); }
+.mid-zone { background-color: var(--color-safe); }
+.water-zone { background-color: var(--color-water); }
+.goal-zone { background-color: var(--color-goal); }
 
 .goal {
   position: absolute;
-  top: 0;
-  width: var(--tile-size);
-  height: var(--tile-size);
   background-color: var(--color-water);
+  /* top, left, width, height는 JS의 :style 바인딩으로 제어됨 */
 }
 .goal-filled {
   width: 100%;
   height: 100%;
-  font-size: 1.5rem;
+  font-size: 1.5rem; /* 폰트 크기는 고정 */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -528,6 +551,7 @@ onUnmounted(() => {
   will-change: transform;
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  /* transform, width, height는 JS의 :style 바인딩으로 제어됨 */
 }
 .raft-80 { background-image: url('@/assets/game_assets/raft_80x40.png'); }
 .raft-120 { background-image: url('@/assets/game_assets/raft_120x40.png'); }
@@ -535,15 +559,13 @@ onUnmounted(() => {
 .cart-40 { background-image: url('@/assets/game_assets/card_40xx40.png'); }
 .cart-80 { background-image: url('@/assets/game_assets/card_80xx40.png'); }
 .cart-120 { background-image: url('@/assets/game_assets/card_120xx40.png'); }
-.cart i {
-  display: none;
-}
 
+/* 개구리 (JS가 크기와 위치 제어) */
 .frog {
   position: absolute;
   top: 0;
   left: 0;
-  font-size: 1.8rem;
+  font-size: 1.8rem; /* 폰트 크기(이모지)는 고정 */
   will-change: transform;
   transition: transform 0.05s linear;
   display: flex;
@@ -562,7 +584,7 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* [★삭제★] 조이스틱 CSS를 모두 삭제합니다. */
+/* [★삭제★] 조이스틱 CSS 모두 삭제 (스와이프로 대체) */
 .joystick-controls,
 .joy-middle,
 .joy-btn {
