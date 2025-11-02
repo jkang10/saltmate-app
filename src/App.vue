@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <header class="navbar card glassmorphism">
+    <header v-if="!isGamePage" class="navbar card glassmorphism">
       <div class="navbar-container">
         <router-link to="/" class="navbar-brand">
           <img src="@/assets/logo.png" alt="Saltmate Logo" />
@@ -9,7 +9,7 @@
         <nav class="navbar-nav" :class="{ 'is-active': isNavActive }">
           <router-link to="/mall" class="nav-link">솔트메이트 몰</router-link>
           <router-link to="/community" class="nav-link">커뮤니티</router-link>
-	  <router-link to="/help" class="nav-link">도움말</router-link>
+          <router-link to="/help" class="nav-link">도움말</router-link>
           <router-link to="/about" class="nav-link">솔트메이트 소개</router-link>
         </nav>
         <div class="navbar-actions">
@@ -41,17 +41,17 @@
       </div>
     </header>
 
-    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0" class="fab-matchmaking-button" title="솔트팡 대전 참여하기">
+    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0 && !isGamePage" class="fab-matchmaking-button" title="솔트팡 대전 참여하기">
       <div class="pulse-ring"></div>
       <i class="fas fa-fist-raised"></i>
       <span class="fab-badge">{{ matchmakingQueueCount }}</span>
     </router-link>
 
-    <main class="main-content">
+    <main class="main-content" :class="{ 'game-mode': isGamePage }">
       <router-view />
     </main>
 
-    <button v-if="userRole === 'centerManager'" @click="generateQR" class="fab-qr-button" title="방문 인증 QR코드 생성">
+    <button v-if="userRole === 'centerManager' && !isGamePage" @click="generateQR" class="fab-qr-button" title="방문 인증 QR코드 생성">
       <i class="fas fa-qrcode"></i>
     </button>
 
@@ -74,189 +74,191 @@
   </div>
 </template>
 
-<script>
-import { ref, onMounted, onUnmounted, watch, reactive } from "vue";
+<script setup>
+// [★수정★] <script setup>으로 변경하고 computed, useRoute 추가
+import { ref, onMounted, onUnmounted, watch, reactive, computed } from "vue";
 import { auth, db, functions, rtdb } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router"; // [★수정★] useRoute 추가
 import QrcodeVue from 'qrcode.vue';
 
-export default {
-  components: {
-    QrcodeVue,
-  },
-  setup() {
-    const isLoggedIn = ref(false);
-    const userName = ref("");
-    const isNavActive = ref(false);
-    const router = useRouter();
-    const userRole = ref(null);
-    const qrModal = reactive({
-      visible: false,
-      isLoading: false,
-      qrId: null,
-      error: null,
-    });
-    const saltPrice = ref(0);
-    const priceChange = ref(0);
-    const priceClass = ref('');
-    const matchmakingQueueCount = ref(0);
-    let saltPriceUnsubscribe = null;
-    let authUnsubscribe = null;
-    let presenceRef = null;
-    let matchmakingUnsubscribe = null;
+// [★수정★] 라우트 객체
+const router = useRouter();
+const route = useRoute();
 
-    const managePresence = (user) => {
-      if (user) {
-        presenceRef = dbRef(rtdb, `presence/${user.uid}`);
-        const connectedRef = dbRef(rtdb, ".info/connected");
-        onValue(connectedRef, (snap) => {
-          if (snap.val() === true) {
-            onDisconnect(presenceRef).remove();
-            set(presenceRef, true);
-          }
-        });
-      } else {
-        if (presenceRef) {
-          remove(presenceRef);
-          presenceRef = null;
-        }
+const isLoggedIn = ref(false);
+const userName = ref("");
+const isNavActive = ref(false);
+const userRole = ref(null);
+const qrModal = reactive({
+  visible: false,
+  isLoading: false,
+  qrId: null,
+  error: null,
+});
+const saltPrice = ref(0);
+const priceChange = ref(0);
+const priceClass = ref('');
+const matchmakingQueueCount = ref(0);
+let saltPriceUnsubscribe = null;
+let authUnsubscribe = null;
+let presenceRef = null;
+let matchmakingUnsubscribe = null;
+
+// [★신규★] 현재 페이지가 '게임 페이지'인지 확인하는 computed
+const isGamePage = computed(() => route.meta.isGamePage === true);
+
+const managePresence = (user) => {
+  if (user) {
+    presenceRef = dbRef(rtdb, `presence/${user.uid}`);
+    const connectedRef = dbRef(rtdb, ".info/connected");
+    onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        onDisconnect(presenceRef).remove();
+        set(presenceRef, true);
       }
-    };
+    });
+  } else {
+    if (presenceRef) {
+      remove(presenceRef);
+      presenceRef = null;
+    }
+  }
+};
 
-    const listenToSaltPrice = () => {
-      const marketRef = doc(db, "configuration", "saltMarket");
-      saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const marketData = docSnap.data();
-          const newPrice = marketData.currentPrice;
-          if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
-            priceChange.value = newPrice - saltPrice.value;
-            priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
-          }
-          saltPrice.value = newPrice;
-        }
-      });
-    };
+const listenToSaltPrice = () => {
+  const marketRef = doc(db, "configuration", "saltMarket");
+  saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const marketData = docSnap.data();
+      const newPrice = marketData.currentPrice;
+      if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
+        priceChange.value = newPrice - saltPrice.value;
+        priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
+      }
+      saltPrice.value = newPrice;
+    }
+  });
+};
 
-    const listenToMatchmakingQueue = () => {
-      const statsRef = doc(db, 'matchmakingQueue', '--stats--');
-      matchmakingUnsubscribe = onSnapshot(statsRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const count = docSnap.data().count;
-          matchmakingQueueCount.value = count > 0 ? count : 0;
-        } else {
-          matchmakingQueueCount.value = 0;
-        }
-      });
-    };
+const listenToMatchmakingQueue = () => {
+  const statsRef = doc(db, 'matchmakingQueue', '--stats--');
+  matchmakingUnsubscribe = onSnapshot(statsRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const count = docSnap.data().count;
+      matchmakingQueueCount.value = count > 0 ? count : 0;
+    } else {
+      matchmakingQueueCount.value = 0;
+    }
+  });
+};
 
-   const checkAuthState = () => {
-      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        managePresence(user);
-        if (user) {
-          isLoggedIn.value = true;
-          listenToSaltPrice(); 
-          listenToMatchmakingQueue();
-          try {
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-              const userData = userSnap.data();
-              userName.value = userData.name || "사용자";
-              userRole.value = userData.role || 'user';
-            }
-          } catch (error) {
-            console.error("사용자 정보를 가져오는 중 오류 발생:", error);
-            userName.value = "사용자";
-            userRole.value = 'user';
-          }
-        } else {
-          isLoggedIn.value = false;
-          userName.value = "";
-          userRole.value = null;
-          if (saltPriceUnsubscribe) saltPriceUnsubscribe();
-          if (matchmakingUnsubscribe) matchmakingUnsubscribe();
-        }
-      });
-    };
-    
-    const generateQR = async () => {
-      qrModal.visible = true;
-      qrModal.isLoading = true;
-      qrModal.qrId = null;
-      qrModal.error = null;
+const checkAuthState = () => {
+  authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+    managePresence(user);
+    if (user) {
+      isLoggedIn.value = true;
+      listenToSaltPrice(); 
+      listenToMatchmakingQueue();
       try {
-        const generateFunc = httpsCallable(functions, "generateCenterQRCode");
-        const result = await generateFunc();
-        if (result.data.success) {
-          const baseUrl = window.location.origin;
-          qrModal.qrId = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
-        } else {
-          throw new Error("QR코드 생성에 실패했습니다.");
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          userName.value = userData.name || "사용자";
+          userRole.value = userData.role || 'user';
         }
       } catch (error) {
-        console.error("QR코드 생성 오류:", error);
-        qrModal.error = error.message;
-      } finally {
-        qrModal.isLoading = false;
+        console.error("사용자 정보를 가져오는 중 오류 발생:", error);
+        userName.value = "사용자";
+        userRole.value = 'user';
       }
-    };
-
-    const closeQrModal = () => {
-      qrModal.visible = false;
-    };
-
-    const logout = async () => {
-      try {
-        if (auth.currentUser) {
-          const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
-          await remove(userPresenceRef);
-        }
-        await signOut(auth);
-        alert("로그아웃 되었습니다.");
-        router.push("/login");
-      } catch (error) {
-        console.error("로그아웃 실패:", error);
-      }
-    };
-
-    const toggleNav = () => {
-      isNavActive.value = !isNavActive.value;
-    };
-
-    onMounted(() => {
-      checkAuthState();
-    });
-
-    onUnmounted(() => {
-      if (authUnsubscribe) authUnsubscribe();
+    } else {
+      isLoggedIn.value = false;
+      userName.value = "";
+      userRole.value = null;
       if (saltPriceUnsubscribe) saltPriceUnsubscribe();
       if (matchmakingUnsubscribe) matchmakingUnsubscribe();
-      if (auth.currentUser) {
-        const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
-        remove(userPresenceRef);
-      }
-    });
-
-    watch(() => router.currentRoute.value, () => {
-      isNavActive.value = false;
-    });
-
-    return {
-      isLoggedIn, userName, logout, isNavActive, toggleNav,
-      userRole, qrModal, generateQR, closeQrModal,
-      saltPrice, priceChange, priceClass,
-      matchmakingQueueCount,
-    };
-  },
+    }
+  });
 };
+
+const generateQR = async () => {
+  qrModal.visible = true;
+  qrModal.isLoading = true;
+  qrModal.qrId = null;
+  qrModal.error = null;
+  try {
+    const generateFunc = httpsCallable(functions, "generateCenterQRCode");
+    const result = await generateFunc();
+    if (result.data.success) {
+      const baseUrl = window.location.origin;
+      qrModal.qrId = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
+    } else {
+      throw new Error("QR코드 생성에 실패했습니다.");
+    }
+  } catch (error) {
+    console.error("QR코드 생성 오류:", error);
+    qrModal.error = error.message;
+  } finally {
+    qrModal.isLoading = false;
+  }
+};
+
+const closeQrModal = () => {
+  qrModal.visible = false;
+};
+
+const logout = async () => {
+  try {
+    if (auth.currentUser) {
+      const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
+      await remove(userPresenceRef);
+    }
+    await signOut(auth);
+    alert("로그아웃 되었습니다.");
+    router.push("/login");
+  } catch (error) {
+    console.error("로그아웃 실패:", error);
+  }
+};
+
+const toggleNav = () => {
+  isNavActive.value = !isNavActive.value;
+};
+
+onMounted(() => {
+  checkAuthState();
+});
+
+onUnmounted(() => {
+  if (authUnsubscribe) authUnsubscribe();
+  if (saltPriceUnsubscribe) saltPriceUnsubscribe();
+  if (matchmakingUnsubscribe) matchmakingUnsubscribe();
+  if (auth.currentUser) {
+    const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
+    remove(userPresenceRef);
+  }
+});
+
+watch(() => router.currentRoute.value, () => {
+  isNavActive.value = false;
+});
+
+// (setup() 에서는 return이 필요 없습니다)
 </script>
 
 <style scoped>
+/* [★신규★] 게임 모드일 때 main-content의 패딩과 마진을 제거합니다. */
+.main-content.game-mode {
+  margin-top: 0 !important;
+  padding: 0 !important;
+  height: 100vh; /* 게임 페이지가 전체 높이를 차지하도록 */
+}
+
 /* [핵심] 신규 플로팅 아이콘 버튼 스타일 */
 .fab-matchmaking-button {
   position: fixed;

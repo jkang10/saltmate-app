@@ -322,12 +322,12 @@ const routes = [
     component: () => import('@/views/SnakeGamePage.vue'),
     meta: { requiresAuth: true }
   },
-{
-  path: '/frog-game',
-  name: 'FrogGamePage',
-  component: () => import('@/views/FrogGamePage.vue'),
-  meta: { requiresAuth: true }
-},
+  {
+      path: '/frog-game',
+      name: 'FrogGamePage',
+      component: () => import('@/views/FrogGamePage.vue'),
+      meta: { requiresAuth: true, isGamePage: true } // <-- 이 부분을 추가하세요!
+  },
   {
     path: '/salt-trader',
     name: 'SaltTraderPage',

@@ -352,38 +352,39 @@ onUnmounted(() => {
 /* ▼▼▼ [핵심 수정] CSS 변수를 :root에서 .frog-game-page로 이동 ▼▼▼ */
 .frog-game-page {
   --tile-size: 40px;
-  --game-width: 360px; /* 9 tiles */
-  --game-height: 520px; /* 13 tiles */
-  
-  /* [수정] 테마 색상 변경 */
-  --color-road: #78553a; /* 짙은 흙색 */
-  --color-water: #3b82f6; /* 더 밝은 파란색 (염수) */
-  --color-safe: #c7d2fe; /* 연보라/하늘색 (안전지대) */
-  --color-goal: #4a0e97; /* 솔레인 테마 보라색 (목표) */
+  --game-width: 360px;
+  --game-height: 520px;
+  --color-road: #78553a;
+  --color-water: #3b82f6;
+  --color-safe: #c7d2fe;
+  --color-goal: #4a0e97;
 
+  /* [★수정★] 레이아웃을 전체 화면(Full VH)으로 변경 */
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center; /* [수정] 게임 요소를 중앙에 배치 */
   padding: 10px;
-  background-color: #f0f2f5;
-  width: 100%; /* [수정] 전체 너비 사용 */
-  min-height: calc(100vh - 70px); /* [수정] 헤더 높이(약 70px)를 뺀 나머지 채우기 */
+  background-color: #1a1a2e; /* [수정] 어두운 게임 배경색 */
+  width: 100%;
+  height: 100vh; /* [수정] 100vh 전체 높이 사용 */
   box-sizing: border-box;
+  position: relative; /* [수정] 조이스틱을 위한 기준점 */
 }
 
-/* [★수정★] 게임 스탯 (점수판) 디자인 */
 .game-stats-glass {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  max-width: 500px; /* 게임 화면보다 넓게 */
+  max-width: 500px;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #2c3e50, #34495e); /* 어두운 테마 */
+  background: linear-gradient(135deg, #2c3e50, #34495e);
   color: white;
   border-radius: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   margin-bottom: 15px;
   box-sizing: border-box;
+  flex-shrink: 0; /* [수정] 높이가 줄어들지 않도록 */
 }
 .stat-item {
   display: flex;
@@ -410,6 +411,7 @@ onUnmounted(() => {
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  flex-shrink: 0; /* [수정] 높이가 줄어들지 않도록 */
 }
 .game-area {
   position: relative;
@@ -463,6 +465,10 @@ onUnmounted(() => {
 .cart-40 { background-image: url('@/assets/game_assets/card_40xx40.png'); }
 .cart-80 { background-image: url('@/assets/game_assets/card_80xx40.png'); }
 .cart-120 { background-image: url('@/assets/game_assets/card_120xx40.png'); }
+/* [★수정★] 디버깅용 아이콘 제거 */
+.cart i {
+  display: none;
+}
 
 .frog {
   position: absolute;
@@ -493,35 +499,37 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* --- [★수정★] 모바일 조이스틱 디자인 --- */
+/* --- [★핵심 수정★] 모바일 조이스틱을 화면 하단에 오버레이 --- */
 .joystick-controls {
+  position: absolute; /* [수정] 문맥 흐름에서 빼서 겹치도록 함 */
+  bottom: 20px; /* [수정] 화면 하단에 고정 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100; /* 게임 화면 위에 표시 */
+  
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 15px;
   user-select: none;
   -webkit-user-select: none;
-  /* PC에서는 숨김 */
-  @media (min-width: 768px) {
-    display: none;
-  }
+  width: 210px; /* 너비 고정 */
 }
 .joy-middle {
   display: flex;
-  width: 210px; /* 더 넓게 */
+  width: 100%;
   justify-content: space-between;
 }
 .joy-btn {
-  width: 65px; /* 더 크게 */
+  width: 65px;
   height: 65px;
   border: none;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.6); /* 반투명 유리 느낌 */
+  background-color: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   font-size: 1.8rem;
-  color: #2c3e50; /* 어두운 아이콘 */
+  color: #2c3e50;
   margin: 5px;
   cursor: pointer;
   transition: all 0.1s ease;
@@ -531,7 +539,12 @@ onUnmounted(() => {
   transform: scale(0.95);
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
-
+/* PC에서는 조이스틱 숨기기 (기존과 동일) */
+@media (min-width: 768px) {
+  .joystick-controls {
+    display: none;
+  }
+}
 /* --- 모달 (버튼 스타일 개선) --- */
 .modal-overlay {
   position: fixed;
