@@ -460,15 +460,20 @@ onUnmounted(() => {
 
 /* [★수정★] 게임 영역 래퍼 */
 .game-area-wrapper {
-  /* [★수정★] 점수판을 밖으로 뺐으므로 래퍼가 남은 공간을 모두 차지 */
   width: 100%;
-  flex-grow: 1; /* 남은 세로 공간 모두 차지 */
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  max-width: var(--game-width);
+  max-height: calc(100dvh - 20px);
+  
+  /* ▼▼▼ [핵심 수정] 이 한 줄을 삭제하거나 주석 처리하세요 ▼▼▼ */
+  /* aspect-ratio: 9 / 16; */ /* */
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
+
   overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  flex-shrink: 0;
   position: relative;
-  touch-action: none; /* 스와이프 제스처 */
+  touch-action: none;
 }
 
 /* [★수정★] 점수판 (게임 영역 밖, 상단) */
