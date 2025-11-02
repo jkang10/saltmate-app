@@ -8,16 +8,23 @@
     
     <div v-else-if="avatars.length > 0" class="showcase-scroll-container">
       <ul class="avatar-list">
+        
         <li v-for="(user, index) in avatars" :key="index" class="avatar-item">
           <div class="avatar-display">
-            <img v-if="user.avatar.body" :src="getAvatarPartUrl(user.avatar.body)" alt="Body" class="avatar-part layer-1" />
-            <img v-if="user.avatar.outfit" :src="getAvatarPartUrl(user.avatar.outfit)" alt="Outfit" class="avatar-part layer-2" />
-            <img v-if="user.avatar.hair" :src="getAvatarPartUrl(user.avatar.hair)" alt="Hair" class="avatar-part layer-3" />
-            <img v-if="user.avatar.face" :src="getAvatarPartUrl(user.avatar.face)" alt="Face" class="avatar-part layer-4" />
+            
+            <img v-if="user.avatar && user.avatar.renderUrl" 
+                 :src="user.avatar.renderUrl" 
+                 alt="Avatar" 
+                 class="avatar-image-rpm" />
+            
+            <div v-else class="avatar-fallback">
+              <i class="fas fa-user-astronaut"></i>
             </div>
+
+          </div>
           <span class="player-name">{{ user.userName }}</span>
         </li>
-      </ul>
+        </ul>
     </div>
     <p v-else class="no-data">아직 생성된 아바타가 없습니다.</p>
   </div>
@@ -31,17 +38,14 @@ import { functions } from "@/firebaseConfig";
 const avatars = ref([]);
 const loading = ref(true);
 
-// 아바타 이미지 파일이 public/avatars/ 폴더에 있다고 가정합니다.
-const getAvatarPartUrl = (partFileName) => {
-  // 예: partFileName = 'body_male.png'
-  return `/avatars/${partFileName}`; //
-};
+// [★삭제★] public/avatars/ 경로를 사용하던 getAvatarPartUrl 함수 삭제
 
 onMounted(async () => {
   try {
     const getAvatars = httpsCallable(functions, "getRecentAvatars");
     const result = await getAvatars();
-    avatars.value = result.data.avatars;
+    // [★수정★] avatar 객체가 없는 경우(예: avatarUpdatedAt만 있음)를 필터링
+    avatars.value = result.data.avatars.filter(a => a.avatar); 
   } catch (error) {
     console.error("최근 아바타 로딩 실패:", error);
   } finally {
@@ -77,21 +81,11 @@ onMounted(async () => {
   overflow-x: auto;
   padding-bottom: 10px; /* 스크롤바를 위한 여백 */
 }
-/* 스크롤바 스타일링 (선택사항) */
-.showcase-scroll-container::-webkit-scrollbar {
-  height: 8px;
-}
-.showcase-scroll-container::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.2);
-  border-radius: 4px;
-}
-.showcase-scroll-container::-webkit-scrollbar-thumb {
-  background: #FFD700;
-  border-radius: 4px;
-}
-.showcase-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #E0A800;
-}
+/* (스크롤바 스타일링 ...) */
+.showcase-scroll-container::-webkit-scrollbar { height: 8px; }
+.showcase-scroll-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+.showcase-scroll-container::-webkit-scrollbar-thumb { background: #FFD700; border-radius: 4px; }
+.showcase-scroll-container::-webkit-scrollbar-thumb:hover { background: #E0A800; }
 
 .avatar-list {
   list-style: none;
@@ -107,7 +101,7 @@ onMounted(async () => {
   gap: 10px;
 }
 
-/* 아바타 렌더링 영역 */
+/* ▼▼▼ [★핵심 수정★] 아바타 렌더링 영역 스타일 ▼▼▼ */
 .avatar-display {
   width: 120px;
   height: 120px;
@@ -116,20 +110,26 @@ onMounted(async () => {
   border-radius: 50%;
   border: 2px solid rgba(255, 215, 0, 0.5);
   overflow: hidden;
+  /* 폴백 아이콘 중앙 정렬 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
-.avatar-part {
-  position: absolute;
-  top: 0;
-  left: 0;
+
+/* [★신규★] Ready Player Me 2D 렌더링 이미지 */
+.avatar-image-rpm {
   width: 100%;
   height: 100%;
-  object-fit: contain; /* 또는 cover */
+  object-fit: cover; /* 원을 꽉 채우도록 */
 }
-/* z-index 순서 (숫자가 높을수록 위) */
-.layer-1 { z-index: 1; } /* Body */
-.layer-2 { z-index: 2; } /* Outfit */
-.layer-3 { z-index: 3; } /* Hair */
-.layer-4 { z-index: 4; } /* Face/Eyes */
+
+/* [★신규★] 폴백(Fallback) 아이콘 */
+.avatar-fallback {
+  font-size: 3rem;
+  color: rgba(255, 215, 0, 0.5);
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
 
 .player-name {
   font-size: 0.9em;

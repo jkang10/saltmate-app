@@ -1,155 +1,126 @@
 <template>
-  <div class="avatar-showcase-widget premium-glass">
-    <div class="widget-header">
-      <h3><i class="fas fa-users"></i> 솔레인 아바타 쇼케이스</h3>
-      <p>메타버스의 새로운 주민들을 만나보세요</p>
-    </div>
-    <div v-if="loading" class="loading-spinner"></div>
-    
-    <div v-else-if="avatars.length > 0" class="showcase-scroll-container">
-      <ul class="avatar-list">
-        
-        <li v-for="(user, index) in avatars" :key="index" class="avatar-item">
-          <div class="avatar-display">
-            
-            <img v-if="user.avatar && user.avatar.renderUrl" 
-                 :src="user.avatar.renderUrl" 
-                 alt="Avatar" 
-                 class="avatar-image-rpm" />
-            
-            <div v-else class="avatar-fallback">
-              <i class="fas fa-user-astronaut"></i>
-            </div>
-
-          </div>
-          <span class="player-name">{{ user.userName }}</span>
-        </li>
-        </ul>
-    </div>
-    <p v-else class="no-data">아직 생성된 아바타가 없습니다.</p>
+  <div class="avatar-container">
+    <iframe
+      ref="rpmFrame"
+      :src="iframeSrc"
+      class="rpm-iframe"
+      allow="camera *; microphone *"
+    ></iframe>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/firebaseConfig";
+<script>
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+// [★수정★] Firestore (updateDoc) 대신 Firebase Functions (httpsCallable)를 import 합니다.
+import { functions, auth } from '@/firebaseConfig'; //
+import { httpsCallable } from 'firebase/functions'; //
+import { useRouter } from 'vue-router';
 
-const avatars = ref([]);
-const loading = ref(true);
+export default {
+  name: 'AvatarCreationPage',
+  setup() {
+    const rpmFrame = ref(null);
+    const router = useRouter();
 
-// [★삭제★] public/avatars/ 경로를 사용하던 getAvatarPartUrl 함수 삭제
+    const subdomain = 'saltmate';
+    const iframeSrc = computed(() => {
+      return `https://${subdomain}.readyplayer.me/avatar?frameApi`;
+    });
 
-onMounted(async () => {
-  try {
-    const getAvatars = httpsCallable(functions, "getRecentAvatars");
-    const result = await getAvatars();
-    // [★수정★] avatar 객체가 없는 경우(예: avatarUpdatedAt만 있음)를 필터링
-    avatars.value = result.data.avatars.filter(a => a.avatar); 
-  } catch (error) {
-    console.error("최근 아바타 로딩 실패:", error);
-  } finally {
-    loading.value = false;
-  }
-});
+    // [★신규★] saveAvatarCustomization 함수에 대한 호출기(callable)를 생성합니다.
+    const saveAvatarFunc = httpsCallable(functions, 'saveAvatarCustomization'); //
+
+    const handleMessage = (event) => {
+      if (event.source !== rpmFrame.value?.contentWindow) return;
+      let data;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch (error) { console.error('Failed to parse RPM message:', error); return; }
+
+      if (data.eventName === 'v1.frame.ready') {
+        rpmFrame.value.contentWindow.postMessage(JSON.stringify({ target: 'readyplayerme', type: 'subscribe', eventName: 'v1.**' }), '*');
+      }
+
+      if (data.eventName === 'v1.avatar.exported') {
+        console.log('아바타 데이터 수신 성공:', data.data);
+        const glbUrl = data.data.url;
+        // [★신규★] Ready Player Me가 제공하는 2D 렌더링(초상화) 이미지 URL
+        const renderUrl = data.data.renderUrl; 
+        
+        // [★수정★] 이전 함수 대신 새 함수를 호출합니다.
+        saveAvatarData(glbUrl, renderUrl);
+      }
+    };
+
+    // [★수정★] Firestore 직접 저장 대신, 백엔드 함수를 호출하는 로직으로 변경
+    const saveAvatarData = async (glbUrl, renderUrl) => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          // 백엔드 saveAvatarCustomization 함수는 'avatarData'라는 객체를 인자로 받습니다.
+          //
+          const avatarDataPayload = {
+            glbUrl: glbUrl, // 3D 모델 URL
+            renderUrl: renderUrl // 쇼케이스용 2D 이미지 URL
+          };
+
+          // 백엔드 함수를 호출합니다.
+          await saveAvatarFunc({ avatarData: avatarDataPayload });
+
+          console.log('Firestore에 avatar 객체 및 타임스탬프 저장 완료!');
+          alert('아바타가 성공적으로 저장되었습니다!');
+          
+          router.push({ name: 'DashboardPage' });
+        } else {
+           console.error('사용자 인증 정보를 찾을 수 없습니다.');
+           alert('로그인 상태를 확인해주세요.');
+        }
+      } catch (error) {
+        console.error('아바타 저장 중 오류 발생 (Cloud Function 호출):', error);
+        alert(`아바타 저장 중 오류가 발생했습니다: ${error.message}`);
+      }
+    };
+
+    onMounted(() => { window.addEventListener('message', handleMessage); });
+    onBeforeUnmount(() => { window.removeEventListener('message', handleMessage); });
+
+    return { rpmFrame, iframeSrc };
+  },
+};
 </script>
 
 <style scoped>
-/* (TotalGoldRankingWidget과 유사한 프리미엄 테마) */
-.premium-glass {
-  background: rgba(10, 0, 20, 0.7) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(170, 70, 255, 0.3) !important;
-  color: #f0f0f0 !important;
-  padding: 20px;
-  border-radius: 15px;
-}
-
-.widget-header { text-align: left; margin-bottom: 20px; }
-.widget-header h3 {
-  font-size: 1.8em;
-  font-weight: 700;
-  color: #FFD700; /* 금색 헤더 */
-  display: flex; align-items: center; gap: 12px;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-}
-.widget-header p { font-size: 0.9em; color: #bdc3c7; margin-top: 5px; }
-
-/* 가로 스크롤 컨테이너 */
-.showcase-scroll-container {
-  overflow-x: auto;
-  padding-bottom: 10px; /* 스크롤바를 위한 여백 */
-}
-/* (스크롤바 스타일링 ...) */
-.showcase-scroll-container::-webkit-scrollbar { height: 8px; }
-.showcase-scroll-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
-.showcase-scroll-container::-webkit-scrollbar-thumb { background: #FFD700; border-radius: 4px; }
-.showcase-scroll-container::-webkit-scrollbar-thumb:hover { background: #E0A800; }
-
-.avatar-list {
-  list-style: none;
+.avatar-container {
+  /* position: fixed;를 사용하여 헤더 위에 덮어씌웁니다. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw; /* 화면 전체 너비 */
+  height: 100dvh; /* [★수정★] 100vh -> 100dvh (모바일 브라우저 UI 고려) */
+  z-index: 1001; /* App.vue의 헤더(z-index: 1000)보다 높게 설정 */
+  background-color: #f0f0f0; /* 배경색 지정 (선택 사항) */
   padding: 0;
   margin: 0;
-  display: flex;
-  gap: 20px; /* 아바타 간 간격 */
-}
-.avatar-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/* ▼▼▼ [★핵심 수정★] 아바타 렌더링 영역 스타일 ▼▼▼ */
-.avatar-display {
-  width: 120px;
-  height: 120px;
-  position: relative;
-  background: rgba(0,0,0,0.2);
-  border-radius: 50%;
-  border: 2px solid rgba(255, 215, 0, 0.5);
   overflow: hidden;
-  /* 폴백 아이콘 중앙 정렬 */
   display: flex;
   justify-content: center;
   align-items: center;
 }
-
-/* [★신규★] Ready Player Me 2D 렌더링 이미지 */
-.avatar-image-rpm {
+.rpm-iframe {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* 원을 꽉 채우도록 */
+  border: none;
 }
 
-/* [★신규★] 폴백(Fallback) 아이콘 */
-.avatar-fallback {
-  font-size: 3rem;
-  color: rgba(255, 215, 0, 0.5);
+/* 모바일 화면 (예: 768px 이하)에서 iframe 주변에 약간의 여백을 주어
+   Ready Player Me UI가 잘리지 않도록 합니다. */
+@media (max-width: 768px) {
+  .avatar-container {
+    /* 모바일에서는 상단 헤더 공간만큼 패딩을 줄 수 있습니다. */
+    /* padding-top: 70px; */ /* 헤더 높이만큼 패딩 (필요 시 주석 해제) */
+    /* height: calc(100vh - 70px); */ /* 패딩 적용 시 높이 조정 (필요 시 주석 해제) */
+  }
+  /* iframe 자체 크기를 조정할 수도 있습니다. */
+  /* .rpm-iframe { height: calc(100% - 70px); } */
 }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
-
-.player-name {
-  font-size: 0.9em;
-  font-weight: 600;
-  color: #ecf0f1;
-  background: rgba(0,0,0,0.3);
-  padding: 3px 10px;
-  border-radius: 10px;
-}
-
-.no-data { text-align: center; padding: 20px; color: #94a3b8; }
-.loading-spinner {
-  margin: 20px auto;
-  display: block;
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #FFD700;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
 </style>
