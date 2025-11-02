@@ -2,32 +2,47 @@
   <div class="page-container trader-page">
     <header class="page-header">
       <h1><i class="fas fa-chart-line"></i> Salt Trader</h1>
-      <p>실시간 시세를 확인하고 소금을 거래하여 차익을 남기세요.</p>
+      <p>실시간 시세를 확인하고 소금을 거래하여 골드를 획득하세요.</p>
     </header>
 
     <div class="trader-layout">
       <aside class="left-panel">
+        
         <div class="card asset-card">
           <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
           <div class="asset-item">
             <span>내 SaltMate</span>
-            <strong>{{ (userProfile?.saltmatePoints || 0).toLocaleString() }}</strong>
+            <strong>{{ (userProfile?.saltmatePoints || 0).toLocaleString() }} P</strong>
+          </div>
+          <div class="asset-item">
+            <span>보유 골드 (거래용)</span>
+            <strong class="gold-text">{{ (userProfile?.goldBalance || 0).toLocaleString() }} G</strong>
           </div>
           <div class="asset-item salt" @click="openHistoryModal" title="클릭하여 내 거래 내역 확인">
             <span>보유 소금</span>
-            <strong>{{ (userProfile?.saltBalance || 0).toLocaleString() }}</strong>
+            <strong>{{ (userProfile?.saltBalance || 0).toLocaleString() }} 개</strong>
+          </div>
+        </div>
+        
+        <div class="card exchange-card">
+          <h3><i class="fas fa-sync-alt"></i> 골드 교환소</h3>
+          <p class="exchange-rate">교환 비율: <strong>1 SaltMate = 10 Gold</strong></p>
+          <small>(교환은 일방향이며, Gold는 SaltMate로 되돌릴 수 없습니다.)</small>
+          <div class="input-group">
+            <input type="number" v-model.number="exchangeAmount" min="1" placeholder="교환할 SaltMate" class="trade-input">
+            <button @click="exchangeGold" class="btn-trade btn-exchange" :disabled="isExchanging || !exchangeAmount || exchangeAmount <= 0">교환</button>
           </div>
         </div>
 
         <div class="card order-card">
-          <h3><i class="fas fa-tasks"></i> 주문 실행</h3>
+          <h3><i class="fas fa-tasks"></i> 주문 실행 (골드 사용)</h3>
           <div class="trade-section">
             <h4>소금 사기 (매수)</h4>
             <div class="input-group">
               <input type="number" v-model.number="buyQuantity" min="1" placeholder="수량" class="trade-input">
               <button @click="trade('buy')" class="btn-trade btn-buy" :disabled="isTrading || !buyQuantity || buyQuantity <= 0">매수</button>
             </div>
-            <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+            <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} Gold</p>
           </div>
           <div class="trade-section">
             <h4>소금 팔기 (매도)</h4>
@@ -35,7 +50,7 @@
               <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량" class="trade-input">
               <button @click="trade('sell')" class="btn-trade btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
             </div>
-            <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} SaltMate</p>
+            <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} Gold</p>
           </div>
            <p v-if="error" class="error-message">{{ error }}</p>
         </div>
@@ -57,7 +72,7 @@
         <div class="card market-card">
             <div class="market-header">
                 <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
-                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} SaltMate</p>
+                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} Gold</p>
             </div>
             <div class="market-stats">
                 <div class="stat-item">
@@ -122,6 +137,10 @@ const error = ref('');
 const isTrading = ref(false);
 const recentTrades = ref([]);
 
+// [★신규★] 골드 교환 상태
+const exchangeAmount = ref(null);
+const isExchanging = ref(false);
+
 let marketUnsubscribe = null;
 let userUnsubscribe = null;
 let recentTradesUnsubscribe = null;
@@ -133,29 +152,24 @@ const priceChange = computed(() => {
     const newPrice = market.value.currentPrice;
     return ((newPrice - oldPrice) / oldPrice) * 100;
 });
-
 const priceChangeAbsolute = computed(() => {
     const history = market.value?.priceHistory || [];
     if (history.length < 2) return 0;
     return market.value.currentPrice - history[0].price;
 });
-
 const priceClass = computed(() => {
     if (priceChange.value > 0) return 'up';
     if (priceChange.value < 0) return 'down';
     return '';
 });
-
 const twentyFourHourHigh = computed(() => {
     const prices = (market.value?.priceHistory || []).map(p => p.price);
     return prices.length > 0 ? Math.max(...prices, market.value.currentPrice) : 0;
 });
-
 const twentyFourHourLow = computed(() => {
     const prices = (market.value?.priceHistory || []).map(p => p.price);
     return prices.length > 0 ? Math.min(...prices, market.value.currentPrice) : 0;
 });
-
 const candlestickData = computed(() => {
   const history = market.value?.priceHistory || [];
   if (history.length < 1) return [];
@@ -170,10 +184,8 @@ const candlestickData = computed(() => {
   }
   return data;
 });
-
 const chartOption = computed(() => {
     const history = market.value?.priceHistory || [];
-    // [핵심 수정] dataZoom의 기본 확대를 50%에서 80%로 변경하여 더 많은 데이터를 보여줍니다.
     return {
         grid: { left: '10%', right: '5%', bottom: '20%' },
         tooltip: { trigger: 'axis' },
@@ -196,21 +208,18 @@ onMounted(() => {
   marketUnsubscribe = onSnapshot(marketRef, (docSnap) => {
       if (docSnap.exists()) market.value = docSnap.data();
   });
-
   if(auth.currentUser) {
     const userRef = doc(db, "users", auth.currentUser.uid);
     userUnsubscribe = onSnapshot(userRef, (docSnap) => {
         if(docSnap.exists()) userProfile.value = docSnap.data();
     });
   }
-
   const tradesRef = collection(db, "recentTrades");
   const q = query(tradesRef, orderBy('timestamp', 'desc'), limit(15));
   recentTradesUnsubscribe = onSnapshot(q, (snapshot) => {
     recentTrades.value = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
   });
 });
-
 onUnmounted(() => {
     if(marketUnsubscribe) marketUnsubscribe();
     if(userUnsubscribe) userUnsubscribe();
@@ -248,9 +257,63 @@ const openHistoryModal = async () => {
     isLoadingHistory.value = false;
   }
 };
+
+// [★신규★] 골드 교환 함수
+const exchangeGold = async () => {
+  if (!exchangeAmount.value || exchangeAmount.value <= 0) {
+    error.value = "교환할 SaltMate 수량을 입력하세요.";
+    return;
+  }
+  if (userProfile.value.saltmatePoints < exchangeAmount.value) {
+    error.value = "보유한 SaltMate가 부족합니다.";
+    return;
+  }
+  if (!confirm(`${exchangeAmount.value.toLocaleString()} SaltMate를 골드로 교환하시겠습니까? (되돌릴 수 없습니다)`)) {
+    return;
+  }
+
+  error.value = '';
+  isExchanging.value = true;
+  try {
+    const exchangeFunc = httpsCallable(functions, 'exchangeSaltmateForGold');
+    const result = await exchangeFunc({ amount: exchangeAmount.value });
+    alert(result.data.message);
+    exchangeAmount.value = null;
+  } catch(e) {
+    error.value = e.message;
+  } finally {
+    isExchanging.value = false;
+  }
+};
 </script>
 
 <style scoped>
+/* ▼▼▼ [★신규★] 골드/교환소 관련 스타일 추가 ▼▼▼ */
+.gold-text {
+  color: #E0A800; /* 금색 */
+  font-weight: bold;
+}
+.exchange-card .exchange-rate {
+  font-size: 1.1em;
+  text-align: center;
+  margin-bottom: 5px;
+}
+.exchange-card .exchange-rate strong {
+  color: #E0A800;
+}
+.exchange-card small {
+  display: block;
+  font-size: 0.85em;
+  color: #6c757d;
+  text-align: center;
+  margin-bottom: 15px;
+}
+.btn-exchange {
+  background-color: #ffc107; /* 금색 버튼 */
+  color: #212529;
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
+
 :root {
   --primary-blue: #007bff;
   --success-green: #28a745;
@@ -266,7 +329,6 @@ const openHistoryModal = async () => {
 .asset-item.salt { cursor: pointer; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
 
-/* [핵심] 주문 실행 카드 스타일 */
 .trade-section {
   padding-bottom: 15px;
   margin-bottom: 15px;
@@ -347,4 +409,21 @@ const openHistoryModal = async () => {
 .history-action.buy { color: var(--primary-blue); font-weight: bold; }
 .history-action.sell { color: var(--success-green); font-weight: bold; }
 .btn-secondary { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 20px; }
+.error-message {
+  color: var(--danger-red);
+  font-weight: bold;
+  font-size: 0.9em;
+  text-align: center;
+  margin-top: 10px;
+}
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
