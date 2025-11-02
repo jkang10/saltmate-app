@@ -1,19 +1,21 @@
 <template>
   <div class="frog-game-page">
-    <div class="game-stats-glass">
-      <div class="stat-item">
-        <span>점수</span>
-        <strong>{{ score }}</strong>
-      </div>
-      <div class="stat-item">
-        <span>남은 목숨</span>
-        <div class="lives">
-          <i v-for="n in lives" :key="n" class="fas fa-frog"></i>
+    
+    <div class="game-area-wrapper">
+      
+      <div class="game-stats-glass">
+        <div class="stat-item">
+          <span>점수</span>
+          <strong>{{ score }}</strong>
+        </div>
+        <div class="stat-item">
+          <span>남은 목숨</span>
+          <div class="lives">
+            <i v-for="n in lives" :key="n" class="fas fa-frog"></i>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="game-area-wrapper">
       <div class="game-area" :style="gameAreaStyle">
         <div class="zone start-zone"></div>
         <div class="zone road-zone"></div>
@@ -303,7 +305,7 @@ const initializeGameObjects = () => {
     obj.style = computed(() => ({
       transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`,
       width: `${obj.width}px`,
-      height: `${TILE_SIZE}px`,
+      height: `${obj.height}px`,
     }));
   });
 };
@@ -361,10 +363,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ▼▼▼ [핵심 수정] CSS 전체 수정 ▼▼▼ */
 .frog-game-page {
   --tile-size: 40px;
   --game-width: 360px;
-  --game-height: 640px; /* [★수정★] 13 -> 16 (640px) */
+  --game-height: 640px; /* 16칸 */
   --color-road: #78553a;
   --color-water: #3b82f6;
   --color-safe: #c7d2fe;
@@ -373,7 +376,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  /* [★수정★] 세로 중앙 정렬로 변경 */
+  justify-content: center; 
   padding: 10px;
   background-color: #1a1a2e;
   width: 100%;
@@ -381,19 +385,39 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
+/* [★수정★] 게임 영역 래퍼가 모든 UI의 기준점 */
+.game-area-wrapper {
+  width: 100%;
+  max-width: var(--game-width);
+  aspect-ratio: 9 / 16; /* 9:16 비율 (360x640) */
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  flex-shrink: 0;
+  position: relative; /* 모든 오버레이 UI의 기준 */
+}
+
+/* [★수정★] 점수판을 래퍼 안으로 이동 (오버레이) */
 .game-stats-glass {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 100;
+  
   display: flex;
   justify-content: space-between;
-  width: 100%;
+  width: auto; /* 100% 대신 auto */
   max-width: 500px;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #2c3e50, #34495e);
+  background: rgba(44, 62, 80, 0.8); /* 어둡고 투명한 배경 */
   color: white;
   border-radius: 12px;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  margin-bottom: 15px;
   box-sizing: border-box;
-  flex-shrink: 0; 
 }
 .stat-item {
   display: flex;
@@ -413,40 +437,26 @@ onUnmounted(() => {
   color: #2ecc71;
 }
 
-.game-area-wrapper {
-  width: 100%;
-  max-width: var(--game-width);
-  aspect-ratio: 9 / 16; /* [★수정★] 9:13 -> 9:16 (360x640) */
-  overflow: hidden;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-  flex-shrink: 0;
-  position: relative;
-}
+/* 게임 맵 */
 .game-area {
   position: relative;
   background-color: #ccc;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
-/* ▼▼▼ [★수정★] Zone 배경 Y좌표 수정 (16칸 기준) ▼▼▼ */
+/* Zone 배경 Y좌표 (16칸 기준) */
 .zone {
   position: absolute;
   width: 100%;
   height: var(--tile-size);
 }
-/* 출발 지점 (Y: 14~15) - 2칸 */
 .start-zone { top: calc(var(--tile-size) * 14); height: calc(var(--tile-size) * 2); background-color: var(--color-safe); }
-/* 광산 길 (Y: 8~13) - 6칸 */
 .road-zone { top: calc(var(--tile-size) * 8); height: calc(var(--tile-size) * 6); background-color: var(--color-road); }
-/* 중간 지점 (Y: 7) - 1칸 */
 .mid-zone { top: calc(var(--tile-size) * 7); background-color: var(--color-safe); }
-/* 염수 강 (Y: 1~6) - 6칸 */
 .water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 6); background-color: var(--color-water); }
-/* 목표 지점 (Y: 0) - 1칸 */
 .goal-zone { top: 0; background-color: var(--color-goal); }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
 
 .goal {
   position: absolute;
@@ -469,6 +479,7 @@ onUnmounted(() => {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* 장애물 및 뗏목 이미지 경로 */
 .log, .cart {
   position: absolute;
   will-change: transform;
@@ -485,6 +496,7 @@ onUnmounted(() => {
   display: none;
 }
 
+/* 개구리 */
 .frog {
   position: absolute;
   top: 0;
@@ -508,11 +520,10 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* ▼▼▼ [★수정★] 조이스틱 CSS (크기 및 위치) ▼▼▼ */
+/* 조이스틱 (게임 화면 하단에 겹침) */
 .joystick-controls {
   position: absolute;
-  /* [★수정★] bottom 위치를 15px -> 80px로 올려서 출발 지점(14~15)에 걸치도록 함 */
-  bottom: 80px; 
+  bottom: 20px; /* [★수정★] 80px -> 20px (화면 하단으로) */
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -522,13 +533,13 @@ onUnmounted(() => {
   align-items: center;
   user-select: none;
   -webkit-user-select: none;
-  width: 180px; /* [★수정★] 210px -> 180px (더 촘촘하게) */
+  width: 180px; /* 촘촘하게 */
 }
 .joy-middle {
   display: flex;
   width: 100%;
-  justify-content: center; /* [★수정★] space-between -> center */
-  gap: 40px; /* [★추가★] 좌우 버튼 간격 */
+  justify-content: center; /* 중앙으로 */
+  gap: 40px; /* 좌우 간격 */
 }
 .joy-btn {
   width: 65px;
@@ -556,7 +567,7 @@ onUnmounted(() => {
   }
 }
 
-/* (모달 스타일은 변경 없음) */
+/* 모달 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -567,7 +578,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 100;
+  z-index: 200; /* 조이스틱보다 위 */
 }
 .modal-content {
   background: white;
