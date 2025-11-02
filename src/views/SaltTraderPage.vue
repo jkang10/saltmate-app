@@ -67,16 +67,61 @@
         </div>
 
         <div class="card recent-trades-card">
-            </div>
-      </aside>
+            <h3><i class="fas fa-history"></i> 실시간 체결 내역</h3>
+            <ul class="trades-list">
+                <li v-for="trade in recentTrades" :key="trade.id" :class="trade.action">
+                    <span class="trade-time">{{ new Date(trade.timestamp.seconds * 1000).toLocaleTimeString('ko-KR') }}</span>
+                    <span class="trade-action">{{ trade.action === 'buy' ? '매수' : '매도' }}</span>
+                    <span class="trade-price">{{ trade.price.toLocaleString() }}</span>
+                    <span class="trade-quantity">{{ trade.quantity.toLocaleString() }}</span>
+                </li>
+            </ul>
+        </div>
+        </aside>
 
       <main class="right-panel">
-        </main>
-    </div>
+        <div class="card market-card">
+            <div class="market-header">
+                <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
+                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} Gold</p>
+            </div>
+            <div class="market-stats">
+                <div class="stat-item">
+                    <span class="label">24h 변동</span>
+                    <strong :class="priceClass">{{ priceChange.toFixed(2) }}% ({{ priceChangeAbsolute.toLocaleString() }})</strong>
+                </div>
+                <div class="stat-item">
+                    <span class="label">24h 최고가</span>
+                    <strong>{{ twentyFourHourHigh.toLocaleString() }}</strong>
+                </div>
+                <div class="stat-item">
+                    <span class="label">24h 최저가</span>
+                    <strong>{{ twentyFourHourLow.toLocaleString() }}</strong>
+                </div>
+            </div>
+            <div class="chart-container">
+                <v-chart class="chart" :option="chartOption" autoresize />
+            </div>
+        </div>
+      </main>
+      </div>
     
     <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
+      <div class="modal-content">
+        <h3><i class="fas fa-book"></i> 나의 소금 거래 내역</h3>
+        <div v-if="isLoadingHistory" class="spinner-small" style="margin: 20px auto; display: block;"></div>
+        <ul v-else-if="tradeHistory.length > 0" class="trade-history-list">
+          <li v-for="item in tradeHistory" :key="item.id">
+            <span class="history-date">{{ new Date(item.timestamp.seconds * 1000).toLocaleString('ko-KR') }}</span>
+            <span class="history-action" :class="item.action">{{ item.action === 'buy' ? '매수' : '매도' }}</span>
+            <span class="history-details">{{ item.quantity.toLocaleString() }}개 ({{ item.price.toLocaleString() }}/개)</span>
+          </li>
+        </ul>
+        <p v-else>거래 내역이 없습니다.</p>
+        <button @click="isHistoryModalVisible = false" class="btn-secondary">닫기</button>
       </div>
-  </div>
+    </div>
+    </div>
 </template>
 
 <script setup>
