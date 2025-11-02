@@ -349,7 +349,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] CSS 변수를 :root에서 .frog-game-page로 이동 ▼▼▼ */
+/* ▼▼▼ [핵심 수정] 이 클래스를 수정하세요 ▼▼▼ */
 .frog-game-page {
   --tile-size: 40px;
   --game-width: 360px;
@@ -359,19 +359,22 @@ onUnmounted(() => {
   --color-safe: #c7d2fe;
   --color-goal: #4a0e97;
 
-  /* [★수정★] 레이아웃을 전체 화면(Full VH)으로 변경 */
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* [수정] 게임 요소를 중앙에 배치 */
-  padding: 10px;
-  background-color: #1a1a2e; /* [수정] 어두운 게임 배경색 */
+  /* [수정] center -> flex-start (상단부터 정렬) */
+  justify-content: flex-start; 
+  /* [수정] padding을 상/하단 분리, 하단에 150px 여유 공간 확보 */
+  padding: 10px 10px 150px 10px; 
+  background-color: #1a1a2e;
   width: 100%;
-  height: 100vh; /* [수정] 100vh 전체 높이 사용 */
+  /* [수정] height -> min-height (내용이 길어지면 스크롤 허용) */
+  min-height: 100vh; 
   box-sizing: border-box;
-  position: relative; /* [수정] 조이스틱을 위한 기준점 */
+  position: relative;
 }
 
+/* ( .game-stats-glass ... .frog ... .frog.squashed ... @keyframes squash ... 는 변경 없음 ) */
 .game-stats-glass {
   display: flex;
   justify-content: space-between;
@@ -384,7 +387,7 @@ onUnmounted(() => {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   margin-bottom: 15px;
   box-sizing: border-box;
-  flex-shrink: 0; /* [수정] 높이가 줄어들지 않도록 */
+  flex-shrink: 0; 
 }
 .stat-item {
   display: flex;
@@ -393,7 +396,7 @@ onUnmounted(() => {
 }
 .stat-item span {
   font-size: 0.9rem;
-  color: #bdc3c7; /* 밝은 회색 */
+  color: #bdc3c7;
 }
 .stat-item strong {
   font-size: 1.5rem;
@@ -401,9 +404,8 @@ onUnmounted(() => {
 }
 .lives {
   font-size: 1.2rem;
-  color: #2ecc71; /* 생명(초록색) */
+  color: #2ecc71;
 }
-
 .game-area-wrapper {
   width: 100%;
   max-width: var(--game-width);
@@ -411,15 +413,13 @@ onUnmounted(() => {
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-  flex-shrink: 0; /* [수정] 높이가 줄어들지 않도록 */
+  flex-shrink: 0;
 }
 .game-area {
   position: relative;
   background-color: #ccc;
   overflow: hidden;
 }
-
-/* [수정] Zone 배경색이 CSS 변수를 사용하도록 수정됨 */
 .zone {
   position: absolute;
   width: 100%;
@@ -430,16 +430,14 @@ onUnmounted(() => {
 .mid-zone { top: calc(var(--tile-size) * 6); background-color: var(--color-safe); }
 .water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 5); background-color: var(--color-water); }
 .goal-zone { top: 0; background-color: var(--color-goal); }
-
 .goal {
   position: absolute;
-  top: 0; /* [수정] y좌표 0으로 변경 */
+  top: 0;
   width: var(--tile-size);
   height: var(--tile-size);
-  background-color: var(--color-water); /* [수정] 물에 빠지는 공간 (물색) */
+  background-color: var(--color-water);
 }
 .goal-filled {
-  /* ... (기존과 동일) ... */
   width: 100%;
   height: 100%;
   font-size: 1.5rem;
@@ -452,7 +450,6 @@ onUnmounted(() => {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-
 .log, .cart {
   position: absolute;
   will-change: transform;
@@ -465,31 +462,23 @@ onUnmounted(() => {
 .cart-40 { background-image: url('@/assets/game_assets/card_40xx40.png'); }
 .cart-80 { background-image: url('@/assets/game_assets/card_80xx40.png'); }
 .cart-120 { background-image: url('@/assets/game_assets/card_120xx40.png'); }
-/* [★수정★] 디버깅용 아이콘 제거 */
 .cart i {
   display: none;
 }
-
 .frog {
   position: absolute;
   top: 0;
   left: 0;
   font-size: 1.8rem;
   will-change: transform;
-  transition: transform 0.05s linear; /* [수정] 개구리 움직임 더 빠르게 */
+  transition: transform 0.05s linear;
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 10;
-  /* 만약 개구리 이미지를 사용한다면: */
-  /* background-image: url('@/assets/game_assets/frog.png'); */
-  /* background-size: contain; */
-  /* background-repeat: no-repeat; */
-  /* text-indent: -9999px; */ /* 이모지 숨기기 */
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4)); /* [수정] 이모지에 그림자 추가 */
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
 }
 .frog.squashed {
-  /* ... (기존과 동일) ... */
   transform-origin: center;
   animation: squash 0.5s ease forwards;
 }
@@ -499,21 +488,24 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* --- [★핵심 수정★] 모바일 조이스틱을 화면 하단에 오버레이 --- */
+/* ▼▼▼ [핵심 수정] 조이스틱 클래스를 수정하세요 ▼▼▼ */
 .joystick-controls {
-  position: absolute; /* [수정] 문맥 흐름에서 빼서 겹치도록 함 */
-  bottom: 20px; /* [수정] 화면 하단에 고정 */
+  position: absolute;
+  /* [수정] 모바일 하단 바(safe area)를 고려하여 여백을 줍니다. */
+  bottom: calc(15px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 100; /* 게임 화면 위에 표시 */
+  z-index: 100;
   
   display: flex;
   flex-direction: column;
   align-items: center;
   user-select: none;
   -webkit-user-select: none;
-  width: 210px; /* 너비 고정 */
+  width: 210px;
 }
+
+/* (이하 .joy-middle, .joy-btn, media query, modal 등 나머지 스타일은 100% 동일하게 유지) */
 .joy-middle {
   display: flex;
   width: 100%;
@@ -539,13 +531,11 @@ onUnmounted(() => {
   transform: scale(0.95);
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
-/* PC에서는 조이스틱 숨기기 (기존과 동일) */
 @media (min-width: 768px) {
   .joystick-controls {
     display: none;
   }
 }
-/* --- 모달 (버튼 스타일 개선) --- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -568,7 +558,7 @@ onUnmounted(() => {
 .btn-primary {
   background-color: #007bff;
   color: white;
-  padding: 12px 25px; /* 더 큼직하게 */
+  padding: 12px 25px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
