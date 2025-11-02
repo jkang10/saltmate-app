@@ -129,7 +129,9 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
-	  <LeaderboardWidget />
+	  <AvatarShowcaseWidget class="avatar-showcase" />
+          <LiveGameFeed class="live-feed-widget" />
+          <LeaderboardWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
 	  <SaltGuardiansRankingsWidget />
