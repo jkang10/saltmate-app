@@ -129,9 +129,9 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
-	  <AvatarShowcaseWidget class="avatar-showcase" />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
+	  <AvatarShowcaseWidget class="avatar-showcase" />
 	  <SaltGuardiansRankingsWidget />
           <router-link to="/mall" class="feature-card mall">
             <div class="card-icon"><i class="fas fa-store"></i></div>
