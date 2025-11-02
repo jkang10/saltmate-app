@@ -129,6 +129,7 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
+	  <LeaderboardWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
 	  <SaltGuardiansRankingsWidget />
@@ -446,6 +447,7 @@ import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
 import TokenMineCard from '@/components/common/TokenMineCard.vue';
 import WeeklyGoldRankingWidget from '@/components/WeeklyGoldRankingWidget.vue';
 import TotalGoldRankingWidget from '@/components/TotalGoldRankingWidget.vue';
+import AvatarShowcaseWidget from '@/components/common/AvatarShowcaseWidget.vue';
 
 export default {
   name: "DashboardPage",
@@ -472,6 +474,7 @@ export default {
     TokenMineCard,
     WeeklyGoldRankingWidget,
     TotalGoldRankingWidget,
+    AvatarShowcaseWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
@@ -1476,4 +1479,18 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   border-color: rgba(255, 255, 255, 0.6);
 }
 .solain-utopia-card .btn-primary i { margin-left: 0.8rem; font-size: 0.9rem; }
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+  margin-top: 30px;
+}
+
+/* ▼▼▼ [신규 추가] ▼▼▼ */
+.dashboard-grid .avatar-showcase {
+  /* 1열부터 마지막 열까지(-1) 모두 차지 (즉, 3칸) */
+  grid-column: 1 / -1; 
+  /* 최소 높이 설정 (선택 사항) */
+  min-height: 250px; 
+}
 </style>
