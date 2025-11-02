@@ -56,7 +56,13 @@
             <td>{{ formatDate(user.createdAt) }}</td>
             <td>{{ formatDate(user.nextPaymentDueDate) }}</td>
             <td><span :class="['status-badge', user.subscriptionStatus]">{{ formatSubscriptionStatus(user.subscriptionStatus) }}</span></td>
-            <td>{{ (user.saltmatePoints || 0).toLocaleString() }} P</td>
+            <td 
+              @click="openSaltMateHistoryModal(user)" 
+              class="clickable-cell"
+              title="클릭하여 SaltMate 상세 내역 보기"
+            >
+              {{ (user.saltmatePoints || 0).toLocaleString() }} P
+            </td>
             <td class="actions">
               <button @click="openEditModal(user)" class="btn btn-sm btn-primary">수정</button>
               <button @click="openBalanceModal(user)" class="btn btn-sm btn-success">잔액 조정</button>
@@ -74,7 +80,11 @@
       <span>{{ currentPage }} / {{ totalPages > currentPage ? '...' : totalPages }}</span>
       <button @click="goToPage(currentPage + 1)" :disabled="totalPages <= currentPage">다음</button>
     </div>
-
+    <AdminTransactionHistoryModal 
+      v-if="isSaltMateHistoryModalVisible" 
+      :user="selectedUser" 
+      @close="isSaltMateHistoryModalVisible = false" 
+    />
     <TokenTransferModal v-if="isTokenModalVisible" :user="selectedUser" @close="isTokenModalVisible = false" @token-updated="fetchUsers" />
     <BalanceAdjustmentModal v-if="isBalanceModalVisible" :user="selectedUser" @close="isBalanceModalVisible = false" @balance-updated="fetchUsers" />
     <UserEditModal v-if="isEditModalVisible" :user="selectedUser" :allUsers="allUsersForModal" @close="isEditModalVisible = false" @user-updated="fetchUsers" />
@@ -86,9 +96,12 @@ import { ref, onMounted, watch, computed } from "vue"; // computed 추가
 import { db, functions, auth } from "@/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import TokenTransferModal from "./TokenTransferModal.vue";
-import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue";
-import UserEditModal from "./UserEditModal.vue";
+import TokenTransferModal from "./TokenTransferModal.vue"; //
+import BalanceAdjustmentModal from "./BalanceAdjustmentModal.vue"; //
+import UserEditModal from "./UserEditModal.vue"; //
+// ▼▼▼ [신규 추가] ▼▼▼
+import AdminTransactionHistoryModal from "./AdminTransactionHistoryModal.vue";
+// ▲▲▲ (추가 완료) ▲▲▲
 
 const users = ref([]);
 const allUsersForModal = ref([]);
@@ -106,6 +119,7 @@ const isBalanceModalVisible = ref(false);
 const isEditModalVisible = ref(false);
 const selectedUser = ref(null);
 const pendingRequestCount = ref(0);
+const isSaltMateHistoryModalVisible = ref(false);
 const totalUserCount = ref(0);
 const activeUserCount = ref(0);
 
@@ -320,6 +334,11 @@ const openTokenModal = (user) => { selectedUser.value = user; isTokenModalVisibl
 const openBalanceModal = (user) => { selectedUser.value = user; isBalanceModalVisible.value = true; };
 const openEditModal = (user) => { selectedUser.value = user; isEditModalVisible.value = true; };
 
+const openSaltMateHistoryModal = (user) => {
+  selectedUser.value = user;
+  isSaltMateHistoryModalVisible.value = true;
+};
+
 // ▼▼▼ [신규] 정렬 기준을 변경하는 함수 ▼▼▼
 const sortBy = (key) => {
   if (sortKey.value === key) {
@@ -355,6 +374,15 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.clickable-cell {
+  cursor: pointer;
+  text-decoration: underline;
+  color: #007bff;
+  font-weight: bold;
+}
+.clickable-cell:hover {
+  background-color: #f8f9fa;
 }
 .role-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; color: #fff; display: inline-block; }
 .role-badge.superAdmin { background-color: #dc3545; }
