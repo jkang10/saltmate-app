@@ -119,7 +119,7 @@
         </section>
 
         <div class="dashboard-grid">
-	<LiveGameFeed class="live-feed-widget" />
+	  <LiveGameFeed class="live-feed-widget" />
           <LeaderboardWidget />
           <WeeklyLeaderboardWidget />
           <SaltPangHallOfFame />
@@ -130,8 +130,6 @@
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
 	  <AvatarShowcaseWidget class="avatar-showcase" />
-          <LiveGameFeed class="live-feed-widget" />
-          <LeaderboardWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
 	  <SaltGuardiansRankingsWidget />
