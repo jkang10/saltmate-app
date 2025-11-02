@@ -8,27 +8,27 @@
     <div class="trader-layout">
       <aside class="left-panel">
         
-	<div class="card asset-card premium-glass">
-	  <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
-	  
-	  <div class="primary-asset">
-	    <span class="asset-label">보유 골드 (거래용)</span>
-	    <strong class="asset-value gold-text">
-	      <i class="fas fa-coins"></i> {{ (userProfile?.goldBalance || 0).toLocaleString() }} G
-	    </strong>
-	  </div>
+        <div class="card asset-card premium-glass">
+          <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
+          
+          <div class="primary-asset">
+            <span class="asset-label">보유 골드 (거래용)</span>
+            <strong class="asset-value gold-text">
+              <i class="fas fa-coins"></i> {{ (userProfile?.goldBalance || 0).toLocaleString() }} G
+            </strong>
+          </div>
 
-	  <div class="secondary-assets">
-	    <div class="asset-item">
-	      <span class="asset-label">내 SaltMate</span>
-	      <strong class="asset-value">{{ (userProfile?.saltmatePoints || 0).toLocaleString() }} P</strong>
-	    </div>
-	    <div class="asset-item salt" @click="openHistoryModal" title="클릭하여 내 거래 내역 확인">
-	      <span class="asset-label">보유 소금</span>
-	      <strong class="asset-value">{{ (userProfile?.saltBalance || 0).toLocaleString() }} 개</strong>
-	    </div>
-	  </div>
-	</div>
+          <div class="secondary-assets">
+            <div class="asset-item">
+              <span class="asset-label">내 SaltMate</span>
+              <strong class="asset-value">{{ (userProfile?.saltmatePoints || 0).toLocaleString() }} P</strong>
+            </div>
+            <div class="asset-item salt" @click="openHistoryModal" title="클릭하여 내 거래 내역 확인">
+              <span class="asset-label">보유 소금</span>
+              <strong class="asset-value">{{ (userProfile?.saltBalance || 0).toLocaleString() }} 개</strong>
+            </div>
+          </div>
+        </div>
         
         <div class="card exchange-card">
           <h3><i class="fas fa-sync-alt"></i> 골드 교환소</h3>
@@ -137,13 +137,14 @@ import { doc, onSnapshot, collection, query, orderBy, getDocs, limit } from 'fir
 import { httpsCallable } from 'firebase/functions';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart, CandlestickChart } from 'echarts/charts';
+// [★수정★] BarChart 임포트 추가
+import { LineChart, CandlestickChart, BarChart } from 'echarts/charts';
 import { TitleComponent, TooltipComponent, GridComponent, DataZoomComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 
-use([CanvasRenderer, LineChart, CandlestickChart, TitleComponent, TooltipComponent, GridComponent, DataZoomComponent]);
+// [★수정★] BarChart use에 추가
+use([CanvasRenderer, LineChart, CandlestickChart, BarChart, TitleComponent, TooltipComponent, GridComponent, DataZoomComponent]);
 
-// (isHistoryModalVisible ~ recentTrades ref ... 변경 없음)
 const isHistoryModalVisible = ref(false);
 const tradeHistory = ref([]);
 const isLoadingHistory = ref(false);
@@ -160,7 +161,6 @@ let marketUnsubscribe = null;
 let userUnsubscribe = null;
 let recentTradesUnsubscribe = null;
 
-// (priceChange ~ chartOption computed ... 변경 없음)
 const priceChange = computed(() => {
     const history = market.value?.priceHistory || [];
     if (history.length < 2) return 0;
@@ -200,35 +200,99 @@ const candlestickData = computed(() => {
   }
   return data;
 });
+
+// [★신규★] 거래량 차트 데이터 (시뮬레이션)
+const volumeData = computed(() => {
+  return (market.value?.priceHistory || []).map((h, i) => {
+    const baseVolume = 1000 + (Math.random() * 500);
+    const priceChange = i > 0 ? Math.abs(h.price - market.value.priceHistory[i-1].price) : 0;
+    return Math.floor(baseVolume + (priceChange * 100));
+  });
+});
+
+// [★수정★] 차트 옵션을 가격+거래량 2단 차트로 변경
 const chartOption = computed(() => {
     const history = market.value?.priceHistory || [];
+    const dates = history.map(h => new Date(h.time.seconds * 1000).toLocaleTimeString('ko-KR'));
+    const candlestick = candlestickData.value;
+    const volumes = volumeData.value;
+
     return {
-        grid: { left: '10%', right: '5%', bottom: '20%' },
-        tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: history.map(h => new Date(h.time.seconds * 1000).toLocaleTimeString('ko-KR')) },
-        yAxis: { type: 'value', scale: true },
-        dataZoom: [{ type: 'inside', start: 80, end: 100 }, { start: 80, end: 100 }],
-        series: [{
-            type: 'candlestick',
-            data: candlestickData.value,
-            itemStyle: {
-                color: '#28a745', color0: '#dc3545',
-                borderColor: '#28a745', borderColor0: '#dc3545'
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross' }
+        },
+        axisPointer: { link: { xAxisIndex: 'all' } }, // 두 차트 X축 연동
+        dataZoom: [
+            { type: 'inside', xAxisIndex: [0, 1], start: 80, end: 100 },
+            { type: 'slider', xAxisIndex: [0, 1], start: 80, end: 100, top: '90%' }
+        ],
+        grid: [
+            { left: '10%', right: '5%', top: '10%', height: '55%' }, // 가격 차트
+            { left: '10%', right: '5%', top: '70%', height: '18%' }  // 거래량 차트
+        ],
+        xAxis: [
+            { // 가격 차트 X축
+                type: 'category',
+                data: dates,
+                axisLine: { onZero: false },
+                axisLabel: { show: false } // 상단 차트 X축 레이블 숨김
+            },
+            { // 거래량 차트 X축
+                type: 'category',
+                data: dates,
+                gridIndex: 1, // 2번째 그리드
+                axisLine: { onZero: false }
             }
-        }]
+        ],
+        yAxis: [
+            { // 가격 차트 Y축
+                type: 'value',
+                scale: true,
+                splitArea: { show: true }
+            },
+            { // 거래량 차트 Y축
+                type: 'value',
+                scale: true,
+                gridIndex: 1, // 2번째 그리드
+                axisLabel: { show: false },
+                splitLine: { show: false }
+            }
+        ],
+        series: [
+            { // 가격 시리즈
+                type: 'candlestick',
+                name: '가격',
+                data: candlestick,
+                itemStyle: {
+                    color: '#28a745', color0: '#dc3545',
+                    borderColor: '#28a745', borderColor0: '#dc3545'
+                },
+                xAxisIndex: 0,
+                yAxisIndex: 0
+            },
+            { // 거래량 시리즈
+                type: 'bar',
+                name: '거래량',
+                data: volumes,
+                // 가격 상승/하락에 따라 거래량 바 색상 변경
+                itemStyle: {
+                    color: (params) => (candlestick[params.dataIndex][1] > candlestick[params.dataIndex][0] ? '#28a745' : '#dc3545')
+                },
+                xAxisIndex: 1,
+                yAxisIndex: 1
+            }
+        ]
     };
 });
 
-// ▼▼▼ [★신규★] 예상 매도 수익 계산 computed ▼▼▼
 const expectedSellRevenue = computed(() => {
   const gross = (sellQuantity.value || 0) * (market.value?.currentPrice || 0);
-  const fee = Math.floor(gross * 0.05); // 5% 수수료
+  const fee = Math.floor(gross * 0.05);
   const net = gross - fee;
   return { gross, fee, net };
 });
-// ▲▲▲ (추가 완료) ▲▲▲
 
-// (onMounted, onUnmounted, trade, openHistoryModal, exchangeGold 함수 ... 변경 없음)
 onMounted(() => {
   const marketRef = doc(db, "configuration", "saltMarket");
   marketUnsubscribe = onSnapshot(marketRef, (docSnap) => {
@@ -309,7 +373,6 @@ const exchangeGold = async () => {
 </script>
 
 <style scoped>
-/* (기존 스타일 상단 ... ) */
 .btn-exchange {
   background-color: #ffc107;
   color: #212529;
@@ -324,13 +387,10 @@ const exchangeGold = async () => {
 .trader-layout { display: grid; grid-template-columns: 350px 1fr; gap: 24px; align-items: start; }
 .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
 .left-panel, .right-panel { display: flex; flex-direction: column; gap: 24px; }
-.asset-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
-.asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
-.asset-item.salt { cursor: pointer; }
-.asset-item.salt:hover { background-color: #f8f9fa; }
-/* 프리미엄 글래스 카드 (광산 페이지와 유사한 테마) */
+
+/* ▼▼▼ [★핵심 수정★] 자산 카드 레이아웃 수정 ▼▼▼ */
 .premium-glass {
-  background: rgba(10, 0, 20, 0.7); /* 어두운 보라색 반투명 */
+  background: rgba(10, 0, 20, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(170, 70, 255, 0.3);
@@ -347,8 +407,6 @@ const exchangeGold = async () => {
   padding-bottom: 15px;
   border-bottom: 1px solid rgba(170, 70, 255, 0.4);
 }
-
-/* "보유 골드" (메인) */
 .primary-asset {
   text-align: center;
   padding: 20px 10px;
@@ -365,7 +423,7 @@ const exchangeGold = async () => {
 .primary-asset .asset-value.gold-text {
   font-size: 2.8rem;
   font-weight: 700;
-  color: #FFD700; /* 금색 */
+  color: #FFD700;
   text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
   display: flex;
   align-items: center;
@@ -373,11 +431,10 @@ const exchangeGold = async () => {
   gap: 10px;
   line-height: 1.2;
 }
-
-/* "SaltMate" 및 "소금" (보조) */
+/* [★수정★] grid -> flex column으로 변경 */
 .secondary-assets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column; /* 세로로 쌓음 */
   gap: 15px;
 }
 .asset-item {
@@ -386,18 +443,24 @@ const exchangeGold = async () => {
   border-radius: 8px;
   text-align: center;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  /* [★수정★] grid CSS 제거 (flex-direction: column 으로 대체됨) */
+  display: flex; /* [★추가★] 내부 정렬을 위해 flex 사용 */
+  justify-content: space-between; /* [★추가★] 좌우 정렬 */
+  align-items: center; /* [★추가★] 세로 중앙 정렬 */
 }
 .asset-item .asset-label {
   display: block;
   font-size: 0.9rem;
-  color: #d09fff; /* 밝은 보라색 */
-  margin-bottom: 8px;
+  color: #d09fff;
+  margin-bottom: 0; /* [★수정★] */
+  text-align: left; /* [★추가★] */
 }
 .asset-item .asset-value {
   display: block;
   font-size: 1.5rem;
   font-weight: 600;
   color: #f0f0f0;
+  text-align: right; /* [★추가★] */
 }
 .asset-item.salt { 
   cursor: pointer; 
@@ -406,6 +469,9 @@ const exchangeGold = async () => {
 .asset-item.salt:hover { 
   background-color: rgba(0, 0, 0, 0.5);
 }
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
+
 .trade-section {
   padding-bottom: 15px;
   margin-bottom: 15px;
@@ -417,7 +483,6 @@ const exchangeGold = async () => {
   margin-top: 0;
   margin-bottom: 10px;
 }
-/* ▼▼▼ [★신규★] 수수료 텍스트 스타일 ▼▼▼ */
 .sell-header {
   display: flex;
   justify-content: space-between;
@@ -431,8 +496,6 @@ const exchangeGold = async () => {
   padding: 3px 8px;
   border-radius: 5px;
 }
-/* ▲▲▲ (추가 완료) ▲▲▲ */
-
 .input-group {
   display: flex;
   width: 100%;
@@ -463,8 +526,6 @@ const exchangeGold = async () => {
   cursor: pointer;
   transition: background-color .2s;
 }
-
-/* ▼▼▼ [★수정★] 예상 수익란 스타일 ▼▼▼ */
 .trade-summary {
   font-size: 0.9em;
   color: #6c757d;
@@ -480,8 +541,6 @@ const exchangeGold = async () => {
   color: #212529;
   font-weight: bold;
 }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
 .btn-buy { background-color: #007bff; }
 .btn-sell { background-color: #28a745; }
 .btn-trade:disabled {
@@ -490,7 +549,6 @@ const exchangeGold = async () => {
   cursor: not-allowed;
 }
 
-/* (이하 나머지 스타일은 100% 동일) */
 .market-card { padding: 24px; }
 .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .current-price { font-size: 2.5em; font-weight: 700; }
@@ -502,7 +560,10 @@ const exchangeGold = async () => {
 .stat-item strong { font-size: 1.1em; }
 .stat-item strong.up { color: var(--success-green); }
 .stat-item strong.down { color: var(--danger-red); }
-.chart-container { height: 350px; }
+
+/* [★수정★] 차트 컨테이너 높이 350px -> 500px로 변경 */
+.chart-container { height: 500px; }
+
 .recent-trades-card ul { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
 .trades-list li { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; padding: 6px 0; font-family: monospace; }
 .trades-list li.buy .trade-action { color: var(--primary-blue); }
