@@ -307,23 +307,25 @@ const handleTouchEnd = (e) => {
 const gameAreaStyle = computed(() => ({
   width: `${GAME_WIDTH.value}px`,
   height: `${GAME_HEIGHT.value}px`,
-  // [★수정★] Z-Fold 화면에 맞게 게임 보드를 축소
   transform: `scale(${TILE_SIZE.value / 40})`,
-  
-  // ▼▼▼ [핵심 수정] 'top left' -> 'center top' ▼▼▼
-  transformOrigin: 'center top', 
+
+  // ▼▼▼ [핵심 수정] 'center top' -> 'top left' (원복) ▼▼▼
+  transformOrigin: 'top left', 
   // ▲▲▲ (수정 완료) ▲▲▲
 }));
+
 const frogStyle = computed(() => ({
   transform: `translate(${frogPosition.x * TILE_SIZE.value}px, ${frogPosition.y * TILE_SIZE.value}px)`,
   width: `${TILE_SIZE.value}px`,
   height: `${TILE_SIZE.value}px`,
 }));
+
 // [★추가★] Zone 스타일 동적 계산
 const zoneStyle = (topTile, heightTile) => ({
   top: `${topTile * TILE_SIZE.value}px`,
   height: `${heightTile * TILE_SIZE.value}px`,
 });
+
 // [★추가★] Goal 스타일 동적 계산
 const goalStyle = (index) => ({
   left: `${(index * 2 + 1) * TILE_SIZE.value}px`,
@@ -463,12 +465,10 @@ onUnmounted(() => {
 
 /* [★수정★] 게임 영역 래퍼 */
 .game-area-wrapper {
-  width: 100%;
+  /* [★삭제★] width: 100%; 속성을 삭제합니다. */
   max-width: var(--game-width);
   max-height: calc(100dvh - 20px);
-
-  /* aspect-ratio: 9 / 16; */
-
+  /* aspect-ratio: 9 / 16; (삭제 유지) */
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
