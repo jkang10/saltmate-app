@@ -307,9 +307,12 @@ const handleTouchEnd = (e) => {
 const gameAreaStyle = computed(() => ({
   width: `${GAME_WIDTH.value}px`,
   height: `${GAME_HEIGHT.value}px`,
-  // [★추가★] Z-Fold 화면에 맞게 게임 보드를 축소
+  // [★수정★] Z-Fold 화면에 맞게 게임 보드를 축소
   transform: `scale(${TILE_SIZE.value / 40})`,
-  transformOrigin: 'top left',
+  
+  // ▼▼▼ [핵심 수정] 'top left' -> 'center top' ▼▼▼
+  transformOrigin: 'center top', 
+  // ▲▲▲ (수정 완료) ▲▲▲
 }));
 const frogStyle = computed(() => ({
   transform: `translate(${frogPosition.x * TILE_SIZE.value}px, ${frogPosition.y * TILE_SIZE.value}px)`,
@@ -437,10 +440,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
 /* ▼▼▼ [핵심 수정] CSS 전체 수정 ▼▼▼ */
 .frog-game-page {
   /* [★수정★] 변수들을 CSS가 아닌 JS(Computed)에서 제어하므로 삭제 */
-  /* --tile-size, --game-width, --game-height 등 삭제 */
   --color-road: #78553a;
   --color-water: #3b82f6;
   --color-safe: #c7d2fe;
@@ -463,10 +466,8 @@ onUnmounted(() => {
   width: 100%;
   max-width: var(--game-width);
   max-height: calc(100dvh - 20px);
-  
-  /* ▼▼▼ [핵심 수정] 이 한 줄을 삭제하거나 주석 처리하세요 ▼▼▼ */
-  /* aspect-ratio: 9 / 16; */ /* */
-  /* ▲▲▲ (수정 완료) ▲▲▲ */
+
+  /* aspect-ratio: 9 / 16; */
 
   overflow: hidden;
   border-radius: 8px;
@@ -550,7 +551,14 @@ onUnmounted(() => {
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-
+/* ▼▼▼ [핵심 수정] 이 미디어 쿼리 블록을 추가하세요 ▼▼▼ */
+@media (min-width: 768px) {
+  /* PC (768px 이상) 화면에서는 */
+  .frog-game-page {
+    justify-content: center; /* 세로 중앙 정렬로 변경 */
+  }
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
 .log, .cart {
   position: absolute;
   will-change: transform;
