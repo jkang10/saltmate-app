@@ -362,20 +362,20 @@ onUnmounted(() => {
 .frog-game-page {
   --tile-size: 40px;
   --game-width: 360px;
-  --game-height: 520px;
-  --color-road: #78553a;
-  --color-water: #3b82f6;
-  --color-safe: #c7d2fe;
-  --color-goal: #4a0e97;
+  --game-height: 520px; /* 13 tiles */
+  --color-road: #78553a; /* 광산 길 (갈색) */
+  --color-water: #3b82f6; /* 염수 강 (파랑) */
+  --color-safe: #c7d2fe; /* 안전 지대 (연보라) */
+  --color-goal: #4a0e97; /* 목표 지대 (진보라) */
 
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* 상단부터 정렬 */
-  padding: 10px; /* 상하좌우 최소 여백 */
+  justify-content: flex-start;
+  padding: 10px;
   background-color: #1a1a2e;
   width: 100%;
-  min-height: 100vh; /* 최소 화면 높이 */
+  min-height: 100vh;
   box-sizing: border-box;
 }
 
@@ -419,23 +419,32 @@ onUnmounted(() => {
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
   flex-shrink: 0;
-  position: relative; /* 조이스틱의 기준점 */
+  position: relative;
 }
 .game-area {
   position: relative;
   background-color: #ccc;
   overflow: hidden;
 }
+
+/* ▼▼▼ [핵심 수정] Zone 배경 Y좌표 수정 ▼▼▼ */
 .zone {
   position: absolute;
   width: 100%;
   height: var(--tile-size);
 }
-.start-zone { top: calc(var(--tile-size) * 12); background-color: var(--color-safe); }
-.road-zone { top: calc(var(--tile-size) * 7); height: calc(var(--tile-size) * 5); background-color: var(--color-road); }
-.mid-zone { top: calc(var(--tile-size) * 6); background-color: var(--color-safe); }
-.water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 5); background-color: var(--color-water); }
+/* 출발 지점 (Y: 11~12) - 2칸 */
+.start-zone { top: calc(var(--tile-size) * 11); height: calc(var(--tile-size) * 2); background-color: var(--color-safe); }
+/* 광산 길 (Y: 6~10) - 5칸 */
+.road-zone { top: calc(var(--tile-size) * 6); height: calc(var(--tile-size) * 5); background-color: var(--color-road); }
+/* 중간 지점 (Y: 5) - 1칸 */
+.mid-zone { top: calc(var(--tile-size) * 5); background-color: var(--color-safe); }
+/* 염수 강 (Y: 1~4) - 4칸 */
+.water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 4); background-color: var(--color-water); }
+/* 목표 지점 (Y: 0) - 1칸 */
 .goal-zone { top: 0; background-color: var(--color-goal); }
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
 
 .goal {
   position: absolute;
@@ -471,7 +480,7 @@ onUnmounted(() => {
 .cart-80 { background-image: url('@/assets/game_assets/card_80xx40.png'); }
 .cart-120 { background-image: url('@/assets/game_assets/card_120xx40.png'); }
 .cart i {
-  display: none; /* 디버깅용 아이콘 숨김 */
+  display: none;
 }
 
 .frog {
@@ -499,11 +508,10 @@ onUnmounted(() => {
 
 .joystick-controls {
   position: absolute;
-  bottom: calc(15px + env(safe-area-inset-bottom)); /* 하단 여백 + 아이폰 하단바 대응 */
+  bottom: calc(15px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
-  
   display: flex;
   flex-direction: column;
   align-items: center;
