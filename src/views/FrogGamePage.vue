@@ -1,7 +1,12 @@
 <template>
   <div class="frog-game-page">
     
-    <div class="game-area-wrapper">
+    <div 
+      class="game-area-wrapper" 
+      ref="gameAreaWrapper"
+      @touchstart.prevent="handleTouchStart"
+      @touchend.prevent="handleTouchEnd"
+    >
       
       <div class="game-stats-glass">
         <div class="stat-item">
@@ -22,7 +27,6 @@
         <div class="zone mid-zone"></div>
         <div class="zone water-zone"></div>
         <div class="zone goal-zone"></div>
-
         <div 
           v-for="(goal, index) in goals" 
           :key="'goal-' + index"
@@ -31,7 +35,6 @@
         >
           <div v-if="goal.filled" class="goal-filled">💎</div>
         </div>
-
         <div 
           v-for="log in logs"
           :key="log.id"
@@ -39,7 +42,6 @@
           :class="log.type"
           :style="log.style"
         ></div>
-        
         <div 
           v-for="cart in carts"
           :key="cart.id"
@@ -47,7 +49,6 @@
           :class="cart.type"
           :style="cart.style"
         ></div>
-
         <div 
           class="frog" 
           :style="frogStyle"
@@ -57,16 +58,7 @@
         </div>
       </div>
 
-      <div class="joystick-controls">
-        <button class="joy-btn joy-up" @touchstart.prevent="movePlayer(0, -1)" @click="movePlayer(0, -1)"><i class="fas fa-arrow-up"></i></button>
-        <div class="joy-middle">
-          <button class="joy-btn joy-left" @touchstart.prevent="movePlayer(-1, 0)" @click="movePlayer(-1, 0)"><i class="fas fa-arrow-left"></i></button>
-          <button class="joy-btn joy-right" @touchstart.prevent="movePlayer(1, 0)" @click="movePlayer(1, 0)"><i class="fas fa-arrow-right"></i></button>
-        </div>
-        <button class="joy-btn joy-down" @touchstart.prevent="movePlayer(0, 1)" @click="movePlayer(0, 1)"><i class="fas fa-arrow-down"></i></button>
-      </div>
-
-    </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
+      </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
       <div class="modal-content">
         <h2 v-if="gameStatus === 'loading'">잠시만 기다려주세요</h2>
         <h2 v-if="gameStatus === 'lost'">게임 오버</h2>
@@ -83,21 +75,24 @@
 </template>
 
 <script setup>
-// (Script setup 내용은 이전과 100% 동일합니다)
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
+// --- Firebase Functions ---
 const startFrogGame = httpsCallable(functions, 'startFrogGame');
 const endFrogGame = httpsCallable(functions, 'endFrogGame');
 const router = useRouter();
 
+// --- 게임 설정 (맵 확장) ---
 const TILE_SIZE = 40;
 const WIDTH_TILES = 9;
 const HEIGHT_TILES = 16;
 const GAME_WIDTH = TILE_SIZE * WIDTH_TILES;
 const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES;
+
+// --- 게임 상태 ---
 const gameStatus = ref('loading');
 const score = ref(0);
 const lives = ref(3);
@@ -112,16 +107,33 @@ const goals = ref([
 const logs = ref([]);
 const carts = ref([]);
 let lastTimestamp = 0;
+
+// --- [★신규★] 스와이프(터치) 컨트롤 변수 ---
+const gameAreaWrapper = ref(null); // <template>의 래퍼 엘리먼트
+const touchStartX = ref(0);
+const touchStartY = ref(0);
+const SWIPE_THRESHOLD = 30; // 30px 이상 움직여야 스와이프로 인정
+
+// --- 게임 루프 ---
 const gameLoop = (timestamp) => {
   if (gameStatus.value !== 'playing') return;
+  
   const deltaTime = (timestamp - lastTimestamp) / 1000;
   lastTimestamp = timestamp;
+
   moveObjects(logs.value, deltaTime);
   moveObjects(carts.value, deltaTime);
-  checkOnLog();
+  
+  // ▼▼▼ [★핵심 수정★] 뗏목 버그 수정을 위해 deltaTime을 전달합니다. ▼▼▼
+  checkOnLog(deltaTime); 
+  // ▲▲▲ (수정 완료) ▲▲▲
+
   checkCollisions();
+  
   gameLoopId = requestAnimationFrame(gameLoop);
 };
+
+// --- 객체 이동 (변경 없음) ---
 const moveObjects = (objects, deltaTime) => {
   objects.forEach(obj => {
     obj.x += obj.speed * deltaTime;
@@ -132,7 +144,10 @@ const moveObjects = (objects, deltaTime) => {
     }
   });
 };
-const checkOnLog = () => {
+
+// --- [★수정★] 뗏목 버그 수정 ---
+const checkOnLog = (deltaTime) => { // deltaTime 파라미터 추가
+  // 강물 Y좌표: 1~6
   if (frogPosition.y >= 1 && frogPosition.y <= 6) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
@@ -141,7 +156,11 @@ const checkOnLog = () => {
       if (log.row === frogPosition.y) {
         if (frogLeft < (log.x + log.width) && frogRight > log.x) {
           onLogId.value = log.id;
-          frogPosition.x += (log.speed / TILE_SIZE) * (1000/60 / 1000);
+          
+          // ▼▼▼ [★핵심 수정★] 잘못된 고정 프레임 계산 대신, 실제 경과 시간(deltaTime)으로 이동시킵니다. ▼▼▼
+          frogPosition.x += (log.speed * deltaTime) / TILE_SIZE;
+          // ▲▲▲ (수정 완료) ▲▲▲
+
           isOnLog = true;
           break;
         }
@@ -155,8 +174,11 @@ const checkOnLog = () => {
     onLogId.value = null;
   }
 };
+
+// --- 충돌 감지 (변경 없음) ---
 const checkCollisions = () => {
   if (isDead.value) return;
+  // 광산 수레 Y좌표: 8~13
   if (frogPosition.y >= 8 && frogPosition.y <= 13) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
@@ -174,6 +196,8 @@ const checkCollisions = () => {
     return;
   }
 };
+
+// --- 사망/골/리셋 (변경 없음) ---
 const resetFrog = () => {
   isDead.value = false;
   onLogId.value = null;
@@ -210,6 +234,8 @@ const handleGoal = (goalIndex) => {
     handleEndGame(score.value);
   }
 };
+
+// --- 플레이어 조작 (점수 버그 수정됨) ---
 const movePlayer = (dx, dy) => {
   if (isDead.value || gameStatus.value !== 'playing') return;
   const newX = frogPosition.x + dx;
@@ -232,6 +258,8 @@ const movePlayer = (dx, dy) => {
     score.value += 10;
   }
 };
+
+// --- PC 키보드 핸들러 (변경 없음) ---
 const handleKeydown = (e) => {
   e.preventDefault();
   switch (e.key) {
@@ -241,6 +269,47 @@ const handleKeydown = (e) => {
     case 'ArrowRight': movePlayer(1, 0); break;
   }
 };
+
+// --- [★신규★] 모바일 스와이프 핸들러 ---
+const handleTouchStart = (e) => {
+  if (gameStatus.value !== 'playing') return;
+  // e.preventDefault(); // 이미 <template>에서 .prevent로 처리함
+  touchStartX.value = e.changedTouches[0].clientX;
+  touchStartY.value = e.changedTouches[0].clientY;
+};
+
+const handleTouchEnd = (e) => {
+  if (gameStatus.value !== 'playing') return;
+  // e.preventDefault(); // 이미 <template>에서 .prevent로 처리함
+  
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+
+  const dx = touchEndX - touchStartX.value;
+  const dy = touchEndY - touchStartY.value;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // 수평 스와이프
+    if (Math.abs(dx) > SWIPE_THRESHOLD) {
+      if (dx > 0) {
+        movePlayer(1, 0); // 오른쪽
+      } else {
+        movePlayer(-1, 0); // 왼쪽
+      }
+    }
+  } else {
+    // 수직 스와이프
+    if (Math.abs(dy) > SWIPE_THRESHOLD) {
+      if (dy > 0) {
+        movePlayer(0, 1); // 아래
+      } else {
+        movePlayer(0, -1); // 위
+      }
+    }
+  }
+};
+
+// --- Computed 스타일 (변경 없음) ---
 const gameAreaStyle = computed(() => ({
   width: `${GAME_WIDTH}px`,
   height: `${GAME_HEIGHT}px`,
@@ -250,6 +319,8 @@ const frogStyle = computed(() => ({
   width: `${TILE_SIZE}px`,
   height: `${TILE_SIZE}px`,
 }));
+
+// --- 객체 초기화 (맵 확장) (변경 없음) ---
 const initializeGameObjects = () => {
   logs.value = [
     { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
@@ -277,6 +348,8 @@ const initializeGameObjects = () => {
     }));
   });
 };
+
+// --- 게임 시작/종료 ---
 const handleStartGame = async () => {
   if (!auth.currentUser) {
     alert("로그인이 필요합니다.");
@@ -314,9 +387,13 @@ const handleEndGame = async (finalScore) => {
 const goToDashboard = () => {
   router.push('/dashboard');
 };
+
+// --- 마운트/언마운트 ---
 onMounted(() => {
   handleStartGame();
+  // [★삭제★] 터치 리스너는 <template>에서 @touchstart.prevent 등으로 직접 바인딩
 });
+
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
   if (gameLoopId) {
@@ -325,6 +402,7 @@ onUnmounted(() => {
   if (gameStatus.value === 'playing') {
     handleEndGame(0);
   }
+  // [★삭제★] 터치 리스너 제거 로직 삭제
 });
 </script>
 
@@ -342,32 +420,29 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* [★수정★] 세로 중앙 정렬로 변경 */
-  justify-content: center; 
+  justify-content: center; /* 세로 중앙 정렬 */
   padding: 10px;
   background-color: #1a1a2e;
   width: 100%;
-  /* [★수정★] 100vh -> 100dvh (동적 뷰포트 높이) */
-  min-height: 100dvh;
+  min-height: 100dvh; /* 동적 뷰포트 높이 */
   box-sizing: border-box;
-  overflow: hidden; /* [★추가★] 스크롤 방지 */
+  overflow: hidden; /* 스크롤 방지 */
 }
 
-/* [★수정★] 게임 영역 래퍼가 모든 UI의 기준점 */
 .game-area-wrapper {
   width: 100%;
   max-width: var(--game-width);
-  /* [★수정★] 9:16 비율이 되도록 최대 높이 설정 */
   max-height: calc(100dvh - 20px); /* 패딩 10px * 2 */
   aspect-ratio: 9 / 16; /* 9:16 비율 (360x640) */
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
   flex-shrink: 0;
-  position: relative; /* 모든 오버레이 UI의 기준 */
+  position: relative;
+  /* [★신규★] 스와이프 시 화면이 당겨지는 현상 방지 */
+  touch-action: none;
 }
 
-/* [★수정★] 점수판을 래퍼 안으로 이동 (오버레이) */
 .game-stats-glass {
   position: absolute;
   top: 10px;
@@ -407,7 +482,6 @@ onUnmounted(() => {
   color: #2ecc71;
 }
 
-/* 게임 맵 */
 .game-area {
   position: relative;
   background-color: #ccc;
@@ -449,7 +523,6 @@ onUnmounted(() => {
   to { transform: scale(1); opacity: 1; }
 }
 
-/* 장애물 및 뗏목 이미지 경로 */
 .log, .cart {
   position: absolute;
   will-change: transform;
@@ -466,7 +539,6 @@ onUnmounted(() => {
   display: none;
 }
 
-/* 개구리 */
 .frog {
   position: absolute;
   top: 0;
@@ -490,51 +562,11 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* [★수정★] 조이스틱 (게임 화면 우측 하단으로 이동) */
-.joystick-controls {
-  position: absolute;
-  bottom: 15px; /* 하단 여백 */
-  right: 15px; /* [★수정★] 우측 여백 */
-  padding-bottom: env(safe-area-inset-bottom);
-  z-index: 100;
-  
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  user-select: none;
-  -webkit-user-select: none;
-  width: 120px; /* [★수정★] 160px -> 120px (크기 축소) */
-}
-.joy-middle {
-  display: flex;
-  width: 100%;
-  justify-content: center; /* 중앙으로 */
-  gap: 10px; /* [★수정★] 20px -> 10px (더 촘촘하게) */
-}
+/* [★삭제★] 조이스틱 CSS를 모두 삭제합니다. */
+.joystick-controls,
+.joy-middle,
 .joy-btn {
-  width: 50px; /* [★수정★] 65px -> 50px (크기 축소) */
-  height: 50px;
-  border: none;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  font-size: 1.4rem; /* [★수정★] 1.8rem -> 1.4rem (크기 축소) */
-  color: #2c3e50;
-  margin: 4px; /* [★수정★] 5px -> 4px (크기 축소) */
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-.joy-btn:active {
-  background-color: rgba(255, 255, 255, 0.9);
-  transform: scale(0.95);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-}
-@media (min-width: 768px) {
-  .joystick-controls {
-    display: none;
-  }
+  display: none;
 }
 
 /* 모달 */
@@ -548,7 +580,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 200; /* 조이스틱보다 위 */
+  z-index: 200;
 }
 .modal-content {
   background: white;
