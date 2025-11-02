@@ -44,8 +44,7 @@
           class="cart"
           :class="cart.type"
           :style="cart.style"
-        >
-          </div>
+        ></div>
 
         <div 
           class="frog" 
@@ -92,18 +91,18 @@ const startFrogGame = httpsCallable(functions, 'startFrogGame');
 const endFrogGame = httpsCallable(functions, 'endFrogGame');
 const router = useRouter();
 
-// --- 게임 설정 (변경 없음) ---
+// --- [★수정★] 게임 설정 (맵 확장) ---
 const TILE_SIZE = 40;
 const WIDTH_TILES = 9;
-const HEIGHT_TILES = 13;
+const HEIGHT_TILES = 16; // 13 -> 16으로 3칸 확장
 const GAME_WIDTH = TILE_SIZE * WIDTH_TILES;
-const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES;
+const GAME_HEIGHT = TILE_SIZE * HEIGHT_TILES; // 520px -> 640px
 
-// --- 게임 상태 (변경 없음) ---
+// --- 게임 상태 ---
 const gameStatus = ref('loading');
 const score = ref(0);
 const lives = ref(3);
-const frogPosition = reactive({ x: 4, y: 12 }); // 출발 Y좌표 (12)
+const frogPosition = reactive({ x: 4, y: 15 }); // [★수정★] 출발 Y좌표 12 -> 15
 const isDead = ref(false);
 const onLogId = ref(null);
 let gameLoopId = null;
@@ -141,8 +140,8 @@ const moveObjects = (objects, deltaTime) => {
 
 // --- [★수정★] 강물/충돌 Y좌표 수정 ---
 const checkOnLog = () => {
-  // [수정] 강물 Y좌표: 1~5 -> 1~4
-  if (frogPosition.y >= 1 && frogPosition.y <= 4) { 
+  // [★수정★] 강물 Y좌표: 1~4 -> 1~6 (6칸)
+  if (frogPosition.y >= 1 && frogPosition.y <= 6) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
     let isOnLog = false;
@@ -168,8 +167,8 @@ const checkOnLog = () => {
 const checkCollisions = () => {
   if (isDead.value) return;
 
-  // [수정] 광산 수레 Y좌표: 7~11 -> 6~10
-  if (frogPosition.y >= 6 && frogPosition.y <= 10) { 
+  // [★수정★] 광산 수레 Y좌표: 6~10 -> 8~13 (6칸)
+  if (frogPosition.y >= 8 && frogPosition.y <= 13) { 
     const frogLeft = frogPosition.x * TILE_SIZE;
     const frogRight = frogLeft + TILE_SIZE;
     for (const cart of carts.value) {
@@ -193,7 +192,7 @@ const resetFrog = () => {
   isDead.value = false;
   onLogId.value = null;
   frogPosition.x = 4;
-  frogPosition.y = 12; // 출발 Y좌표 (12)
+  frogPosition.y = 15; // [★수정★] 출발 Y좌표 12 -> 15
 };
 
 // --- 사망/골 처리 (변경 없음) ---
@@ -234,11 +233,11 @@ const movePlayer = (dx, dy) => {
   if (isDead.value || gameStatus.value !== 'playing') return;
   const newX = frogPosition.x + dx;
   const newY = frogPosition.y + dy;
-  // [수정] Y좌표 하단 제한: 12
-  if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 12) {
+  // [★수정★] Y좌표 하단 제한: 15
+  if (newX < 0 || newX >= WIDTH_TILES || newY < 0 || newY > 15) {
     return;
   }
-  // [수정] 목표 지점 Y좌표: 0
+  // [★수정★] 목표 지점 Y좌표: 0
   if (newY === 0) {
     if (newX % 2 !== 0) {
       const goalIndex = Math.floor(newX / 2);
@@ -277,24 +276,27 @@ const frogStyle = computed(() => ({
   height: `${TILE_SIZE}px`,
 }));
 
-// --- [★수정★] 객체 초기화 Y좌표(row) 수정 ---
+// --- [★수정★] 객체 초기화 (맵 확장) ---
 const initializeGameObjects = () => {
-  // 뗏목 설정 (y: 1~4)
+  // 뗏목 설정 (y: 1~6) - 6줄
   logs.value = [
     { id: 'l1', row: 1, x: 0, width: TILE_SIZE * 3, speed: 60, type: 'raft-120' },
-    { id: 'l3', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' },
-    { id: 'l4', row: 3, x: 0, width: TILE_SIZE * 4, speed: 40, type: 'raft-160' },
-    { id: 'l5', row: 4, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -120, type: 'raft-80' },
+    { id: 'l2', row: 2, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -90, type: 'raft-80' },
+    { id: 'l3', row: 3, x: 0, width: TILE_SIZE * 4, speed: 40, type: 'raft-160' },
+    { id: 'l4', row: 4, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: -120, type: 'raft-80' },
+    { id: 'l5', row: 5, x: 0, width: TILE_SIZE * 3, speed: 70, type: 'raft-120' },
+    { id: 'l6', row: 6, x: TILE_SIZE * 3, width: TILE_SIZE * 3, speed: -50, type: 'raft-120' }, // 새 뗏목
   ];
-  // 광산 수레 설정 (y: 6~10)
+  // 광산 수레 설정 (y: 8~13) - 6줄
   carts.value = [
-    { id: 'c1', row: 6, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' },
-    { id: 'c2', row: 7, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c3', row: 7, x: TILE_SIZE * 3, width: TILE_SIZE, speed: 80, type: 'cart-40' },
-    { id: 'c4', row: 8, x: 0, width: TILE_SIZE * 3, speed: -150, type: 'cart-120' },
-    { id: 'c5', row: 9, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: 110, type: 'cart-80' },
-    { id: 'c6', row: 10, x: 0, width: TILE_SIZE, speed: -70, type: 'cart-40' },
-    { id: 'c7', row: 10, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' },
+    { id: 'c1', row: 8, x: 0, width: TILE_SIZE * 2, speed: -100, type: 'cart-80' },
+    { id: 'c2', row: 9, x: GAME_WIDTH, width: TILE_SIZE, speed: 80, type: 'cart-40' },
+    { id: 'c3', row: 9, x: TILE_SIZE * 3, width: TILE_SIZE, speed: 80, type: 'cart-40' },
+    { id: 'c4', row: 10, x: 0, width: TILE_SIZE * 3, speed: -150, type: 'cart-120' },
+    { id: 'c5', row: 11, x: GAME_WIDTH, width: TILE_SIZE * 2, speed: 110, type: 'cart-80' },
+    { id: 'c6', row: 12, x: 0, width: TILE_SIZE, speed: -70, type: 'cart-40' },
+    { id: 'c7', row: 12, x: TILE_SIZE * 4, width: TILE_SIZE, speed: -70, type: 'cart-40' },
+    { id: 'c8', row: 13, x: 0, width: TILE_SIZE * 2, speed: 130, type: 'cart-80' }, // 새 수레
   ];
   
   [...logs.value, ...carts.value].forEach(obj => {
@@ -362,11 +364,11 @@ onUnmounted(() => {
 .frog-game-page {
   --tile-size: 40px;
   --game-width: 360px;
-  --game-height: 520px; /* 13 tiles */
-  --color-road: #78553a; /* 광산 길 (갈색) */
-  --color-water: #3b82f6; /* 염수 강 (파랑) */
-  --color-safe: #c7d2fe; /* 안전 지대 (연보라) */
-  --color-goal: #4a0e97; /* 목표 지대 (진보라) */
+  --game-height: 640px; /* [★수정★] 13 -> 16 (640px) */
+  --color-road: #78553a;
+  --color-water: #3b82f6;
+  --color-safe: #c7d2fe;
+  --color-goal: #4a0e97;
 
   display: flex;
   flex-direction: column;
@@ -414,7 +416,7 @@ onUnmounted(() => {
 .game-area-wrapper {
   width: 100%;
   max-width: var(--game-width);
-  aspect-ratio: 9 / 13;
+  aspect-ratio: 9 / 16; /* [★수정★] 9:13 -> 9:16 (360x640) */
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
@@ -427,20 +429,20 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* ▼▼▼ [핵심 수정] Zone 배경 Y좌표 수정 ▼▼▼ */
+/* ▼▼▼ [★수정★] Zone 배경 Y좌표 수정 (16칸 기준) ▼▼▼ */
 .zone {
   position: absolute;
   width: 100%;
   height: var(--tile-size);
 }
-/* 출발 지점 (Y: 11~12) - 2칸 */
-.start-zone { top: calc(var(--tile-size) * 11); height: calc(var(--tile-size) * 2); background-color: var(--color-safe); }
-/* 광산 길 (Y: 6~10) - 5칸 */
-.road-zone { top: calc(var(--tile-size) * 6); height: calc(var(--tile-size) * 5); background-color: var(--color-road); }
-/* 중간 지점 (Y: 5) - 1칸 */
-.mid-zone { top: calc(var(--tile-size) * 5); background-color: var(--color-safe); }
-/* 염수 강 (Y: 1~4) - 4칸 */
-.water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 4); background-color: var(--color-water); }
+/* 출발 지점 (Y: 14~15) - 2칸 */
+.start-zone { top: calc(var(--tile-size) * 14); height: calc(var(--tile-size) * 2); background-color: var(--color-safe); }
+/* 광산 길 (Y: 8~13) - 6칸 */
+.road-zone { top: calc(var(--tile-size) * 8); height: calc(var(--tile-size) * 6); background-color: var(--color-road); }
+/* 중간 지점 (Y: 7) - 1칸 */
+.mid-zone { top: calc(var(--tile-size) * 7); background-color: var(--color-safe); }
+/* 염수 강 (Y: 1~6) - 6칸 */
+.water-zone { top: calc(var(--tile-size) * 1); height: calc(var(--tile-size) * 6); background-color: var(--color-water); }
 /* 목표 지점 (Y: 0) - 1칸 */
 .goal-zone { top: 0; background-color: var(--color-goal); }
 /* ▲▲▲ (수정 완료) ▲▲▲ */
@@ -506,23 +508,27 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
+/* ▼▼▼ [★수정★] 조이스틱 CSS (크기 및 위치) ▼▼▼ */
 .joystick-controls {
   position: absolute;
-  bottom: calc(15px + env(safe-area-inset-bottom));
+  /* [★수정★] bottom 위치를 15px -> 80px로 올려서 출발 지점(14~15)에 걸치도록 함 */
+  bottom: 80px; 
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
+  
   display: flex;
   flex-direction: column;
   align-items: center;
   user-select: none;
   -webkit-user-select: none;
-  width: 210px;
+  width: 180px; /* [★수정★] 210px -> 180px (더 촘촘하게) */
 }
 .joy-middle {
   display: flex;
   width: 100%;
-  justify-content: space-between;
+  justify-content: center; /* [★수정★] space-between -> center */
+  gap: 40px; /* [★추가★] 좌우 버튼 간격 */
 }
 .joy-btn {
   width: 65px;
@@ -550,6 +556,7 @@ onUnmounted(() => {
   }
 }
 
+/* (모달 스타일은 변경 없음) */
 .modal-overlay {
   position: fixed;
   top: 0;
