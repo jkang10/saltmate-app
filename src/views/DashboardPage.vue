@@ -129,6 +129,8 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
+	  <WeeklyGoldRankingWidget />
+	  <TotalGoldRankingWidget />
 	  <SaltGuardiansRankingsWidget />
           <router-link to="/mall" class="feature-card mall">
             <div class="card-icon"><i class="fas fa-store"></i></div>
@@ -441,7 +443,9 @@ import OnboardingTutorial from '@/components/common/OnboardingTutorial.vue';
 import SaltMinePrestigeRankingsWidget from '@/components/SaltMinePrestigeRankingsWidget.vue';
 import SaltMineClickRankingsWidget from '@/components/SaltMineClickRankingsWidget.vue';
 import DailyQuestsWidget from '@/components/DailyQuestsWidget.vue';
-import TokenMineCard from '@/components/common/TokenMineCard.vue'; 
+import TokenMineCard from '@/components/common/TokenMineCard.vue';
+import WeeklyGoldRankingWidget from '@/components/WeeklyGoldRankingWidget.vue';
+import TotalGoldRankingWidget from '@/components/TotalGoldRankingWidget.vue';
 
 export default {
   name: "DashboardPage",
@@ -466,6 +470,8 @@ export default {
     SaltMineClickRankingsWidget,
     DailyQuestsWidget,
     TokenMineCard,
+    WeeklyGoldRankingWidget,
+    TotalGoldRankingWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
