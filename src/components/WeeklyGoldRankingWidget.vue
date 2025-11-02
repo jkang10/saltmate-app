@@ -50,11 +50,11 @@ onMounted(async () => {
 <style scoped>
 /* (TokenMine.vue와 유사한 프리미엄 테마) */
 .premium-glass {
-  background: rgba(10, 0, 20, 0.7);
+  background: rgba(10, 0, 20, 0.7) !important; /* [★] !important 추가 */
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(170, 70, 255, 0.3);
-  color: #f0f0f0;
+  border: 1px solid rgba(170, 70, 255, 0.3) !important; /* [★] 테두리도 추가 */
+  color: #f0f0f0 !important; /* [★] !important 추가 */
   padding: 20px;
   border-radius: 15px;
 }
