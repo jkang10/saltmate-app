@@ -45,71 +45,37 @@
             <p class="trade-summary">예상 비용: {{ (buyQuantity * (market?.currentPrice || 0)).toLocaleString() }} Gold</p>
           </div>
           <div class="trade-section">
-            <h4>소금 팔기 (매도)</h4>
+            
+            <h4 class="sell-header">
+              소금 팔기 (매도)
+              <span class="fee-notice">(수수료 5%)</span>
+            </h4>
             <div class="input-group">
               <input type="number" v-model.number="sellQuantity" min="1" placeholder="수량" class="trade-input">
               <button @click="trade('sell')" class="btn-trade btn-sell" :disabled="isTrading || !sellQuantity || sellQuantity <= 0">매도</button>
             </div>
-            <p class="trade-summary">예상 수익: {{ (sellQuantity * (market?.currentPrice || 0)).toLocaleString() }} Gold</p>
-          </div>
+            
+            <p class="trade-summary">
+              총 수익: {{ expectedSellRevenue.gross.toLocaleString() }} G
+              <br>
+              <span class="fee-calc">수수료(5%): -{{ expectedSellRevenue.fee.toLocaleString() }} G</span>
+              <br>
+              <strong>예상 정산액: {{ expectedSellRevenue.net.toLocaleString() }} G</strong>
+            </p>
+            </div>
            <p v-if="error" class="error-message">{{ error }}</p>
         </div>
 
         <div class="card recent-trades-card">
-            <h3><i class="fas fa-history"></i> 실시간 체결 내역</h3>
-            <ul class="trades-list">
-                <li v-for="trade in recentTrades" :key="trade.id" :class="trade.action">
-                    <span class="trade-time">{{ new Date(trade.timestamp.seconds * 1000).toLocaleTimeString('ko-KR') }}</span>
-                    <span class="trade-action">{{ trade.action === 'buy' ? '매수' : '매도' }}</span>
-                    <span class="trade-price">{{ trade.price.toLocaleString() }}</span>
-                    <span class="trade-quantity">{{ trade.quantity.toLocaleString() }}</span>
-                </li>
-            </ul>
-        </div>
+            </div>
       </aside>
 
       <main class="right-panel">
-        <div class="card market-card">
-            <div class="market-header">
-                <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
-                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} Gold</p>
-            </div>
-            <div class="market-stats">
-                <div class="stat-item">
-                    <span class="label">24h 변동</span>
-                    <strong :class="priceClass">{{ priceChange.toFixed(2) }}% ({{ priceChangeAbsolute.toLocaleString() }})</strong>
-                </div>
-                <div class="stat-item">
-                    <span class="label">24h 최고가</span>
-                    <strong>{{ twentyFourHourHigh.toLocaleString() }}</strong>
-                </div>
-                <div class="stat-item">
-                    <span class="label">24h 최저가</span>
-                    <strong>{{ twentyFourHourLow.toLocaleString() }}</strong>
-                </div>
-            </div>
-            <div class="chart-container">
-                <v-chart class="chart" :option="chartOption" autoresize />
-            </div>
-        </div>
-      </main>
+        </main>
     </div>
     
     <div v-if="isHistoryModalVisible" class="modal-overlay" @click.self="isHistoryModalVisible = false">
-      <div class="modal-content">
-        <h3><i class="fas fa-book"></i> 나의 소금 거래 내역</h3>
-        <div v-if="isLoadingHistory" class="spinner-small"></div>
-        <ul v-else-if="tradeHistory.length > 0" class="trade-history-list">
-          <li v-for="item in tradeHistory" :key="item.id">
-            <span class="history-date">{{ new Date(item.timestamp.seconds * 1000).toLocaleString('ko-KR') }}</span>
-            <span class="history-action" :class="item.action">{{ item.action === 'buy' ? '매수' : '매도' }}</span>
-            <span class="history-details">{{ item.quantity.toLocaleString() }}개 ({{ item.price.toLocaleString() }}/개)</span>
-          </li>
-        </ul>
-        <p v-else>거래 내역이 없습니다.</p>
-        <button @click="isHistoryModalVisible = false" class="btn-secondary">닫기</button>
       </div>
-    </div>
   </div>
 </template>
 
@@ -126,6 +92,7 @@ import VChart from 'vue-echarts';
 
 use([CanvasRenderer, LineChart, CandlestickChart, TitleComponent, TooltipComponent, GridComponent, DataZoomComponent]);
 
+// (isHistoryModalVisible ~ recentTrades ref ... 변경 없음)
 const isHistoryModalVisible = ref(false);
 const tradeHistory = ref([]);
 const isLoadingHistory = ref(false);
@@ -136,15 +103,13 @@ const sellQuantity = ref(null);
 const error = ref('');
 const isTrading = ref(false);
 const recentTrades = ref([]);
-
-// [★신규★] 골드 교환 상태
 const exchangeAmount = ref(null);
 const isExchanging = ref(false);
-
 let marketUnsubscribe = null;
 let userUnsubscribe = null;
 let recentTradesUnsubscribe = null;
 
+// (priceChange ~ chartOption computed ... 변경 없음)
 const priceChange = computed(() => {
     const history = market.value?.priceHistory || [];
     if (history.length < 2) return 0;
@@ -203,6 +168,16 @@ const chartOption = computed(() => {
     };
 });
 
+// ▼▼▼ [★신규★] 예상 매도 수익 계산 computed ▼▼▼
+const expectedSellRevenue = computed(() => {
+  const gross = (sellQuantity.value || 0) * (market.value?.currentPrice || 0);
+  const fee = Math.floor(gross * 0.05); // 5% 수수료
+  const net = gross - fee;
+  return { gross, fee, net };
+});
+// ▲▲▲ (추가 완료) ▲▲▲
+
+// (onMounted, onUnmounted, trade, openHistoryModal, exchangeGold 함수 ... 변경 없음)
 onMounted(() => {
   const marketRef = doc(db, "configuration", "saltMarket");
   marketUnsubscribe = onSnapshot(marketRef, (docSnap) => {
@@ -225,7 +200,6 @@ onUnmounted(() => {
     if(userUnsubscribe) userUnsubscribe();
     if(recentTradesUnsubscribe) recentTradesUnsubscribe();
 });
-
 const trade = async (action) => {
   error.value = '';
   isTrading.value = true;
@@ -241,7 +215,6 @@ const trade = async (action) => {
       isTrading.value = false;
   }
 };
-
 const openHistoryModal = async () => {
   isHistoryModalVisible.value = true;
   isLoadingHistory.value = true;
@@ -257,8 +230,6 @@ const openHistoryModal = async () => {
     isLoadingHistory.value = false;
   }
 };
-
-// [★신규★] 골드 교환 함수
 const exchangeGold = async () => {
   if (!exchangeAmount.value || exchangeAmount.value <= 0) {
     error.value = "교환할 SaltMate 수량을 입력하세요.";
@@ -271,7 +242,6 @@ const exchangeGold = async () => {
   if (!confirm(`${exchangeAmount.value.toLocaleString()} SaltMate를 골드로 교환하시겠습니까? (되돌릴 수 없습니다)`)) {
     return;
   }
-
   error.value = '';
   isExchanging.value = true;
   try {
@@ -288,32 +258,11 @@ const exchangeGold = async () => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [★신규★] 골드/교환소 관련 스타일 추가 ▼▼▼ */
-.gold-text {
-  color: #E0A800; /* 금색 */
-  font-weight: bold;
-}
-.exchange-card .exchange-rate {
-  font-size: 1.1em;
-  text-align: center;
-  margin-bottom: 5px;
-}
-.exchange-card .exchange-rate strong {
-  color: #E0A800;
-}
-.exchange-card small {
-  display: block;
-  font-size: 0.85em;
-  color: #6c757d;
-  text-align: center;
-  margin-bottom: 15px;
-}
+/* (기존 스타일 상단 ... ) */
 .btn-exchange {
-  background-color: #ffc107; /* 금색 버튼 */
+  background-color: #ffc107;
   color: #212529;
 }
-/* ▲▲▲ (추가 완료) ▲▲▲ */
-
 :root {
   --primary-blue: #007bff;
   --success-green: #28a745;
@@ -328,7 +277,6 @@ const exchangeGold = async () => {
 .asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
 .asset-item.salt { cursor: pointer; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
-
 .trade-section {
   padding-bottom: 15px;
   margin-bottom: 15px;
@@ -340,6 +288,22 @@ const exchangeGold = async () => {
   margin-top: 0;
   margin-bottom: 10px;
 }
+/* ▼▼▼ [★신규★] 수수료 텍스트 스타일 ▼▼▼ */
+.sell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.fee-notice {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: var(--danger-red);
+  background-color: #fdf2f2;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
+
 .input-group {
   display: flex;
   width: 100%;
@@ -370,12 +334,25 @@ const exchangeGold = async () => {
   cursor: pointer;
   transition: background-color .2s;
 }
+
+/* ▼▼▼ [★수정★] 예상 수익란 스타일 ▼▼▼ */
 .trade-summary {
   font-size: 0.9em;
   color: #6c757d;
   margin-top: 8px;
   text-align: right;
+  line-height: 1.6;
 }
+.trade-summary .fee-calc {
+  color: var(--danger-red);
+}
+.trade-summary strong {
+  font-size: 1.2em;
+  color: #212529;
+  font-weight: bold;
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
 .btn-buy { background-color: #007bff; }
 .btn-sell { background-color: #28a745; }
 .btn-trade:disabled {
@@ -384,6 +361,7 @@ const exchangeGold = async () => {
   cursor: not-allowed;
 }
 
+/* (이하 나머지 스타일은 100% 동일) */
 .market-card { padding: 24px; }
 .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .current-price { font-size: 2.5em; font-weight: 700; }
