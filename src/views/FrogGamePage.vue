@@ -83,6 +83,7 @@
 </template>
 
 <script setup>
+// (Script setup 내용은 이전과 100% 동일합니다)
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
@@ -305,7 +306,7 @@ const initializeGameObjects = () => {
     obj.style = computed(() => ({
       transform: `translate(${obj.x}px, ${obj.row * TILE_SIZE}px)`,
       width: `${obj.width}px`,
-      height: `${obj.height}px`,
+      height: `${TILE_SIZE}px`,
     }));
   });
 };
@@ -363,6 +364,24 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 모바일 (768px 이하)에서 'game-mode' 클래스가 #app에 적용되었을 때 */
+@media (max-width: 768px) {
+  #app.game-mode .navbar {
+    display: none; /* 1. 헤더를 숨깁니다. */
+  }
+  
+  #app.game-mode .main-content {
+    margin-top: 0 !important; /* 2. 헤더가 차지하던 70px 마진을 제거합니다. */
+    padding: 0 !important; /* 3. 게임 페이지가 패딩 없이 꽉 차도록 합니다. */
+    height: 100vh; /* 4. 게임 페이지가 모바일 전체 높이를 사용하도록 합니다. */
+  }
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+.salt-ticker {
+  display: flex; align-items: center; gap: 8px; background-color: #f8f9fa; border: 1px solid #dee2e6;
+  padding: 6px 12px; border-radius: 20px; font-family: monospace; text-decoration: none;
+  color: #212529; transition: box-shadow 0.2s;
+}
 /* ▼▼▼ [핵심 수정] CSS 전체 수정 ▼▼▼ */
 .frog-game-page {
   --tile-size: 40px;
@@ -520,10 +539,13 @@ onUnmounted(() => {
   100% { transform: scale(0); }
 }
 
-/* 조이스틱 (게임 화면 하단에 겹침) */
+/* [★수정★] 조이스틱 (게임 화면 하단에 겹침) */
 .joystick-controls {
   position: absolute;
-  bottom: 20px; /* [★수정★] 80px -> 20px (화면 하단으로) */
+  /* [★수정★] bottom 위치를 15px로 하여 하단에 배치 */
+  bottom: 15px; 
+  /* [★수정★] 아이폰 하단 바(safe area) 감지 */
+  padding-bottom: env(safe-area-inset-bottom);
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -533,13 +555,13 @@ onUnmounted(() => {
   align-items: center;
   user-select: none;
   -webkit-user-select: none;
-  width: 180px; /* 촘촘하게 */
+  width: 160px; /* [★수정★] 180px -> 160px (더 촘촘하게) */
 }
 .joy-middle {
   display: flex;
   width: 100%;
   justify-content: center; /* 중앙으로 */
-  gap: 40px; /* 좌우 간격 */
+  gap: 20px; /* [★수정★] 40px -> 20px (더 촘촘하게) */
 }
 .joy-btn {
   width: 65px;

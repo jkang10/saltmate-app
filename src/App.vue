@@ -1,6 +1,7 @@
 <template>
-  <div id="app">
-    <header v-if="!isGamePage" class="navbar card glassmorphism">
+  <div id="app" :class="{ 'game-mode': isGamePage }">
+    
+    <header class="navbar card glassmorphism">
       <div class="navbar-container">
         <router-link to="/" class="navbar-brand">
           <img src="@/assets/logo.png" alt="Saltmate Logo" />
@@ -47,7 +48,7 @@
       <span class="fab-badge">{{ matchmakingQueueCount }}</span>
     </router-link>
 
-    <main class="main-content" :class="{ 'game-mode': isGamePage }">
+    <main class="main-content">
       <router-view />
     </main>
 
@@ -56,36 +57,20 @@
     </button>
 
     <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
-      <div class="modal-content">
-        <header class="modal-header">
-          <h3>방문 인증 QR코드</h3>
-          <button @click="closeQrModal" class="close-button">&times;</button>
-        </header>
-        <div class="modal-body">
-          <div v-if="qrModal.isLoading" class="loading-spinner"></div>
-          <div v-else-if="qrModal.qrId" class="qr-code-container">
-            <qrcode-vue :value="qrModal.qrId" :size="250" level="H" />
-            <p class="qr-info">이 QR코드는 5분간 유효하며, 1회만 사용할 수 있습니다.</p>
-          </div>
-          <p v-else class="qr-error">{{ qrModal.error }}</p>
-        </div>
       </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-// [★수정★] <script setup>으로 변경하고 computed, useRoute 추가
 import { ref, onMounted, onUnmounted, watch, reactive, computed } from "vue";
 import { auth, db, functions, rtdb } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
-import { useRouter, useRoute } from "vue-router"; // [★수정★] useRoute 추가
+import { useRouter, useRoute } from "vue-router";
 import QrcodeVue from 'qrcode.vue';
 
-// [★수정★] 라우트 객체
 const router = useRouter();
 const route = useRoute();
 
@@ -108,10 +93,11 @@ let authUnsubscribe = null;
 let presenceRef = null;
 let matchmakingUnsubscribe = null;
 
-// [★신규★] 현재 페이지가 '게임 페이지'인지 확인하는 computed
+// [★수정★] 'isGamePage' 정의는 그대로 유지
 const isGamePage = computed(() => route.meta.isGamePage === true);
 
 const managePresence = (user) => {
+  // ( ... 기존 함수 내용 ... )
   if (user) {
     presenceRef = dbRef(rtdb, `presence/${user.uid}`);
     const connectedRef = dbRef(rtdb, ".info/connected");
@@ -130,6 +116,7 @@ const managePresence = (user) => {
 };
 
 const listenToSaltPrice = () => {
+  // ( ... 기존 함수 내용 ... )
   const marketRef = doc(db, "configuration", "saltMarket");
   saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -145,6 +132,7 @@ const listenToSaltPrice = () => {
 };
 
 const listenToMatchmakingQueue = () => {
+  // ( ... 기존 함수 내용 ... )
   const statsRef = doc(db, 'matchmakingQueue', '--stats--');
   matchmakingUnsubscribe = onSnapshot(statsRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -157,6 +145,7 @@ const listenToMatchmakingQueue = () => {
 };
 
 const checkAuthState = () => {
+  // ( ... 기존 함수 내용 ... )
   authUnsubscribe = onAuthStateChanged(auth, async (user) => {
     managePresence(user);
     if (user) {
@@ -187,6 +176,7 @@ const checkAuthState = () => {
 };
 
 const generateQR = async () => {
+  // ( ... 기존 함수 내용 ... )
   qrModal.visible = true;
   qrModal.isLoading = true;
   qrModal.qrId = null;
@@ -209,10 +199,12 @@ const generateQR = async () => {
 };
 
 const closeQrModal = () => {
+  // ( ... 기존 함수 내용 ... )
   qrModal.visible = false;
 };
 
 const logout = async () => {
+  // ( ... 기존 함수 내용 ... )
   try {
     if (auth.currentUser) {
       const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
@@ -227,6 +219,7 @@ const logout = async () => {
 };
 
 const toggleNav = () => {
+  // ( ... 기존 함수 내용 ... )
   isNavActive.value = !isNavActive.value;
 };
 
@@ -235,6 +228,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // ( ... 기존 함수 내용 ... )
   if (authUnsubscribe) authUnsubscribe();
   if (saltPriceUnsubscribe) saltPriceUnsubscribe();
   if (matchmakingUnsubscribe) matchmakingUnsubscribe();
@@ -247,8 +241,6 @@ onUnmounted(() => {
 watch(() => router.currentRoute.value, () => {
   isNavActive.value = false;
 });
-
-// (setup() 에서는 return이 필요 없습니다)
 </script>
 
 <style scoped>
