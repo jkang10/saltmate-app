@@ -8,21 +8,27 @@
     <div class="trader-layout">
       <aside class="left-panel">
         
-        <div class="card asset-card">
-          <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
-          <div class="asset-item">
-            <span>내 SaltMate</span>
-            <strong>{{ (userProfile?.saltmatePoints || 0).toLocaleString() }} P</strong>
-          </div>
-          <div class="asset-item">
-            <span>보유 골드 (거래용)</span>
-            <strong class="gold-text">{{ (userProfile?.goldBalance || 0).toLocaleString() }} G</strong>
-          </div>
-          <div class="asset-item salt" @click="openHistoryModal" title="클릭하여 내 거래 내역 확인">
-            <span>보유 소금</span>
-            <strong>{{ (userProfile?.saltBalance || 0).toLocaleString() }} 개</strong>
-          </div>
-        </div>
+	<div class="card asset-card premium-glass">
+	  <h3><i class="fas fa-wallet"></i> 나의 자산</h3>
+	  
+	  <div class="primary-asset">
+	    <span class="asset-label">보유 골드 (거래용)</span>
+	    <strong class="asset-value gold-text">
+	      <i class="fas fa-coins"></i> {{ (userProfile?.goldBalance || 0).toLocaleString() }} G
+	    </strong>
+	  </div>
+
+	  <div class="secondary-assets">
+	    <div class="asset-item">
+	      <span class="asset-label">내 SaltMate</span>
+	      <strong class="asset-value">{{ (userProfile?.saltmatePoints || 0).toLocaleString() }} P</strong>
+	    </div>
+	    <div class="asset-item salt" @click="openHistoryModal" title="클릭하여 내 거래 내역 확인">
+	      <span class="asset-label">보유 소금</span>
+	      <strong class="asset-value">{{ (userProfile?.saltBalance || 0).toLocaleString() }} 개</strong>
+	    </div>
+	  </div>
+	</div>
         
         <div class="card exchange-card">
           <h3><i class="fas fa-sync-alt"></i> 골드 교환소</h3>
@@ -322,6 +328,84 @@ const exchangeGold = async () => {
 .asset-item:not(:last-child) { border-bottom: 1px solid #dee2e6; }
 .asset-item.salt { cursor: pointer; }
 .asset-item.salt:hover { background-color: #f8f9fa; }
+/* 프리미엄 글래스 카드 (광산 페이지와 유사한 테마) */
+.premium-glass {
+  background: rgba(10, 0, 20, 0.7); /* 어두운 보라색 반투명 */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(170, 70, 255, 0.3);
+  box-shadow: 0 0 30px rgba(170, 70, 255, 0.2);
+  color: #f0f0f0;
+}
+.premium-glass h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.5rem;
+  color: #fff;
+  margin: 0 0 20px 0;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(170, 70, 255, 0.4);
+}
+
+/* "보유 골드" (메인) */
+.primary-asset {
+  text-align: center;
+  padding: 20px 10px;
+  margin-bottom: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+.primary-asset .asset-label {
+  display: block;
+  font-size: 1rem;
+  color: #bdc3c7;
+  margin-bottom: 10px;
+}
+.primary-asset .asset-value.gold-text {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: #FFD700; /* 금색 */
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  line-height: 1.2;
+}
+
+/* "SaltMate" 및 "소금" (보조) */
+.secondary-assets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+.asset-item {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.asset-item .asset-label {
+  display: block;
+  font-size: 0.9rem;
+  color: #d09fff; /* 밝은 보라색 */
+  margin-bottom: 8px;
+}
+.asset-item .asset-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+.asset-item.salt { 
+  cursor: pointer; 
+  transition: background-color 0.3s;
+}
+.asset-item.salt:hover { 
+  background-color: rgba(0, 0, 0, 0.5);
+}
 .trade-section {
   padding-bottom: 15px;
   margin-bottom: 15px;
