@@ -44,29 +44,33 @@
           </p>
 
           <div class="auto-mine-stats">
-		
+            
+            <div class="stat-item"> 
               <strong>주간 연료 소모</strong>
               <span>4,000 SaltMate</span>
-            </div>
-            
+            </div> 
             <div class="stat-item">
               <strong>기본 획득량 (주간)</strong>
               <span class="highlight-bnd">{{ formatNumber(weeklyBndReward) }} BND</span>
             </div>
 
-            <div class="stat-item meridian-bonus"> <strong>메리디안 채굴기 보너스 (주간)</strong> <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
-              <div class="flame-aura"></div> </div>
+            <div class="stat-item meridian-bonus"> 
+              <strong>메리디안 채굴기 보너스 (주간)</strong> 
+              <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
+              <div class="flame-aura"></div> 
+            </div>
+            
             <div class="stat-item total-reward">
               <strong>총 주간 획득량</strong>
               <span class="highlight-total">{{ formatNumber(weeklyBndReward + bonusBndReward) }} BND</span>
             </div>
+            
             <div class="stat-item lucky-cobs">
               <strong>럭키 보상 (COBS)</strong>
               <span class="highlight-cobs">(주간 1% 확률 / 0.1~1.0개)</span>
             </div>
-          </div>
-
-          <div class="fuel-status">
+            
+          </div> <div class="fuel-status">
             <h4><i class="fas fa-gas-pump"></i> 현재 연료: <strong>{{ formatNumber(autoMineFuel, 2) }}</strong> / 4000 SaltMate</h4>
             <div class="progress-bar-container">
               <div class="progress-bar-fill" :style="{ width: fuelPercentage + '%' }"></div>
