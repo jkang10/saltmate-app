@@ -55,7 +55,7 @@
             </div>
 
             <div class="stat-item meridian-bonus"> 
-              <strong>메리디안 채굴기 보너스 (주간)</strong> 
+              <strong>메리디안 채굴기 <br>보너스 (주간)</strong> 
               <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
               <div class="flame-aura"></div> 
             </div>
