@@ -44,7 +44,7 @@
           </p>
 
           <div class="auto-mine-stats">
-            <div class="stat-item">
+		
               <strong>주간 연료 소모</strong>
               <span>4,000 SaltMate</span>
             </div>
@@ -53,10 +53,9 @@
               <strong>기본 획득량 (주간)</strong>
               <span class="highlight-bnd">{{ formatNumber(weeklyBndReward) }} BND</span>
             </div>
-            <div class="stat-item">
-              <strong>채굴기 보너스 (주간)</strong>
-              <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
-            </div>
+
+            <div class="stat-item meridian-bonus"> <strong>메리디안 채굴기 보너스 (주간)</strong> <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
+              <div class="flame-aura"></div> </div>
             <div class="stat-item total-reward">
               <strong>총 주간 획득량</strong>
               <span class="highlight-total">{{ formatNumber(weeklyBndReward + bonusBndReward) }} BND</span>
@@ -537,6 +536,56 @@ const formatNumber = (num, digits = 0) => {
 }
 .stat-item.lucky-cobs strong { color: #FFD700; }
 .stat-item.lucky-cobs span.highlight-cobs { color: #3498db; } /* COBS 파란색 */
+
+/* ▼▼▼ [핵심 수정] 이 블록 전체를 추가하세요 ▼▼▼ */
+.stat-item.meridian-bonus {
+  position: relative; /* 불꽃 효과의 기준점 */
+  background: rgba(220, 53, 69, 0.1); /* 붉은색 배경 */
+  border: 1px solid rgba(220, 53, 69, 0.4);
+  overflow: hidden; /* 불꽃이 박스 밖으로 나가지 않도록 */
+}
+.stat-item.meridian-bonus strong {
+  color: #ffc107; /* 텍스트 강조 */
+}
+.stat-item.meridian-bonus span.highlight-bnd {
+  color: #f8d7da; /* 밝은 붉은색 텍스트 */
+  text-shadow: 0 0 8px rgba(220, 53, 69, 0.7);
+  z-index: 2; /* 불꽃보다 위에 표시 */
+}
+
+/* 불꽃 애니메이션 */
+.flame-aura {
+  position: absolute;
+  bottom: 0;
+  left: -20%;
+  width: 140%;
+  height: 80%;
+  background: linear-gradient(
+    transparent, 
+    rgba(255, 100, 0, 0.5), 
+    rgba(255, 0, 0, 0.7)
+  );
+  border-radius: 50% 50% 0 0;
+  filter: blur(10px);
+  animation: flame-flicker 3s ease-in-out infinite alternate;
+  z-index: 1; /* 텍스트보다 아래에 표시 */
+}
+
+@keyframes flame-flicker {
+  0% {
+    transform: scale(1, 0.8) translateY(10px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1, 1) translateY(0);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.9, 0.9) translateY(5px);
+    opacity: 0.7;
+  }
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
 
 /* ( ... 나머지 스타일은 100% 동일 ... ) */
 .fuel-status h4 { margin-bottom: 10px; font-size: 1.1rem; }
