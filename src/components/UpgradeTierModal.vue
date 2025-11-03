@@ -8,18 +8,30 @@
 
       <form class="modal-body" @submit.prevent="handleUpgradeRequest">
         <p class="description">
-          추가로 구매할 구독 등급을 선택해주세요. 신청 후 관리자의 입금 확인이
-          이루어지면 기존 등급에 합산 적용됩니다.
+          추가로 구매할 항목을 선택해주세요. 신청 후 관리자의 입금 확인이
+          이루어지면 적용됩니다.
         </p>
 
+        <!-- [★수정★] '추가 구독 금액'을 '10만원'으로 고정 -->
         <div class="form-group">
           <label for="upgrade-amount">추가 구독 금액:</label>
           <select id="upgrade-amount" v-model="selectedTier" required>
-            <option :value="null" disabled>금액을 선택하세요</option>
-            <option v-for="tier in tiers" :key="tier.amount" :value="tier">
+            <option :value="tiers[0]">
+              {{ tiers[0].name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- [★신규★] '글로벌 메리디안 매출 금액' 선택 항목 추가 -->
+        <div class="form-group">
+          <label for="meridian-tier">글로벌 메리디안 매출 금액 (선택):</label>
+          <select id="meridian-tier" v-model="selectedMeridianTier">
+            <option :value="null">선택 안함</option>
+            <option v-for="tier in meridianTiers" :key="tier.id" :value="tier">
               {{ tier.name }}
             </option>
           </select>
+          <small>채굴기(M2~VIP) 지급을 위한 매출 금액입니다.</small>
         </div>
 
         <p v-if="error" class="error-message">{{ error }}</p>
@@ -51,41 +63,59 @@ export default {
   emits: ["close"],
   data() {
     return {
-      // [핵심 수정] 선택된 금액만 저장하는 대신, 등급 객체 전체를 저장합니다.
-      selectedTier: null,
-      isLoading: false,
-      error: null,
-      // [핵심 추가] 선택 가능한 등급 목록을 정의합니다.
+      // [★수정★] '10만원'만 남기고 기본 선택
+      selectedTier: { name: "10만원", amount: 100000 },
       tiers: [
         { name: "10만원", amount: 100000 },
-        { name: "30만원", amount: 300000 },
-        { name: "50만원", amount: 500000 },
-        { name: "100만원", amount: 1000000 },
       ],
+      
+      // [★신규★] 글로벌 메리디안 등급
+      selectedMeridianTier: null,
+      meridianTiers: [
+        { id: "M1", name: "M1 (채굴기 없음)" }, // M1은 코드를 발행하지 않습니다.
+        { id: "M2", name: "M2 (M2 채굴기)" },
+        { id: "M3", name: "M3 (M3 채굴기)" },
+        { id: "M4", name: "M4 (M4 채굴기)" },
+        { id: "M5", name: "M5 (M5 채굴기)" },
+        { id: "VIP", name: "VIP (VIP 채굴기)" },
+      ],
+
+      isLoading: false,
+      error: null,
     };
   },
   methods: {
     async handleUpgradeRequest() {
-      // [핵심 수정] 선택된 등급이 있는지 확인합니다.
       if (!this.selectedTier) {
         this.error = "구매할 등급을 선택해주세요.";
         return;
       }
+
+      // [★신규★] 신청 내용 확인
+      let confirmationMessage = `[기본 구독] ${this.selectedTier.name}을(를) 신청합니다.`;
+      if (this.selectedMeridianTier) {
+        confirmationMessage += `\n[메리디안] ${this.selectedMeridianTier.name}을(를) 함께 신청합니다.`;
+      }
+      confirmationMessage += "\n\n관리자 승인 후 적용됩니다. 계속하시겠습니까?";
+
+      if (!confirm(confirmationMessage)) return;
+
       this.isLoading = true;
       this.error = null;
 
       try {
-        // [핵심 수정] Cloud Function 초기화 시 리전을 명시합니다.
         const functions = getFunctions(undefined, "asia-northeast3");
         const requestSubscriptionUpgrade = httpsCallable(
           functions,
           "requestSubscriptionUpgrade",
         );
 
-        // [핵심 수정] 서버에 금액과 함께 등급 이름(tierName)도 전달합니다.
+        // [★수정★] 서버에 'meridianTier' 정보도 함께 전달
         await requestSubscriptionUpgrade({
           investmentAmount: Number(this.selectedTier.amount),
           tierName: this.selectedTier.name,
+          meridianTier: this.selectedMeridianTier ? this.selectedMeridianTier.id : null,
+          meridianTierName: this.selectedMeridianTier ? this.selectedMeridianTier.name : null,
         });
 
         alert(
@@ -104,7 +134,7 @@ export default {
 </script>
 
 <style scoped>
-/* (스타일은 기존 코드와 동일하며, 변경사항 없습니다.) */
+/* (기존 스타일 ... ) */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -160,6 +190,9 @@ export default {
   padding: 15px;
   border-radius: 8px;
 }
+.form-group {
+  margin-bottom: 20px; /* [★수정★] 간격 증가 */
+}
 .form-group label {
   display: block;
   font-weight: bold;
@@ -173,6 +206,13 @@ export default {
   border-radius: 8px;
   font-size: 1em;
   background-color: #fff;
+}
+/* [★신규★] 메리디안 선택란 하단 설명 */
+.form-group small {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.85em;
+  color: #6c757d;
 }
 .error-message {
   color: #e74c3c;

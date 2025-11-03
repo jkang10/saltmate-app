@@ -48,9 +48,18 @@
               <strong>주간 연료 소모</strong>
               <span>4,000 SaltMate</span>
             </div>
+            
             <div class="stat-item">
-              <strong>나의 주간 BND 획득량</strong>
+              <strong>기본 획득량 (주간)</strong>
               <span class="highlight-bnd">{{ formatNumber(weeklyBndReward) }} BND</span>
+            </div>
+            <div class="stat-item">
+              <strong>채굴기 보너스 (주간)</strong>
+              <span class="highlight-bnd">+ {{ formatNumber(bonusBndReward) }} BND</span>
+            </div>
+            <div class="stat-item total-reward">
+              <strong>총 주간 획득량</strong>
+              <span class="highlight-total">{{ formatNumber(weeklyBndReward + bonusBndReward) }} BND</span>
             </div>
             <div class="stat-item lucky-cobs">
               <strong>럭키 보상 (COBS)</strong>
@@ -144,9 +153,7 @@ const toggleSound = () => {
     if (isSoundPlaying.value) {
       audioPlayer.value.pause();
     } else {
-      // ▼▼▼ [핵심 수정] e => 를 () => 로 변경 ▼▼▼
       audioPlayer.value.play().catch(() => console.warn("오디오 자동재생이 차단되었습니다."));
-      // ▲▲▲ (수정 완료) ▲▲▲
     }
     isSoundPlaying.value = !isSoundPlaying.value;
   }
@@ -157,7 +164,7 @@ const pageStyle = computed(() => ({
   backgroundImage: `url(${mineBg})`
 }));
 
-// --- (이하 기존 setup() 로직은 100% 동일합니다) ---
+// --- (기존 setup() 로직) ---
 const myTokens = reactive({ cobs: 0, bnd: 0 });
 const saltmatePoints = ref(0);
 const isLoading = ref(true);
@@ -167,7 +174,12 @@ const now = ref(new Date());
 const manualMineState = reactive({ startTime: null, nextClaimTime: null });
 const autoMineFuel = ref(0);
 const autoMineLastChecked = ref(null);
-const weeklyBndReward = ref(5);
+const weeklyBndReward = ref(5); // 기본값
+
+// ▼▼▼ [★신규★] 보너스 BND ref 추가 ▼▼▼
+const bonusBndReward = ref(0);
+// ▲▲▲ (추가 완료) ▲▲▲
+
 const FUEL_COST_PER_WEEK = 4000;
 const SECONDS_PER_WEEK = 604800;
 const FUEL_RATE_PER_SECOND = FUEL_COST_PER_WEEK / SECONDS_PER_WEEK;
@@ -188,11 +200,19 @@ const setupListeners = (uid) => {
       myTokens.bnd = tokens.bnd;
       myTokens.cobs = tokens.cobs;
       saltmatePoints.value = data.saltmatePoints || 0;
-      if (data.tokenMineStats && data.tokenMineStats.weeklyBndReward) {
-        weeklyBndReward.value = data.tokenMineStats.weeklyBndReward;
+      
+      // ▼▼▼ [★수정★] tokenMineStats에서 기본값과 보너스값 모두 가져오기 ▼▼▼
+      if (data.tokenMineStats) {
+        weeklyBndReward.value = data.tokenMineStats.weeklyBndReward || 5;
+        bonusBndReward.value = data.tokenMineStats.bonusBnd || 0;
+      } else {
+        weeklyBndReward.value = 5;
+        bonusBndReward.value = 0;
       }
+      // ▲▲▲ (수정 완료) ▲▲▲
     }
   });
+  // ... (mineUnsubscribe 리스너는 변경 없음)
   const mineRef = doc(db, 'users', uid, 'gamedata', 'tokenMine');
   mineUnsubscribe = onSnapshot(mineRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -212,6 +232,7 @@ const setupListeners = (uid) => {
 };
 
 onMounted(() => {
+  // ... (onMounted 로직 변경 없음) ...
   const user = auth.currentUser;
   if (user) {
     setupListeners(user.uid);
@@ -223,12 +244,14 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // ... (onUnmounted 로직 변경 없음) ...
   if (userUnsubscribe) userUnsubscribe();
   if (mineUnsubscribe) mineUnsubscribe();
   if (timerInterval) clearInterval(timerInterval);
-  if (audioPlayer.value) audioPlayer.value.pause(); // 페이지 이탈 시 사운드 정지
+  if (audioPlayer.value) audioPlayer.value.pause();
 });
 
+// ... (수동 채굴 computed: isMining, canClaim, countdown 변경 없음) ...
 const isMining = computed(() => {
   return manualMineState.nextClaimTime && manualMineState.nextClaimTime > now.value;
 });
@@ -245,6 +268,8 @@ const countdown = computed(() => {
   const seconds = Math.floor((diff / 1000) % 60);
   return `${days}일 ${hours}시간 ${minutes}분 ${seconds}초`;
 });
+
+// --- [★수정★] 자동 채굴 Computed (bonusBndReward 반영) ---
 const fuelPercentage = computed(() => {
   return Math.min((autoMineFuel.value / FUEL_COST_PER_WEEK) * 100, 100);
 });
@@ -255,14 +280,22 @@ const remainingHours = computed(() => {
 });
 const calculatedAutoReward = computed(() => {
   if (!autoMineLastChecked.value || autoMineFuel.value <= 0) return 0;
+  
   const elapsedSeconds = (now.value.getTime() - autoMineLastChecked.value.getTime()) / 1000;
   if (elapsedSeconds <= 0) return 0;
+
   const maxFuelToConsume = elapsedSeconds * FUEL_RATE_PER_SECOND;
   const consumedFuel = Math.min(autoMineFuel.value, maxFuelToConsume);
-  const REWARD_RATE_PER_SECOND = weeklyBndReward.value / SECONDS_PER_WEEK;
+  
+  // [★수정★] 총 획득량(보너스 포함)으로 초당 획득률 계산
+  const totalWeeklyReward = weeklyBndReward.value + bonusBndReward.value;
+  const REWARD_RATE_PER_SECOND = totalWeeklyReward / SECONDS_PER_WEEK;
   const earnedBnd = (consumedFuel / FUEL_RATE_PER_SECOND) * REWARD_RATE_PER_SECOND;
+  
   return earnedBnd;
 });
+
+// --- (Methods: startManualMining, claimManualReward, addFuel, claimAutoReward, formatNumber 변경 없음) ---
 const startManualMining = async () => {
   isProcessing.value = true;
   errorMessage.value = null;
@@ -324,39 +357,35 @@ const formatNumber = (num, digits = 0) => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] 새 디자인 CSS ▼▼▼ */
+/* ▼▼▼ [★핵심 수정★] 새 디자인 CSS ▼▼▼ */
 
-/* 1. 페이지 전체 배경 및 기본 폰트 */
+/* ( ... 페이지 전체 배경, 메인 글래스 패널, 헤더, 음소거 버튼 스타일 ... 변경 없음 ... ) */
 .token-mine-page {
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   background-repeat: no-repeat;
-  min-height: calc(100vh - 70px); /* 헤더 높이 제외 */
+  min-height: calc(100vh - 70px);
   padding: 2rem;
   box-sizing: border-box;
-  color: #f0f0f0; /* 기본 텍스트 밝게 */
+  color: #f0f0f0;
 }
-
-/* 2. 메인 글래스 패널 */
 .mine-dashboard-card {
   max-width: 1200px;
   margin: 0 auto;
-  background: rgba(10, 0, 20, 0.75); /* 어두운 보라색 반투명 */
+  background: rgba(10, 0, 20, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
-  border: 1px solid rgba(170, 70, 255, 0.4); /* 네온 보라색 테두리 */
+  border: 1px solid rgba(170, 70, 255, 0.4);
   padding: 2rem;
-  box-shadow: 0 0 40px rgba(170, 70, 255, 0.3), 0 0 15px rgba(255, 193, 7, 0.2); /* 보라+금색 글로우 */
+  box-shadow: 0 0 40px rgba(170, 70, 255, 0.3), 0 0 15px rgba(255, 193, 7, 0.2);
   position: relative;
 }
-
-/* 3. 헤더 (기존 mine-header 대체) */
 .mine-dashboard-card h2 {
   font-size: 2.5rem;
   color: #ffffff;
-  text-shadow: 0 0 10px #d09fff, 0 0 20px #d09fff; /* 네온 텍스트 */
+  text-shadow: 0 0 10px #d09fff, 0 0 20px #d09fff;
   text-align: center;
   margin: 0;
 }
@@ -367,8 +396,6 @@ const formatNumber = (num, digits = 0) => {
   margin-top: 5px;
   margin-bottom: 2rem;
 }
-
-/* 4. 음소거/재생 버튼 */
 .sound-toggle-btn {
   position: absolute;
   top: 20px;
@@ -387,7 +414,7 @@ const formatNumber = (num, digits = 0) => {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* 5. 보유 자산 (금고) */
+/* ( ... 보유 자산 (금고) 스타일 ... 변경 없음 ... ) */
 .balance-status {
   padding: 1.5rem;
   background: rgba(0, 0, 0, 0.2);
@@ -418,7 +445,7 @@ const formatNumber = (num, digits = 0) => {
 .token-name {
   display: block;
   font-weight: bold;
-  color: #d09fff; /* 밝은 보라색 */
+  color: #d09fff;
   margin-bottom: 0.5rem;
   font-size: 1rem;
 }
@@ -426,35 +453,32 @@ const formatNumber = (num, digits = 0) => {
   display: block;
   font-size: 2.2rem;
   font-weight: 700;
-  color: #FFD700; /* 금색 */
+  color: #FFD700;
   text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
   line-height: 1.1;
 }
-/* COBS, BND 색상 차별화 (선택사항) */
 .token-amount-cobs { color: #3498db; text-shadow: 0 0 8px rgba(52, 152, 219, 0.5); }
 .token-amount-bnd { color: #2ecc71; text-shadow: 0 0 8px rgba(46, 204, 113, 0.5); }
-
 .token-note {
   display: block;
   text-align: center;
-  margin-top: 1.5rem; /* [수정] 여백 증가 */
+  margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   font-size: 0.9em;
   color: #bdc3c7;
 }
 
-/* 6. 채굴 섹션 레이아웃 */
+/* ( ... 채굴 섹션 레이아웃 ... 변경 없음 ... ) */
 .mining-columns {
   display: grid;
-  grid-template-columns: 2fr 1fr; /* 자동채굴(좌) 2, 수동채굴(우) 1 비율 */
+  grid-template-columns: 2fr 1fr;
   gap: 2rem;
 }
 @media (max-width: 992px) {
   .mining-columns {
-    grid-template-columns: 1fr; /* 모바일에선 1열 */
+    grid-template-columns: 1fr;
   }
 }
-
 .mine-section {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
@@ -472,13 +496,14 @@ const formatNumber = (num, digits = 0) => {
   margin-bottom: 15px;
 }
 .section-header h3 { margin: 0; font-size: 1.5rem; color: #fff; }
-.section-header i { font-size: 1.5rem; color: #FFD700; } /* 아이콘 금색 */
+.section-header i { font-size: 1.5rem; color: #FFD700; }
 .section-description { font-size: 0.95rem; color: #bdc3c7; margin-bottom: 20px; }
 
-/* 7. 자동 채굴 (고급) */
+/* [★수정★] 자동 채굴 스탯 그리드 레이아웃 */
 .auto-mine-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* [수정] 3열 그리드로 변경 */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1rem;
   margin-bottom: 20px;
   text-align: center;
@@ -489,34 +514,46 @@ const formatNumber = (num, digits = 0) => {
   border-radius: 8px;
 }
 .stat-item strong { display: block; font-size: 0.9rem; color: #bdc3c7; margin-bottom: 5px; }
-.stat-item span { font-size: 1.3rem; font-weight: bold; color: #FFD700; } /* 값은 금색 */
-.stat-item span.highlight-bnd { color: #2ecc71; } /* BND는 초록색 */
+.stat-item span { font-size: 1.3rem; font-weight: bold; color: #FFD700; }
+.stat-item span.highlight-bnd { color: #2ecc71; }
+/* [신규] 총 획득량 강조 */
+.stat-item.total-reward {
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.3);
+  /* [수정] 모바일에서 2열, PC에서 3열일 때 모두 꽉 차도록 */
+  grid-column: 1 / -1; 
+}
+.stat-item.total-reward strong { color: #2ecc71; }
+.stat-item.total-reward span.highlight-total { 
+  color: #2ecc71; 
+  font-size: 1.5rem;
+  text-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
+}
+
 .stat-item.lucky-cobs {
   grid-column: 1 / -1;
-  background: rgba(255, 215, 0, 0.1); /* 럭키보상 강조 */
+  background: rgba(255, 215, 0, 0.1);
   border: 1px solid rgba(255, 215, 0, 0.3);
 }
 .stat-item.lucky-cobs strong { color: #FFD700; }
-.stat-item.lucky-cobs span { color: #3498db; } /* COBS는 파란색 */
+.stat-item.lucky-cobs span.highlight-cobs { color: #3498db; } /* COBS 파란색 */
 
+/* ( ... 나머지 스타일은 100% 동일 ... ) */
 .fuel-status h4 { margin-bottom: 10px; font-size: 1.1rem; }
 .fuel-status small { display: block; margin-top: 8px; font-size: 0.9rem; color: #999; }
 .progress-bar-container { width: 100%; background-color: rgba(0,0,0,0.3); border-radius: 20px; height: 10px; }
 .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #FFC107, #FFD700); border-radius: 20px; }
-
 .auto-mine-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  margin-top: auto; /* [수정] 버튼을 하단에 고정 */
+  margin-top: auto;
   padding-top: 20px;
 }
-
-/* 8. 수동 채굴 (기본) */
 .manual-mine {
-  background: rgba(0, 0, 0, 0.2); /* 자동채굴보다 약간 어둡게 */
+  background: rgba(0, 0, 0, 0.2);
 }
-.manual-mine .section-header i { color: #95a5a6; } /* 아이콘 회색 */
+.manual-mine .section-header i { color: #95a5a6; }
 .mine-status { text-align: center; padding-top: 1rem; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
 .mine-action, .mine-progress { padding: 1rem 0; }
 .mine-progress h4, .mine-action h4 { font-size: 1.2rem; margin-bottom: 10px; }
@@ -524,8 +561,6 @@ const formatNumber = (num, digits = 0) => {
 .icon-progress { color: #f1c40f; font-size: 3rem; animation: spin 2s linear infinite; }
 .icon-start { color: #3498db; font-size: 3rem; }
 .countdown { font-size: 1.5rem; font-weight: bold; color: #fff; margin: 0.5rem 0; }
-
-/* 9. [★신규★] 프리미엄 버튼 디자인 */
 .btn-premium, .btn-premium-claim {
   width: 100%;
   padding: 0.8rem 1rem;
@@ -535,8 +570,8 @@ const formatNumber = (num, digits = 0) => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: linear-gradient(135deg, #FFC107, #E0A800); /* 금색 그라데이션 */
-  color: #212529; /* 어두운 텍스트 */
+  background: linear-gradient(135deg, #FFC107, #E0A800);
+  color: #212529;
   box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
 }
 .btn-premium:hover:not(:disabled), .btn-premium-claim:hover:not(:disabled) {
@@ -545,7 +580,7 @@ const formatNumber = (num, digits = 0) => {
   filter: brightness(1.1);
 }
 .btn-premium-claim {
-  background: linear-gradient(135deg, #2ecc71, #28a745); /* 초록색 (수확) */
+  background: linear-gradient(135deg, #2ecc71, #28a745);
   color: white;
   box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
 }
@@ -571,13 +606,11 @@ const formatNumber = (num, digits = 0) => {
   transform: none;
   filter: grayscale(80%);
 }
-
-/* 10. 기타 */
 .error-message { color: #e74c3c; margin-top: 1.5rem; text-align: center; font-weight: bold; }
 .loading-spinner {
   display: inline-block;
   border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #FFD700; /* 스피너 금색 */
+  border-top-color: #FFD700;
   border-radius: 50%;
   width: 40px;
   height: 40px;

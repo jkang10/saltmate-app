@@ -27,6 +27,8 @@
             <th>요청 유형</th>
             <th>신청 등급</th>
             <th>금액</th>
+            <!-- [★신규★] 메리디안 등급 열 추가 -->
+            <th>메리디안 등급</th>
             <th>상태</th>
             <th>관리</th>
           </tr>
@@ -47,6 +49,15 @@
             </td>
             <td>{{ req.requestedTierName }}</td>
             <td>{{ req.requestedAmount.toLocaleString() }} 원</td>
+            
+            <!-- [★신규★] 메리디안 등급 데이터 표시 -->
+            <td>
+              <span v-if="req.meridianTier" class="meridian-badge">
+                {{ req.meridianTierName || req.meridianTier }}
+              </span>
+              <span v-else>N/A</span>
+            </td>
+
             <td>
               <span :class="['status-badge', req.status]">{{
                 req.status
@@ -74,6 +85,7 @@
 </template>
 
 <script>
+// (script 내용은 이전과 100% 동일합니다)
 import { db } from "@/firebaseConfig";
 import {
   collection,
@@ -184,13 +196,11 @@ export default {
           ? auth.currentUser.email
           : "unknown_admin";
 
-        // [수정] 업데이트할 데이터를 객체로 정의
         const updateData = {
           status,
           approvedBy: status === "approved" ? adminEmail : null,
         };
 
-        // [신규 추가] 승인 시, 승인 시각 필드 추가
         if (status === "approved") {
           updateData.approvedAt = new Date();
         }
@@ -218,6 +228,7 @@ export default {
 </script>
 
 <style scoped>
+/* ( ... 기존 스타일 ... ) */
 .subscription-manager {
   padding: 20px;
 }
@@ -304,6 +315,15 @@ export default {
 .request-type-badge.UPGRADE {
   background-color: #28a745;
   color: white;
+}
+/* [★신규★] 메리디안 등급 뱃지 */
+.meridian-badge {
+  background-color: #4a0e97; /* 보라색 */
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 0.9em;
 }
 .actions button {
   border: none;
