@@ -135,16 +135,13 @@
 
 <script setup>
 import { ref, onMounted, reactive } from "vue";
-// ▼▼▼ [★핵심 수정★] 'useRoute'를 import합니다. (URL에서 ?ref= 값을 읽기 위해) ▼▼▼
 import { useRouter, useRoute } from "vue-router";
-import { auth, db } from "@/firebaseConfig";
+import { auth, db, functions } from "@/firebaseConfig"; // [★수정★] functions 임포트
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { getFunctions, httpsCallable } from "firebase/functions";
-// ▼▼▼ [★핵심 수정★] 'doc', 'getDoc'을 import합니다. (추천인 UID로 이름을 찾기 위해) ▼▼▼
-import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
+import { httpsCallable, getFunctions } from "firebase/functions"; // [★수정★] getFunctions 임포트
+import { collection, getDocs } from "firebase/firestore"; // [★수정★] query, where, limit, doc, getDoc 삭제
 
 const router = useRouter();
-// ▼▼▼ [★핵심 수정★] 'route' 객체를 초기화합니다. ▼▼▼
 const route = useRoute();
 
 const email = ref("");
@@ -162,6 +159,11 @@ const isVerifying = ref(false);
 const validatedReferrer = reactive({ uid: null, name: null });
 const referrerStatus = reactive({ message: "", type: "" });
 
+// [★신규★] Cloud Functions 호출기
+const functionsInstance = getFunctions(undefined, "asia-northeast3");
+const getReferrerNameByUid = httpsCallable(functionsInstance, 'getReferrerNameByUid');
+const findReferrerByNameOrEmail = httpsCallable(functionsInstance, 'findReferrerByNameOrEmail');
+
 const fetchCenters = async () => {
   try {
     const querySnapshot = await getDocs(collection(db, "centers"));
@@ -174,7 +176,7 @@ const fetchCenters = async () => {
   }
 };
 
-// ▼▼▼ [★신규★] URL의 ?ref= UID로 추천인을 미리 검증하는 함수 ▼▼▼
+// [★수정★] URL의 ?ref= UID로 추천인을 미리 검증하는 함수
 const checkReferralLink = async () => {
   const refId = route.query.ref; // URL에서 ref=... 값 (UID)을 가져옵니다.
   if (refId && typeof refId === 'string') {
@@ -182,18 +184,18 @@ const checkReferralLink = async () => {
     referrerStatus.message = "추천인 정보를 확인 중입니다...";
     referrerStatus.type = "";
     try {
-      // Firestore에서 UID로 직접 문서를 조회합니다.
-      const referrerRef = doc(db, "users", refId);
-      const referrerDoc = await getDoc(referrerRef);
+      // [★수정★] Firestore 직접 조회 대신 Cloud Function 호출
+      const result = await getReferrerNameByUid({ uid: refId });
 
-      if (referrerDoc.exists()) {
-        const referrerData = referrerDoc.data();
-        validatedReferrer.uid = referrerDoc.id; // 추천인 UID 저장
-        validatedReferrer.name = referrerData.name; // 추천인 이름 저장
-        referrerInput.value = referrerData.name; // 입력창에 추천인 이름 표시
-        referrerStatus.message = `✔️ 추천인 '${referrerData.name}'님 확인 완료!`;
+      if (result.data.success) {
+        const referrerName = result.data.name;
+        validatedReferrer.uid = refId; // 추천인 UID 저장
+        validatedReferrer.name = referrerName; // 추천인 이름 저장
+        referrerInput.value = referrerName; // 입력창에 추천인 이름 표시
+        referrerStatus.message = `✔️ 추천인 '${referrerName}'님 확인 완료!`;
         referrerStatus.type = "success";
       } else {
+        // 함수가 성공했지만 not-found 등 내부 오류를 반환한 경우 (지금 로직에선 throw)
         referrerStatus.message = "유효하지 않은 추천인 링크입니다.";
         referrerStatus.type = "error";
       }
@@ -206,49 +208,38 @@ const checkReferralLink = async () => {
     }
   }
 };
-// ▲▲▲ (신규 함수 추가 완료) ▲▲▲
 
-// [★수정★] onMounted에서 fetchCenters와 checkReferralLink를 모두 호출합니다.
 onMounted(() => {
   fetchCenters();
   checkReferralLink(); // 페이지 로드 시 URL 검사
 });
 
+// [★수정★] 이름/이메일로 추천인을 검증하는 함수
 const verifyReferrer = async () => {
   if (!referrerInput.value) return;
   isVerifying.value = true;
   referrerStatus.message = "";
   referrerStatus.type = "";
   try {
-    let q = query(
-      collection(db, "users"),
-      where("email", "==", referrerInput.value),
-      limit(1),
-    );
-    let querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-      q = query(
-        collection(db, "users"),
-        where("name", "==", referrerInput.value),
-        limit(1),
-      );
-      querySnapshot = await getDocs(q);
-    }
-    if (querySnapshot.empty) {
+    // [★수정★] Firestore 직접 쿼리 대신 Cloud Function 호출
+    const result = await findReferrerByNameOrEmail({ input: referrerInput.value });
+
+    if (result.data.success) {
+      const { uid, name } = result.data;
+      validatedReferrer.uid = uid;
+      validatedReferrer.name = name;
+      referrerInput.value = name; // 입력창을 이름으로 통일
+      referrerStatus.message = `✔️ 추천인 '${name}'님 확인 완료!`;
+      referrerStatus.type = "success";
+    } else {
+      // 함수가 성공했지만 not-found 등 내부 오류를 반환한 경우 (지금 로직에선 throw)
       referrerStatus.message = "존재하지 않는 추천인입니다.";
       referrerStatus.type = "error";
-    } else {
-      const referrerDoc = querySnapshot.docs[0];
-      validatedReferrer.uid = referrerDoc.id;
-      validatedReferrer.name = referrerDoc.data().name;
-      referrerStatus.message = `✔️ 추천인 '${
-        validatedReferrer.name
-      }'님 확인 완료!`;
-      referrerStatus.type = "success";
     }
   } catch (err) {
     console.error("추천인 검증 오류:", err);
-    referrerStatus.message = "검증 중 오류가 발생했습니다.";
+    // [★수정★] Firebase Functions 오류 메시지를 그대로 표시
+    referrerStatus.message = err.message || "검증 중 오류가 발생했습니다.";
     referrerStatus.type = "error";
   } finally {
     isVerifying.value = false;
@@ -284,7 +275,6 @@ const handleSignup = async () => {
     await createUserWithEmailAndPassword(auth, email.value, password.value);
     
     // [★수정★] 'asia-northeast3' 리전 명시
-    const functionsInstance = getFunctions(undefined, "asia-northeast3");
     const createNewUser = httpsCallable(functionsInstance, "createNewUser");
 
     const selectElement = document.getElementById("investment-amount");
@@ -318,7 +308,6 @@ const handleSignup = async () => {
     isLoading.value = false;
   }
 };
-
 </script>
 
 <style scoped>
