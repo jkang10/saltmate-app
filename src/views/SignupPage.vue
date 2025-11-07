@@ -136,7 +136,7 @@
 <script setup>
 import { ref, onMounted, reactive } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { auth, db, functions } from "@/firebaseConfig"; // [★수정★] functions 임포트
+import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable, getFunctions } from "firebase/functions"; // [★수정★] getFunctions 임포트
 import { collection, getDocs } from "firebase/firestore"; // [★수정★] query, where, limit, doc, getDoc 삭제
