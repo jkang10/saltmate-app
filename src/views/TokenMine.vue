@@ -339,8 +339,8 @@ const claimAutoReward = async () => {
   }
   isProcessing.value = true;
   errorMessage.value = null;
-  try {
-    const result = await claimAutoMineRewardFunc(); // 'Mine'을 추가하세요
+try {
+    const result = await claimAutoMineRewardFunc(); 
     const { earnedBnd, consumedFuel, earnedCobs } = result.data;
     
     // ▼▼▼ [★핵심 수정★] 이 2줄을 추가하여 즉시 갱신합니다. ▼▼▼
