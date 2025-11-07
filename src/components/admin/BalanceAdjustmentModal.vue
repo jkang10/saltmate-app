@@ -89,12 +89,14 @@ const handleAdjustment = async () => {
     const functionsInstance = getFunctions(undefined, "asia-northeast3");
     const adjustUserBalance = httpsCallable(functionsInstance, "adjustUserBalance");
     
+   // ▼▼▼ [핵심 수정] 'props.user.id' -> 'props.user.uid' ▼▼▼
     const result = await adjustUserBalance({
-      targetUserId: props.user.id,
+      targetUserId: props.user.uid, //
       balanceType: form.balanceType,
       amount: form.amount,
       reason: form.reason,
     });
+    // ▲▲▲ (수정 완료) ▲▲▲
     
     alert(result.data.message);
     emit("balance-updated");
