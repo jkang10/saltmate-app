@@ -331,6 +331,7 @@ const addFuel = async () => {
   } catch (error) { errorMessage.value = error.message; } 
   finally { isProcessing.value = false; }
 };
+
 const claimAutoReward = async () => {
   if (calculatedAutoReward.value < 0.0001) {
     errorMessage.value = "정산할 보상이 없습니다.";
@@ -339,16 +340,26 @@ const claimAutoReward = async () => {
   isProcessing.value = true;
   errorMessage.value = null;
   try {
-    const result = await claimAutoMineRewardFunc();
+    const result = await claimAutoRewardFunc();
     const { earnedBnd, consumedFuel, earnedCobs } = result.data;
+    
+    // ▼▼▼ [★핵심 수정★] 이 2줄을 추가하여 즉시 갱신합니다. ▼▼▼
+    myTokens.bnd += earnedBnd;
+    myTokens.cobs += (earnedCobs || 0);
+    // ▲▲▲ (수정 완료) ▲▲▲
+
     let alertMsg = `자동 채굴 보상 수령 완료!\n\nBND: +${earnedBnd.toFixed(4)}\n연료 소모: -${consumedFuel.toFixed(2)} P`;
     if (earnedCobs && earnedCobs > 0) {
       alertMsg += `\n\n🎉🎉🎉\n축하합니다! 럭키 보상으로 COBS +${earnedCobs.toFixed(4)}를 추가 획득했습니다!`;
     }
     alert(alertMsg);
-  } catch (error) { errorMessage.value = error.message; } 
-  finally { isProcessing.value = false; }
+  } catch (error) { 
+    errorMessage.value = error.message; 
+  } finally { 
+    isProcessing.value = false; 
+  }
 };
+
 const formatNumber = (num, digits = 0) => {
   if (num == null) return 0;
   return num.toLocaleString(undefined, { 
