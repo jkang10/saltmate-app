@@ -70,20 +70,44 @@ const error = ref(null);
 const handleAdjustment = async () => {
   isProcessing.value = true;
   error.value = null;
+
+  // ▼▼▼ [★핵심 수정★] 유효성 검사를 추가합니다. ▼▼▼
+  if (form.amount === null || form.amount === 0) {
+    error.value = "작업 실패: 조정 금액은 0이 될 수 없습니다.";
+    isProcessing.value = false;
+    return;
+  }
+  if (!form.reason || form.reason.trim() === "") {
+    error.value = "작업 실패: 사유를 반드시 입력해야 합니다.";
+    isProcessing.value = false;
+    return;
+  }
+  // ▲▲▲ (수정 완료) ▲▲▲
+
   try {
-    const functions = getFunctions();
-    const adjustUserBalance = httpsCallable(functions, "adjustUserBalance");
+    // [★수정★] functions 인스턴스를 'asia-northeast3' 리전으로 초기화합니다.
+    const functionsInstance = getFunctions(undefined, "asia-northeast3");
+    const adjustUserBalance = httpsCallable(functionsInstance, "adjustUserBalance");
+    
     const result = await adjustUserBalance({
       targetUserId: props.user.id,
       balanceType: form.balanceType,
       amount: form.amount,
       reason: form.reason,
     });
+    
     alert(result.data.message);
     emit("balance-updated");
     emit("close");
   } catch (err) {
-    error.value = `작업 실패: ${err.message}`;
+    // [★수정★] err.message에 이미 "작업 실패:"가 포함될 수 있으므로 정리
+    if (err.message.includes("permission-denied")) {
+      error.value = "작업 실패: 권한이 없습니다.";
+    } else if (err.message.includes("invalid-argument")) {
+      error.value = "작업 실패: 입력값이 잘못되었습니다.";
+    } else {
+      error.value = `작업 실패: ${err.message}`;
+    }
   } finally {
     isProcessing.value = false;
   }
@@ -108,6 +132,7 @@ const handleAdjustment = async () => {
   max-width: 450px;
   background-color: #fff;
   border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* [★추가★] 그림자 스타일 */
 }
 .modal-header {
   display: flex;
@@ -115,6 +140,25 @@ const handleAdjustment = async () => {
   align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid #eee;
+}
+/* [★추가★] 헤더 아이콘 스타일 */
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.4em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #333;
+}
+/* [★추가★] 닫기 버튼 스타일 */
+.close-button {
+  background: none;
+  border: none;
+  font-size: 2em;
+  line-height: 1;
+  cursor: pointer;
+  color: #888;
+  padding: 0 5px;
 }
 .modal-body {
   padding: 20px;
@@ -125,13 +169,93 @@ const handleAdjustment = async () => {
   gap: 10px;
   padding: 15px 20px;
   border-top: 1px solid #eee;
+  background-color: #f8f9fa; /* [★추가★] 푸터 배경색 */
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 .current-balances {
   display: flex;
-  gap: 20px;
+  flex-direction: column; /* [★수정★] 세로 정렬 */
+  gap: 5px; /* [★수정★] 간격 축소 */
   background-color: #f8f9fa;
-  padding: 10px;
+  padding: 15px; /* [★수정★] 패딩 조정 */
   border-radius: 8px;
   margin-bottom: 20px;
+  border: 1px solid #eee; /* [★추가★] 테두리 */
+}
+/* [★추가★] p 태그 마진 제거 */
+.current-balances p {
+  margin: 0;
+  font-size: 1em;
+  color: #555;
+}
+.current-balances p strong {
+  font-size: 1.1em;
+  color: #000;
+  margin-left: 5px;
+}
+
+/* [★추가★] 폼 그룹 스타일 */
+.form-group {
+  margin-bottom: 15px;
+}
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.95em;
+}
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1em;
+  box-sizing: border-box; /* [★추가★] */
+}
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+/* [★추가★] 버튼 공통 스타일 */
+.btn-primary,
+.btn-secondary {
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95em;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+.btn-primary:disabled {
+  background-color: #a0c9ff;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+/* [★추가★] 오류 메시지 */
+.error-message {
+  color: #e74c3c;
+  font-size: 0.9em;
+  margin-top: 15px;
+  text-align: center;
+  font-weight: 600;
 }
 </style>
