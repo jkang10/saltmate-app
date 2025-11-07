@@ -26,7 +26,7 @@
           </div>
           <div class="balance-item">
             <span class="token-name">BND</span>
-            <span class="token-amount-bnd">{{ formatNumber(myTokens.bnd) }}</span>
+            <span class="token-amount-bnd">{{ formatNumber(myTokens.bnd, 4) }}</span>
           </div>
         </div>
         <small class="token-note">(이 토큰은 Saltmate 금고에 보관되며, '출금' 메뉴에서 개인 지갑으로 전송할 수 있습니다.)</small>
