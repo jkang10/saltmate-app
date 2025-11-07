@@ -103,7 +103,7 @@
               <span v-else>검증</span>
             </button>
           </div>
-          <small v-if="!validatedReferrer.uid"
+          <small v-if="!validatedReferrer.uid && !route.query.ref"
             >추천인의 이메일 또는 이름을 입력 후 '검증'을 눌러주세요.</small
           >
           <p
@@ -133,96 +133,135 @@
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref, onMounted, reactive } from "vue";
-import { useRouter } from "vue-router";
+// ▼▼▼ [★핵심 수정★] 'useRoute'를 import합니다. (URL에서 ?ref= 값을 읽기 위해) ▼▼▼
+import { useRouter, useRoute } from "vue-router";
 import { auth, db } from "@/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
+// ▼▼▼ [★핵심 수정★] 'doc', 'getDoc'을 import합니다. (추천인 UID로 이름을 찾기 위해) ▼▼▼
+import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
 
-export default {
-  name: "SignUpPage",
-  setup() {
-    const router = useRouter();
-    const email = ref("");
-    const password = ref("");
-    const confirmPassword = ref("");
-    const name = ref("");
-    const phone = ref("");
-    // ▼▼▼ [수정됨] region을 selectedCenterId로 변경 ▼▼▼
-    const selectedCenterId = ref("");
-    // ▲▲▲ 수정 완료 ▲▲▲
-    const investmentAmount = ref("");
-    const error = ref(null);
-    const isLoading = ref(false);
-    const centers = ref([]);
-    const referrerInput = ref("");
-    const isVerifying = ref(false);
-    const validatedReferrer = reactive({ uid: null, name: null });
-    const referrerStatus = reactive({ message: "", type: "" });
+const router = useRouter();
+// ▼▼▼ [★핵심 수정★] 'route' 객체를 초기화합니다. ▼▼▼
+const route = useRoute();
 
-    const fetchCenters = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "centers"));
-        centers.value = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (err) {
-        console.error("센터 목록 로딩 오류:", err);
-      }
-    };
-    onMounted(fetchCenters);
+const email = ref("");
+const password = ref("");
+const confirmPassword = ref("");
+const name = ref("");
+const phone = ref("");
+const selectedCenterId = ref("");
+const investmentAmount = ref("");
+const error = ref(null);
+const isLoading = ref(false);
+const centers = ref([]);
+const referrerInput = ref("");
+const isVerifying = ref(false);
+const validatedReferrer = reactive({ uid: null, name: null });
+const referrerStatus = reactive({ message: "", type: "" });
 
-    const verifyReferrer = async () => {
-      if (!referrerInput.value) return;
-      isVerifying.value = true;
-      referrerStatus.message = "";
-      referrerStatus.type = "";
-      try {
-        let q = query(
-          collection(db, "users"),
-          where("email", "==", referrerInput.value),
-          limit(1),
-        );
-        let querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-          q = query(
-            collection(db, "users"),
-            where("name", "==", referrerInput.value),
-            limit(1),
-          );
-          querySnapshot = await getDocs(q);
-        }
-        if (querySnapshot.empty) {
-          referrerStatus.message = "존재하지 않는 추천인입니다.";
-          referrerStatus.type = "error";
-        } else {
-          const referrerDoc = querySnapshot.docs[0];
-          validatedReferrer.uid = referrerDoc.id;
-          validatedReferrer.name = referrerDoc.data().name;
-          referrerStatus.message = `✔️ 추천인 '${
-            validatedReferrer.name
-          }'님 확인 완료!`;
-          referrerStatus.type = "success";
-        }
-      } catch (err) {
-        console.error("추천인 검증 오류:", err);
-        referrerStatus.message = "검증 중 오류가 발생했습니다.";
+const fetchCenters = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "centers"));
+    centers.value = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (err) {
+    console.error("센터 목록 로딩 오류:", err);
+  }
+};
+
+// ▼▼▼ [★신규★] URL의 ?ref= UID로 추천인을 미리 검증하는 함수 ▼▼▼
+const checkReferralLink = async () => {
+  const refId = route.query.ref; // URL에서 ref=... 값 (UID)을 가져옵니다.
+  if (refId && typeof refId === 'string') {
+    isVerifying.value = true;
+    referrerStatus.message = "추천인 정보를 확인 중입니다...";
+    referrerStatus.type = "";
+    try {
+      // Firestore에서 UID로 직접 문서를 조회합니다.
+      const referrerRef = doc(db, "users", refId);
+      const referrerDoc = await getDoc(referrerRef);
+
+      if (referrerDoc.exists()) {
+        const referrerData = referrerDoc.data();
+        validatedReferrer.uid = referrerDoc.id; // 추천인 UID 저장
+        validatedReferrer.name = referrerData.name; // 추천인 이름 저장
+        referrerInput.value = referrerData.name; // 입력창에 추천인 이름 표시
+        referrerStatus.message = `✔️ 추천인 '${referrerData.name}'님 확인 완료!`;
+        referrerStatus.type = "success";
+      } else {
+        referrerStatus.message = "유효하지 않은 추천인 링크입니다.";
         referrerStatus.type = "error";
-      } finally {
-        isVerifying.value = false;
       }
-    };
+    } catch (err) {
+      console.error("추천인 링크 처리 오류:", err);
+      referrerStatus.message = "추천인 확인 중 오류가 발생했습니다.";
+      referrerStatus.type = "error";
+    } finally {
+      isVerifying.value = false;
+    }
+  }
+};
+// ▲▲▲ (신규 함수 추가 완료) ▲▲▲
 
-    const resetReferrer = () => {
-      validatedReferrer.uid = null;
-      validatedReferrer.name = null;
-      referrerInput.value = "";
-      referrerStatus.message = "";
-      referrerStatus.type = "";
-    };
+// [★수정★] onMounted에서 fetchCenters와 checkReferralLink를 모두 호출합니다.
+onMounted(() => {
+  fetchCenters();
+  checkReferralLink(); // 페이지 로드 시 URL 검사
+});
+
+const verifyReferrer = async () => {
+  if (!referrerInput.value) return;
+  isVerifying.value = true;
+  referrerStatus.message = "";
+  referrerStatus.type = "";
+  try {
+    let q = query(
+      collection(db, "users"),
+      where("email", "==", referrerInput.value),
+      limit(1),
+    );
+    let querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+      q = query(
+        collection(db, "users"),
+        where("name", "==", referrerInput.value),
+        limit(1),
+      );
+      querySnapshot = await getDocs(q);
+    }
+    if (querySnapshot.empty) {
+      referrerStatus.message = "존재하지 않는 추천인입니다.";
+      referrerStatus.type = "error";
+    } else {
+      const referrerDoc = querySnapshot.docs[0];
+      validatedReferrer.uid = referrerDoc.id;
+      validatedReferrer.name = referrerDoc.data().name;
+      referrerStatus.message = `✔️ 추천인 '${
+        validatedReferrer.name
+      }'님 확인 완료!`;
+      referrerStatus.type = "success";
+    }
+  } catch (err) {
+    console.error("추천인 검증 오류:", err);
+    referrerStatus.message = "검증 중 오류가 발생했습니다.";
+    referrerStatus.type = "error";
+  } finally {
+    isVerifying.value = false;
+  }
+};
+
+const resetReferrer = () => {
+  validatedReferrer.uid = null;
+  validatedReferrer.name = null;
+  referrerInput.value = "";
+  referrerStatus.message = "";
+  referrerStatus.type = "";
+};
 
 const handleSignup = async () => {
   error.value = null;
@@ -242,14 +281,11 @@ const handleSignup = async () => {
 
   isLoading.value = true;
   try {
-    // ▼▼▼ [수정된 부분] ▼▼▼
-    // 'const userCredential =' 부분을 삭제하여 사용하지 않는 변수 할당을 제거합니다.
     await createUserWithEmailAndPassword(auth, email.value, password.value);
-    // ▲▲▲ 수정 완료 ▲▲▲
     
-    const functions = getFunctions();
-    functions.region = "asia-northeast3"; 
-    const createNewUser = httpsCallable(functions, "createNewUser");
+    // [★수정★] 'asia-northeast3' 리전 명시
+    const functionsInstance = getFunctions(undefined, "asia-northeast3");
+    const createNewUser = httpsCallable(functionsInstance, "createNewUser");
 
     const selectElement = document.getElementById("investment-amount");
     const selectedTierName = selectElement.options[selectElement.selectedIndex].text;
@@ -282,29 +318,7 @@ const handleSignup = async () => {
     isLoading.value = false;
   }
 };
-    return {
-      email,
-      password,
-      confirmPassword,
-      name,
-      phone,
-      // ▼▼▼ [수정됨] region 대신 selectedCenterId를 반환 ▼▼▼
-      selectedCenterId,
-      // ▲▲▲ 수정 완료 ▲▲▲
-      investmentAmount,
-      error,
-      isLoading,
-      handleSignup,
-      centers,
-      referrerInput,
-      isVerifying,
-      validatedReferrer,
-      referrerStatus,
-      verifyReferrer,
-      resetReferrer,
-    };
-  },
-};
+
 </script>
 
 <style scoped>
