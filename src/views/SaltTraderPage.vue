@@ -288,9 +288,10 @@ const chartOption = computed(() => {
 
 const expectedSellRevenue = computed(() => {
   const gross = (sellQuantity.value || 0) * (market.value?.currentPrice || 0);
-  const fee = Math.floor(gross * 0.05);
+  // [★핵심 수정★] 백엔드의 Math.floor()와 동일하게 정수 계산을 보장
+  const fee = Math.floor(gross * 0.05); 
   const net = gross - fee;
-  return { gross, fee, net };
+  return { gross: Math.floor(gross), fee, net }; // gross도 정수로 반환
 });
 
 onMounted(() => {
