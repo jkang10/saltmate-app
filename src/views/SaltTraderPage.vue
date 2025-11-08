@@ -89,7 +89,7 @@
         <div class="card market-card">
             <div class="market-header">
                 <h3><i class="fas fa-gem"></i> 소금(SALT) 시세 정보</h3>
-                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString() }} Gold</p>
+                <p class="current-price" :class="priceClass">{{ (market?.currentPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 }) }} Gold</p>
             </div>
             <div class="market-stats">
                 <div class="stat-item">
@@ -171,8 +171,11 @@ const priceChange = computed(() => {
 const priceChangeAbsolute = computed(() => {
     const history = market.value?.priceHistory || [];
     if (history.length < 2) return 0;
-    return market.value.currentPrice - history[0].price;
+    const change = market.value.currentPrice - history[0].price;
+    // [★핵심 수정★] 절댓값 변동을 소수점 3자리로 고정하여 반환
+    return Number(change.toFixed(3)); 
 });
+
 const priceClass = computed(() => {
     if (priceChange.value > 0) return 'up';
     if (priceChange.value < 0) return 'down';
