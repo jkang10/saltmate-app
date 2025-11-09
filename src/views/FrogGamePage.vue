@@ -104,7 +104,7 @@ const onLogId = ref(null);
 let gameLoopId = null;
 const goals = ref([
   { filled: false }, { filled: false }, { filled: false }, 
-  { filled: false }, { filled: false }
+  { filled: false } // [★핵심 수정★] 4개로 수정
 ]);
 const logs = ref([]);
 const carts = ref([]);
