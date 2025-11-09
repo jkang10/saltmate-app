@@ -130,6 +130,7 @@
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
 	  <SaltAlchemyRankingsWidget />
+	  <SaltAlchemyWeeklyRankingsWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
 	  <AvatarShowcaseWidget class="avatar-showcase" />
@@ -456,6 +457,7 @@ import WeeklyGoldRankingWidget from '@/components/WeeklyGoldRankingWidget.vue';
 import TotalGoldRankingWidget from '@/components/TotalGoldRankingWidget.vue';
 import AvatarShowcaseWidget from '@/components/common/AvatarShowcaseWidget.vue';
 import SaltAlchemyRankingsWidget from "@/components/SaltAlchemyRankingsWidget.vue";
+import SaltAlchemyWeeklyRankingsWidget from "@/components/SaltAlchemyWeeklyRankingsWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -484,6 +486,7 @@ export default {
     TotalGoldRankingWidget,
     AvatarShowcaseWidget,
     SaltAlchemyRankingsWidget,
+    SaltAlchemyWeeklyRankingsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
