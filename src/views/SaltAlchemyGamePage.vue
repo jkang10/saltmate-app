@@ -1,6 +1,11 @@
 <template>
   <div class="salt-alchemy-page">
+    <audio ref="bgmPlayer" src="/sound/Gil Kita - Silly Lovebirds.mp3" loop preload="auto"></audio>
     <div class="game-stats-glass">
+      <button @click="toggleSound" class="sound-toggle-btn">
+        <i v-if="isSoundPlaying" class="fas fa-volume-up"></i>
+        <i v-else class="fas fa-volume-mute"></i>
+      </button>
       <div class="stat-item">
         <span>최고 점수</span>
         <strong>{{ highScore }}</strong>
@@ -73,10 +78,14 @@ import Matter from 'matter-js';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
+// --- [★핵심 추가★] BGM 제어 ---
+const bgmPlayer = ref(null);
+const isSoundPlaying = ref(false);
+
 // --- Matter.js 모듈 ---
 const { Engine, Runner, World, Bodies, Events, Composite } = Matter;
 
-// --- Firebase 연동 (임시 플레이스홀더) ---
+// --- Firebase 연동 ---
 const startGameFunc = httpsCallable(functions, 'startAlchemyGame');
 const endGameFunc = httpsCallable(functions, 'endAlchemyGame');
 const router = useRouter();
@@ -86,7 +95,7 @@ const GAME_WIDTH = 360; // 게임 항아리 너비 (px)
 const GAME_HEIGHT = 500; // 게임 항아리 높이 (px)
 const DEADLINE_Y = 60; // 이 선을 넘으면 게임 오버
 
-// --- [★수정★] 아이템 정의 (10단계 이모지 리스트) ---
+// --- 아이템 정의 (10단계 이모지 리스트) ---
 const EMOJI_DEFINITIONS = [
   { level: 1, emoji: '🪨', radius: 15, score: 1 },  // 조약돌
   { level: 2, emoji: '🧂', radius: 20, score: 3 },  // 암염
@@ -118,6 +127,23 @@ const nextItem = ref(null); // 다음에 떨어뜨릴 아이템
 const previewPositionX = ref(GAME_WIDTH / 2);
 const canDropItem = ref(true); // 아이템 드랍 쿨다운
 const mergesToProcess = []; // [중요] 병합 대기열
+
+// --- [★핵심 추가★] BGM 토글 함수 ---
+const toggleSound = () => {
+  if (!bgmPlayer.value) return;
+  if (isSoundPlaying.value) {
+    bgmPlayer.value.pause();
+    isSoundPlaying.value = false;
+  } else {
+    // play()는 프로미스를 반환하며, 사용자 상호작용 없이 실패할 수 있음
+    bgmPlayer.value.play().then(() => {
+      isSoundPlaying.value = true;
+    }).catch(error => {
+      console.warn("BGM 재생이 차단되었습니다. 사용자의 상호작용이 필요합니다.", error);
+      isSoundPlaying.value = false; // 실패 시 상태 원복
+    });
+  }
+};
 
 // --- 1. Matter.js 초기화 ---
 const initMatterJS = () => {
@@ -155,7 +181,7 @@ const initEventListeners = () => {
       id: body.id,
       level: body.level,
       radius: body.circleRadius,
-      emoji: body.emoji, // [★수정★]
+      emoji: body.emoji, 
       x: body.position.x,
       y: body.position.y,
       angle: body.angle
@@ -233,7 +259,7 @@ const createAlchemyItem = (x, y, level) => {
     label: 'alchemy-item',
     // Vue가 참조할 커스텀 데이터
     level: definition.level,
-    emoji: definition.emoji, // [★수정★]
+    emoji: definition.emoji, 
     circleRadius: definition.radius
   });
 };
@@ -299,10 +325,10 @@ const handleGameOver = async () => {
 
   // 백엔드에 결과 전송
   try {
-    // TODO: endFrogGame 대신 endAlchemyGame을 만들어 연금술 가루도 함께 전송
+    // [★수정★] endGameFunc에 score와 alchemyDust를 모두 전송
     await endGameFunc({ 
       score: score.value,
-      alchemyDust: alchemyDust.value // (endFrogGame은 이 인자를 받지 않지만, 추후 확장)
+      alchemyDust: alchemyDust.value 
     }); 
   } catch (error) {
     console.error("게임 결과 전송 실패:", error);
@@ -321,16 +347,12 @@ const startGameLogic = async () => {
   gameStatus.value = 'loading';
   
 try {
-    // 1. [★수정★] 엔진과 월드를 먼저 생성합니다.
+    // 1. 엔진과 월드를 먼저 생성
     initMatterJS(); 
     initEventListeners();
     
-    // 2. [★삭제★] 월드가 방금 생성되었으므로 'clear'는 필요 없습니다.
-    // World.clear(world, false); 
-    
-    // 3. [★수정★] 이제 입장료를 받습니다.
-    // TODO: startFrogGame 대신 startAlchemyGame을 만들어 입장료 정책 적용
-    await startGameFunc(); // (임시) 100 SaltMate 차감
+    // 2. 입장료 받기
+    await startGameFunc(); //
     
     // 4. (기존 로직) 상태 초기화
     reactiveItems.value = [];
@@ -345,7 +367,9 @@ try {
   } catch (error) {
     console.error("게임 시작 오류:", error);
     alert(`게임 시작 실패: ${error.message}`);
-    router.push('/dashboard');
+    // [★수정★] 게임 시작 실패 시 로딩 모달을 닫고 'lost' 상태로 변경
+    gameStatus.value = 'lost'; 
+    // router.push('/dashboard'); // (대시보드로 튕기지 않고 '다시하기' 버튼 표시)
   }
 };
 
@@ -388,12 +412,8 @@ const previewItemStyle = computed(() => {
 const getItemStyle = (item) => ({
   width: `${item.radius * 2}px`,
   height: `${item.radius * 2}px`,
-  // Matter.js의 중심점(x, y)을 CSS의 top/left로 변환 (원의 중심 보정)
   transform: `translate(${item.x - item.radius}px, ${item.y - item.radius}px) rotate(${item.angle}rad)`,
-  // 레벨에 따른 z-index (작은 공이 위로 오도록)
   zIndex: item.level,
-  
-  // [★추가★] 레벨별 배경색 (선택사항)
   backgroundColor: `var(--lv-${item.level}-bg)`,
   border: `2px solid var(--lv-${item.level}-border)`
 });
@@ -409,11 +429,29 @@ const cleanupMatterJS = () => {
 onMounted(() => {
   nextTick(() => {
     startGameLogic();
+
+    // --- [★핵심 추가★] BGM 자동재생 시도 ---
+    if (bgmPlayer.value) {
+      // 볼륨을 0.3으로 줄여서 시작
+      bgmPlayer.value.volume = 0.3; 
+      bgmPlayer.value.play().then(() => {
+        isSoundPlaying.value = true;
+      }).catch(error => {
+        console.warn("BGM 자동재생이 차단되었습니다. 음소거 버튼을 눌러주세요.", error);
+        isSoundPlaying.value = false;
+      });
+    }
+    // --- (추가 완료) ---
   });
 });
 
 onUnmounted(() => {
   cleanupMatterJS();
+  // --- [★핵심 추가★] BGM 정지 ---
+  if (bgmPlayer.value) {
+    bgmPlayer.value.pause();
+  }
+  // --- (추가 완료) ---
 });
 </script>
 
@@ -444,6 +482,8 @@ onUnmounted(() => {
 
 /* 상단 스탯바 */
 .game-stats-glass {
+  /* [★수정★] 버튼을 넣기 위해 position: relative 추가 */
+  position: relative; 
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
@@ -459,6 +499,28 @@ onUnmounted(() => {
   box-sizing: border-box;
   margin-bottom: 10px;
 }
+
+/* ▼▼▼ [★핵심 추가★] BGM 음소거 버튼 스타일 ▼▼▼ */
+.sound-toggle-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+.sound-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
+
 .stat-item {
   text-align: center;
 }
@@ -510,7 +572,7 @@ onUnmounted(() => {
   align-items: center;
 }
 
-/* [★수정★] 이모지 스타일 */
+/* 이모지 스타일 */
 .emoji-wrapper {
   line-height: 1;
   text-align: center;
