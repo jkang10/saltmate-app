@@ -67,14 +67,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import Matter from 'matter-js';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
 // --- Matter.js 모듈 ---
-const { Engine, Runner, World, Bodies, Events, Composite, Body } = Matter;
+const { Engine, Runner, World, Bodies, Events, Composite } = Matter;
 
 // --- Firebase 연동 (임시 플레이스홀더) ---
 const startGameFunc = httpsCallable(functions, 'startFrogGame'); // 100 SaltMate 차감
