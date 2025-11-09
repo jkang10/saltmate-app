@@ -77,8 +77,8 @@ import { httpsCallable } from 'firebase/functions';
 const { Engine, Runner, World, Bodies, Events, Composite } = Matter;
 
 // --- Firebase 연동 (임시 플레이스홀더) ---
-const startGameFunc = httpsCallable(functions, 'startFrogGame'); // 100 SaltMate 차감
-const endGameFunc = httpsCallable(functions, 'endFrogGame'); // 점수 전송
+const startGameFunc = httpsCallable(functions, 'startAlchemyGame');
+const endGameFunc = httpsCallable(functions, 'endAlchemyGame');
 const router = useRouter();
 
 // --- 게임 기본 상수 ---
@@ -320,16 +320,19 @@ const startGameLogic = async () => {
   
   gameStatus.value = 'loading';
   
-  try {
+try {
+    // 1. [★수정★] 엔진과 월드를 먼저 생성합니다.
+    initMatterJS(); 
+    initEventListeners();
+    
+    // 2. [★삭제★] 월드가 방금 생성되었으므로 'clear'는 필요 없습니다.
+    // World.clear(world, false); 
+    
+    // 3. [★수정★] 이제 입장료를 받습니다.
     // TODO: startFrogGame 대신 startAlchemyGame을 만들어 입장료 정책 적용
     await startGameFunc(); // (임시) 100 SaltMate 차감
     
-    // 월드 초기화
-    World.clear(world, false); // false = 벽은 남김
-    initMatterJS();
-    initEventListeners();
-    
-    // 상태 초기화
+    // 4. (기존 로직) 상태 초기화
     reactiveItems.value = [];
     mergesToProcess.length = 0;
     score.value = 0;
