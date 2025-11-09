@@ -61,20 +61,19 @@
         </div>
       </div>
 
-    </div> <div v-if="gameStatus !== 'playing'" class="modal-overlay">
+    </div>
+    
+    <div v-if="gameStatus !== 'playing'" class="modal-overlay">
       <div class="modal-content">
         <h2 v-if="gameStatus === 'loading'">잠시만 기다려주세요</h2>
         <h2 v-if="gameStatus === 'lost'">게임 오버</h2>
-        <h2 v-if="gameStatus === 'won'">모든 결정 획득!</h2>
         <p v-if="gameStatus === 'lost'">최종 점수: {{ score }}</p>
-        <p v-if="gameStatus === 'won'">최종 점수 {{ score }}점 획득!</p>
         <div v-if="gameStatus === 'loading'" class="loading-spinner"></div>
-        <button v-if="gameStatus === 'lost' || gameStatus === 'won'" @click="goToDashboard" class="btn-primary">
-          대시보드로 돌아가기
+        <button v-if="gameStatus === 'lost'" @click="goToDashboard" class="btn-primary"> 대시보드로 돌아가기
         </button>
       </div>
     </div>
-  </div>
+    </div>
 </template>
 
 <script setup>
@@ -216,6 +215,8 @@ const handleDeath = (reason) => {
     }
   }, 1000);
 };
+
+// ▼▼▼ [★핵심 수정★] handleGoal 함수 (무한 스테이지 모드) ▼▼▼
 const handleGoal = (goalIndex) => {
   if (goals.value[goalIndex].filled) {
     handleDeath('이미 채워진 결정입니다!');
@@ -224,13 +225,25 @@ const handleGoal = (goalIndex) => {
   goals.value[goalIndex].filled = true;
   score.value += 300;
   resetFrog();
+  
   if (goals.value.every(g => g.filled)) {
+    // 1. 점수 획득 및 알림
     score.value += 1000;
-    gameStatus.value = 'won';
-    cancelAnimationFrame(gameLoopId);
-    handleEndGame(score.value);
+    alert(`스테이지 클리어! 보너스 1000점 획득! 다음 스테이지로 이동합니다.`);
+    
+    // 2. 모든 목표를 비우고 (새로운 스테이지 시작)
+    goals.value.forEach(g => g.filled = false);
+    
+    // 3. 난이도 증가 (장애물 속도 10% 증가)
+    logs.value.forEach(log => log.speed *= 1.1);
+    carts.value.forEach(cart => cart.speed *= 1.1);
+    
+    // 4. 개구리 리셋 (위에서 이미 호출됨)
+    
+    // 5. 게임은 계속 진행 (종료 로직 삭제)
   }
 };
+// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- 플레이어 조작 (점수 버그 수정됨) ---
 const movePlayer = (dx, dy) => {
@@ -308,10 +321,7 @@ const gameAreaStyle = computed(() => ({
   width: `${GAME_WIDTH.value}px`,
   height: `${GAME_HEIGHT.value}px`,
   transform: `scale(${TILE_SIZE.value / 40})`,
-
-  // ▼▼▼ [핵심 수정] 'center top' -> 'top left' (원복) ▼▼▼
-  transformOrigin: 'top left', 
-  // ▲▲▲ (수정 완료) ▲▲▲
+  transformOrigin: 'top left', // (원복)
 }));
 
 const frogStyle = computed(() => ({
@@ -443,7 +453,7 @@ onUnmounted(() => {
 
 <style scoped>
 
-/* ▼▼▼ [핵심 수정] CSS 전체 수정 ▼▼▼ */
+/* ▼▼▼ [★핵심 수정★] CSS 전체 수정 ▼▼▼ */
 .frog-game-page {
   /* [★수정★] 변수들을 CSS가 아닌 JS(Computed)에서 제어하므로 삭제 */
   --color-road: #78553a;
