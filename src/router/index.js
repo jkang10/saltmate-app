@@ -329,6 +329,12 @@ const routes = [
       meta: { requiresAuth: true, isGamePage: true } // <-- 이 부분을 추가하세요!
   },
   {
+    path: '/salt-alchemy',
+    name: 'SaltAlchemyGamePage',
+    component: () => import('@/views/SaltAlchemyGamePage.vue'), 
+    meta: { requiresAuth: true, isGamePage: true }
+  },
+  {
     path: '/salt-trader',
     name: 'SaltTraderPage',
     component: () => import('@/views/SaltTraderPage.vue'),

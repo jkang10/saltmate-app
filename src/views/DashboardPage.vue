@@ -129,6 +129,7 @@
           <SaltPangRankedWidget />
 	  <SaltPangPvpRankingsWidget />
 	  <EnchantRankingsWidget />
+	  <SaltAlchemyRankingsWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
 	  <AvatarShowcaseWidget class="avatar-showcase" />
@@ -372,6 +373,12 @@
 	  <p>광산 수레와 염수 강을 건너 소금 결정을 안전하게 획득하세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
+        <router-link to="/salt-alchemy" class="feature-card alchemy game">
+        <div class="card-icon"><i class="fas fa-flask"></i></div>
+        <h3>솔트 알케미</h3>
+        <p>재료를 합쳐 새로운 아이템을 발견하고 '연금술 가루'를 획득하세요!</p>
+        <span class="card-enter">플레이 &rarr;</span>
+        </router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
@@ -448,6 +455,7 @@ import TokenMineCard from '@/components/common/TokenMineCard.vue';
 import WeeklyGoldRankingWidget from '@/components/WeeklyGoldRankingWidget.vue';
 import TotalGoldRankingWidget from '@/components/TotalGoldRankingWidget.vue';
 import AvatarShowcaseWidget from '@/components/common/AvatarShowcaseWidget.vue';
+import SaltAlchemyRankingsWidget from "@/components/SaltAlchemyRankingsWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -475,6 +483,7 @@ export default {
     WeeklyGoldRankingWidget,
     TotalGoldRankingWidget,
     AvatarShowcaseWidget,
+    SaltAlchemyRankingsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
@@ -661,6 +670,32 @@ export default {
 </script>
 
 <style scoped>
+.feature-card.alchemy.game {
+  background: linear-gradient(135deg, #4a0e97 0%, #764ba2 100%); /* 신비로운 보라색 */
+  color: #fff;
+  border: 1px solid #9b59b6;
+  box-shadow: 0 8px 30px rgba(155, 89, 182, 0.4);
+}
+.feature-card.alchemy.game .card-icon {
+  color: #f1c40f; /* 금색 아이콘 */
+  text-shadow: 0 0 10px #f1c40f;
+}
+.feature-card.alchemy.game h3 {
+  color: #fff;
+}
+.feature-card.alchemy.game p {
+  color: #ecf0f1;
+  opacity: 0.9;
+}
+.feature-card.alchemy.game .card-enter {
+  color: #f1c40f;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #f1c40f;
+}
+.feature-card.alchemy.game:hover {
+  border-color: #f39c12;
+  box-shadow: 0 12px 35px rgba(155, 89, 182, 0.6);
+}
 .feature-card.crystal-game {
   background: linear-gradient(145deg, #1e2a3a, #3b506c);
   color: #fff;
