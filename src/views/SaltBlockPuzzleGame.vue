@@ -70,17 +70,19 @@
           v-if="block.shape" 
           class="block-preview" 
           :style="getBlockGridStyle(block)"
-          
-          @mousedown.prevent="handleDragStart($event, block, index)"
-          @touchstart.prevent="handleDragStart($event, block, index)"
-          >
+        >
+          <!-- ▼▼▼ [★핵심 수정 1★] mousedown/touchstart 이벤트를 개별 셀로 이동 ▼▼▼ -->
           <div
             v-for="(cell, cIndex) in block.shape.flat()"
             :key="cIndex"
             class="block-cell"
             :class="{ 'filled': cell === 1 }"
-            :data-cindex="cIndex" 
+            :data-cindex="cIndex"
+            
+            @mousedown.prevent="handleDragStart($event, block, index, cIndex)"
+            @touchstart.prevent="handleDragStart($event, block, index, cIndex)"
           ></div>
+          <!-- ▲▲▲ (수정 완료) ▲▲▲ -->
         </div>
       </div>
     </div>
@@ -151,15 +153,15 @@ const highScore = ref(localStorage.getItem('blockPuzzleHighScore') || 0);
 const alchemyDust = ref(0);
 const comboMessage = ref('');
 const finalPointsAwarded = ref(0);
-const gameBoardRef = ref(null); // [★신규★] 게임 보드 DOM 참조
+const gameBoardRef = ref(null); 
 
 // --- 드래그앤드롭 상태 ---
-const isDragging = ref(false); // [★신규★]
+const isDragging = ref(false); 
 const dragged = reactive({ block: null, index: -1, offset: { dr: 0, dc: 0 } });
 const previewCells = ref([]);
 const invalidDrop = ref(false);
-const pointerPosition = reactive({ x: 0, y: 0 }); // [★신규★] 마우스/터치 현재 위치
-const blockStartPos = reactive({ x: 0, y: 0 }); // [★신규★] 드래그 시작 시 블록의 위치
+const pointerPosition = reactive({ x: 0, y: 0 }); 
+const blockStartPos = reactive({ x: 0, y: 0 }); 
 
 // --- 1. 게임 시작 및 재시작 ---
 const startGameLogic = async () => {
@@ -237,10 +239,14 @@ const canAnyBlockBePlaced = () => {
 
 // --- 3. [★핵심 수정★] 커스텀 드래그앤드롭 핸들러 ---
 
-const handleDragStart = (e, block, index) => {
-  const target = e.target.closest('.block-cell'); // 클릭한 셀
-  const cIndex = Number(target.dataset.cindex || 0);
-  
+// ▼▼▼ [★핵심 수정 2★] cIndex 파라미터 추가 ▼▼▼
+const handleDragStart = (e, block, index, cIndex) => {
+  // 모바일 터치 시, cIndex가 undefined일 수 있으므로 e.target에서 다시 찾음
+  if (cIndex === undefined && e.target) {
+    const targetCell = e.target.closest('.block-cell');
+    cIndex = Number(targetCell?.dataset.cindex || 0);
+  }
+
   // 1. 드래그 상태 활성화
   isDragging.value = true;
   dragged.block = block;
@@ -257,10 +263,12 @@ const handleDragStart = (e, block, index) => {
   pointerPosition.y = pos.clientY;
   
   // 4. 드래그 시작 시 블록의 화면상 위치 저장 (Floating Block 위치 계산용)
-  const blockRect = target.closest('.block-preview').getBoundingClientRect();
+  // [수정] e.target이 .block-cell이므로 .block-preview를 찾아야 함
+  const blockRect = e.target.closest('.block-preview').getBoundingClientRect();
   blockStartPos.x = blockRect.left;
   blockStartPos.y = blockRect.top;
 };
+// ▲▲▲ (수정 완료) ▲▲▲
 
 const handleDragMove = (e) => {
   if (!isDragging.value || !dragged.block) return;
@@ -272,7 +280,10 @@ const handleDragMove = (e) => {
 
   // 2. 게임 보드 DOM의 좌표 가져오기
   const boardRect = gameBoardRef.value.getBoundingClientRect();
-  const cellElements = gameBoardRef.value.children;
+  
+  // ▼▼▼ [★Lint 수정 1★] 'cellElements' 변수 삭제 (사용 안 함) ▼▼▼
+  // const cellElements = gameBoardRef.value.children; 
+  // ▲▲▲ (수정 완료) ▲▲▲
 
   // 3. 현재 포인터가 보드 위에 있는지 확인
   const isOverBoard = (
@@ -281,8 +292,7 @@ const handleDragMove = (e) => {
   );
 
   if (isOverBoard) {
-    // 4. 포인터 위치에 가장 가까운 셀 찾기 (붉은색 오류 해결)
-    //    e.target 대신 document.elementFromPoint를 사용해 정확한 셀을 찾음
+    // 4. 포인터 위치에 가장 가까운 셀 찾기
     const targetElement = document.elementFromPoint(pos.clientX, pos.clientY);
     const targetIndex = targetElement?.dataset.index;
 
@@ -302,9 +312,17 @@ const handleDragMove = (e) => {
         invalidDrop.value = true;
       }
     } else {
+      // ▼▼▼ [★핵심 수정 3 - PC 버그★] 칸 경계선(gap)에 있을 때 붉은색이 되는 버그 수정 ▼▼▼
       // (보드 위지만 셀이 아닌 경계선에 있을 경우)
       previewCells.value = [];
-      invalidDrop.value = true;
+      invalidDrop.value = true; // <-- 이 코드를
+      // invalidDrop.value = false; // <-- 이렇게 변경합니다. (놓을 수는 없지만 '무효'는 아님)
+      // [2차 수정] 'invalidDrop.value = true'가 맞습니다. 드롭 시점에 
+      // 'previewCells'가 비어있으면 어차피 드롭이 안됩니다.
+      // 붉은색으로 변하는 PC 버그는 handleDragEnd에서 최종 위치를 재검증하지 않기 때문입니다.
+      // -> handleDragEnd를 수정합니다.
+      invalidDrop.value = true; // (원복)
+      // ▲▲▲ (수정 완료) ▲▲▲
     }
   } else {
     // 보드 밖으로 나감
@@ -313,17 +331,44 @@ const handleDragMove = (e) => {
   }
 };
 
-const handleDragEnd = (e) => {
+// ▼▼▼ [★Lint 수정 2★] 'e' 파라미터 제거 ▼▼▼
+const handleDragEnd = () => {
+// ▲▲▲ (수정 완료) ▲▲▲
+
   if (!isDragging.value || !dragged.block) return;
   
-  // 1. 유효한 위치(previewCells)에 드롭했는지 확인
-  if (previewCells.value.length > 0 && !invalidDrop.value) {
-    
-    // 2. 블록 놓기 (첫 번째 previewCell을 기준으로 위치 계산)
-    const placeIndex = previewCells.value[0];
-    const place_r = Math.floor(placeIndex / BOARD_SIZE) - dragged.offset.dr;
-    const place_c = (placeIndex % BOARD_SIZE) - dragged.offset.dc;
+  // ▼▼▼ [★핵심 수정 4 - PC/모바일 버그★] 드롭 시 상태(state)가 아닌, 최종 포인터 위치로 재검증 ▼▼▼
+  let isValidDrop = false;
+  let place_r = 0;
+  let place_c = 0;
 
+  const boardRect = gameBoardRef.value.getBoundingClientRect();
+  const isOverBoard = (
+    pointerPosition.x >= boardRect.left && pointerPosition.x <= boardRect.right &&
+    pointerPosition.y >= boardRect.top && pointerPosition.y <= boardRect.bottom
+  );
+  
+  if (isOverBoard) {
+    const targetElement = document.elementFromPoint(pointerPosition.x, pointerPosition.y);
+    const targetIndex = targetElement?.dataset.index;
+    if (targetElement && targetIndex) {
+      const target_r = Math.floor(targetIndex / BOARD_SIZE);
+      const target_c = targetIndex % BOARD_SIZE;
+      
+      place_r = target_r - dragged.offset.dr;
+      place_c = target_c - dragged.offset.dc;
+      
+      if (canPlace(dragged.block, place_r, place_c)) {
+        isValidDrop = true;
+      }
+    }
+  }
+  // ▲▲▲ (수정 완료) ▲▲▲
+
+  // 1. 유효한 위치(previewCells)에 드롭했는지 확인
+  if (isValidDrop) {
+    
+    // 2. 블록 놓기 (재검증된 위치 사용)
     placeBlock(dragged.block, place_r, place_c);
     
     const cellsPlaced = dragged.block.shape.flat().filter(c => c === 1).length;
@@ -347,7 +392,6 @@ const handleDragEnd = (e) => {
   previewCells.value = [];
   invalidDrop.value = false;
 };
-// ▲▲▲ (커스텀 드래그 로직 완료) ▲▲▲
 
 
 // --- 4. 핵심 게임 로직 (CanPlace, Place, Clear) ---
@@ -422,7 +466,6 @@ const clearLines = () => {
     if (isColFull) fullCols.push(c);
   }
   
-  // [★수정★] 겹치는 셀이 없도록 수정 (가로/세로 동시 제거 시 점수 계산 오류 방지)
   const cellsToClear = new Set();
   fullRows.forEach(r => {
     for (let c = 0; c < BOARD_SIZE; c++) cellsToClear.add(r * BOARD_SIZE + c);
@@ -434,7 +477,6 @@ const clearLines = () => {
   const linesCleared = fullRows.length + fullCols.length;
   if (linesCleared === 0) return 0;
   
-  // 셀 비우기
   cellsToClear.forEach(index => {
     board[index] = 0;
   });
@@ -450,7 +492,6 @@ const updateScore = (linesCleared) => {
   score.value += points;
   alchemyDust.value += dust;
 
-  // 콤보 메시지 표시
   if (linesCleared >= 2) {
     const messages = { 2: "더블!", 3: "트리플!", 4: "쿼드!!", 5: "펜타!!!", 6: "퍼펙트!!!" };
     comboMessage.value = `${messages[linesCleared]} +${points}점` + (dust > 0 ? ` / +${dust} 가루💎` : '');
@@ -462,19 +503,16 @@ const handleGameOver = async () => {
   if (gameStatus.value !== 'playing') return;
   gameStatus.value = 'lost';
 
-  // 최고 점수 갱신
   if (score.value > highScore.value) {
     highScore.value = score.value;
     localStorage.setItem('blockPuzzleHighScore', score.value);
   }
 
-  // 백엔드에 결과 전송
   try {
     const result = await endGameFunc({ 
       score: score.value,
       alchemyDust: alchemyDust.value 
     });
-    // [★핵심★] 백엔드가 계산해준 최종 지급액을 모달에 표시
     finalPointsAwarded.value = result.data.awardedPoints || 0;
   } catch (error) {
     console.error("게임 결과 전송 실패:", error);
@@ -490,27 +528,25 @@ const getBlockGridStyle = (block) => {
   };
 };
 
-// [★신규★] 드래그 중인 플로팅 블록의 스타일
 const floatingBlockStyle = computed(() => {
   if (!dragged.block) return {};
   
-  // 블록의 크기 계산
-  const shape = dragged.block.shape;
+  // ▼▼▼ [★Lint 수정 3★] 'shape' 변수 삭제 (사용 안 함) ▼▼▼
+  // const shape = dragged.block.shape;
+  // ▲▲▲ (수정 완료) ▲▲▲
   const style = getBlockGridStyle(dragged.block);
 
-  // 마우스/터치 위치를 기준으로 블록의 좌상단 위치 계산
-  // (20px는 .block-cell의 크기, 3px는 gap)
   const cellWidth = 20 + 3; 
   const offsetX = dragged.offset.dc * cellWidth;
   const offsetY = dragged.offset.dr * cellWidth;
   
   return {
     ...style,
-    position: 'fixed', // 화면 전체 기준
-    left: `${pointerPosition.x - offsetX - 10}px`, // 10px는 셀 크기 절반
+    position: 'fixed', 
+    left: `${pointerPosition.x - offsetX - 10}px`, 
     top: `${pointerPosition.y - offsetY - 10}px`,
     zIndex: 1000,
-    pointerEvents: 'none', // 자신에게 이벤트가 걸리지 않도록
+    pointerEvents: 'none', 
     opacity: 0.8,
   };
 });
@@ -531,7 +567,6 @@ onMounted(() => {
   background-color: #1a1a2e; /* 어두운 배경 */
   min-height: 100dvh;
   box-sizing: border-box;
-  /* [★수정★] 드래그 중 텍스트 선택 방지 */
   user-select: none;
   -webkit-user-select: none;
 }
@@ -571,7 +606,6 @@ onMounted(() => {
   border: 2px solid #2c3e50;
   border-radius: 8px;
   padding: 4px;
-  /* [★추가★] 드래그 영역임을 명시 */
   position: relative;
   z-index: 10;
 }
