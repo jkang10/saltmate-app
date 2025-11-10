@@ -380,6 +380,12 @@
         <p>재료를 합쳐 새로운 아이템을 발견하고 '연금술 가루'를 획득하세요!</p>
         <span class="card-enter">플레이 &rarr;</span>
         </router-link>
+        <router-link to="/salt-block-puzzle" class="feature-card block-puzzle game">
+        <div class="card-icon"><i class="fas fa-th-large"></i></div>
+        <h3>솔트 블록 1010</h3>
+        <p>블록으로 줄을 채워 점수를 획득하고 '연금술 가루'를 모으세요!</p>
+        <span class="card-enter">플레이 &rarr;</span>
+      </router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
@@ -458,6 +464,7 @@ import TotalGoldRankingWidget from '@/components/TotalGoldRankingWidget.vue';
 import AvatarShowcaseWidget from '@/components/common/AvatarShowcaseWidget.vue';
 import SaltAlchemyRankingsWidget from "@/components/SaltAlchemyRankingsWidget.vue";
 import SaltAlchemyWeeklyRankingsWidget from "@/components/SaltAlchemyWeeklyRankingsWidget.vue";
+import SaltBlockPuzzleRankingsWidget from "@/components/SaltBlockPuzzleRankingsWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -487,6 +494,7 @@ export default {
     AvatarShowcaseWidget,
     SaltAlchemyRankingsWidget,
     SaltAlchemyWeeklyRankingsWidget,
+    SaltBlockPuzzleRankingsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
@@ -673,6 +681,29 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [★핵심 추가★] "솔트 블록 1010" 게임 카드 스타일 ▼▼▼ */
+.feature-card.block-puzzle.game {
+  background: linear-gradient(135deg, #005C97 0%, #363795 100%); /* 신비로운 파란색 */
+  color: #fff;
+  border: 1px solid #3498db;
+  box-shadow: 0 8px 30px rgba(52, 152, 219, 0.4);
+}
+.feature-card.block-puzzle.game .card-icon {
+  color: #3498db;
+  text-shadow: 0 0 10px #3498db;
+}
+.feature-card.block-puzzle.game h3 { color: #fff; }
+.feature-card.block-puzzle.game p { color: #ecf0f1; opacity: 0.9; }
+.feature-card.block-puzzle.game .card-enter {
+  color: #3498db;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #3498db;
+}
+.feature-card.block-puzzle.game:hover {
+  border-color: #5dade2;
+  box-shadow: 0 12px 35px rgba(52, 152, 219, 0.6);
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
 .feature-card.alchemy.game {
   background: linear-gradient(135deg, #4a0e97 0%, #764ba2 100%); /* 신비로운 보라색 */
   color: #fff;
