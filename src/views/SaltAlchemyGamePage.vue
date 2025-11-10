@@ -66,9 +66,12 @@
         <button v-if="gameStatus === 'lost'" @click="restartGame" class="btn-primary">
           다시하기
         </button>
+        <button v-if="gameStatus === 'lost'" @click="goToDashboard" class="btn-secondary">
+          대시보드로 나가기
+        </button>
       </div>
     </div>
-  </div>
+    </div>
 </template>
 
 <script setup>
@@ -89,6 +92,12 @@ const { Engine, Runner, World, Bodies, Events, Composite } = Matter;
 const startGameFunc = httpsCallable(functions, 'startAlchemyGame');
 const endGameFunc = httpsCallable(functions, 'endAlchemyGame');
 const router = useRouter();
+
+// ▼▼▼ [★핵심 추가★] 대시보드 이동 함수 ▼▼▼
+const goToDashboard = () => {
+  router.push('/dashboard');
+};
+// ▲▲▲ (추가 완료) ▲▲▲
 
 // --- 게임 기본 상수 ---
 const GAME_WIDTH = 360; // 게임 항아리 너비 (px)
@@ -618,6 +627,8 @@ onUnmounted(() => {
   text-align: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
+
+/* ▼▼▼ [★핵심 수정★] 버튼 스타일 수정 ▼▼▼ */
 .btn-primary {
   background-color: #007bff;
   color: white;
@@ -629,10 +640,34 @@ onUnmounted(() => {
   font-weight: bold;
   margin-top: 10px;
   transition: background-color 0.2s ease;
+  width: 100%; /* [★수정★] 너비 100% */
+  box-sizing: border-box; /* [★추가★] */
 }
 .btn-primary:hover {
   background-color: #0056b3;
 }
+
+/* [★신규★] 대시보드 이동 버튼 스타일 */
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-top: 10px;
+  transition: background-color 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
+
 .loading-spinner {
   display: inline-block;
   border: 4px solid rgba(0, 0, 0, 0.1);
@@ -646,3 +681,5 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 </style>
+}
+'SaltAlchemyGamePage.vue' (이모지 버전 전체 소스 코드) 수정해줘
