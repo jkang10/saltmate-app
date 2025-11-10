@@ -15,13 +15,14 @@
         </nav>
         <div class="navbar-actions">
           <div v-if="isLoggedIn" class="user-actions">
+            
             <router-link to="/salt-trader" class="salt-ticker" title="소금 상인 페이지로 이동">
               <span class="ticker-label">SALT</span>
-              <span class="ticker-price">{{ saltPrice.toLocaleString() }}</span>
+              <span class="ticker-price">{{ saltPriceFormatted }}</span>
               <span class="ticker-change" :class="priceClass">
                 <i v-if="priceClass === 'up'" class="fas fa-caret-up"></i>
                 <i v-if="priceClass === 'down'" class="fas fa-caret-down"></i>
-                {{ priceChange }}
+                {{ priceChangeFormatted }}
               </span>
             </router-link>
             <router-link to="/profile" class="user-profile-link">
@@ -76,7 +77,6 @@
 </template>
 
 <script setup>
-// (script setup 내용은 이전과 100% 동일합니다)
 import { ref, onMounted, onUnmounted, watch, reactive, computed } from "vue";
 import { auth, db, functions, rtdb } from "@/firebaseConfig";
 import { httpsCallable } from "firebase/functions";
@@ -98,9 +98,14 @@ const qrModal = reactive({
   qrId: null,
   error: null,
 });
-const saltPrice = ref(0);
-const priceChange = ref(0);
-const priceClass = ref('');
+
+// ▼▼▼ [★핵심 수정★] 시세 변수 수정 ▼▼▼
+const market = ref({ currentPrice: 0, priceHistory: [] }); // priceChange를 계산하기 위해 market 전체를 저장
+const saltPrice = ref(0); // (기존 변수)
+// const priceChange = ref(0); // (삭제)
+// const priceClass = ref(''); // (삭제)
+// ▲▲▲ (수정 완료) ▲▲▲
+
 const matchmakingQueueCount = ref(0);
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
@@ -108,6 +113,34 @@ let presenceRef = null;
 let matchmakingUnsubscribe = null;
 
 const isGamePage = computed(() => route.meta.isGamePage === true);
+
+// ▼▼▼ [★핵심 추가★] 소수점 3자리로 포매팅하는 computed 속성 추가 ▼▼▼
+const saltPriceFormatted = computed(() => {
+  return (saltPrice.value || 0).toFixed(3);
+});
+
+const priceChangeValue = computed(() => {
+  const history = market.value?.priceHistory || [];
+  if (history.length < 2) return 0;
+  // (참고: SaltTraderPage.vue와 달리, Navbar는 24시간 기준이 아닌 직전 가격 기준 변동을 계산)
+  // [수정] SaltTraderPage와 동일하게 24시간(history[0]) 기준으로 변경
+  const oldPrice = history[0]?.price || saltPrice.value;
+  return saltPrice.value - oldPrice;
+});
+
+const priceChangeFormatted = computed(() => {
+  // 변동폭을 소수점 3자리로 고정
+  return Number(priceChangeValue.value.toFixed(3));
+});
+
+const priceClass = computed(() => {
+  if (priceChangeValue.value > 0) return 'up';
+  if (priceChangeValue.value < 0) return 'down';
+  return '';
+});
+// ▲▲▲ (추가 완료) ▲▲▲
+
+
 const managePresence = (user) => {
   if (user) {
     presenceRef = dbRef(rtdb, `presence/${user.uid}`);
@@ -129,13 +162,11 @@ const listenToSaltPrice = () => {
   const marketRef = doc(db, "configuration", "saltMarket");
   saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
     if (docSnap.exists()) {
-      const marketData = docSnap.data();
-      const newPrice = marketData.currentPrice;
-      if (saltPrice.value !== 0 && newPrice !== saltPrice.value) {
-        priceChange.value = newPrice - saltPrice.value;
-        priceClass.value = newPrice > saltPrice.value ? 'up' : 'down';
-      }
-      saltPrice.value = newPrice;
+      // ▼▼▼ [★핵심 수정★] market 객체 전체를 저장 ▼▼▼
+      market.value = docSnap.data();
+      saltPrice.value = market.value.currentPrice;
+      // (기존 priceChange, priceClass 계산 로직은 computed로 이동)
+      // ▲▲▲ (수정 완료) ▲▲▲
     }
   });
 };
@@ -237,35 +268,26 @@ watch(() => router.currentRoute.value, () => {
 </script>
 
 <style scoped>
-/* ▼▼▼ [핵심 수정] CSS 수정 ▼▼▼ */
-
-/* 모바일 (768px 이하)에서 'game-mode' 클래스가 #app에 적용되었을 때 */
+/* (스타일 태그 내용은 변경된 부분 없음 - 기존 코드와 동일) */
 @media (max-width: 768px) {
   #app.game-mode .navbar {
-    display: none; /* 1. 헤더를 숨깁니다. */
+    display: none;
   }
   
   #app.game-mode .main-content {
-    margin-top: 0 !important; /* 2. 헤더가 차지하던 70px 마진을 제거합니다. */
-    padding: 0 !important; /* 3. 게임 페이지가 패딩 없이 꽉 차도록 합니다. */
-    height: 100dvh; /* [★수정★] 100vh -> 100dvh (동적 뷰포트 높이) */
+    margin-top: 0 !important;
+    padding: 0 !important;
+    height: 100dvh;
   }
 }
-
-/* PC (769px 이상)에서는 'game-mode'여도 헤더가 보이고 main-content 마진 유지 */
 #app.game-mode .main-content {
-  /* [★추가★] PC에서는 게임이어도 헤더 마진(70px) 유지 */
   margin-top: 70px;
 }
 @media (max-width: 768px) {
   #app.game-mode .main-content {
-    margin-top: 0 !important; /* 모바일에서만 마진 제거 */
+    margin-top: 0 !important;
   }
 }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
-
-/* (이하 기존 스타일은 모두 동일) */
 .fab-matchmaking-button {
   position: fixed;
   top: 130px; 
