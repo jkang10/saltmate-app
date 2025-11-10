@@ -1,5 +1,12 @@
 <template>
-  <div class="block-puzzle-page">
+  <div 
+    class="block-puzzle-page"
+    @mouseup="handleDragEnd"
+    @mouseleave="handleDragEnd"
+    @touchend="handleDragEnd"
+    @mousemove.prevent="handleDragMove"
+    @touchmove.prevent="handleDragMove"
+  >
     <div class="game-stats-glass">
       <div class="stat-item">
         <span>최고 점수</span>
@@ -19,9 +26,7 @@
       
       <div 
         class="game-board"
-        @dragover.prevent="handleDragOver"
-        @dragleave.prevent="handleDragLeave"
-        @drop.prevent="handleDrop"
+        ref="gameBoardRef"
       >
         <div
           v-for="(cell, index) in board.flat()"
@@ -40,26 +45,42 @@
         {{ comboMessage }}
       </div>
 
-    </div>
+      <div 
+        v-if="dragged.block && isDragging" 
+        class="block-preview floating-block" 
+        :style="floatingBlockStyle"
+      >
+        <div
+          v-for="(cell, cIndex) in dragged.block.shape.flat()"
+          :key="cIndex"
+          class="block-cell"
+          :class="{ 'filled': cell === 1 }"
+        ></div>
+      </div>
+      </div>
 
     <div class="block-spawner">
       <div
         v-for="(block, index) in blocks"
-        :key="block.id"
+        :key="block.uid"
         class="block-preview-wrapper"
-        :class="{ 'is-empty': !block.shape }"
-        
-        >
-        <div v-if="block.shape" class="block-preview" :style="getBlockGridStyle(block)">
+        :class="{ 'is-empty': !block.shape, 'is-dragging': isDragging && dragged.index === index }"
+      >
+        <div 
+          v-if="block.shape" 
+          class="block-preview" 
+          :style="getBlockGridStyle(block)"
+          
+          @mousedown.prevent="handleDragStart($event, block, index)"
+          @touchstart.prevent="handleDragStart($event, block, index)"
+          >
           <div
             v-for="(cell, cIndex) in block.shape.flat()"
             :key="cIndex"
             class="block-cell"
             :class="{ 'filled': cell === 1 }"
-            
-            :draggable="cell === 1"
-            @dragstart.stop="handleDragStart($event, block, index, cIndex)"
-            ></div>
+            :data-cindex="cIndex" 
+          ></div>
         </div>
       </div>
     </div>
@@ -86,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -103,25 +124,17 @@ const COMBO_DUST = { 1: 0, 2: 1, 3: 3, 4: 5, 5: 10, 6: 15 };
 
 // --- 블록 정의 (1010! 표준 세트) ---
 const BLOCK_DEFINITIONS = {
-  // 1x1
   '1x1': { shape: [[1]], id: '1x1' },
-  // 1x2, 2x1
   '1x2': { shape: [[1, 1]], id: '1x2' },
   '2x1': { shape: [[1], [1]], id: '2x1' },
-  // 1x3, 3x1
   '1x3': { shape: [[1, 1, 1]], id: '1x3' },
   '3x1': { shape: [[1], [1], [1]], id: '3x1' },
-  // 1x4, 4x1
   '1x4': { shape: [[1, 1, 1, 1]], id: '1x4' },
   '4x1': { shape: [[1], [1], [1], [1]], id: '4x1' },
-  // 1x5, 5x1
   '1x5': { shape: [[1, 1, 1, 1, 1]], id: '1x5' },
   '5x1': { shape: [[1], [1], [1], [1], [1]], id: '5x1' },
-  // 2x2
   '2x2': { shape: [[1, 1], [1, 1]], id: '2x2' },
-  // 3x3
   '3x3': { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], id: '3x3' },
-  // L (4종류)
   'L1': { shape: [[1, 0], [1, 0], [1, 1]], id: 'L1' },
   'L2': { shape: [[1, 1, 1], [1, 0, 0]], id: 'L2' },
   'L3': { shape: [[1, 1], [0, 1], [0, 1]], id: 'L3' },
@@ -132,19 +145,21 @@ const blockTypes = Object.keys(BLOCK_DEFINITIONS);
 // --- Vue 반응형 게임 상태 ---
 const gameStatus = ref('loading');
 const board = reactive(Array(BOARD_SIZE * BOARD_SIZE).fill(0));
-const blocks = ref([{id: null, shape: null}, {id: null, shape: null}, {id: null, shape: null}]);
+const blocks = ref([{uid: null, shape: null}, {uid: null, shape: null}, {uid: null, shape: null}]);
 const score = ref(0);
 const highScore = ref(localStorage.getItem('blockPuzzleHighScore') || 0);
 const alchemyDust = ref(0);
 const comboMessage = ref('');
 const finalPointsAwarded = ref(0);
+const gameBoardRef = ref(null); // [★신규★] 게임 보드 DOM 참조
 
 // --- 드래그앤드롭 상태 ---
-// ▼▼▼ [★수정 3★] 드래그 상태에 offset(마우스위치) 추가 ▼▼▼
+const isDragging = ref(false); // [★신규★]
 const dragged = reactive({ block: null, index: -1, offset: { dr: 0, dc: 0 } });
-// ▲▲▲ (수정 완료) ▲▲▲
 const previewCells = ref([]);
 const invalidDrop = ref(false);
+const pointerPosition = reactive({ x: 0, y: 0 }); // [★신규★] 마우스/터치 현재 위치
+const blockStartPos = reactive({ x: 0, y: 0 }); // [★신규★] 드래그 시작 시 블록의 위치
 
 // --- 1. 게임 시작 및 재시작 ---
 const startGameLogic = async () => {
@@ -178,9 +193,7 @@ const restartGame = () => {
   startGameLogic();
 };
 
-const cleanupGame = () => {
-  // (Matter.js가 없으므로 정리가 간단함)
-};
+const cleanupGame = () => {};
 
 const goToDashboard = () => {
   router.push('/dashboard');
@@ -203,7 +216,6 @@ const spawnBlocks = () => {
     }
   }
   
-  // [★핵심★] 게임 오버 체크
   if (!canAnyBlockBePlaced()) {
     handleGameOver();
   }
@@ -212,108 +224,131 @@ const spawnBlocks = () => {
 const canAnyBlockBePlaced = () => {
   for (const block of blocks.value) {
     if (!block.shape) continue;
-    // 100개의 모든 칸을 대상으로 놓을 수 있는지 검사
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
         if (canPlace(block, r, c)) {
-          return true; // 놓을 수 있는 칸이 하나라도 있으면
+          return true;
         }
       }
     }
   }
-  return false; // 3개 블록 모두 놓을 곳이 없음
+  return false;
 };
 
-// --- 3. 드래그앤드롭 핸들러 ---
-// ▼▼▼ [★수정 4★] handleDragStart 함수가 cIndex(클릭한 셀)를 받도록 수정 ▼▼▼
-const handleDragStart = (e, block, index, cIndex) => {
+// --- 3. [★핵심 수정★] 커스텀 드래그앤드롭 핸들러 ---
+
+const handleDragStart = (e, block, index) => {
+  const target = e.target.closest('.block-cell'); // 클릭한 셀
+  const cIndex = Number(target.dataset.cindex || 0);
+  
+  // 1. 드래그 상태 활성화
+  isDragging.value = true;
   dragged.block = block;
   dragged.index = index;
-  
-  // [★신규★] 블록 모양 내에서 클릭한 상대적 위치(offset) 계산
+
+  // 2. 블록 내 상대적 위치(offset) 계산
   const shapeWidth = block.shape[0].length;
   dragged.offset.dr = Math.floor(cIndex / shapeWidth);
   dragged.offset.dc = cIndex % shapeWidth;
   
-  e.dataTransfer.effectAllowed = 'move';
-  // (드래그 시 반투명 이미지 제거 - 선택사항)
-  const empty = document.createElement('div');
-  e.dataTransfer.setDragImage(empty, 0, 0);
+  // 3. 현재 포인터 위치 저장
+  const pos = (e.touches ? e.touches[0] : e);
+  pointerPosition.x = pos.clientX;
+  pointerPosition.y = pos.clientY;
+  
+  // 4. 드래그 시작 시 블록의 화면상 위치 저장 (Floating Block 위치 계산용)
+  const blockRect = target.closest('.block-preview').getBoundingClientRect();
+  blockStartPos.x = blockRect.left;
+  blockStartPos.y = blockRect.top;
 };
-// ▲▲▲ (수정 완료) ▲▲▲
 
-// ▼▼▼ [★수정 5★] handleDragOver 함수가 offset을 사용해 올바른 위치를 계산하도록 수정 ▼▼▼
-const handleDragOver = (e) => {
-  e.preventDefault(); // 필수
-  const targetIndex = e.target.dataset.index;
-  if (targetIndex && dragged.block) {
-    // 마우스가 올라간 칸의 (r, c)
-    const target_r = Math.floor(targetIndex / BOARD_SIZE);
-    const target_c = targetIndex % BOARD_SIZE;
-    
-    // 마우스 위치와 offset을 보정하여, 블록이 놓일 실제 (r, c) 계산
-    const place_r = target_r - dragged.offset.dr;
-    const place_c = target_c - dragged.offset.dc;
-    
-    if (canPlace(dragged.block, place_r, place_c)) {
-      previewCells.value = getPlacementCells(dragged.block, place_r, place_c);
-      invalidDrop.value = false;
+const handleDragMove = (e) => {
+  if (!isDragging.value || !dragged.block) return;
+
+  // 1. 마우스/터치 위치 업데이트
+  const pos = (e.touches ? e.touches[0] : e);
+  pointerPosition.x = pos.clientX;
+  pointerPosition.y = pos.clientY;
+
+  // 2. 게임 보드 DOM의 좌표 가져오기
+  const boardRect = gameBoardRef.value.getBoundingClientRect();
+  const cellElements = gameBoardRef.value.children;
+
+  // 3. 현재 포인터가 보드 위에 있는지 확인
+  const isOverBoard = (
+    pos.clientX >= boardRect.left && pos.clientX <= boardRect.right &&
+    pos.clientY >= boardRect.top && pos.clientY <= boardRect.bottom
+  );
+
+  if (isOverBoard) {
+    // 4. 포인터 위치에 가장 가까운 셀 찾기 (붉은색 오류 해결)
+    //    e.target 대신 document.elementFromPoint를 사용해 정확한 셀을 찾음
+    const targetElement = document.elementFromPoint(pos.clientX, pos.clientY);
+    const targetIndex = targetElement?.dataset.index;
+
+    if (targetElement && targetIndex) {
+      const target_r = Math.floor(targetIndex / BOARD_SIZE);
+      const target_c = targetIndex % BOARD_SIZE;
+      
+      // 5. Offset 보정 및 유효성 검사
+      const place_r = target_r - dragged.offset.dr;
+      const place_c = target_c - dragged.offset.dc;
+
+      if (canPlace(dragged.block, place_r, place_c)) {
+        previewCells.value = getPlacementCells(dragged.block, place_r, place_c);
+        invalidDrop.value = false;
+      } else {
+        previewCells.value = [];
+        invalidDrop.value = true;
+      }
     } else {
+      // (보드 위지만 셀이 아닌 경계선에 있을 경우)
       previewCells.value = [];
       invalidDrop.value = true;
     }
+  } else {
+    // 보드 밖으로 나감
+    previewCells.value = [];
+    invalidDrop.value = false;
   }
 };
-// ▲▲▲ (수정 완료) ▲▲▲
 
-const handleDragLeave = () => {
-  previewCells.value = [];
-  invalidDrop.value = false;
-};
-
-// ▼▼▼ [★수정 6★] handleDrop 함수가 offset을 사용해 올바른 위치에 놓도록 수정 ▼▼▼
-const handleDrop = (e) => {
-  e.preventDefault();
-  const targetIndex = e.target.dataset.index;
-  if (!targetIndex || !dragged.block) return;
-
-  // 마우스가 올라간 칸의 (r, c)
-  const target_r = Math.floor(targetIndex / BOARD_SIZE);
-  const target_c = targetIndex % BOARD_SIZE;
+const handleDragEnd = (e) => {
+  if (!isDragging.value || !dragged.block) return;
   
-  // 마우스 위치와 offset을 보정하여, 블록이 놓일 실제 (r, c) 계산
-  const place_r = target_r - dragged.offset.dr;
-  const place_c = target_c - dragged.offset.dc;
+  // 1. 유효한 위치(previewCells)에 드롭했는지 확인
+  if (previewCells.value.length > 0 && !invalidDrop.value) {
+    
+    // 2. 블록 놓기 (첫 번째 previewCell을 기준으로 위치 계산)
+    const placeIndex = previewCells.value[0];
+    const place_r = Math.floor(placeIndex / BOARD_SIZE) - dragged.offset.dr;
+    const place_c = (placeIndex % BOARD_SIZE) - dragged.offset.dc;
 
-  if (canPlace(dragged.block, place_r, place_c)) {
-    // 1. 블록 놓기 (보정된 위치 사용)
     placeBlock(dragged.block, place_r, place_c);
     
-    // 2. 블록 놓기 점수 추가
     const cellsPlaced = dragged.block.shape.flat().filter(c => c === 1).length;
     score.value += cellsPlaced;
     
-    // 3. 줄 제거 및 콤보 점수
     const linesCleared = clearLines();
     if (linesCleared > 0) {
       updateScore(linesCleared);
     }
     
-    // 4. 사용한 블록 제거
-    blocks.value[dragged.index] = { id: null, shape: null };
+    blocks.value[dragged.index] = { uid: null, shape: null };
     
-    // 5. 다음 턴 (블록 스폰 또는 게임 오버 체크)
     spawnBlocks();
   }
-  
-  // 드래그 상태 초기화
-  previewCells.value = [];
-  invalidDrop.value = false;
+
+  // 3. 드래그 상태 완전 초기화
+  isDragging.value = false;
   dragged.block = null;
   dragged.index = -1;
-  dragged.offset = { dr: 0, dc: 0 }; // offset 초기화
+  dragged.offset = { dr: 0, dc: 0 };
+  previewCells.value = [];
+  invalidDrop.value = false;
 };
-// ▲▲▲ (수정 완료) ▲▲▲
+// ▲▲▲ (커스텀 드래그 로직 완료) ▲▲▲
+
 
 // --- 4. 핵심 게임 로직 (CanPlace, Place, Clear) ---
 const canPlace = (block, r, c) => {
@@ -323,9 +358,7 @@ const canPlace = (block, r, c) => {
       if (shape[dr][dc] === 1) {
         const nr = r + dr;
         const nc = c + dc;
-        // 1. 보드 밖으로 나가는가? (좌/우/아래만 체크, 위는 체크X)
         if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) return false;
-        // 2. 다른 블록과 겹치는가?
         if (board[nr * BOARD_SIZE + nc] === 1) return false;
       }
     }
@@ -341,7 +374,6 @@ const getPlacementCells = (block, r, c) => {
       if (shape[dr][dc] === 1) {
         const nr = r + dr;
         const nc = c + dc;
-        // (보드 안에 있는 셀만 미리보기에 추가)
         if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
             cells.push(nr * BOARD_SIZE + nc);
         }
@@ -389,20 +421,22 @@ const clearLines = () => {
     }
     if (isColFull) fullCols.push(c);
   }
+  
+  // [★수정★] 겹치는 셀이 없도록 수정 (가로/세로 동시 제거 시 점수 계산 오류 방지)
+  const cellsToClear = new Set();
+  fullRows.forEach(r => {
+    for (let c = 0; c < BOARD_SIZE; c++) cellsToClear.add(r * BOARD_SIZE + c);
+  });
+  fullCols.forEach(c => {
+    for (let r = 0; r < BOARD_SIZE; r++) cellsToClear.add(r * BOARD_SIZE + c);
+  });
 
   const linesCleared = fullRows.length + fullCols.length;
   if (linesCleared === 0) return 0;
   
   // 셀 비우기
-  fullRows.forEach(r => {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      board[r * BOARD_SIZE + c] = 0;
-    }
-  });
-  fullCols.forEach(c => {
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      board[r * BOARD_SIZE + c] = 0;
-    }
+  cellsToClear.forEach(index => {
+    board[index] = 0;
   });
   
   return linesCleared;
@@ -456,6 +490,31 @@ const getBlockGridStyle = (block) => {
   };
 };
 
+// [★신규★] 드래그 중인 플로팅 블록의 스타일
+const floatingBlockStyle = computed(() => {
+  if (!dragged.block) return {};
+  
+  // 블록의 크기 계산
+  const shape = dragged.block.shape;
+  const style = getBlockGridStyle(dragged.block);
+
+  // 마우스/터치 위치를 기준으로 블록의 좌상단 위치 계산
+  // (20px는 .block-cell의 크기, 3px는 gap)
+  const cellWidth = 20 + 3; 
+  const offsetX = dragged.offset.dc * cellWidth;
+  const offsetY = dragged.offset.dr * cellWidth;
+  
+  return {
+    ...style,
+    position: 'fixed', // 화면 전체 기준
+    left: `${pointerPosition.x - offsetX - 10}px`, // 10px는 셀 크기 절반
+    top: `${pointerPosition.y - offsetY - 10}px`,
+    zIndex: 1000,
+    pointerEvents: 'none', // 자신에게 이벤트가 걸리지 않도록
+    opacity: 0.8,
+  };
+});
+
 // --- 7. 생명주기 ---
 onMounted(() => {
   startGameLogic();
@@ -472,6 +531,9 @@ onMounted(() => {
   background-color: #1a1a2e; /* 어두운 배경 */
   min-height: 100dvh;
   box-sizing: border-box;
+  /* [★수정★] 드래그 중 텍스트 선택 방지 */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 상단 스탯바 (솔트 알케미와 동일) */
@@ -495,7 +557,6 @@ onMounted(() => {
 /* 게임 영역 */
 .game-area-wrapper {
   position: relative;
-  /* (30px * 10) + (4px * 10) + (2px * 2) = 344px */
   width: 344px;
   margin-bottom: 20px;
 }
@@ -510,6 +571,9 @@ onMounted(() => {
   border: 2px solid #2c3e50;
   border-radius: 8px;
   padding: 4px;
+  /* [★추가★] 드래그 영역임을 명시 */
+  position: relative;
+  z-index: 10;
 }
 
 .game-cell {
@@ -519,20 +583,16 @@ onMounted(() => {
   border-radius: 3px;
   transition: all 0.1s ease;
 }
-
-/* 채워진 셀 (소금 결정 테마) */
 .game-cell.filled {
   background-color: #3498db;
   border: 1px solid #85c1e9;
   box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.5);
 }
-
-/* 드래그 미리보기 */
 .game-cell.preview {
-  background-color: rgba(46, 204, 113, 0.5); /* 초록색 미리보기 */
+  background-color: rgba(46, 204, 113, 0.5);
 }
 .game-cell.invalid {
-  background-color: rgba(231, 76, 60, 0.5); /* 빨간색 (놓을 수 없음) */
+  background-color: rgba(231, 76, 60, 0.5);
 }
 
 /* 콤보 알림 */
@@ -556,6 +616,20 @@ onMounted(() => {
   100% { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
 }
 
+/* [★신규★] 드래그 중인 플로팅 블록 */
+.floating-block {
+  display: grid;
+  gap: 3px;
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.floating-block .block-cell.filled {
+  background-color: #f1c40f; /* 드래그 시 노란색 */
+  border: 1px solid #f39c12;
+}
+
 /* 하단 블록 스포너 */
 .block-spawner {
   display: flex;
@@ -576,10 +650,14 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* [★수정★] 래퍼 자체는 드래그되지 않으므로 cursor 제거 */
+  transition: opacity 0.2s;
 }
 .block-preview-wrapper.is-empty {
   cursor: default;
+}
+/* [★신규★] 드래그 중인 원본 블록 숨기기 */
+.block-preview-wrapper.is-dragging {
+  opacity: 0.3;
 }
 
 .block-preview {
@@ -596,7 +674,7 @@ onMounted(() => {
 .block-cell.filled {
   background-color: #3498db;
   border: 1px solid #85c1e9;
-  cursor: grab; /* [★수정★] 채워진 칸만 잡을 수 있도록 */
+  cursor: grab;
 }
 .block-cell.filled:active {
   cursor: grabbing;
