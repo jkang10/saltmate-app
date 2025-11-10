@@ -48,16 +48,18 @@
         :key="block.id"
         class="block-preview-wrapper"
         :class="{ 'is-empty': !block.shape }"
-        :draggable="!!block.shape"
-        @dragstart="handleDragStart($event, block, index)"
-      >
+        
+        >
         <div v-if="block.shape" class="block-preview" :style="getBlockGridStyle(block)">
           <div
             v-for="(cell, cIndex) in block.shape.flat()"
             :key="cIndex"
             class="block-cell"
             :class="{ 'filled': cell === 1 }"
-          ></div>
+            
+            :draggable="cell === 1"
+            @dragstart.stop="handleDragStart($event, block, index, cIndex)"
+            ></div>
         </div>
       </div>
     </div>
@@ -90,7 +92,6 @@ import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
 // --- Firebase 연동 ---
-// [★핵심★] 이전 단계에서 index.js에 추가한 새 함수들을 호출합니다.
 const startGameFunc = httpsCallable(functions, 'startBlockPuzzleGame');
 const endGameFunc = httpsCallable(functions, 'endBlockPuzzleGame');
 const router = useRouter();
@@ -139,7 +140,9 @@ const comboMessage = ref('');
 const finalPointsAwarded = ref(0);
 
 // --- 드래그앤드롭 상태 ---
-const dragged = reactive({ block: null, index: -1 });
+// ▼▼▼ [★수정 3★] 드래그 상태에 offset(마우스위치) 추가 ▼▼▼
+const dragged = reactive({ block: null, index: -1, offset: { dr: 0, dc: 0 } });
+// ▲▲▲ (수정 완료) ▲▲▲
 const previewCells = ref([]);
 const invalidDrop = ref(false);
 
@@ -222,24 +225,38 @@ const canAnyBlockBePlaced = () => {
 };
 
 // --- 3. 드래그앤드롭 핸들러 ---
-const handleDragStart = (e, block, index) => {
+// ▼▼▼ [★수정 4★] handleDragStart 함수가 cIndex(클릭한 셀)를 받도록 수정 ▼▼▼
+const handleDragStart = (e, block, index, cIndex) => {
   dragged.block = block;
   dragged.index = index;
+  
+  // [★신규★] 블록 모양 내에서 클릭한 상대적 위치(offset) 계산
+  const shapeWidth = block.shape[0].length;
+  dragged.offset.dr = Math.floor(cIndex / shapeWidth);
+  dragged.offset.dc = cIndex % shapeWidth;
+  
   e.dataTransfer.effectAllowed = 'move';
   // (드래그 시 반투명 이미지 제거 - 선택사항)
   const empty = document.createElement('div');
   e.dataTransfer.setDragImage(empty, 0, 0);
 };
+// ▲▲▲ (수정 완료) ▲▲▲
 
+// ▼▼▼ [★수정 5★] handleDragOver 함수가 offset을 사용해 올바른 위치를 계산하도록 수정 ▼▼▼
 const handleDragOver = (e) => {
   e.preventDefault(); // 필수
   const targetIndex = e.target.dataset.index;
-  if (targetIndex) {
-    const r = Math.floor(targetIndex / BOARD_SIZE);
-    const c = targetIndex % BOARD_SIZE;
+  if (targetIndex && dragged.block) {
+    // 마우스가 올라간 칸의 (r, c)
+    const target_r = Math.floor(targetIndex / BOARD_SIZE);
+    const target_c = targetIndex % BOARD_SIZE;
     
-    if (canPlace(dragged.block, r, c)) {
-      previewCells.value = getPlacementCells(dragged.block, r, c);
+    // 마우스 위치와 offset을 보정하여, 블록이 놓일 실제 (r, c) 계산
+    const place_r = target_r - dragged.offset.dr;
+    const place_c = target_c - dragged.offset.dc;
+    
+    if (canPlace(dragged.block, place_r, place_c)) {
+      previewCells.value = getPlacementCells(dragged.block, place_r, place_c);
       invalidDrop.value = false;
     } else {
       previewCells.value = [];
@@ -247,23 +264,31 @@ const handleDragOver = (e) => {
     }
   }
 };
+// ▲▲▲ (수정 완료) ▲▲▲
 
 const handleDragLeave = () => {
   previewCells.value = [];
   invalidDrop.value = false;
 };
 
+// ▼▼▼ [★수정 6★] handleDrop 함수가 offset을 사용해 올바른 위치에 놓도록 수정 ▼▼▼
 const handleDrop = (e) => {
   e.preventDefault();
   const targetIndex = e.target.dataset.index;
   if (!targetIndex || !dragged.block) return;
 
-  const r = Math.floor(targetIndex / BOARD_SIZE);
-  const c = targetIndex % BOARD_SIZE;
+  // 마우스가 올라간 칸의 (r, c)
+  const target_r = Math.floor(targetIndex / BOARD_SIZE);
+  const target_c = targetIndex % BOARD_SIZE;
+  
+  // 마우스 위치와 offset을 보정하여, 블록이 놓일 실제 (r, c) 계산
+  const place_r = target_r - dragged.offset.dr;
+  const place_c = target_c - dragged.offset.dc;
 
-  if (canPlace(dragged.block, r, c)) {
-    // 1. 블록 놓기
-    placeBlock(dragged.block, r, c);
+  if (canPlace(dragged.block, place_r, place_c)) {
+    // 1. 블록 놓기 (보정된 위치 사용)
+    placeBlock(dragged.block, place_r, place_c);
+    
     // 2. 블록 놓기 점수 추가
     const cellsPlaced = dragged.block.shape.flat().filter(c => c === 1).length;
     score.value += cellsPlaced;
@@ -286,7 +311,9 @@ const handleDrop = (e) => {
   invalidDrop.value = false;
   dragged.block = null;
   dragged.index = -1;
+  dragged.offset = { dr: 0, dc: 0 }; // offset 초기화
 };
+// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- 4. 핵심 게임 로직 (CanPlace, Place, Clear) ---
 const canPlace = (block, r, c) => {
@@ -296,8 +323,8 @@ const canPlace = (block, r, c) => {
       if (shape[dr][dc] === 1) {
         const nr = r + dr;
         const nc = c + dc;
-        // 1. 보드 밖으로 나가는가?
-        if (nr >= BOARD_SIZE || nc >= BOARD_SIZE) return false;
+        // 1. 보드 밖으로 나가는가? (좌/우/아래만 체크, 위는 체크X)
+        if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) return false;
         // 2. 다른 블록과 겹치는가?
         if (board[nr * BOARD_SIZE + nc] === 1) return false;
       }
@@ -312,7 +339,12 @@ const getPlacementCells = (block, r, c) => {
   for (let dr = 0; dr < shape.length; dr++) {
     for (let dc = 0; dc < shape[dr].length; dc++) {
       if (shape[dr][dc] === 1) {
-        cells.push((r + dr) * BOARD_SIZE + (c + dc));
+        const nr = r + dr;
+        const nc = c + dc;
+        // (보드 안에 있는 셀만 미리보기에 추가)
+        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+            cells.push(nr * BOARD_SIZE + nc);
+        }
       }
     }
   }
@@ -331,7 +363,9 @@ const placeBlock = (block, r, c) => {
 };
 
 const clearLines = () => {
-  let linesToClear = [];
+  let fullRows = [];
+  let fullCols = [];
+
   // 가로줄 검사
   for (let r = 0; r < BOARD_SIZE; r++) {
     let isRowFull = true;
@@ -341,7 +375,7 @@ const clearLines = () => {
         break;
       }
     }
-    if (isRowFull) linesToClear.push(...Array(BOARD_SIZE).fill(0).map((_, i) => r * BOARD_SIZE + i));
+    if (isRowFull) fullRows.push(r);
   }
   
   // 세로줄 검사
@@ -353,18 +387,22 @@ const clearLines = () => {
         break;
       }
     }
-    if (isColFull) linesToClear.push(...Array(BOARD_SIZE).fill(0).map((_, i) => i * BOARD_SIZE + c));
+    if (isColFull) fullCols.push(c);
   }
-  
-  const uniqueCells = [...new Set(linesToClear)];
-  if (uniqueCells.length === 0) return 0;
-  
-  // 실제 줄 수 계산 (10칸=1줄, 20칸=2줄, 19칸=2줄...?) -> 10x10이므로 19칸은 2줄이 맞음.
-  const linesCleared = Math.floor(uniqueCells.length / BOARD_SIZE) + (uniqueCells.length % BOARD_SIZE > 0 ? 1 : 0);
+
+  const linesCleared = fullRows.length + fullCols.length;
+  if (linesCleared === 0) return 0;
   
   // 셀 비우기
-  uniqueCells.forEach(index => {
-    board[index] = 0;
+  fullRows.forEach(r => {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      board[r * BOARD_SIZE + c] = 0;
+    }
+  });
+  fullCols.forEach(c => {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      board[r * BOARD_SIZE + c] = 0;
+    }
   });
   
   return linesCleared;
@@ -538,13 +576,10 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  cursor: grab;
+  /* [★수정★] 래퍼 자체는 드래그되지 않으므로 cursor 제거 */
 }
 .block-preview-wrapper.is-empty {
   cursor: default;
-}
-.block-preview-wrapper:active {
-  cursor: grabbing;
 }
 
 .block-preview {
@@ -561,7 +596,12 @@ onMounted(() => {
 .block-cell.filled {
   background-color: #3498db;
   border: 1px solid #85c1e9;
+  cursor: grab; /* [★수정★] 채워진 칸만 잡을 수 있도록 */
 }
+.block-cell.filled:active {
+  cursor: grabbing;
+}
+
 
 /* 모달 (솔트 알케미와 동일) */
 .modal-overlay {
