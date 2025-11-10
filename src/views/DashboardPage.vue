@@ -133,6 +133,7 @@
 	  <SaltAlchemyWeeklyRankingsWidget />
 	  <WeeklyGoldRankingWidget />
 	  <TotalGoldRankingWidget />
+	  <SaltBlockPuzzleRankingsWidget />
 	  <AvatarShowcaseWidget class="avatar-showcase" />
 	  <SaltGuardiansRankingsWidget />
           <router-link to="/mall" class="feature-card mall">
