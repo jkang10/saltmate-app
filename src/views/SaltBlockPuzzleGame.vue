@@ -36,7 +36,7 @@
             'filled': cell === 1,
             'preview': previewCells.includes(index),
             'invalid': invalidDrop,
-            'clearing': clearingCells.includes(index) /* [★수정★] 애니메이션 클래스 추가 */
+            'clearing': clearingCells.includes(index) /* [★수정★] 애니메이션 클래스 */
           }"
           :data-index="index"
         ></div>
@@ -156,10 +156,8 @@ const alchemyDust = ref(0);
 const comboMessage = ref('');
 const finalPointsAwarded = ref(0);
 const gameBoardRef = ref(null); 
-
-// --- [★수정★] 애니메이션 상태 추가 ---
-const clearingCells = ref([]); // 애니메이션 중인 셀
-const isClearing = ref(false); // 애니메이션/로직 처리 중 입력 방지
+const clearingCells = ref([]); 
+const isClearing = ref(false); 
 
 // --- 드래그앤드롭 상태 ---
 const isDragging = ref(false); 
@@ -208,20 +206,11 @@ const goToDashboard = () => {
 };
 
 // --- 2. 블록 스폰 및 게임 오버 로직 ---
+// [★핵심 수정★] 'spawnBlocks'는 스폰만, 'checkGameOver'는 분리
 const spawnBlocks = () => {
-  let allSlotsEmpty = true;
   for (let i = 0; i < 3; i++) {
-    if (blocks.value[i].shape) {
-      allSlotsEmpty = false;
-      break;
-    }
-  }
-  
-  if (allSlotsEmpty) {
-    for (let i = 0; i < 3; i++) {
-      const randomType = blockTypes[Math.floor(Math.random() * blockTypes.length)];
-      blocks.value[i] = { ...BLOCK_DEFINITIONS[randomType], uid: Date.now() + i };
-    }
+    const randomType = blockTypes[Math.floor(Math.random() * blockTypes.length)];
+    blocks.value[i] = { ...BLOCK_DEFINITIONS[randomType], uid: Date.now() + i };
   }
   
   if (!canAnyBlockBePlaced()) {
@@ -246,14 +235,12 @@ const canAnyBlockBePlaced = () => {
 // --- 3. [★핵심 수정★] 커스텀 드래그앤드롭 핸들러 ---
 
 const handleDragStart = (e, block, index, cIndex) => {
-  if (isClearing.value) return; // [★수정★] 애니메이션 중 입력 방지
+  if (isClearing.value || gameStatus.value !== 'playing') return; 
 
   if (cIndex === undefined && e.target) {
     const targetCell = e.target.closest('.block-cell');
     cIndex = Number(targetCell?.dataset.cindex || 0);
   }
-  
-  // 0, 0 칸을 클릭해도 cIndex가 0이 되어야 함
   cIndex = cIndex || 0; 
 
   isDragging.value = true;
@@ -280,21 +267,31 @@ const handleDragMove = (e) => {
   pointerPosition.x = pos.clientX;
   pointerPosition.y = pos.clientY;
 
-  // ▼▼▼ [★핵심 수정★] elementFromPoint 대신 수학적 계산으로 변경 (붉은색 오류 해결) ▼▼▼
   const boardRect = gameBoardRef.value.getBoundingClientRect();
-  
-  // 1. 보드 내부의 상대 좌표 계산 (보드 패딩 4px 보정)
   const relX = pointerPosition.x - boardRect.left - BOARD_PADDING;
   const relY = pointerPosition.y - boardRect.top - BOARD_PADDING;
-  
-  // 2. 셀 + 갭 크기로 나누어 현재 그리드 (r, c) 계산
   const cellPlusGap = CELL_SIZE + CELL_GAP;
+  
+  // ▼▼▼ [★핵심 수정★] 붉은색 오류 버그 수정 (relX/Y가 음수일 때 보정) ▼▼▼
+  const modX = relX % cellPlusGap;
+  const modY = relY % cellPlusGap;
+  
+  // (음수일 때 % 연산자 보정)
+  const realModX = relX < 0 ? (cellPlusGap + (modX % cellPlusGap)) % cellPlusGap : modX;
+  const realModY = relY < 0 ? (cellPlusGap + (modY % cellPlusGap)) % cellPlusGap : modY;
+
+  // 1. 커서가 갭(gap) 위에 있는지 확인
+  if (realModX > CELL_SIZE || realModY > CELL_SIZE) {
+      previewCells.value = [];
+      invalidDrop.value = false; // 갭 위에서는 '무효'가 아님 (붉은색 X)
+      return; 
+  }
+  // ▲▲▲ (수정 완료) ▲▲▲
+
   const target_c = Math.floor(relX / cellPlusGap);
   const target_r = Math.floor(relY / cellPlusGap);
 
-  // 3. 보드 범위(0~9) 내에 있는지 확인
   if (target_r >= 0 && target_r < BOARD_SIZE && target_c >= 0 && target_c < BOARD_SIZE) {
-    // 4. Offset 보정 및 유효성 검사
     const place_r = target_r - dragged.offset.dr;
     const place_c = target_c - dragged.offset.dc;
 
@@ -306,11 +303,9 @@ const handleDragMove = (e) => {
       invalidDrop.value = true;
     }
   } else {
-    // 포인터가 보드 밖으로 나감
     previewCells.value = [];
     invalidDrop.value = false;
   }
-  // ▲▲▲ (수정 완료) ▲▲▲
 };
 
 const handleDragEnd = () => {
@@ -320,11 +315,25 @@ const handleDragEnd = () => {
   let place_r = 0;
   let place_c = 0;
 
-  // ▼▼▼ [★핵심 수정★] handleDragMove와 동일한 수학적 계산으로 최종 위치 결정 ▼▼▼
   const boardRect = gameBoardRef.value.getBoundingClientRect();
   const relX = pointerPosition.x - boardRect.left - BOARD_PADDING;
   const relY = pointerPosition.y - boardRect.top - BOARD_PADDING;
   const cellPlusGap = CELL_SIZE + CELL_GAP;
+  
+  // ▼▼▼ [★핵심 수정★] 갭 위에서 드롭해도 인식되도록 수정 ▼▼▼
+  const modX = relX % cellPlusGap;
+  const modY = relY % cellPlusGap;
+  const realModX = relX < 0 ? (cellPlusGap + (modX % cellPlusGap)) % cellPlusGap : modX;
+  const realModY = relY < 0 ? (cellPlusGap + (modY % cellPlusGap)) % cellPlusGap : modY;
+  
+  // 갭 위에서 드롭했다면, 드롭을 무시 (붉은색 버그 방지)
+  if (realModX > CELL_SIZE || realModY > CELL_SIZE) {
+      isDragging.value = false;
+      dragged.block = null;
+      return;
+  }
+  // ▲▲▲ (수정 완료) ▲▲▲
+
   const target_c = Math.floor(relX / cellPlusGap);
   const target_r = Math.floor(relY / cellPlusGap);
 
@@ -336,7 +345,6 @@ const handleDragEnd = () => {
       isValidDrop = true;
     }
   }
-  // ▲▲▲ (수정 완료) ▲▲▲
 
   if (isValidDrop) {
     placeBlock(dragged.block, place_r, place_c);
@@ -344,33 +352,43 @@ const handleDragEnd = () => {
     const cellsPlaced = dragged.block.shape.flat().filter(c => c === 1).length;
     score.value += cellsPlaced;
     
-    // ▼▼▼ [★핵심 수정★] 애니메이션 로직 추가 ▼▼▼
-    isClearing.value = true; // 입력 방지
-    const linesToClear = getLinesToClear(); // 1. 지울 셀 목록만 가져옴
+    isClearing.value = true; 
+    const linesToClear = getLinesToClear(); 
     
     if (linesToClear.cells.length > 0) {
-      // 2. 애니메이션 클래스 적용
       clearingCells.value = linesToClear.cells;
-      
-      // 3. 콤보 메시지 (즉시 표시)
       updateScore(linesToClear.count);
       
-      // 4. 애니메이션 시간 (300ms) 후 실제 데이터 처리
       setTimeout(() => {
-        linesToClear.cells.forEach(index => { board[index] = 0; }); // 5. 데이터에서 삭제
-        clearingCells.value = []; // 6. 애니메이션 클래스 제거
-        isClearing.value = false; // 7. 입력 방지 해제
-        spawnBlocks(); // 8. 다음 블록 스폰
-      }, 300);
+        linesToClear.cells.forEach(index => { board[index] = 0; }); 
+        clearingCells.value = []; 
+        isClearing.value = false; 
+        
+        // ▼▼▼ [★핵심 수정★] 블록 스폰 로직 수정 ▼▼▼
+        blocks.value[dragged.index] = { uid: null, shape: null };
+        const allSlotsEmpty = blocks.value.every(b => !b.shape);
+        if (allSlotsEmpty) {
+          spawnBlocks(); // 3개 모두 비었으면 새로 3개 스폰
+        } else {
+          if (!canAnyBlockBePlaced()) handleGameOver(); // 남은 블록으로 게임 오버 체크
+        }
+        // ▲▲▲ (수정 완료) ▲▲▲
+
+      }, 300); // 애니메이션 시간
       
     } else {
-      // 콤보 없음
-      isClearing.value = false;
-      spawnBlocks();
+      isClearing.value = false; 
+      
+      // ▼▼▼ [★핵심 수정★] 블록 스폰 로직 수정 ▼▼▼
+      blocks.value[dragged.index] = { uid: null, shape: null };
+      const allSlotsEmpty = blocks.value.every(b => !b.shape);
+      if (allSlotsEmpty) {
+        spawnBlocks();
+      } else {
+        if (!canAnyBlockBePlaced()) handleGameOver();
+      }
+      // ▲▲▲ (수정 완료) ▲▲▲
     }
-    // ▲▲▲ (수정 완료) ▲▲▲
-    
-    blocks.value[dragged.index] = { uid: null, shape: null };
   }
 
   // 드래그 상태 완전 초기화
@@ -427,7 +445,6 @@ const placeBlock = (block, r, c) => {
   }
 };
 
-// ▼▼▼ [★핵심 수정★] clearLines -> getLinesToClear (데이터를 지우지 않고 반환) ▼▼▼
 const getLinesToClear = () => {
   let fullRows = [];
   let fullCols = [];
@@ -465,12 +482,10 @@ const getLinesToClear = () => {
   });
 
   const linesCleared = fullRows.length + fullCols.length;
-  
-  // [★수정★] board[index] = 0 로직 제거
+  if (linesCleared === 0) return { cells: [], count: 0 };
   
   return { cells: [...cellsToClear], count: linesCleared };
 };
-// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- 5. 보상 및 게임 오버 처리 ---
 const updateScore = (linesCleared) => {
@@ -480,7 +495,7 @@ const updateScore = (linesCleared) => {
   score.value += points;
   alchemyDust.value += dust;
 
-  if (linesCleared >= 1) { // [★수정★] 1줄만 터져도 메시지 표시
+  if (linesCleared >= 1) { 
     const messages = { 1: "싱글!", 2: "더블!", 3: "트리플!", 4: "쿼드!!", 5: "펜타!!!", 6: "퍼펙트!!!" };
     comboMessage.value = `${messages[linesCleared]} +${points}점` + (dust > 0 ? ` / +${dust} 가루💎` : '');
     setTimeout(() => { comboMessage.value = ''; }, 1500);
@@ -600,6 +615,12 @@ onMounted(() => {
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
   transition: all 0.1s ease;
+  
+  /* ▼▼▼ [★핵심 수정★] 비워질 때(not.filled)의 애니메이션을 추가 ▼▼▼ */
+  transform: scale(1);
+  opacity: 1;
+  transition: all 0.3s ease-out;
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .game-cell.filled {
   background-color: #3498db;
@@ -613,19 +634,29 @@ onMounted(() => {
   background-color: rgba(231, 76, 60, 0.5);
 }
 
-/* ▼▼▼ [★핵심 추가★] 줄 제거 애니메이션 ▼▼▼ */
+/* ▼▼▼ [★핵심 수정★] 더 강력한 줄 제거 애니메이션 ▼▼▼ */
 .game-cell.clearing {
-  background-color: #f1c40f;
-  border-color: #f39c12;
-  box-shadow: 0 0 10px #f1c40f;
-  animation: clearing-animation 0.3s ease-out;
+  /* 플래시 + 축소 효과 */
+  animation: clearing-pop 0.3s ease-out forwards;
 }
-@keyframes clearing-animation {
-  0% { transform: scale(1.1); opacity: 1; }
-  50% { transform: scale(0.8); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes clearing-pop {
+  0% {
+    background-color: #3498db;
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    background-color: #ffffff; /* 흰색으로 번쩍 */
+    transform: scale(1.2);
+    box-shadow: 0 0 15px #ffffff;
+  }
+  100% {
+    background-color: #ffffff;
+    transform: scale(0); /* 0으로 축소 */
+    opacity: 0;
+  }
 }
-/* ▲▲▲ (추가 완료) ▲▲▲ */
+/* ▲▲▲ (수정 완료) ▲▲▲ */
 
 
 /* 콤보 알림 */
@@ -675,6 +706,9 @@ onMounted(() => {
   border-radius: 12px;
   padding: 10px;
   box-sizing: border-box;
+  /* [★추가★] 하단 스포너가 터치 이벤트를 막지 않도록 */
+  position: relative;
+  z-index: 20; 
 }
 
 .block-preview-wrapper {
