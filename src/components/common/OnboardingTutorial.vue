@@ -23,7 +23,7 @@ const emit = defineEmits(['complete']);
 const isActive = ref(false);
 const stepIndex = ref(0);
 
-// 튜토리얼 단계별 내용 정의
+// ▼▼▼ [★핵심 수정★] 튜토리얼 단계를 새 레이아웃에 맞게 변경 ▼▼▼
 const steps = ref([
   {
     title: "환영합니다!",
@@ -33,17 +33,17 @@ const steps = ref([
   {
     title: "내 정보 확인",
     content: "이곳에서 현재 보유한 SaltMate 포인트와 등급을 확인할 수 있습니다. 모든 게임과 활동은 SaltMate 포인트를 사용해요.",
-    target: ".user-info-widget" // 대시보드의 사용자 정보 위젯 클래스
+    target: ".user-info-widget" // 1. (동일) 나의 등급 및 수익 현황
   },
   {
-    title: "실시간 당첨 피드",
-    content: "다른 회원들이 게임에서 당첨되는 현황을 실시간으로 볼 수 있습니다.",
-    target: ".live-feed-widget" // 대시보드의 당첨 피드 위젯 클래스
+    title: "아바타 쇼케이스",
+    content: "최근 다른 회원들이 꾸민 아바타입니다. '내 아바타 꾸미기'에서 나만의 아바타를 만들 수 있습니다.",
+    target: ".avatar-showcase" // 2. (변경) 아바타 쇼케이스
   },
   {
-    title: "게임 존",
-    content: "다양한 미니게임을 즐기고 싶다면, '게임 존' 메뉴로 이동하여 원하는 게임에 참여해보세요!",
-    target: "a[href='/game-zone']" // 게임 존으로 가는 링크
+    title: "핵심 게임: 솔트 알케미",
+    content: "가장 인기있는 게임입니다! 재료를 합쳐 '연금술 가루'를 획득하고 다른 아이템을 제작해 보세요.",
+    target: "a[href='/salt-alchemy']" // 3. (변경) 솔트 알케미 카드
   },
   {
     title: "튜토리얼 완료",
@@ -51,6 +51,7 @@ const steps = ref([
     target: "body"
   }
 ]);
+// ▲▲▲ (수정 완료) ▲▲▲
 
 const isLastStep = computed(() => stepIndex.value === steps.value.length - 1);
 const currentStep = computed(() => steps.value[stepIndex.value]);
@@ -66,11 +67,21 @@ const updatePositions = () => {
   if (!targetEl || targetId === 'body') {
     // 특정 대상이 없으면 화면 중앙에 표시
     highlightStyle.value = { display: 'none' };
-    textboxStyle.value = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+    textboxStyle.value = { 
+      top: '50%', 
+      left: '50%', 
+      transform: 'translate(-50%, -50%)',
+      // [★수정★] 중앙 정렬 시 텍스트 위치도 중앙으로
+      bottom: 'auto', 
+      right: 'auto' 
+    };
     return;
   }
-
+  
+  // [★수정★] 대상이 화면에서 너무 높거나 낮을 때 텍스트박스 위치 자동 보정
   const rect = targetEl.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  
   highlightStyle.value = {
     display: 'block',
     width: `${rect.width + 20}px`,
@@ -78,10 +89,33 @@ const updatePositions = () => {
     top: `${rect.top - 10}px`,
     left: `${rect.left - 10}px`,
   };
+
+  // 텍스트박스 기본 위치 (대상 아래)
+  let textTop = rect.bottom + 20;
+  let textLeft = rect.left;
+  let textTransform = 'translateX(0)';
+  
+  // 대상이 화면 하단 1/3보다 아래에 있으면, 텍스트박스를 대상 위로 보냄
+  if (rect.top > (viewportHeight * 0.66)) {
+    textTop = rect.top - 20; // 대상 위 20px
+    textTransform = 'translateY(-100%)'; // 자신의 높이만큼 위로
+  }
+  
+  // 텍스트박스가 화면 오른쪽을 벗어나면 위치 보정
+  if (textLeft + 300 > window.innerWidth) { // 300px는 텍스트박스 너비
+    textLeft = window.innerWidth - 320; // 오른쪽 여백 20px
+  }
+  // 텍스트박스가 화면 왼쪽을 벗어나면 위치 보정
+  if (textLeft < 0) {
+    textLeft = 10;
+  }
+
   textboxStyle.value = {
-    top: `${rect.bottom + 20}px`,
-    left: `${rect.left}px`,
-    transform: 'translateX(0)',
+    top: `${textTop}px`,
+    left: `${textLeft}px`,
+    transform: textTransform,
+    bottom: 'auto', // [★추가★]
+    right: 'auto'  // [★추가★]
   };
 };
 
@@ -112,13 +146,10 @@ watch(stepIndex, () => {
 
 onMounted(() => {
   window.addEventListener('resize', updatePositions);
-  // [수정] 스크롤 이벤트가 발생할 때마다 위치를 업데이트하도록 리스너를 추가합니다.
-  // (true 옵션은 이벤트 감지 우선순위를 높여 더 부드럽게 반응하도록 합니다.)
   window.addEventListener('scroll', updatePositions, true);
 });
 onUnmounted(() => {
   window.removeEventListener('resize', updatePositions);
-  // [수정] 추가했던 스크롤 이벤트 리스너를 반드시 제거해줍니다.
   window.removeEventListener('scroll', updatePositions, true);
 });
 
@@ -128,10 +159,11 @@ onUnmounted(() => {
 .tutorial-overlay { position: fixed; inset: 0; z-index: 2000; }
 .tutorial-highlight {
   position: absolute;
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px dashed white;
-  border-radius: 8px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  /* [★수정★] 하이라이트 디자인 변경 (그림자 -> 테두리) */
+  background: transparent; /* 배경 투명 */
+  border: 3px solid #007bff; /* 파란색 테두리 */
+  border-radius: 12px; /* 둥근 모서리 */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 15px #007bff; /* 바깥 영역 어둡게 + 빛 효과 */
   transition: all 0.3s ease-in-out;
 }
 .tutorial-textbox {
@@ -142,6 +174,7 @@ onUnmounted(() => {
   width: 300px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
   transition: all 0.3s ease-in-out;
+  z-index: 2001; /* [★추가★] 하이라이트보다 위에 있도록 */
 }
 .tutorial-actions {
   margin-top: 15px;

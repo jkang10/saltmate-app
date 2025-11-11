@@ -146,8 +146,10 @@ const getRankClass = (index) => {
   padding: 0;
   margin: 0;
   flex-grow: 1;
-  overflow-y: auto; /* 내용이 많아지면 스크롤 */
-  max-height: 300px; /* 최대 높이 제한 */
+  overflow-y: auto; /* (기존) */
+  /* ▼▼▼ [★핵심 수정★] 이 라인을 삭제하거나 주석 처리하세요 ▼▼▼ */
+  /* max-height: 300px; */
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .rank-item {
   display: grid;
