@@ -51,16 +51,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
+// ▼▼▼ [★핵심 수정 1★] 'nextTick' 제거 ▼▼▼
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { functions, auth, db } from '@/firebaseConfig';
+// ▼▼▼ [★핵심 수정 2★] 'db' 제거 ▼▼▼
+import { functions, auth } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc } from 'firebase/firestore';
+// ▼▼▼ [★핵심 수정 3★] 'doc', 'getDoc' import 라인 전체 제거 ▼▼▼
+// import { doc, getDoc } from 'firebase/firestore'; 
 
 // --- [★핵심★] 재사용할 에셋 임포트 ---
-// 1. 계단으로 사용할 보석 이미지
 import gemImageSrc from '@/assets/gems/gem_1.png'; 
-// 2. 아바타 이미지 (예시: 기본 의상)
 import avatarBodySrc from '@/assets/avatar/body_male.png';
 import avatarOutfitSrc from '@/assets/avatar/outfit_hoodie.png';
 
@@ -90,8 +91,12 @@ let canvasHeight = 600;
 const player = reactive({ x: 0, y: 0, width: 40, height: 60, targetSide: 'left' });
 const stairs = ref([]);
 let cameraY = 0;
-let gameSpeed = 1.0; // 100계단마다 10%씩 증가
+let gameSpeed = 1.0; 
 let currentStairIndex = 0;
+
+// ▼▼▼ [★핵심 수정 4★] 'isClearing' 변수 선언 추가 ▼▼▼
+const isClearing = ref(false); // (애니메이션 등 처리 중 탭 방지)
+// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- [★핵심★] 에셋 로딩 ---
 const assets = {
@@ -117,9 +122,8 @@ const loadAssets = () => {
 
 // --- 1. 게임 초기화/시작/재시작 ---
 onMounted(async () => {
-  await loadAssets(); // [★신규★] 에셋 로딩 대기
+  await loadAssets(); 
   
-  // 캔버스 크기 조절
   const wrapper = gameWrapperRef.value;
   canvasWidth = wrapper.clientWidth;
   canvasHeight = wrapper.clientHeight;
@@ -155,28 +159,25 @@ const initGame = () => {
   cameraY = 0;
   gameSpeed = 1.0;
   currentStairIndex = 0;
+  isClearing.value = false; // [★추가★]
   
-  // 계단 초기화
   stairs.value = [];
   const stairWidth = canvasWidth / 2.5;
   const stairHeight = 30;
   
-  // 시작 발판
   stairs.value.push({
     x: (canvasWidth / 4) - (stairWidth / 2),
     y: canvasHeight - 100,
     width: stairWidth,
     height: stairHeight,
     side: 'left',
-    disappearTimer: 2.0 // (초)
+    disappearTimer: 2.0 
   });
   
-  // 다음 20개 계단 생성
   for (let i = 1; i < 20; i++) {
     spawnStair();
   }
   
-  // 플레이어 위치 초기화
   const startStair = stairs.value[0];
   player.x = startStair.x + (stairWidth / 2) - (player.width / 2);
   player.y = startStair.y - player.height;
@@ -203,7 +204,6 @@ const gameLoop = (timestamp) => {
 };
 
 const update = (deltaTime) => {
-  // 1. 현재 계단 타이머 감소
   const currentStair = stairs.value[currentStairIndex];
   if (currentStair) {
     currentStair.disappearTimer -= deltaTime * gameSpeed;
@@ -213,19 +213,17 @@ const update = (deltaTime) => {
     }
   }
 
-  // 2. 카메라 스크롤 (플레이어를 따라 부드럽게)
   const targetCameraY = (canvasHeight * 0.6) - player.y;
-  cameraY += (targetCameraY - cameraY) * 0.1; // 부드러운 이동
+  cameraY += (targetCameraY - cameraY) * 0.1; 
 
-  // 3. (게임 오버) 화면 밖으로 추락
   if (player.y > cameraY + canvasHeight) {
     handleGameOver("추락!");
     return;
   }
   
-  // 4. (난이도) 100계단마다 속도 증가
-  if (score.value > 0 && score.value % 100 === 0) {
-    gameSpeed += 0.1; // 10% 증가
+  // [★수정★] 100점마다 속도 증가 (score.value % 100 === 0은 프레임마다 호출되어 버그 발생)
+  if (score.value > 0 && score.value % 100 === 0 && score.value / 100 > (gameSpeed - 1) * 10) {
+    gameSpeed += 0.1; 
   }
 };
 
@@ -233,18 +231,14 @@ const draw = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
   
-  // 카메라 시점 적용
   ctx.save();
   ctx.translate(0, cameraY);
   
-  // 1. 계단 및 아이템 그리기
   stairs.value.forEach(stair => {
-    // 계단 그리기 (보석 이미지 사용)
     const opacity = Math.max(0, stair.disappearTimer / 2.0);
     ctx.globalAlpha = opacity;
     ctx.drawImage(assets.stair, stair.x, stair.y, stair.width, stair.height);
     
-    // 아이템 그리기
     ctx.globalAlpha = 1.0;
     if (stair.reward === 'dust') {
       ctx.font = '24px sans-serif';
@@ -255,11 +249,10 @@ const draw = () => {
     }
   });
   
-  // 2. 아바타 그리기 (기존 에셋 재활용)
   ctx.drawImage(assets.playerBody, player.x, player.y, player.width, player.height);
   ctx.drawImage(assets.playerOutfit, player.x, player.y, player.width, player.height);
 
-  ctx.restore(); // 카메라 시점 복구
+  ctx.restore(); 
 };
 
 // --- 3. 조작 (핵심 로직) ---
@@ -271,39 +264,33 @@ const handleTap = () => {
   
   if (!currentStair || !nextStair) return;
 
-  // 1. 조작: 반대편으로 점프
   const nextSide = player.targetSide === 'left' ? 'right' : 'left';
   
-  // 2. 판정
   if (nextStair.side === nextSide) {
-    // 3. 성공
     currentStairIndex++;
     score.value++;
     
-    // 4. 보상 획득
     if (nextStair.reward === 'dust') {
       alchemyDust.value++;
-      nextStair.reward = null; // 획득 완료
+      nextStair.reward = null; 
       showComboMessage("+1 💎");
     } else if (nextStair.reward === 'gold') {
       earnedGold.value += 10;
-      nextStair.reward = null; // 획득 완료
+      nextStair.reward = null; 
       showComboMessage("+10 G");
     }
     
-    // 5. 플레이어 위치 이동
     player.x = nextStair.x + (nextStair.width / 2) - (player.width / 2);
     player.y = nextStair.y - player.height;
     player.targetSide = nextSide;
     
-    // 6. 다음 계단 생성
     spawnStair();
     
-    // 7. 퀘스트 업데이트
-    updateQuestProgress(auth.currentUser.uid, 'playSaltStep', 1);
+    // ▼▼▼ [★핵심 수정 5★] 퀘스트 업데이트는 백엔드(endSaltStepGame)에서 하므로 이 줄 삭제 ▼▼▼
+    // updateQuestProgress(auth.currentUser.uid, 'playSaltStep', 1);
+    // ▲▲▲ (수정 완료) ▲▲▲
 
   } else {
-    // 3. 실패
     handleGameOver("잘못된 스텝!");
   }
 };
@@ -320,8 +307,8 @@ const spawnStair = () => {
   const stairWidth = canvasWidth / 2.5;
   const stairHeight = 30;
   const newX = (newSide === 'left')
-    ? (canvasWidth / 4) - (stairWidth / 2) // 왼쪽
-    : (canvasWidth * 0.75) - (stairWidth / 2); // 오른쪽
+    ? (canvasWidth / 4) - (stairWidth / 2) 
+    : (canvasWidth * 0.75) - (stairWidth / 2); 
   
   let reward = null;
   if (stairs.value.length % 30 === 0) reward = 'dust';
@@ -329,18 +316,17 @@ const spawnStair = () => {
 
   stairs.value.push({
     x: newX,
-    y: lastStair.y - 120, // 120px 위
+    y: lastStair.y - 120, 
     width: stairWidth,
     height: stairHeight,
     side: newSide,
-    disappearTimer: 2.0 / gameSpeed, // 속도에 비례해 타이머 단축
+    disappearTimer: 2.0 / gameSpeed, 
     reward: reward
   });
   
-  // (메모리 관리: 화면 밖으로 나간 계단 제거)
   if (stairs.value.length > currentStairIndex + 20) {
     stairs.value.shift();
-    currentStairIndex--; // 인덱스 보정
+    currentStairIndex--; 
   }
 };
 
