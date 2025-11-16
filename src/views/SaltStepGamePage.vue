@@ -1,5 +1,9 @@
 <template>
   <div class="step-game-page" @mousedown.prevent="handleTap" @touchstart.prevent="handleTap">
+    
+    <div class="sound-toggle" @click="toggleMute">
+      <i :class="['fas', isMuted ? 'fa-volume-mute' : 'fa-volume-up']"></i>
+    </div>
     <div class="game-stats-glass">
       <div class="stat-item">
         <span>최고 계단</span>
@@ -70,11 +74,31 @@ bgm.volume = 0.3; // BGM은 소리를 조금 줄입니다.
 const jumpSound = new Audio('/sound/cartoon-jump-6462.mp3');
 const fallSound = new Audio('/sound/band-rock-fall-off-mp3-106656.mp3');
 
+// ▼▼▼ [★핵심 수정★] 사운드 상태 Ref 및 토글 함수 ▼▼▼
+const isMuted = ref(false);
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (isMuted.value) {
+    bgm.pause();
+  } else {
+    // 음소거를 해제했을 때만 BGM 재생 시도 (게임 중일 경우)
+    if (gameStatus.value === 'playing') {
+      bgm.play().catch(e => console.warn("BGM 재생 실패:", e));
+    }
+  }
+};
+// ▲▲▲ (수정 완료) ▲▲▲
+
+
 /**
  * 사운드를 안전하게 재생하는 헬퍼 함수
  * (연속 재생 시 오디오를 처음으로 되돌림)
  */
 const playSound = (audio) => {
+  // ▼▼▼ [★핵심 수정★] 음소거 상태 확인 ▼▼▼
+  if (isMuted.value) return;
+  // ▲▲▲ (수정 완료) ▲▲▲
   audio.currentTime = 0;
   audio.play().catch(e => console.warn("사운드 재생 실패:", e));
 };
@@ -154,15 +178,16 @@ onUnmounted(() => {
 const startGameLogic = async () => {
   gameStatus.value = 'loading';
   try {
-    // [참고] 이전에 발생했던 'permission-denied' 오류는
-    // 이 함수가 호출하는 'checkUserSubscriptionStatus' 때문이었습니다.
-    // (현재는 해결된 것으로 보입니다.)
     await startGameFunc(); // 백엔드에 100P 지불
 
     initGame();
-    bgm.play().catch(e => console.warn("BGM 자동재생 실패. 사용자 상호작용이 필요합니다.", e)); // [★추가★] BGM 시작
     
-    // [수정] lastTime 초기화를 여기서 하지 않습니다. gameLoop에서 처리합니다.
+    // ▼▼▼ [★핵심 수정★] 음소거 상태 확인 ▼▼▼
+    if (!isMuted.value) {
+      bgm.play().catch(e => console.warn("BGM 자동재생 실패. 사용자 상호작용이 필요합니다.", e));
+    }
+    // ▲▲▲ (수정 완료) ▲▲▲
+    
     lastTime = 0; 
     
     gameStatus.value = 'playing';
@@ -220,23 +245,20 @@ const goToDashboard = () => {
 
 // --- 2. 게임 루프 (Update/Draw) ---
 
-// ▼▼▼ [★핵심 수정★] ▼▼▼
 let lastTime = 0;
+let lastTapTime = 0; // [★핵심 수정★] 탭(클릭) 쿨다운을 위한 변수
+
 const gameLoop = (timestamp) => {
   if (gameStatus.value !== 'playing') return;
 
-  // 1. 첫 번째 프레임(lastTime === 0)일 경우, 
-  //    deltaTime 계산을 건너뛰고 lastTime을 현재 시간으로 설정만 합니다.
   if (lastTime === 0) {
     lastTime = timestamp;
     gameLoopId = requestAnimationFrame(gameLoop);
     return;
   }
 
-  // 2. 두 번째 프레임부터 정상적으로 deltaTime을 계산합니다.
-  const deltaTime = (timestamp - lastTime) / 1000; // (|| 0 제거)
+  const deltaTime = (timestamp - lastTime) / 1000;
   lastTime = timestamp;
-  // ▲▲▲ [수정 완료] ▲▲▲
   
   update(deltaTime);
   draw();
@@ -265,8 +287,7 @@ const update = (deltaTime) => {
     gameSpeed += 0.1; 
   }
 };
-// --- (이하 코드는 동일합니다) ---
-
+// --- (draw 함수는 동일) ---
 const draw = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -297,6 +318,15 @@ const draw = () => {
 
 // --- 3. 조작 (핵심 로직) ---
 const handleTap = () => {
+  // ▼▼▼ [★핵심 수정★] ▼▼▼
+  // 1. '무한 클릭'을 방지하기 위해 쿨다운(debounce)을 추가합니다.
+  const now = Date.now();
+  if (now - lastTapTime < 150) { // 150ms (0.15초) 쿨다운
+    return; // 너무 빨리 탭하면 무시
+  }
+  lastTapTime = now;
+  // ▲▲▲ (수정 완료) ▲▲▲
+
   if (gameStatus.value !== 'playing' || isClearing.value) return;
 
   const currentStair = stairs.value[currentStairIndex];
@@ -332,7 +362,7 @@ const handleTap = () => {
     handleGameOver("잘못된 스텝!");
   }
 };
-
+// --- (이하 코드는 동일합니다) ---
 const showComboMessage = (msg) => {
   comboMessage.value = msg;
   setTimeout(() => { comboMessage.value = ''; }, 1000);
@@ -409,7 +439,24 @@ const handleGameOver = async (reason) => {
   min-height: 100dvh;
   box-sizing: border-box;
   overflow: hidden; /* 페이지 스크롤 방지 */
+  
+  position: relative; /* [★수정★] 음소거 버튼 위치의 기준점이 되도록 추가 */
 }
+
+/* ▼▼▼ [★핵심 수정★] 음소거 버튼 스타일 추가 ▼▼▼ */
+.sound-toggle {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 1.5rem;
+  color: white;
+  cursor: pointer;
+  z-index: 100;
+  padding: 10px; /* 터치 영역 확보 */
+  opacity: 0.7;
+}
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
 
 /* (솔트 알케미 스탯바 재활용) */
 .game-stats-glass {
