@@ -480,6 +480,7 @@ import SaltAlchemyRankingsWidget from "@/components/SaltAlchemyRankingsWidget.vu
 import SaltAlchemyWeeklyRankingsWidget from "@/components/SaltAlchemyWeeklyRankingsWidget.vue";
 import SaltBlockPuzzleRankingsWidget from "@/components/SaltBlockPuzzleRankingsWidget.vue";
 import SaltBubbleRankingsWidget from "@/components/SaltBubbleRankingsWidget.vue";
+import WalkingSaltPage from "@/views/WalkingSaltPage.vue";
 
 export default {
   name: "DashboardPage",
@@ -511,6 +512,7 @@ TransactionHistoryModal,
     SaltAlchemyWeeklyRankingsWidget,
     SaltBlockPuzzleRankingsWidget,
     SaltBubbleRankingsWidget,
+    WalkingSaltPage,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {

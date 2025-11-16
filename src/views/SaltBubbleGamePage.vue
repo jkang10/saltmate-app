@@ -67,7 +67,9 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+// ▼▼▼ [★핵심 수정 1★] 'auth'를 import에서 제거 ▼▼▼
 import { functions } from '@/firebaseConfig';
+// ▲▲▲ (수정 완료) ▲▲▲
 import { httpsCallable } from 'firebase/functions';
 
 // --- Firebase ---
@@ -77,10 +79,10 @@ const router = useRouter();
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
-// ▼▼▼ [★핵심 수정★] 이 2줄을 추가하세요 ▼▼▼
+// ▼▼▼ [★핵심 수정 2★] 빠진 변수 2개 선언 ▼▼▼
 const isClearing = ref(false); // (콤보/애니메이션 중 입력 방지)
 const canDropItem = ref(true); // (버블 발사 쿨다운)
-// ▲▲▲ (추가 완료) ▲▲▲
+// ▲▲▲ (수정 완료) ▲▲▲
 const score = ref(0);
 const highScore = ref(localStorage.getItem('bubbleShooterHighScore') || 0);
 const alchemyDust = ref(0);
@@ -150,7 +152,7 @@ onMounted(async () => {
   startGameLogic();
   // (ResizeObserver 추가: Canvas 크기 조절)
   const observer = new ResizeObserver(entries => {
-    if (entries[0]) {
+    if (entries[0] && gameCanvasRef.value) { // [★수정★] gameCanvasRef.value null 체크
       const width = entries[0].contentRect.width;
       canvasWidth = width;
       canvasHeight = (width / 10) * 15; // 10:15 비율
@@ -180,6 +182,7 @@ const startGameLogic = async () => {
   }
 };
 const initGame = () => {
+  if (!gameCanvasRef.value) return; // [★수정★] 캔버스 null 체크
   ctx = gameCanvasRef.value.getContext('2d');
   board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
   boardOffsetY = 0;
@@ -290,6 +293,7 @@ const handlePointerUp = () => {
   fireBubble();
 };
 const updateAim = (e) => {
+  if (!gameCanvasRef.value) return; // [★수정★] null 체크
   const rect = gameCanvasRef.value.getBoundingClientRect();
   const pos = (e.touches ? e.touches[0] : e);
   const x = pos.clientX - rect.left;
