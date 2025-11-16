@@ -1,5 +1,6 @@
 <template>
   <div class="bubble-shooter-page">
+    <audio ref="bgmPlayer" src="/sound/freepik-future-disco.mp3" loop preload="auto"></audio>
     <div class="game-stats-glass">
       <div class="stat-item">
         <span>최고 점수</span>
@@ -35,8 +36,8 @@
       <div class="bubble-holder">
         <strong>NEXT:</strong>
         <div class="bubble-next" :style="{ backgroundColor: getBubbleColor(nextBubbleColor) }">
-          </div>
         </div>
+      </div>
       <div class="bubble-holder">
         <strong>SHOTS: {{ shotsLeft }}</strong>
       </div>
@@ -66,15 +67,8 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-// ▼▼▼ [★핵심 수정★] 'auth' import 제거 (오류 수정) ▼▼▼
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-// ▲▲▲ (수정 완료) ▲▲▲
-
-// ▼▼▼ [★핵심 수정★] 이미지 import 구문 모두 제거 ▼▼▼
-// import gem1 from '@/assets/gems/gem_1.png';
-// ... (gem2 ~ gem6 import 모두 삭제) ...
-// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- Firebase ---
 const startGameFunc = httpsCallable(functions, 'startBubbleGame');
@@ -83,10 +77,8 @@ const router = useRouter();
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
-// ▼▼▼ [★핵심 수정★] 누락된 변수 2개 선언 (오류 수정) ▼▼▼
-const isClearing = ref(false); // (콤보/애니메이션 중 입력 방지)
-const canDropItem = ref(true); // (버블 발사 쿨다운)
-// ▲▲▲ (수정 완료) ▲▲▲
+const isClearing = ref(false); 
+const canDropItem = ref(true); 
 const score = ref(0);
 const highScore = ref(localStorage.getItem('bubbleShooterHighScore') || 0);
 const alchemyDust = ref(0);
@@ -120,13 +112,9 @@ let canvasWidth = 360;
 let canvasHeight = 550;
 let shooterPos = reactive({ x: canvasWidth / 2, y: canvasHeight - 30 });
 
-// ▼▼▼ [★핵심 수정★] 젬 이미지 로드 관련 코드 모두 제거 ▼▼▼
-// const gemImages = reactive({});
-// const loadImages = () => { ... };
-// ▲▲▲ (수정 완료) ▲▲▲
+// --- [★핵심 수정★] 이미지 로드 로직 제거 ---
 
 const getBubbleColor = (colorId) => {
-  // (이미지 로드 실패 시, 색상으로 대체)
   const colorMap = { 
     1: '#e74c3c', // 빨강 (Gem 1)
     2: '#2ecc71', // 초록 (Gem 2)
@@ -141,11 +129,9 @@ const getBubbleColor = (colorId) => {
 // --- 1. 게임 초기화/시작/재시작 ---
 onMounted(() => {
   // ▼▼▼ [★핵심 수정★] await loadImages() 제거 ▼▼▼
-  // await loadImages(); 
   startGameLogic();
   // ▲▲▲ (수정 완료) ▲▲▲
   
-  // (ResizeObserver 추가: Canvas 크기 조절)
   const observer = new ResizeObserver(entries => {
     if (entries[0] && gameCanvasRef.value) { 
       const width = entries[0].contentRect.width;
@@ -205,7 +191,7 @@ const goToDashboard = () => router.push('/dashboard');
 // --- 2. 게임 루프 (Update/Draw) ---
 const gameLoop = () => {
   if (gameStatus.value !== 'playing') {
-    if(gameLoopId) cancelAnimationFrame(gameLoopId); // [★추가★] 루프 확실히 중단
+    if(gameLoopId) cancelAnimationFrame(gameLoopId); 
     return; 
   }
   update();
@@ -218,17 +204,14 @@ const update = () => {
   projectile.x += projectile.dx;
   projectile.y += projectile.dy;
 
-  // 1. 벽 충돌 (좌/우)
   if (projectile.x - BUBBLE_RADIUS < 0 || projectile.x + BUBBLE_RADIUS > canvasWidth) {
-    projectile.dx *= -1; // x속도 반전
+    projectile.dx *= -1; 
     projectile.x = Math.max(BUBBLE_RADIUS, Math.min(projectile.x, canvasWidth - BUBBLE_RADIUS));
   }
-  // 2. 천장 충돌
   if (projectile.y - BUBBLE_RADIUS < boardOffsetY) {
     snapProjectileToGrid();
     return;
   }
-  // 3. 버블 충돌
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const bubble = board[r][c];
@@ -237,7 +220,7 @@ const update = () => {
         const dx = projectile.x - bubblePos.x;
         const dy = projectile.y - bubblePos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < BUBBLE_DIAMETER - 5) { // (충돌 판정)
+        if (dist < BUBBLE_DIAMETER - 5) { 
           snapProjectileToGrid();
           return;
         }
@@ -249,7 +232,6 @@ const draw = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // 1. 보드 그리기
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const bubbleColor = board[r][c];
@@ -259,19 +241,15 @@ const draw = () => {
       }
     }
   }
-  // 2. 발사체 그리기
   if (projectile) {
     drawBubble(projectile.x, projectile.y, projectile.color);
   }
-  // 3. 현재 버블 그리기 (발사대에)
   if (currentBubble.color) {
     drawBubble(shooterPos.x, shooterPos.y, currentBubble.color);
   }
-  // 4. 조준선 그리기
   if (isAiming) {
     drawAimingLine();
   }
-  // 5. 데드라인
   ctx.fillStyle = '#E74C3C';
   ctx.fillRect(0, DEADLINE_Y, canvasWidth, 3);
 };
@@ -326,12 +304,11 @@ const spawnBubble = () => {
 const snapProjectileToGrid = async () => {
   if (!projectile) return;
   
-  // 1. 가장 가까운 빈 육각 그리드 찾기
   let minDist = Infinity;
   let bestPos = { r: 0, c: 0 };
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      if (board[r][c] === 0) { // 빈 칸만
+      if (board[r][c] === 0) { 
         const pos = getBubbleCoords(r, c);
         const dx = projectile.x - pos.x;
         const dy = projectile.y - pos.y;
@@ -347,10 +324,9 @@ const snapProjectileToGrid = async () => {
   const { r, c } = bestPos;
   board[r][c] = projectile.color;
   const snappedColor = projectile.color;
-  projectile = null; // 발사체 제거
+  projectile = null; 
   isClearing.value = true; 
 
-  // 2. 매치 찾기
   const matches = findMatches(r, c, snappedColor);
   
   let totalPopped = 0;
@@ -365,7 +341,6 @@ const snapProjectileToGrid = async () => {
     orphans.forEach(([r, c]) => board[r][c] = 0);
   }
   
-  // 5. 보상 계산
   score.value += totalPopped * 10;
   score.value += totalDropped * 50;
   if (totalDropped >= 5) {
@@ -374,19 +349,17 @@ const snapProjectileToGrid = async () => {
     setTimeout(() => comboMessage.value = '', 1500);
   }
   
-  // 6. 천장 내리기
   if (shotsLeft.value <= 0) {
     await dropCeiling();
     shotsLeft.value = 5;
   }
   
-  // 7. 게임 오버 체크
   if (checkGameOver()) {
     handleGameOver();
   }
   
   isClearing.value = false;
-  canDropItem.value = true; // 다음 샷 허용
+  canDropItem.value = true; 
 };
 
 // --- 5. 콤보 로직 (BFS/Flood Fill) ---
@@ -441,8 +414,8 @@ const getNeighbors = (r, c) => {
   const isOddRow = r % 2 === 1;
   const neighbors = [];
   const dirs = isOddRow
-    ? [[-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0], [1, 1]] // 홀수 줄
-    : [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]]; // 짝수 줄
+    ? [[-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0], [1, 1]] 
+    : [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]]; 
   
   for (const [dr, dc] of dirs) {
     const nr = r + dr;
@@ -454,14 +427,14 @@ const getNeighbors = (r, c) => {
   return neighbors;
 };
 const dropCeiling = () => {
-  boardOffsetY += HEX_HEIGHT / 2; // (애니메이션 효과)
+  boardOffsetY += HEX_HEIGHT / 2; 
   
   const newRow = Array(COLS).fill(0).map((_, c) => {
     if ((0 % 2 === 1) && (c === COLS - 1)) return 0;
     return COLORS[Math.floor(Math.random() * COLORS.length)];
   });
-  board.pop(); // 마지막 줄 제거
-  board.unshift(newRow); // 새 줄 추가
+  board.pop(); 
+  board.unshift(newRow); 
 };
 
 // --- 6. 게임 오버 ---
@@ -528,11 +501,10 @@ const drawAimingLine = () => {
   ctx.beginPath();
   ctx.moveTo(x, y);
   
-  for (let i = 0; i < 50; i++) { // 50 세그먼트
+  for (let i = 0; i < 50; i++) { 
     let dx = Math.cos(angle) * 15;
     let dy = Math.sin(angle) * 15;
     
-    // 벽 반사
     if (x + dx - BUBBLE_RADIUS < 0 || x + dx + BUBBLE_RADIUS > canvasWidth) {
       angle = Math.PI - angle;
       dx = Math.cos(angle) * 15;
@@ -542,7 +514,7 @@ const drawAimingLine = () => {
     x += dx;
     y += dy;
     
-    if (y < boardOffsetY) break; // 천장
+    if (y < boardOffsetY) break; 
     
     ctx.lineTo(x, y);
   }
@@ -616,10 +588,10 @@ canvas {
   border-radius: 50%;
   border: 2px solid white;
 }
-.bubble-next img {
-  width: 100%;
-  height: 100%;
-}
+/* ▼▼▼ [★핵심 수정★] <img> 태그 제거 ▼▼▼ */
+/* .bubble-next img { ... } */
+/* ▲▲▲ (수정 완료) ▲▲▲ */
+
 .combo-popup {
   position: absolute;
   top: 50%;
