@@ -35,9 +35,8 @@
       <div class="bubble-holder">
         <strong>NEXT:</strong>
         <div class="bubble-next" :style="{ backgroundColor: getBubbleColor(nextBubbleColor) }">
-          <img v-if="gemImages[nextBubbleColor]" :src="gemImages[nextBubbleColor].src" />
+          </div>
         </div>
-      </div>
       <div class="bubble-holder">
         <strong>SHOTS: {{ shotsLeft }}</strong>
       </div>
@@ -67,10 +66,15 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-// ▼▼▼ [★핵심 수정 1★] 'auth'를 import에서 제거 ▼▼▼
+// ▼▼▼ [★핵심 수정★] 'auth' import 제거 (오류 수정) ▼▼▼
 import { functions } from '@/firebaseConfig';
-// ▲▲▲ (수정 완료) ▲▲▲
 import { httpsCallable } from 'firebase/functions';
+// ▲▲▲ (수정 완료) ▲▲▲
+
+// ▼▼▼ [★핵심 수정★] 이미지 import 구문 모두 제거 ▼▼▼
+// import gem1 from '@/assets/gems/gem_1.png';
+// ... (gem2 ~ gem6 import 모두 삭제) ...
+// ▲▲▲ (수정 완료) ▲▲▲
 
 // --- Firebase ---
 const startGameFunc = httpsCallable(functions, 'startBubbleGame');
@@ -79,7 +83,7 @@ const router = useRouter();
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
-// ▼▼▼ [★핵심 수정 2★] 빠진 변수 2개 선언 ▼▼▼
+// ▼▼▼ [★핵심 수정★] 누락된 변수 2개 선언 (오류 수정) ▼▼▼
 const isClearing = ref(false); // (콤보/애니메이션 중 입력 방지)
 const canDropItem = ref(true); // (버블 발사 쿨다운)
 // ▲▲▲ (수정 완료) ▲▲▲
@@ -104,55 +108,46 @@ let shotsLeft = ref(5);
 
 // --- [★핵심★] 게임 설정 (육각 그리드 기준) ---
 const COLS = 10;
-const ROWS = 13; // 실제로는 더 많지만, 화면에 보이는 영역
-const BUBBLE_RADIUS = 18; // (360px / 10 = 36px diameter)
+const ROWS = 13; 
+const BUBBLE_RADIUS = 18; 
 const BUBBLE_DIAMETER = BUBBLE_RADIUS * 2;
-const HEX_WIDTH = BUBBLE_DIAMETER * 0.866; // (sqrt(3)/2 * D)
-const HEX_HEIGHT = BUBBLE_DIAMETER * 0.75; // (3/4 * D)
+const HEX_WIDTH = BUBBLE_DIAMETER * 0.866; 
+const HEX_HEIGHT = BUBBLE_DIAMETER * 0.75; 
 const COLORS = [1, 2, 3, 4, 5, 6]; // 6가지 젬 컬러
 const DEADLINE_Y = HEX_HEIGHT * (ROWS - 1.5);
-let boardOffsetY = 0; // 천장 내려오는 효과
+let boardOffsetY = 0; 
 let canvasWidth = 360;
 let canvasHeight = 550;
 let shooterPos = reactive({ x: canvasWidth / 2, y: canvasHeight - 30 });
 
-// --- [★핵심★] 젬 이미지 에셋 로드 ---
-const gemImages = reactive({});
-const gemPaths = [
-  '/img/gems/gem_1.png', // 1
-  '/img/gems/gem_2.png', // 2
-  '/img/gems/gem_3.png', // 3
-  '/img/gems/gem_4.png', // 4
-  '/img/gems/gem_5.png', // 5
-  '/img/gems/gem_6.png'  // 6
-];
-const loadImages = () => {
-  let loaded = 0;
-  return new Promise((resolve) => {
-    for(let i = 0; i < COLORS.length; i++) {
-      const img = new Image();
-      img.src = gemPaths[i];
-      gemImages[COLORS[i]] = img;
-      img.onload = () => {
-        loaded++;
-        if (loaded === COLORS.length) resolve();
-      };
-    }
-  });
-};
+// ▼▼▼ [★핵심 수정★] 젬 이미지 로드 관련 코드 모두 제거 ▼▼▼
+// const gemImages = reactive({});
+// const loadImages = () => { ... };
+// ▲▲▲ (수정 완료) ▲▲▲
+
 const getBubbleColor = (colorId) => {
   // (이미지 로드 실패 시, 색상으로 대체)
-  const colorMap = { 1: '#FF0000', 2: '#00FF00', 3: '#0000FF', 4: '#FFFF00', 5: '#FF00FF', 6: '#00FFFF' };
-  return colorMap[colorId] || '#CCC';
+  const colorMap = { 
+    1: '#e74c3c', // 빨강 (Gem 1)
+    2: '#2ecc71', // 초록 (Gem 2)
+    3: '#3498db', // 파랑 (Gem 3)
+    4: '#f1c40f', // 노랑 (Gem 4)
+    5: '#9b59b6', // 보라 (Gem 5)
+    6: '#e67e22'  // 주황 (Gem 6)
+  };
+  return colorMap[colorId] || '#bdc3c7'; // (회색)
 };
 
 // --- 1. 게임 초기화/시작/재시작 ---
-onMounted(async () => {
-  await loadImages();
+onMounted(() => {
+  // ▼▼▼ [★핵심 수정★] await loadImages() 제거 ▼▼▼
+  // await loadImages(); 
   startGameLogic();
+  // ▲▲▲ (수정 완료) ▲▲▲
+  
   // (ResizeObserver 추가: Canvas 크기 조절)
   const observer = new ResizeObserver(entries => {
-    if (entries[0] && gameCanvasRef.value) { // [★수정★] gameCanvasRef.value null 체크
+    if (entries[0] && gameCanvasRef.value) { 
       const width = entries[0].contentRect.width;
       canvasWidth = width;
       canvasHeight = (width / 10) * 15; // 10:15 비율
@@ -182,7 +177,7 @@ const startGameLogic = async () => {
   }
 };
 const initGame = () => {
-  if (!gameCanvasRef.value) return; // [★수정★] 캔버스 null 체크
+  if (!gameCanvasRef.value) return; 
   ctx = gameCanvasRef.value.getContext('2d');
   board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
   boardOffsetY = 0;
@@ -209,6 +204,10 @@ const goToDashboard = () => router.push('/dashboard');
 
 // --- 2. 게임 루프 (Update/Draw) ---
 const gameLoop = () => {
+  if (gameStatus.value !== 'playing') {
+    if(gameLoopId) cancelAnimationFrame(gameLoopId); // [★추가★] 루프 확실히 중단
+    return; 
+  }
   update();
   draw();
   gameLoopId = requestAnimationFrame(gameLoop);
@@ -293,14 +292,13 @@ const handlePointerUp = () => {
   fireBubble();
 };
 const updateAim = (e) => {
-  if (!gameCanvasRef.value) return; // [★수정★] null 체크
+  if (!gameCanvasRef.value) return; 
   const rect = gameCanvasRef.value.getBoundingClientRect();
   const pos = (e.touches ? e.touches[0] : e);
   const x = pos.clientX - rect.left;
   const y = pos.clientY - rect.top;
   
   let angle = Math.atan2(y - shooterPos.y, x - shooterPos.x);
-  // (각도 제한: 너무 수평으로 쏘지 못하게)
   if (angle > -0.1) angle = -0.1;
   if (angle < -Math.PI + 0.1) angle = -Math.PI + 0.1;
   aimAngle.value = angle;
@@ -350,7 +348,7 @@ const snapProjectileToGrid = async () => {
   board[r][c] = projectile.color;
   const snappedColor = projectile.color;
   projectile = null; // 발사체 제거
-  isClearing.value = true; // [★수정★] 입력 방지
+  isClearing.value = true; 
 
   // 2. 매치 찾기
   const matches = findMatches(r, c, snappedColor);
@@ -360,10 +358,8 @@ const snapProjectileToGrid = async () => {
 
   if (matches.length >= 3) {
     totalPopped += matches.length;
-    // 3. 매치된 버블 제거 (애니메이션)
     matches.forEach(([r, c]) => board[r][c] = 0); 
     
-    // 4. 고아(Orphan) 버블 찾기
     const orphans = findOrphans();
     totalDropped += orphans.length;
     orphans.forEach(([r, c]) => board[r][c] = 0);
@@ -401,10 +397,10 @@ const findMatches = (r, c, color) => {
   
   while (q.length > 0) {
     const [cr, cc] = q.shift();
-    if (board[cr][cc] === color) {
+    if (board[cr] && board[cr][cc] === color) { 
       matches.push([cr, cc]);
       getNeighbors(cr, cc).forEach(([nr, nc]) => {
-        if (board[nr][nc] === color && !visited.has(`${nr},${nc}`)) {
+        if (board[nr] && board[nr][nc] === color && !visited.has(`${nr},${nc}`)) {
           visited.add(`${nr},${nc}`);
           q.push([nr, nc]);
         }
@@ -416,24 +412,21 @@ const findMatches = (r, c, color) => {
 const findOrphans = () => {
   const connected = new Set();
   const q = [];
-  // 1. 천장(row 0)에 붙은 모든 버블을 큐에 넣기
   for (let c = 0; c < COLS; c++) {
     if (board[0][c]) {
       q.push([0, c]);
       connected.add(`0,${c}`);
     }
   }
-  // 2. BFS로 천장에 연결된 모든 버블 찾기
   while (q.length > 0) {
     const [cr, cc] = q.shift();
     getNeighbors(cr, cc).forEach(([nr, nc]) => {
-      if (board[nr][nc] && !connected.has(`${nr},${nc}`)) {
+      if (board[nr] && board[nr][nc] && !connected.has(`${nr},${nc}`)) {
         connected.add(`${nr},${nc}`);
         q.push([nr, nc]);
       }
     });
   }
-  // 3. 연결되지 않은 고아 버블 찾기
   const orphans = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -507,18 +500,22 @@ const getBubbleCoords = (r, c) => {
   const y = (r * HEX_HEIGHT) + BUBBLE_RADIUS + boardOffsetY;
   return { x, y };
 };
+// ▼▼▼ [★핵심 수정 3★] 이미지 로직 제거, 색상/하이라이트만 그리도록 수정 ▼▼▼
 const drawBubble = (x, y, colorId) => {
-  const img = gemImages[colorId];
-  if (img && img.complete) {
-    ctx.drawImage(img, x - BUBBLE_RADIUS, y - BUBBLE_RADIUS, BUBBLE_DIAMETER, BUBBLE_DIAMETER);
-  } else {
-    // (대체)
-    ctx.fillStyle = getBubbleColor(colorId);
-    ctx.beginPath();
-    ctx.arc(x, y, BUBBLE_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // 1. 메인 색상
+  ctx.fillStyle = getBubbleColor(colorId);
+  ctx.beginPath();
+  ctx.arc(x, y, BUBBLE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. 입체감을 위한 간단한 하이라이트 추가
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.beginPath();
+  ctx.arc(x - BUBBLE_RADIUS * 0.3, y - BUBBLE_RADIUS * 0.3, BUBBLE_RADIUS * 0.4, 0, Math.PI * 2);
+  ctx.fill();
 };
+// ▲▲▲ (수정 완료) ▲▲▲
+
 const drawAimingLine = () => {
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.lineWidth = 3;
