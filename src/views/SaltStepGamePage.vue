@@ -214,6 +214,7 @@ const initGame = () => {
   const stairWidth = canvasWidth / 2.5;
   const stairHeight = 30;
   
+  // 1. 첫 번째 계단(시작 지점) 생성
   stairs.value.push({
     x: (canvasWidth / 4) - (stairWidth / 2),
     y: canvasHeight - 100,
@@ -223,9 +224,12 @@ const initGame = () => {
     disappearTimer: 2.0 
   });
   
-  for (let i = 1; i < 20; i++) {
+  // ▼▼▼ [★핵심 수정★] ▼▼▼
+  // 20개가 아닌, 딱 1개(다음 계단)만 미리 생성합니다.
+  for (let i = 1; i < 2; i++) { 
     spawnStair();
   }
+  // ▲▲▲ (수정 완료) ▲▲▲
   
   const startStair = stairs.value[0];
   player.x = startStair.x + (stairWidth / 2) - (player.width / 2);
@@ -356,7 +360,7 @@ const handleTap = () => {
     player.y = nextStair.y - player.height;
     player.targetSide = nextSide;
     
-    spawnStair();
+    spawnStair(); // (이제 이 함수는 '다음다음' 계단을 만듭니다)
     
   } else {
     handleGameOver("잘못된 스텝!");
@@ -392,6 +396,7 @@ const spawnStair = () => {
     reward: reward
   });
   
+  // (이 로직은 이제 정상적으로 작동하여, 보이지 않는 오래된 계단을 삭제합니다)
   if (stairs.value.length > currentStairIndex + 20) {
     stairs.value.shift();
     currentStairIndex--; 
