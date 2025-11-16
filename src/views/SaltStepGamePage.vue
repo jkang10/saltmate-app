@@ -1,5 +1,5 @@
 <template>
-  <div class="step-game-page" @mousedown.prevent="handleTap" @touchstart.prevent="handleTap">
+  <div class="step-game-page">
     
     <div class="sound-toggle" @click="toggleMute">
       <i :class="['fas', isMuted ? 'fa-volume-mute' : 'fa-volume-up']"></i>
@@ -25,7 +25,12 @@
       </div>
     </div>
 
-    <div class="game-canvas-wrapper" ref="gameWrapperRef">
+    <div 
+      class="game-canvas-wrapper" 
+      ref="gameWrapperRef"
+      @mousedown.prevent="handleTap($event)" 
+      @touchstart.prevent="handleTap($event)"
+    >
       <canvas ref="gameCanvasRef"></canvas>
       <div v-if="comboMessage" class="combo-popup">
         {{ comboMessage }}
@@ -321,15 +326,15 @@ const draw = () => {
 };
 
 // --- 3. 조작 (핵심 로직) ---
-const handleTap = () => {
-  // ▼▼▼ [★핵심 수정★] ▼▼▼
+
+// ▼▼▼ [★핵심 수정★] 탭 함수 전체를 교체합니다. ▼▼▼
+const handleTap = (event) => {
   // 1. '무한 클릭'을 방지하기 위해 쿨다운(debounce)을 추가합니다.
   const now = Date.now();
   if (now - lastTapTime < 150) { // 150ms (0.15초) 쿨다운
     return; // 너무 빨리 탭하면 무시
   }
   lastTapTime = now;
-  // ▲▲▲ (수정 완료) ▲▲▲
 
   if (gameStatus.value !== 'playing' || isClearing.value) return;
 
@@ -338,9 +343,30 @@ const handleTap = () => {
   
   if (!currentStair || !nextStair) return;
 
-  const nextSide = player.targetSide === 'left' ? 'right' : 'left';
+  // 2. [★신규★] 탭한 위치(왼쪽/오른쪽)를 확인
+  let clickX = 0;
+  if (event.type.includes('touch')) {
+    // touches[0]가 없을 수도 있으므로 방어 코드
+    if (!event.touches || event.touches.length === 0) return; 
+    clickX = event.touches[0].clientX;
+  } else {
+    clickX = event.clientX;
+  }
   
-  if (nextStair.side === nextSide) {
+  // 게임 캔버스의 화면상 위치와 너비를 가져옵니다.
+  const wrapperRect = gameWrapperRef.value.getBoundingClientRect();
+  const wrapperLeft = wrapperRect.left; 
+  const wrapperWidth = wrapperRect.width; 
+  
+  // 캔버스 기준 X좌표
+  const relativeClickX = clickX - wrapperLeft; 
+  
+  // 탭한 방향을 계산합니다.
+  const tappedSide = (relativeClickX < wrapperWidth / 2) ? 'left' : 'right';
+  
+  // 3. [★신규★] 탭한 위치와 다음 계단의 위치가 일치하는지 확인
+  if (tappedSide === nextStair.side) {
+    // 성공! (기존 로직)
     currentStairIndex++;
     score.value++;
     
@@ -358,14 +384,17 @@ const handleTap = () => {
     
     player.x = nextStair.x + (nextStair.width / 2) - (player.width / 2);
     player.y = nextStair.y - player.height;
-    player.targetSide = nextSide;
+    player.targetSide = nextStair.side; // 현재 위치(방향)를 갱신
     
-    spawnStair(); // (이제 이 함수는 '다음다음' 계단을 만듭니다)
+    spawnStair();
     
   } else {
+    // 4. [★신규★] 탭한 위치가 틀렸다면 "잘못된 스텝"으로 게임 오버
     handleGameOver("잘못된 스텝!");
   }
 };
+// ▲▲▲ (수정 완료) ▲▲▲
+
 // --- (이하 코드는 동일합니다) ---
 const showComboMessage = (msg) => {
   comboMessage.value = msg;
@@ -396,7 +425,6 @@ const spawnStair = () => {
     reward: reward
   });
   
-  // (이 로직은 이제 정상적으로 작동하여, 보이지 않는 오래된 계단을 삭제합니다)
   if (stairs.value.length > currentStairIndex + 20) {
     stairs.value.shift();
     currentStairIndex--; 
