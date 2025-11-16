@@ -386,6 +386,12 @@
         <h3>솔트 블록 1010</h3>
         <p>블록으로 줄을 채워 점수를 획득하고 '연금술 가루'를 모으세요!</p>
         <span class="card-enter">플레이 &rarr;</span>
+       </router-link>
+       <router-link to="/walking-salt" class="feature-card walking-salt game">
+        <div class="card-icon"><i class="fas fa-walking"></i></div>
+        <h3>워킹 솔트</h3>
+        <p>걸음 수를 인증하고 SaltMate 포인트를 획득하세요! (일일 1회)</p>
+        <span class="card-enter">인증하기 &rarr;</span>
       </router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
@@ -471,7 +477,7 @@ export default {
   name: "DashboardPage",
   components: {
     // ... (모든 컴포넌트 등록은 그대로 유지) ...
-    TransactionHistoryModal,
+TransactionHistoryModal,
     UpgradeTierModal,
     WithdrawalRequestModal,
     CycleEarningsModal,
@@ -682,6 +688,29 @@ export default {
 </script>
 
 <style scoped>
+/* ▼▼▼ [★핵심 추가★] "워킹 솔트" 카드 스타일 ▼▼▼ */
+.feature-card.walking-salt.game {
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%); /* 건강한 녹색 */
+  color: #fff;
+  border: 1px solid #2ecc71;
+  box-shadow: 0 8px 30px rgba(40, 167, 69, 0.4);
+}
+.feature-card.walking-salt.game .card-icon {
+  color: #fff;
+  text-shadow: 0 0 10px #fff;
+}
+.feature-card.walking-salt.game h3 { color: #fff; }
+.feature-card.walking-salt.game p { color: #ecf0f1; opacity: 0.9; }
+.feature-card.walking-salt.game .card-enter {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+.feature-card.walking-salt.game:hover {
+  border-color: #20c997;
+  box-shadow: 0 12px 35px rgba(40, 167, 69, 0.6);
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
 /* ▼▼▼ [★핵심 추가★] "솔트 블록 1010" 게임 카드 스타일 ▼▼▼ */
 .feature-card.block-puzzle.game {
   background: linear-gradient(135deg, #005C97 0%, #363795 100%); /* 신비로운 파란색 */

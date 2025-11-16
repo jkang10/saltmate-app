@@ -1,12 +1,13 @@
 <template>
-  <div class="salt-alchemy-page">
-    <audio ref="bgmPlayer" src="/sound/Gil Kita - Silly Lovebirds.mp3" loop preload="auto"></audio>
-    
+  <div 
+    class="block-puzzle-page"
+    @mouseup="handleDragEnd($event)"
+    @mouseleave="handleDragEnd($event)"
+    @touchend="handleDragEnd($event)"
+    @mousemove.prevent="handleDragMove"
+    @touchmove.prevent="handleDragMove"
+  >
     <div class="game-stats-glass">
-      <button @click="toggleSound" class="sound-toggle-btn">
-        <i v-if="isSoundPlaying" class="fas fa-volume-up"></i>
-        <i v-else class="fas fa-volume-mute"></i>
-      </button>
       <div class="stat-item">
         <span>최고 점수</span>
         <strong>{{ highScore }}</strong>
@@ -19,61 +20,68 @@
         <span>연금술 가루</span>
         <strong>{{ alchemyDust }} 💎</strong>
       </div>
-      <div class="stat-item gold-stat">
-        <span v-if="isGoldenPotMode">획득한 골드</span>
-        <span v-else>보유 골드</span>
-        <strong v-if="isGoldenPotMode">+ {{ earnedGold.toLocaleString() }} G</strong>
-        <strong v-else>{{ goldBalance.toLocaleString() }} G</strong>
-      </div>
     </div>
-    <div v-if="isGoldenPotMode" class="event-banner">
-      <i class="fas fa-coins"></i> 황금 항아리 이벤트 진행 중! (🌟+🌟 = GOLD)
-    </div>
-    
-    <div class="game-tools">
-      <button 
-        class="tool-button" 
-        @click="activateHammerMode"
-        :disabled="hammerCount <= 0 || hammerMode || isClearing || isProcessingItem"
-        :class="{ 'active': hammerMode }"
-      >
-        <i class="fas fa-hammer"></i>
-        <span>망치 ({{ hammerCount }})</span>
-      </button>
-      <p v-if="hammerMode" class="tool-guide">제거할 이모지를 터치하세요!</p>
-    </div>
-    <div 
-      class="game-area-wrapper" 
-      ref="gameAreaWrapper"
-      @mousemove="handleMouseMove"
-      @mouseleave="handleMouseLeave"
-      @click="handleDropItem"
-      @touchstart.prevent="handleTouchMove"
-      @touchmove.prevent="handleTouchMove"
-      @touchend.prevent="handleTouchEnd"
-    >
+
+    <div class="game-area-wrapper">
+      
       <div 
-        v-if="gameStatus === 'playing' && nextItem"
-        class="preview-item" 
-        :style="previewItemStyle"
+        class="game-board"
+        ref="gameBoardRef"
       >
-        <div class="emoji-wrapper" :style="{ fontSize: `${nextItem.radius * 1.5}px` }">
-          {{ nextItem.emoji }}
-        </div>
+        <div
+          v-for="(cell, index) in board.flat()"
+          :key="index"
+          class="game-cell"
+          :class="{ 
+            'filled': cell === 1,
+            'preview': previewCells.includes(index),
+            'invalid': invalidDrop,
+            'clearing': clearingCells.includes(index)
+          }"
+          :data-index="index"
+        ></div>
       </div>
 
-      <div class="deadline" :style="{ top: `${DEADLINE_Y}px` }"></div>
+      <div v-if="comboMessage" class="combo-popup">
+        {{ comboMessage }}
+      </div>
 
       <div 
-        v-for="item in reactiveItems"
-        :key="item.id"
-        class="alchemy-item"
-        :style="getItemStyle(item)"
-        @click.stop="useHammerOnItem(item.id)"
-        @touchend.stop="useHammerOnItem(item.id)"
+        v-if="dragged.block && isDragging" 
+        class="block-preview floating-block" 
+        :style="floatingBlockStyle"
       >
-        <div class="emoji-wrapper" :style="{ fontSize: `${item.radius * 1.5}px` }">
-          {{ item.emoji }}
+        <div
+          v-for="(cell, cIndex) in dragged.block.shape.flat()"
+          :key="cIndex"
+          class="block-cell"
+          :class="{ 'filled': cell === 1 }"
+        ></div>
+      </div>
+      </div>
+
+    <div class="block-spawner">
+      <div
+        v-for="(block, index) in blocks"
+        :key="block.uid"
+        class="block-preview-wrapper"
+        :class="{ 'is-empty': !block.shape, 'is-dragging': isDragging && dragged.index === index }"
+      >
+        <div 
+          v-if="block.shape" 
+          class="block-preview" 
+          :style="getBlockGridStyle(block)"
+        >
+          <div
+            v-for="(cell, cIndex) in block.shape.flat()"
+            :key="cIndex"
+            class="block-cell"
+            :class="{ 'filled': cell === 1 }"
+            :data-cindex="cIndex"
+            
+            @mousedown.prevent="handleDragStart($event, block, index, cIndex)"
+            @touchstart.prevent="handleDragStart($event, block, index, cIndex)"
+          ></div>
         </div>
       </div>
     </div>
@@ -85,8 +93,8 @@
         <p v-if="gameStatus === 'lost'">
           최종 점수: {{ score }}<br />
           획득한 가루: {{ alchemyDust }} 💎<br />
-          <strong v-if="earnedGold > 0">획득한 골드: +{{ earnedGold.toLocaleString() }} G</strong>
-          </p>
+          <strong>획득한 SaltMate: {{ finalPointsAwarded }} P</strong>
+        </p>
         <div v-if="gameStatus === 'loading'" class="loading-spinner"></div>
         <button v-if="gameStatus === 'lost'" @click="restartGame" class="btn-primary">
           다시하기
@@ -100,585 +108,585 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import Matter from 'matter-js';
-import { functions, auth, db } from '@/firebaseConfig';
+import { functions, auth } from '@/firebaseConfig'; // (firebaseConfig 파일 경로 확인)
 import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc } from 'firebase/firestore';
-
-// --- BGM 제어 ---
-const bgmPlayer = ref(null);
-const isSoundPlaying = ref(false);
-
-// --- Matter.js 모듈 ---
-const { Engine, Runner, World, Bodies, Events, Composite } = Matter;
 
 // --- Firebase 연동 ---
-const startGameFunc = httpsCallable(functions, 'startAlchemyGame');
-const endGameFunc = httpsCallable(functions, 'endAlchemyGame');
-const useBoosterFunc = httpsCallable(functions, 'useSaltPangBooster');
+const startGameFunc = httpsCallable(functions, 'startBlockPuzzleGame');
+const endGameFunc = httpsCallable(functions, 'endBlockPuzzleGame');
 const router = useRouter();
 
-const goToDashboard = () => {
-  router.push('/dashboard');
-};
-
 // --- 게임 기본 상수 ---
-const GAME_WIDTH = 360; 
-const GAME_HEIGHT = 500; 
-const DEADLINE_Y = 60; 
+const BOARD_SIZE = 10;
+const COMBO_SCORES = { 1: 100, 2: 400, 3: 900, 4: 1600, 5: 2500, 6: 3600 };
+const COMBO_DUST = { 1: 0, 2: 1, 3: 3, 4: 5, 5: 10, 6: 15 };
+const CELL_SIZE = 30; 
+const CELL_GAP = 4;   
+const BOARD_PADDING = 4; 
 
-// --- [★수정★] 아이템 정의 (10단계 + BND 폭탄) ---
-const BOMB_DEFINITION = { level: 'bomb', emoji: '💣', radius: 20, score: 0 };
-const EMOJI_DEFINITIONS = [
-  { level: 1, emoji: '🪨', radius: 15, score: 1 },  // 조약돌
-  { level: 2, emoji: '🧂', radius: 20, score: 3 },  // 암염
-  { level: 3, emoji: '🍚', radius: 25, score: 6 },  // 정제 소금
-  { level: 4, emoji: '⚙️', radius: 30, score: 10 }, // 희귀 미네랄
-  { level: 5, emoji: '💎', radius: 35, score: 15 }, // 소금 결정
-  { level: 6, emoji: '🌈', radius: 40, score: 21 }, // 무지갯빛 결정
-  { level: 7, emoji: '🌟', radius: 45, score: 28 }, // 황금 소금
-  { level: 8, emoji: '🏺', radius: 50, score: 36 }, // 고대 유물
-  { level: 9, emoji: '🔮', radius: 55, score: 45 }, // 명예의 결정
-  { level: 10, emoji: '💧', radius: 60, score: 55 } // 헬리아의 눈물
-];
-const getItemDefinition = (level) => EMOJI_DEFINITIONS[level - 1];
-
-// --- Matter.js 물리 엔진 객체 ---
-let engine;
-let runner;
-let world;
-const gameAreaWrapper = ref(null); 
-let walls = {};
+// --- 블록 정의 ---
+const BLOCK_DEFINITIONS = {
+  '1x1': { shape: [[1]], id: '1x1' },
+  '1x2': { shape: [[1, 1]], id: '1x2' },
+  '2x1': { shape: [[1], [1]], id: '2x1' },
+  '1x3': { shape: [[1, 1, 1]], id: '1x3' },
+  '3x1': { shape: [[1], [1], [1]], id: '3x1' },
+  '1x4': { shape: [[1, 1, 1, 1]], id: '1x4' },
+  '4x1': { shape: [[1], [1], [1], [1]], id: '4x1' },
+  '1x5': { shape: [[1, 1, 1, 1, 1]], id: '1x5' },
+  '5x1': { shape: [[1], [1], [1], [1], [1]], id: '5x1' },
+  '2x2': { shape: [[1, 1], [1, 1]], id: '2x2' },
+  '3x3': { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], id: '3x3' },
+  'L1': { shape: [[1, 0], [1, 0], [1, 1]], id: 'L1' },
+  'L2': { shape: [[1, 1, 1], [1, 0, 0]], id: 'L2' },
+  'L3': { shape: [[1, 1], [0, 1], [0, 1]], id: 'L3' },
+  'L4': { shape: [[0, 0, 1], [1, 1, 1]], id: 'L4' },
+};
+const blockTypes = Object.keys(BLOCK_DEFINITIONS);
 
 // --- Vue 반응형 게임 상태 ---
-const gameStatus = ref('loading'); 
-const reactiveItems = ref([]); 
+const gameStatus = ref('loading');
+const board = reactive(Array(BOARD_SIZE * BOARD_SIZE).fill(0));
+const blocks = ref([{uid: null, shape: null}, {uid: null, shape: null}, {uid: null, shape: null}]);
 const score = ref(0);
-const highScore = ref(localStorage.getItem('alchemyHighScore') || 0);
-const alchemyDust = ref(0); 
-const nextItem = ref(null); 
-const previewPositionX = ref(GAME_WIDTH / 2);
-const canDropItem = ref(true); 
-const mergesToProcess = []; 
+const highScore = ref(localStorage.getItem('blockPuzzleHighScore') || 0);
+const alchemyDust = ref(0);
+const comboMessage = ref('');
+const finalPointsAwarded = ref(0);
+const gameBoardRef = ref(null); 
 
-// --- [★핵심 4★] 신규 모드 및 아이템 상태 변수 추가 ---
+const clearingCells = ref([]); 
 const isClearing = ref(false); 
-const isProcessingItem = ref(false); 
-const hammerMode = ref(false); 
-const hammerCount = ref(0); 
-const goldBalance = ref(0); // [신규] 보유 골드
-const earnedGold = ref(0);  // [신규] 이번 판에 획득한 골드
-// --- (추가 완료) ---
 
-// --- [★핵심 5★] 주말(토/일) 감지 '황금 항아리' 모드 ---
-const isGoldenPotMode = computed(() => {
-  // (주의: KST 기준이 아닌, 사용자 브라우저의 로컬 시간 기준)
-  const day = new Date().getDay();
-  return day === 6 || day === 0; // 0=일요일, 6=토요일
-});
-// --- (추가 완료) ---
+// --- 드래그앤드롭 상태 ---
+const isDragging = ref(false); 
+const dragged = reactive({ block: null, index: -1, offset: { dr: 0, dc: 0 } });
+const previewCells = ref([]);
+const invalidDrop = ref(false);
+const pointerPosition = reactive({ x: 0, y: 0 }); 
+const blockStartPos = reactive({ x: 0, y: 0 }); 
 
-// --- BGM 토글 함수 (기존과 동일) ---
-const toggleSound = () => {
-  if (!bgmPlayer.value) return;
-  if (isSoundPlaying.value) {
-    bgmPlayer.value.pause();
-    isSoundPlaying.value = false;
-  } else {
-    bgmPlayer.value.play().then(() => {
-      isSoundPlaying.value = true;
-    }).catch(error => {
-      console.warn("BGM 재생이 차단되었습니다.", error);
-      isSoundPlaying.value = false; 
-    });
-  }
-};
-
-// --- 망치 모드 활성화/사용 함수 (기존과 동일) ---
-const activateHammerMode = () => {
-  if (hammerCount.value > 0 && !isClearing.value) {
-    hammerMode.value = true;
-  }
-};
-const useHammerOnItem = async (itemId) => {
-  if (!hammerMode.value || isClearing.value || isProcessingItem.value) return;
-  isClearing.value = true; 
-  isProcessingItem.value = true;
-  hammerMode.value = false;
-  try {
-    await useBoosterFunc({ boosterType: 'hammer' });
-    hammerCount.value--; 
-    const body = Composite.allBodies(world).find(b => b.id === itemId);
-    if (body) {
-      World.remove(world, body);
-    }
-  } catch (error) {
-    console.error("망치 사용 오류:", error);
-    alert(`망치 사용에 실패했습니다: ${error.message}`);
-  } finally {
-    isClearing.value = false; 
-    isProcessingItem.value = false;
-  }
-};
-
-
-// --- 1. Matter.js 초기화 (기존과 동일) ---
-const initMatterJS = () => {
-  engine = Engine.create();
-  world = engine.world;
-  engine.world.gravity.y = 0.8; 
-
-  const wallOptions = { isStatic: true, restitution: 0.1, friction: 0.2 };
-  walls.floor = Bodies.rectangle(GAME_WIDTH / 2, GAME_HEIGHT, GAME_WIDTH, 20, { ...wallOptions, label: 'floor' });
-  walls.left = Bodies.rectangle(0, GAME_HEIGHT / 2, 20, GAME_HEIGHT, { ...wallOptions, label: 'wall' });
-  walls.right = Bodies.rectangle(GAME_WIDTH, GAME_HEIGHT / 2, 20, GAME_HEIGHT, { ...wallOptions, label: 'wall' });
-  walls.deadline = Bodies.rectangle(GAME_WIDTH / 2, DEADLINE_Y, GAME_WIDTH, 2, {
-    isStatic: true, isSensor: true, label: 'deadline'
-  });
-
-  World.add(world, [walls.floor, walls.left, walls.right, walls.deadline]);
-
-  runner = Runner.create();
-  Runner.run(runner, engine);
-};
-
-// --- 2. Matter.js 이벤트 리스너 초기화 ---
-const initEventListeners = () => {
-  Events.on(engine, 'afterUpdate', () => {
-    if (isClearing.value) return; 
-
-    const currentBodies = Composite.allBodies(world).filter(b => b.label === 'alchemy-item');
-    reactiveItems.value = currentBodies.map(body => ({
-      id: body.id, level: body.level, radius: body.circleRadius,
-      emoji: body.emoji, x: body.position.x, y: body.position.y, angle: body.angle
-    }));
-
-    processMergeQueue();
-
-    if (gameStatus.value === 'playing') {
-      checkGameOver();
-    }
-  });
-
-  // BND 폭탄 로직 (기존과 동일)
-  Events.on(engine, 'collisionStart', (event) => {
-    if (gameStatus.value !== 'playing' || isClearing.value) return;
-    const pairs = event.pairs;
-
-    for (const pair of pairs) {
-      const { bodyA, bodyB } = pair;
-
-      if (bodyA.label === 'alchemy-item' && bodyB.label === 'alchemy-item') {
-        if (bodyA.level === 'bomb' || bodyB.level === 'bomb') {
-          if (bodyA.level === 'bomb' && bodyB.level === 'bomb') {
-            mergesToProcess.push({ transform: [bodyA, bodyB], toLevel: 1 });
-          } else {
-            mergesToProcess.push({ remove: [bodyA, bodyB] });
-          }
-        }
-        else if (bodyA.level === bodyB.level) { // [★수정★] 최고 레벨 체크를 processMergeQueue로 이동
-          mergesToProcess.push({ merge: [bodyA, bodyB], toLevel: bodyA.level + 1 });
-        }
-      }
-    }
-  });
-};
-
-// --- 3. [★핵심 7★] 병합 로직 수정 (황금 항아리 모드 적용) ---
-const processMergeQueue = () => {
-  if (mergesToProcess.length === 0) return;
-  isClearing.value = true; 
-  
-  mergesToProcess.forEach(pair => {
-    const bodyA = (pair.merge || pair.remove || pair.transform)[0];
-    const bodyB = (pair.merge || pair.remove || pair.transform)[1];
-    if (!Composite.get(world, bodyA.id, 'body') || !Composite.get(world, bodyB.id, 'body')) {
-      return; 
-    }
-
-    if (pair.remove) {
-      World.remove(world, [bodyA, bodyB]);
-      if (bodyA.level !== 'bomb') { score.value += bodyA.score; alchemyDust.value += Math.floor(bodyA.score / 2) || 1; }
-      if (bodyB.level !== 'bomb') { score.value += bodyB.score; alchemyDust.value += Math.floor(bodyB.score / 2) || 1; }
-    
-    } else if (pair.transform) {
-      World.remove(world, [bodyA, bodyB]);
-      const newX = (bodyA.position.x + bodyB.position.x) / 2;
-      const newY = (bodyA.position.y + bodyB.position.y) / 2;
-      const newItem = createAlchemyItem(newX, newY, pair.toLevel);
-      World.add(world, newItem);
-    
-    } else if (pair.merge) {
-      const nextLevel = pair.toLevel;
-
-      // ▼▼▼ [★신규★] 황금 항아리 분기 ▼▼▼
-      if (isGoldenPotMode.value && nextLevel === 8) { // Lv.7(🌟) + Lv.7(🌟) = 8
-        const goldReward = Math.floor(Math.random() * 401) + 100; // 100 ~ 500 G
-        earnedGold.value += goldReward;
-        
-        // 점수/가루는 Lv.8(🏺) 대신 Lv.7(🌟) 기준으로 2배 지급
-        const itemDef = getItemDefinition(7); 
-        score.value += (itemDef.score * 2);
-        alchemyDust.value += (Math.floor(itemDef.score / 2) || 1) * 2;
-        
-        World.remove(world, [bodyA, bodyB]); // 아이템 2개 제거 (새 아이템 생성 X)
-      
-      } else if (nextLevel > 10) { // Lv.10(💧) + Lv.10(💧) = 11 (최대 레벨)
-        const itemDef = getItemDefinition(10);
-        score.value += (itemDef.score * 2); // 마지막 점수 2배
-        alchemyDust.value += (Math.floor(itemDef.score / 2) || 1) * 2;
-        World.remove(world, [bodyA, bodyB]); // 아이템 2개 제거
-      
-      } else { // ▼▼▼ (기존 일반 합체) ▼▼▼
-        const nextItemDef = getItemDefinition(nextLevel);
-        score.value += nextItemDef.score;
-        alchemyDust.value += Math.floor(nextItemDef.score / 2) || 1;
-
-        const newX = (bodyA.position.x + bodyB.position.x) / 2;
-        const newY = (bodyA.position.y + bodyB.position.y) / 2;
-        World.remove(world, [bodyA, bodyB]);
-        const newItem = createAlchemyItem(newX, newY, nextLevel);
-        World.add(world, newItem);
-      }
-    }
-  });
-
-  mergesToProcess.length = 0; 
-  isClearing.value = false; 
-};
-// --- (수정 완료) ---
-
-
-// --- 4. 아이템 생성 (폭탄 확률) (기존과 동일) ---
-const createAlchemyItem = (x, y, level) => {
-  if (level === 'bomb') {
-    return Bodies.circle(x, y, BOMB_DEFINITION.radius, {
-      restitution: 0.2, friction: 0.1, label: 'alchemy-item',
-      level: 'bomb', emoji: '💣', circleRadius: BOMB_DEFINITION.radius,
-      score: 0 
-    });
-  }
-  const definition = getItemDefinition(level);
-  return Bodies.circle(x, y, definition.radius, {
-    restitution: 0.2, friction: 0.1, label: 'alchemy-item',
-    level: definition.level,
-    emoji: definition.emoji, 
-    circleRadius: definition.radius,
-    score: definition.score
-  });
-};
-const spawnNextItem = () => {
-  const rand = Math.random();
-  if (rand < 0.03) { 
-    nextItem.value = BOMB_DEFINITION;
-  } else {
-    const nextLevel = Math.floor(Math.random() * 3) + 1;
-    nextItem.value = getItemDefinition(nextLevel);
-  }
-};
-
-const handleDropItem = () => {
-  if (gameStatus.value !== 'playing' || !canDropItem.value || hammerMode.value || isClearing.value) return; 
-
-  canDropItem.value = false;
-  const currentItem = nextItem.value;
-  if (!currentItem) return;
-  
-  const newItem = createAlchemyItem(
-    Math.max(currentItem.radius, Math.min(previewPositionX.value, GAME_WIDTH - currentItem.radius)),
-    DEADLINE_Y + 30, 
-    currentItem.level
-  );
-  World.add(world, newItem);
-  spawnNextItem();
-  setTimeout(() => { canDropItem.value = true; }, 500); 
-};
-
-// --- 5. [★핵심 8★] 게임 오버 처리 (획득 골드 전송) ---
-const checkGameOver = () => {
-  // ( ... 기존 코드 ... )
-  const bodies = Composite.allBodies(world);
-  for (const body of bodies) {
-    if (body.label === 'alchemy-item') {
-      const itemTopY = body.position.y - body.circleRadius;
-      if (itemTopY < DEADLINE_Y && body.speed < 0.1 && body.angularSpeed < 0.1) {
-        handleGameOver();
-        return;
-      }
-    }
-  }
-};
-
-const handleGameOver = async () => {
-  if (gameStatus.value !== 'playing') return;
-
-  gameStatus.value = 'lost';
-  Runner.stop(runner); 
-
-  if (score.value > highScore.value) {
-    highScore.value = score.value;
-    localStorage.setItem('alchemyHighScore', score.value);
-  }
-
-  try {
-    await endGameFunc({ 
-      score: score.value,
-      alchemyDust: alchemyDust.value,
-      earnedGold: earnedGold.value // [★신규★] 획득 골드 전송
-    }); 
-  } catch (error) {
-    console.error("게임 결과 전송 실패:", error);
-  }
-};
-// --- (수정 완료) ---
-
-
-// --- 6. [★핵심 9★] 게임 시작 (망치/골드 불러오기) ---
+// --- 1. 게임 시작 및 재시작 ---
 const startGameLogic = async () => {
   if (!auth.currentUser) {
     alert("로그인이 필요합니다.");
     router.push('/login');
     return;
   }
-  
   gameStatus.value = 'loading';
-  
   try {
-    const userRef = doc(db, "users", auth.currentUser.uid);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      hammerCount.value = userSnap.data().saltPangBoosters?.hammer || 0;
-      goldBalance.value = userSnap.data().goldBalance || 0; // [★신규★]
-    }
-
-    initMatterJS(); 
-    initEventListeners();
-    
-    await startGameFunc(); //
-    
-    reactiveItems.value = [];
-    mergesToProcess.length = 0;
-    score.value = 0;
-    alchemyDust.value = 0;
-    earnedGold.value = 0; // [★신규★]
-    
-    spawnNextItem(); 
+    await startGameFunc(); 
+    initGame();
     gameStatus.value = 'playing';
-    canDropItem.value = true;
-    
   } catch (error) {
     console.error("게임 시작 오류:", error);
     alert(`게임 시작 실패: ${error.message}`);
-    gameStatus.value = 'lost'; 
+    gameStatus.value = 'lost';
   }
 };
-// --- (수정 완료) ---
+
+const initGame = () => {
+  board.fill(0);
+  score.value = 0;
+  alchemyDust.value = 0;
+  finalPointsAwarded.value = 0;
+  checkAndRespawnBlocks(); 
+};
 
 const restartGame = () => {
-  cleanupMatterJS(); 
-  startGameLogic(); 
+  cleanupGame();
+  startGameLogic();
 };
 
-// --- 7. 유저 입력 핸들러 (기존과 동일) ---
-const handleMouseMove = (event) => {
-  if (gameStatus.value !== 'playing' || hammerMode.value) return; 
-  const rect = gameAreaWrapper.value.getBoundingClientRect();
-  previewPositionX.value = event.clientX - rect.left;
-};
-const handleMouseLeave = () => {};
-const handleTouchMove = (event) => {
-  if (gameStatus.value !== 'playing' || hammerMode.value) return; 
-  const rect = gameAreaWrapper.value.getBoundingClientRect();
-  previewPositionX.value = event.touches[0].clientX - rect.left;
-};
-const handleTouchEnd = () => {
-  if (hammerMode.value) return; 
-  handleDropItem();
+const cleanupGame = () => {};
+
+const goToDashboard = () => {
+  router.push('/dashboard');
 };
 
-// --- 8. Vue 스타일 바인딩 (기존과 동일) ---
-const previewItemStyle = computed(() => {
-  if (!nextItem.value) return { display: 'none' };
-  const def = nextItem.value.level === 'bomb' ? BOMB_DEFINITION : getItemDefinition(nextItem.value.level); 
-  const x = Math.max(def.radius, Math.min(previewPositionX.value, GAME_WIDTH - def.radius));
+// --- 2. [수정] 블록 스폰 및 게임 오버 로직 분리 ---
+
+// [신규] 3칸이 비었으면 새로 스폰하는 함수
+const checkAndRespawnBlocks = () => {
+  let allSlotsEmpty = true;
+  for (let i = 0; i < 3; i++) {
+    if (blocks.value[i].shape) {
+      allSlotsEmpty = false;
+      break;
+    }
+  }
+  
+  if (allSlotsEmpty) {
+    for (let i = 0; i < 3; i++) {
+      const randomType = blockTypes[Math.floor(Math.random() * blockTypes.length)];
+      blocks.value[i] = { ...BLOCK_DEFINITIONS[randomType], uid: Date.now() + i };
+    }
+  }
+};
+
+// [신규] 게임 오버를 체크하는 함수
+const checkGameOver = () => {
+    if (!canAnyBlockBePlaced()) {
+        handleGameOver();
+    }
+};
+
+const canAnyBlockBePlaced = () => {
+  for (const block of blocks.value) {
+    if (!block.shape) continue;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (canPlace(block, r, c)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
+// --- 3. 드래그앤드롭 핸들러 ---
+
+const handleDragStart = (e, block, index, cIndex) => {
+  if (isClearing.value) return; 
+
+  if (cIndex === undefined && e.target) {
+    const targetCell = e.target.closest('.block-cell');
+    cIndex = Number(targetCell?.dataset.cindex || 0);
+  }
+  
+  cIndex = cIndex || 0; 
+
+  isDragging.value = true;
+  dragged.block = block;
+  dragged.index = index;
+
+  const shapeWidth = block.shape[0].length;
+  dragged.offset.dr = Math.floor(cIndex / shapeWidth);
+  dragged.offset.dc = cIndex % shapeWidth;
+  
+  const pos = (e.touches ? e.touches[0] : e);
+  pointerPosition.x = pos.clientX;
+  pointerPosition.y = pos.clientY;
+  
+  const blockRect = e.target.closest('.block-preview').getBoundingClientRect();
+  blockStartPos.x = blockRect.left;
+  blockStartPos.y = blockRect.top;
+};
+
+const handleDragMove = (e) => {
+  if (!isDragging.value || !dragged.block) return;
+
+  const pos = (e.touches ? e.touches[0] : e);
+  pointerPosition.x = pos.clientX;
+  pointerPosition.y = pos.clientY;
+
+  const boardRect = gameBoardRef.value.getBoundingClientRect();
+  const relX = pointerPosition.x - boardRect.left - BOARD_PADDING;
+  const relY = pointerPosition.y - boardRect.top - BOARD_PADDING;
+  const cellPlusGap = CELL_SIZE + CELL_GAP;
+  const target_c = Math.floor(relX / cellPlusGap);
+  const target_r = Math.floor(relY / cellPlusGap);
+
+  if (target_r >= 0 && target_r < BOARD_SIZE && target_c >= 0 && target_c < BOARD_SIZE) {
+    const place_r = target_r - dragged.offset.dr;
+    const place_c = target_c - dragged.offset.dc;
+
+    if (canPlace(dragged.block, place_r, place_c)) {
+      previewCells.value = getPlacementCells(dragged.block, place_r, place_c);
+      invalidDrop.value = false;
+    } else {
+      previewCells.value = [];
+      invalidDrop.value = true;
+    }
+  } else {
+    previewCells.value = [];
+    invalidDrop.value = false;
+  }
+};
+
+// ▼▼▼ [핵심 수정] handleDragEnd 함수가 (e) 이벤트를 받도록 수정 ▼▼▼
+const handleDragEnd = (e) => {
+  if (!isDragging.value || !dragged.block) return;
+  
+  // [신규] 1. 터치/마우스 종료 시점의 최종 좌표를 업데이트합니다.
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    pointerPosition.x = e.changedTouches[0].clientX;
+    pointerPosition.y = e.changedTouches[0].clientY;
+  } else if (e.clientX) {
+    pointerPosition.x = e.clientX;
+    pointerPosition.y = e.clientY;
+  }
+
+  let isValidDrop = false;
+  let place_r = 0;
+  let place_c = 0;
+
+  // [수정] 2. 업데이트된 최종 pointerPosition으로 위치 계산
+  const boardRect = gameBoardRef.value.getBoundingClientRect();
+  const relX = pointerPosition.x - boardRect.left - BOARD_PADDING;
+  const relY = pointerPosition.y - boardRect.top - BOARD_PADDING;
+  const cellPlusGap = CELL_SIZE + CELL_GAP;
+  const target_c = Math.floor(relX / cellPlusGap);
+  const target_r = Math.floor(relY / cellPlusGap);
+
+  if (target_r >= 0 && target_r < BOARD_SIZE && target_c >= 0 && target_c < BOARD_SIZE) {
+    place_r = target_r - dragged.offset.dr;
+    place_c = target_c - dragged.offset.dc;
+    
+    if (canPlace(dragged.block, place_r, place_c)) {
+      isValidDrop = true;
+    }
+  }
+  // ▲▲▲ (수정 완료) ▲▲▲
+
+  if (isValidDrop) {
+    placeBlock(dragged.block, place_r, place_c);
+    
+    const cellsPlaced = dragged.block.shape.flat().filter(c => c === 1).length;
+    score.value += cellsPlaced;
+    
+    // ▼▼▼ [핵심 수정] 애니메이션 및 로직 호출 순서 변경 ▼▼▼
+    isClearing.value = true; 
+    const linesToClear = getLinesToClear(); 
+    
+    blocks.value[dragged.index] = { uid: null, shape: null }; // 블록 즉시 제거
+
+    if (linesToClear.cells.length > 0) {
+      clearingCells.value = linesToClear.cells;
+      updateScore(linesToClear.count);
+      
+      setTimeout(() => {
+        linesToClear.cells.forEach(index => { board[index] = 0; }); 
+        clearingCells.value = []; 
+        isClearing.value = false; 
+        
+        checkAndRespawnBlocks(); // 리스폰 체크
+        checkGameOver(); // 게임 오버 체크
+      }, 300);
+      
+    } else {
+      isClearing.value = false;
+      
+      checkAndRespawnBlocks(); // 리스폰 체크
+      checkGameOver(); // 게임 오버 체크
+    }
+    // ▲▲▲ (수정 완료) ▲▲▲
+  }
+
+  // 드래그 상태 완전 초기화
+  isDragging.value = false;
+  dragged.block = null;
+  dragged.index = -1;
+  dragged.offset = { dr: 0, dc: 0 };
+  previewCells.value = [];
+  invalidDrop.value = false;
+};
+
+
+// --- 4. 핵심 게임 로직 (CanPlace, Place, Clear) ---
+const canPlace = (block, r, c) => {
+  const shape = block.shape;
+  for (let dr = 0; dr < shape.length; dr++) {
+    for (let dc = 0; dc < shape[dr].length; dc++) {
+      if (shape[dr][dc] === 1) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) return false;
+        if (board[nr * BOARD_SIZE + nc] === 1) return false;
+      }
+    }
+  }
+  return true;
+};
+
+const getPlacementCells = (block, r, c) => {
+  const cells = [];
+  const shape = block.shape;
+  for (let dr = 0; dr < shape.length; dr++) {
+    for (let dc = 0; dc < shape[dr].length; dc++) {
+      if (shape[dr][dc] === 1) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+            cells.push(nr * BOARD_SIZE + nc);
+        }
+      }
+    }
+  }
+  return cells;
+};
+
+const placeBlock = (block, r, c) => {
+  const shape = block.shape;
+  for (let dr = 0; dr < shape.length; dr++) {
+    for (let dc = 0; dc < shape[dr].length; dc++) {
+      if (shape[dr][dc] === 1) {
+        board[(r + dr) * BOARD_SIZE + (c + dc)] = 1;
+      }
+    }
+  }
+};
+
+const getLinesToClear = () => {
+  let fullRows = [];
+  let fullCols = [];
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    let isRowFull = true;
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r * BOARD_SIZE + c] === 0) {
+        isRowFull = false;
+        break;
+      }
+    }
+    if (isRowFull) fullRows.push(r);
+  }
+  
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    let isColFull = true;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      if (board[r * BOARD_SIZE + c] === 0) {
+        isColFull = false;
+        break;
+      }
+    }
+    if (isColFull) fullCols.push(c);
+  }
+  
+  const cellsToClear = new Set();
+  fullRows.forEach(r => {
+    for (let c = 0; c < BOARD_SIZE; c++) cellsToClear.add(r * BOARD_SIZE + c);
+  });
+  fullCols.forEach(c => {
+    for (let r = 0; r < BOARD_SIZE; r++) cellsToClear.add(r * BOARD_SIZE + c);
+  });
+
+  const linesCleared = fullRows.length + fullCols.length;
+  
+  return { cells: [...cellsToClear], count: linesCleared };
+};
+
+// --- 5. 보상 및 게임 오버 처리 ---
+const updateScore = (linesCleared) => {
+  const points = COMBO_SCORES[linesCleared] || COMBO_SCORES[6];
+  const dust = COMBO_DUST[linesCleared] || COMBO_DUST[6];
+  
+  score.value += points;
+  alchemyDust.value += dust;
+
+  if (linesCleared >= 1) { 
+    const messages = { 1: "싱글!", 2: "더블!", 3: "트리플!", 4: "쿼드!!", 5: "펜타!!!", 6: "퍼펙트!!!" };
+    comboMessage.value = `${messages[linesCleared]} +${points}점` + (dust > 0 ? ` / +${dust} 가루💎` : '');
+    setTimeout(() => { comboMessage.value = ''; }, 1500);
+  }
+};
+
+const handleGameOver = async () => {
+  if (gameStatus.value !== 'playing') return;
+  gameStatus.value = 'lost';
+
+  if (score.value > highScore.value) {
+    highScore.value = score.value;
+    localStorage.setItem('blockPuzzleHighScore', score.value);
+  }
+
+  try {
+    const result = await endGameFunc({ 
+      score: score.value,
+      alchemyDust: alchemyDust.value 
+    });
+    finalPointsAwarded.value = result.data.awardedPoints || 0;
+  } catch (error) {
+    console.error("게임 결과 전송 실패:", error);
+  }
+};
+
+// --- 6. 기타 헬퍼 ---
+const getBlockGridStyle = (block) => {
+  const shape = block.shape;
   return {
-    width: `${def.radius * 2}px`,
-    height: `${def.radius * 2}px`,
-    transform: `translate(${x - def.radius}px, 10px)`, 
-    opacity: canDropItem.value ? 0.8 : 0.3
+    gridTemplateRows: `repeat(${shape.length}, 1fr)`,
+    gridTemplateColumns: `repeat(${shape[0].length}, 1fr)`,
+  };
+};
+
+const floatingBlockStyle = computed(() => {
+  if (!dragged.block) return {};
+  
+  const style = getBlockGridStyle(dragged.block);
+  const cellWidth = 20 + 3; 
+  const offsetX = dragged.offset.dc * cellWidth;
+  const offsetY = dragged.offset.dr * cellWidth;
+  
+  return {
+    ...style,
+    position: 'fixed', 
+    left: `${pointerPosition.x - offsetX - 10}px`, 
+    top: `${pointerPosition.y - offsetY - 10}px`,
+    zIndex: 1000,
+    pointerEvents: 'none', 
+    opacity: 0.8,
   };
 });
 
-const getItemStyle = (item) => ({
-  width: `${item.radius * 2}px`,
-  height: `${item.radius * 2}px`,
-  transform: `translate(${item.x - item.radius}px, ${item.y - item.radius}px) rotate(${item.angle}rad)`,
-  zIndex: item.level === 'bomb' ? 20 : item.level, 
-  backgroundColor: item.level === 'bomb' ? '#333' : `var(--lv-${item.level}-bg)`, 
-  border: item.level === 'bomb' ? '2px solid #ff0000' : `2px solid var(--lv-${item.level}-border)` 
-});
-
-// --- 9. 컴포넌트 생명주기 (기존과 동일) ---
-const cleanupMatterJS = () => {
-  if (runner) Runner.stop(runner);
-  if (world) World.clear(world);
-  if (engine) Engine.clear(engine);
-  reactiveItems.value = [];
-};
-
+// --- 7. 생명주기 ---
 onMounted(() => {
-  nextTick(() => {
-    startGameLogic();
-    if (bgmPlayer.value) {
-      bgmPlayer.value.volume = 0.3; 
-      bgmPlayer.value.play().then(() => {
-        isSoundPlaying.value = true;
-      }).catch(error => {
-        console.warn("BGM 자동재생이 차단되었습니다.", error);
-        isSoundPlaying.value = false;
-      });
-    }
-  });
-});
-
-onUnmounted(() => {
-  cleanupMatterJS();
-  if (bgmPlayer.value) {
-    bgmPlayer.value.pause();
-  }
+  startGameLogic();
 });
 </script>
 
 <style scoped>
-/* ( ... :root, .salt-alchemy-page ... ) */
-:root {
-  --lv-1-bg: #d1d1d1; --lv-1-border: #a0a0a0;
-  --lv-2-bg: #e0e0e0; --lv-2-border: #b0b0b0;
-  --lv-3-bg: #f0f0f0; --lv-3-border: #c0c0c0;
-  --lv-4-bg: #aed6f1; --lv-4-border: #85c1e9;
-  --lv-5-bg: #abebc6; --lv-5-border: #82e0aa;
-  --lv-6-bg: #f9e79f; --lv-6-border: #f7dc6f;
-  --lv-7-bg: #f5b041; --lv-7-border: #f39c12;
-  --lv-8-bg: #ec7063; --lv-8-border: #e74c3c;
-  --lv-9-bg: #bb8fce; --lv-9-border: #a569bd;
-  --lv-10-bg: #85c1e9; --lv-10-border: #3498db;
+/* (스타일은 기존과 동일하게 유지) */
+.block-puzzle-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  background-color: #1a1a2e; /* 어두운 배경 */
+  min-height: 100dvh;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.salt-alchemy-page {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 10px; background-color: #1a1a2e;
-  min-height: 100dvh; box-sizing: border-box;
-}
-
-/* ▼▼▼ [★핵심 10★] 스탯바 2x2 그리드로 수정 ▼▼▼ */
 .game-stats-glass {
-  position: relative; 
   display: grid;
-  /* (수정) 3열 -> 2열 */
-  grid-template-columns: 1fr 1fr; 
-  gap: 10px; /* (추가) */
-  width: 100%; max-width: 380px; padding: 10px;
-  background: rgba(44, 62, 80, 0.8); color: white;
-  border-radius: 12px; backdrop-filter: blur(5px);
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  max-width: 380px;
+  padding: 10px 20px;
+  background: rgba(44, 62, 80, 0.8);
+  color: white;
+  border-radius: 12px;
+  backdrop-filter: blur(5px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  box-sizing: border-box; margin-bottom: 10px;
+  margin-bottom: 10px;
 }
-.sound-toggle-btn {
-  position: absolute; top: 10px; right: 10px;
-  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white; width: 30px; height: 30px;
-  border-radius: 50%; font-size: 0.9rem; cursor: pointer;
-  transition: all 0.3s ease; z-index: 10;
-}
-.sound-toggle-btn:hover { background: rgba(255, 255, 255, 0.2); }
 .stat-item { text-align: center; }
 .stat-item span { font-size: 0.8rem; color: #bdc3c7; }
 .stat-item strong { font-size: 1.2rem; color: #ffffff; }
-/* (신규) 골드 스탯 색상 */
-.stat-item.gold-stat strong {
-  color: #f1c40f; 
-  text-shadow: 0 0 5px #f1c40f;
+.game-area-wrapper {
+  position: relative;
+  width: 344px;
+  margin-bottom: 20px;
 }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
-
-/* ( ... .game-tools, .tool-button ... 기존 스타일 ... ) */
-.game-tools {
-  width: 100%; max-width: 380px; display: flex;
-  justify-content: space-between; align-items: center;
-  padding: 0 10px; box-sizing: border-box; margin-bottom: 5px;
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 4px;
+  background-color: #34495e; /* 어두운 그리드 배경 */
+  border: 2px solid #2c3e50;
+  border-radius: 8px;
+  padding: 4px;
+  position: relative;
+  z-index: 10;
 }
-.tool-button {
-  background: linear-gradient(145deg, #6c757d, #495057);
-  border: 1px solid #adb5bd; color: white;
-  padding: 8px 15px; border-radius: 8px;
-  cursor: pointer; font-size: 1rem; font-weight: bold;
-  display: flex; align-items: center; gap: 8px;
-  transition: all 0.3s ease;
+.game-cell {
+  width: 30px;
+  height: 30px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  transition: all 0.1s ease;
 }
-.tool-button:hover:not(:disabled) {
-  background: linear-gradient(145deg, #868e96, #5a6268);
-  box-shadow: 0 0 10px rgba(173, 181, 189, 0.5);
+.game-cell.filled {
+  background-color: #3498db;
+  border: 1px solid #85c1e9;
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.5);
 }
-.tool-button.active {
-  background: linear-gradient(145deg, #e74c3c, #c0392b);
-  border-color: #ff7675;
-  box-shadow: 0 0 15px rgba(231, 76, 60, 0.7);
+.game-cell.preview {
+  background-color: rgba(46, 204, 113, 0.5);
 }
-.tool-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.tool-guide {
-  color: #f1c40f; font-size: 0.9rem; font-weight: bold;
-  animation: pulse-text 1.5s infinite alternate;
+.game-cell.invalid {
+  background-color: rgba(231, 76, 60, 0.5);
 }
-@keyframes pulse-text { from { opacity: 0.7; } to { opacity: 1; } }
-
-/* (신규) 이벤트 배너 */
-.event-banner {
+.game-cell.clearing {
+  background-color: #f1c40f;
+  border-color: #f39c12;
+  box-shadow: 0 0 10px #f1c40f;
+  animation: clearing-animation 0.3s ease-out;
+}
+@keyframes clearing-animation {
+  0% { transform: scale(1.1); opacity: 1; }
+  50% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.combo-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(241, 196, 15, 0.9);
+  color: #2c3e50;
+  padding: 15px 30px;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  z-index: 100;
+  animation: fadeOut 1.5s ease forwards;
+}
+@keyframes fadeOut {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
+}
+.floating-block {
+  display: grid;
+  gap: 3px;
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.floating-block .block-cell.filled {
+  background-color: #f1c40f; 
+  border: 1px solid #f39c12;
+}
+.block-spawner {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
   width: 100%;
   max-width: 380px;
-  padding: 8px;
-  margin-bottom: 5px;
-  background: linear-gradient(90deg, #f1c40f, #f39c12);
-  color: #333;
-  font-weight: bold;
-  text-align: center;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  box-shadow: 0 0 15px #f1c40f;
+  height: 120px;
+  background: rgba(44, 62, 80, 0.8);
+  border-radius: 12px;
+  padding: 10px;
+  box-sizing: border-box;
 }
-
-/* ( ... .game-area-wrapper, .deadline, .alchemy-item, .emoji-wrapper, .preview-item, .modal-overlay, .modal-content, .btn-primary, .btn-secondary, .loading-spinner ... 기존 스타일 ... ) */
-.game-area-wrapper {
-  width: 360px; height: 500px; position: relative;
-  overflow: hidden; background: #e0e5ec;
-  border-radius: 0 0 150px 150px; border: 10px solid #78553a;
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
-  cursor: pointer; touch-action: none; 
+.block-preview-wrapper {
+  width: 100px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.2s;
 }
-.deadline {
-  position: absolute; width: 100%; height: 2px;
-  background-color: #e74c3c; opacity: 0.5;
-  z-index: 50; border-bottom: 2px dashed #e74c3c;
+.block-preview-wrapper.is-empty {
+  cursor: default;
 }
-.alchemy-item {
-  position: absolute; top: 0; left: 0;
-  will-change: transform; transition: transform 0.05s linear;
-  z-index: 10; border-radius: 50%;
-  display: flex; justify-content: center; align-items: center;
+.block-preview-wrapper.is-dragging {
+  opacity: 0.3;
 }
-.emoji-wrapper {
-  line-height: 1; text-align: center;
-  user-select: none; filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.2));
+.block-preview {
+  display: grid;
+  gap: 3px;
 }
-.preview-item {
-  position: absolute; top: 10px; left: 0;
-  will-change: transform; z-index: 100;
-  pointer-events: none; transition: opacity 0.2s;
-  border-radius: 50%; background-color: rgba(255, 255, 255, 0.7);
-  border: 2px dashed #aaa;
-  display: flex; justify-content: center; align-items: center;
+.block-cell {
+  width: 20px;
+  height: 20px;
+  background-color: transparent;
+  border-radius: 2px;
+}
+.block-cell.filled {
+  background-color: #3498db;
+  border: 1px solid #85c1e9;
+  cursor: grab;
+}
+.block-cell.filled:active {
+  cursor: grabbing;
 }
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -689,11 +697,15 @@ onUnmounted(() => {
   background: white; padding: 30px; border-radius: 12px;
   text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
+.modal-content p {
+  font-size: 1.2rem;
+  line-height: 1.6;
+}
 .btn-primary {
   background-color: #007bff; color: white; padding: 12px 25px;
   border: none; border-radius: 8px; cursor: pointer;
   font-size: 1.1rem; font-weight: bold; margin-top: 10px;
-  transition: background-color 0.2s ease; width: 100%; box-sizing: border-box; 
+  transition: background-color 0.2s ease; width: 100%; box-sizing: border-box;
 }
 .btn-primary:hover { background-color: #0056b3; }
 .btn-secondary {
