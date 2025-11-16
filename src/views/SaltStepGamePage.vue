@@ -51,19 +51,35 @@
 </template>
 
 <script setup>
-// ▼▼▼ [★핵심 수정 1★] 'nextTick' 제거 ▼▼▼
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-// ▼▼▼ [★핵심 수정 2★] 'db' 제거 ▼▼▼
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-// ▼▼▼ [★핵심 수정 3★] 'doc', 'getDoc' import 라인 전체 제거 ▼▼▼
-// import { doc, getDoc } from 'firebase/firestore'; 
 
 // --- [★핵심★] 재사용할 에셋 임포트 ---
 import gemImageSrc from '@/assets/gems/gem_1.png'; 
 import avatarBodySrc from '@/assets/avatar/body_male.png';
 import avatarOutfitSrc from '@/assets/avatar/outfit_hoodie.png';
+
+// --- [★추가★] 사운드 객체 ---
+// public 폴더의 경로는 / 로 시작합니다.
+const bgm = new Audio('/sound/freepik-in-shades-of-blue.mp3');
+bgm.loop = true;
+bgm.volume = 0.3; // BGM은 소리를 조금 줄입니다.
+
+const jumpSound = new Audio('/sound/cartoon-jump-6462.mp3');
+const fallSound = new Audio('/sound/band-rock-fall-off-mp3-106656.mp3');
+
+/**
+ * 사운드를 안전하게 재생하는 헬퍼 함수
+ * (연속 재생 시 오디오를 처음으로 되돌림)
+ */
+const playSound = (audio) => {
+  audio.currentTime = 0;
+  audio.play().catch(e => console.warn("사운드 재생 실패:", e));
+};
+// --- (사운드 추가 완료) ---
+
 
 // --- Firebase ---
 const startGameFunc = httpsCallable(functions, 'startSaltStepGame');
@@ -93,10 +109,7 @@ const stairs = ref([]);
 let cameraY = 0;
 let gameSpeed = 1.0; 
 let currentStairIndex = 0;
-
-// ▼▼▼ [★핵심 수정 4★] 'isClearing' 변수 선언 추가 ▼▼▼
-const isClearing = ref(false); // (애니메이션 등 처리 중 탭 방지)
-// ▲▲▲ (수정 완료) ▲▲▲
+const isClearing = ref(false);
 
 // --- [★핵심★] 에셋 로딩 ---
 const assets = {
@@ -135,21 +148,30 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
+  bgm.pause(); // [★추가★] 페이지 이탈 시 BGM 정지
 });
 
 const startGameLogic = async () => {
   gameStatus.value = 'loading';
   try {
+    // !!!!!!!!!!!!!!!!!!
+    // !! 현재 이 부분에서 'permission-denied' 오류가 발생하고 있습니다.
+    // !! Firebase 콘솔에서 권한을 확인해야 합니다.
+    // !!!!!!!!!!!!!!!!!!
     await startGameFunc(); // 백엔드에 100P 지불
+
     initGame();
+    bgm.play().catch(e => console.warn("BGM 자동재생 실패. 사용자 상호작용이 필요합니다.", e)); // [★추가★] BGM 시작
     gameStatus.value = 'playing';
     gameLoopId = requestAnimationFrame(gameLoop);
+
   } catch (error) {
-    console.error("게임 시작 오류:", error);
-    alert(`게임 시작 실패: ${error.message}`);
-    gameStatus.value = 'lost';
+    console.error("게임 시작 오류 (권한 문제일 수 있습니다):", error);
+    // alert(`게임 시작 실패: ${error.message}`); // (알림창 대신 모달로 처리)
+    gameStatus.value = 'lost'; // 오류 발생 시 '게임 오버' 모달 표시
   }
 };
+
 const initGame = () => {
   ctx = gameCanvasRef.value.getContext('2d');
   score.value = 0;
@@ -159,7 +181,7 @@ const initGame = () => {
   cameraY = 0;
   gameSpeed = 1.0;
   currentStairIndex = 0;
-  isClearing.value = false; // [★추가★]
+  isClearing.value = false;
   
   stairs.value = [];
   const stairWidth = canvasWidth / 2.5;
@@ -186,9 +208,13 @@ const initGame = () => {
 
 const restartGame = () => {
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
-  startGameLogic();
+  startGameLogic(); // BGM 재생은 이 함수 안에 포함되어 있음
 };
-const goToDashboard = () => router.push('/dashboard');
+
+const goToDashboard = () => {
+  bgm.pause(); // [★추가★] BGM 정지
+  router.push('/dashboard');
+};
 
 // --- 2. 게임 루프 (Update/Draw) ---
 let lastTime = 0;
@@ -221,7 +247,6 @@ const update = (deltaTime) => {
     return;
   }
   
-  // [★수정★] 100점마다 속도 증가 (score.value % 100 === 0은 프레임마다 호출되어 버그 발생)
   if (score.value > 0 && score.value % 100 === 0 && score.value / 100 > (gameSpeed - 1) * 10) {
     gameSpeed += 0.1; 
   }
@@ -270,6 +295,8 @@ const handleTap = () => {
     currentStairIndex++;
     score.value++;
     
+    playSound(jumpSound); // [★추가★] 점프음 재생
+
     if (nextStair.reward === 'dust') {
       alchemyDust.value++;
       nextStair.reward = null; 
@@ -286,10 +313,6 @@ const handleTap = () => {
     
     spawnStair();
     
-    // ▼▼▼ [★핵심 수정 5★] 퀘스트 업데이트는 백엔드(endSaltStepGame)에서 하므로 이 줄 삭제 ▼▼▼
-    // updateQuestProgress(auth.currentUser.uid, 'playSaltStep', 1);
-    // ▲▲▲ (수정 완료) ▲▲▲
-
   } else {
     handleGameOver("잘못된 스텝!");
   }
@@ -334,6 +357,9 @@ const spawnStair = () => {
 const handleGameOver = async (reason) => {
   if (gameStatus.value !== 'playing') return;
   
+  bgm.pause(); // [★추가★] BGM 정지
+  playSound(fallSound); // [★추가★] 추락음 재생
+
   console.log("게임 오버:", reason);
   gameStatus.value = 'lost';
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
@@ -358,6 +384,7 @@ const handleGameOver = async (reason) => {
 </script>
 
 <style scoped>
+/* (스타일 태그는 변경 사항 없음 - 기존 코드 유지) */
 .step-game-page {
   display: flex;
   flex-direction: column;
