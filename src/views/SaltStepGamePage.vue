@@ -154,20 +154,22 @@ onUnmounted(() => {
 const startGameLogic = async () => {
   gameStatus.value = 'loading';
   try {
-    // !!!!!!!!!!!!!!!!!!
-    // !! 현재 이 부분에서 'permission-denied' 오류가 발생하고 있습니다.
-    // !! Firebase 콘솔에서 권한을 확인해야 합니다.
-    // !!!!!!!!!!!!!!!!!!
+    // [참고] 이전에 발생했던 'permission-denied' 오류는
+    // 이 함수가 호출하는 'checkUserSubscriptionStatus' 때문이었습니다.
+    // (현재는 해결된 것으로 보입니다.)
     await startGameFunc(); // 백엔드에 100P 지불
 
     initGame();
     bgm.play().catch(e => console.warn("BGM 자동재생 실패. 사용자 상호작용이 필요합니다.", e)); // [★추가★] BGM 시작
+    
+    // [수정] lastTime 초기화를 여기서 하지 않습니다. gameLoop에서 처리합니다.
+    lastTime = 0; 
+    
     gameStatus.value = 'playing';
     gameLoopId = requestAnimationFrame(gameLoop);
 
   } catch (error) {
-    console.error("게임 시작 오류 (권한 문제일 수 있습니다):", error);
-    // alert(`게임 시작 실패: ${error.message}`); // (알림창 대신 모달로 처리)
+    console.error("게임 시작 오류:", error);
     gameStatus.value = 'lost'; // 오류 발생 시 '게임 오버' 모달 표시
   }
 };
@@ -217,12 +219,24 @@ const goToDashboard = () => {
 };
 
 // --- 2. 게임 루프 (Update/Draw) ---
+
+// ▼▼▼ [★핵심 수정★] ▼▼▼
 let lastTime = 0;
 const gameLoop = (timestamp) => {
   if (gameStatus.value !== 'playing') return;
-  
-  const deltaTime = (timestamp - lastTime) / 1000 || 0;
+
+  // 1. 첫 번째 프레임(lastTime === 0)일 경우, 
+  //    deltaTime 계산을 건너뛰고 lastTime을 현재 시간으로 설정만 합니다.
+  if (lastTime === 0) {
+    lastTime = timestamp;
+    gameLoopId = requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // 2. 두 번째 프레임부터 정상적으로 deltaTime을 계산합니다.
+  const deltaTime = (timestamp - lastTime) / 1000; // (|| 0 제거)
   lastTime = timestamp;
+  // ▲▲▲ [수정 완료] ▲▲▲
   
   update(deltaTime);
   draw();
@@ -251,6 +265,7 @@ const update = (deltaTime) => {
     gameSpeed += 0.1; 
   }
 };
+// --- (이하 코드는 동일합니다) ---
 
 const draw = () => {
   if (!ctx) return;
