@@ -137,6 +137,7 @@
 	  <AvatarShowcaseWidget class="avatar-showcase" />
 	  <SaltGuardiansRankingsWidget />
 	  <SaltBubbleRankingsWidget />
+	  <SaltStepRankingsWidget />
           <router-link to="/mall" class="feature-card mall">
             <div class="card-icon"><i class="fas fa-store"></i></div>
             <h3>솔트메이트 몰</h3>
@@ -400,6 +401,12 @@
 	  <p>같은 색 결정 3개를 조준해 터뜨리고 콤보 보상을 획득하세요!</p>
 	  <span class="card-enter">플레이 &rarr;</span>
 	</router-link>
+	<router-link to="/salt-step" class="feature-card step-game game">
+	  <div class="card-icon"><i class="fas fa-shoe-prints"></i></div>
+	  <h3>솔트 스텝</h3>
+	  <p>타이밍에 맞춰 계단을 오르고 재화를 획득하세요! (원-터치)</p>
+	  <span class="card-enter">플레이 &rarr;</span>
+	</router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
@@ -480,6 +487,7 @@ import SaltAlchemyRankingsWidget from "@/components/SaltAlchemyRankingsWidget.vu
 import SaltAlchemyWeeklyRankingsWidget from "@/components/SaltAlchemyWeeklyRankingsWidget.vue";
 import SaltBlockPuzzleRankingsWidget from "@/components/SaltBlockPuzzleRankingsWidget.vue";
 import SaltBubbleRankingsWidget from "@/components/SaltBubbleRankingsWidget.vue";
+import SaltStepRankingsWidget from "@/components/SaltStepRankingsWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -511,6 +519,7 @@ TransactionHistoryModal,
     SaltAlchemyWeeklyRankingsWidget,
     SaltBlockPuzzleRankingsWidget,
     SaltBubbleRankingsWidget,
+    SaltStepRankingsWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
@@ -718,6 +727,29 @@ TransactionHistoryModal,
 .feature-card.bubble-shooter.game:hover {
   border-color: #58d68d;
   box-shadow: 0 12px 35px rgba(46, 204, 113, 0.6);
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
+/* ▼▼▼ [★핵심 추가★] "솔트 스텝" 게임 카드 스타일 ▼▼▼ */
+.feature-card.step-game.game {
+  background: linear-gradient(135deg, #a8c0ff 0%, #3f2b96 100%); /* 천국 계단 느낌 */
+  color: #fff;
+  border: 1px solid #a8c0ff;
+  box-shadow: 0 8px 30px rgba(168, 192, 255, 0.4);
+}
+.feature-card.step-game.game .card-icon {
+  color: #fff;
+  text-shadow: 0 0 10px #fff;
+}
+.feature-card.step-game.game h3 { color: #fff; }
+.feature-card.step-game.game p { color: #ecf0f1; opacity: 0.9; }
+.feature-card.step-game.game .card-enter {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+.feature-card.step-game.game:hover {
+  border-color: #c9d6ff;
+  box-shadow: 0 12px 35px rgba(168, 192, 255, 0.6);
 }
 /* ▲▲▲ (추가 완료) ▲▲▲ */
 /* ▼▼▼ [★핵심 추가★] "워킹 솔트" 카드 스타일 ▼▼▼ */

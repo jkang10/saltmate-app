@@ -353,6 +353,12 @@ const routes = [
     meta: { requiresAuth: true, isGamePage: true }
   },
   {
+    path: '/salt-step',
+    name: 'SaltStepGamePage',
+    component: () => import('@/views/SaltStepGamePage.vue'), 
+    meta: { requiresAuth: true, isGamePage: true }
+  },
+  {
     path: '/salt-trader',
     name: 'SaltTraderPage',
     component: () => import('@/views/SaltTraderPage.vue'),
