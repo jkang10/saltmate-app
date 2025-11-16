@@ -337,7 +337,7 @@ const routes = [
   {
     path: '/salt-block-puzzle',
     name: 'SaltBlockPuzzleGamePage',
-    component: () => import('@/views/SaltBlockPuzzleGame.vue'), // <--- OK!
+    component: () => import('@/views/SaltBlockPuzzleGame.vue'),
     meta: { requiresAuth: true, isGamePage: true }
   },
   {

@@ -376,12 +376,12 @@
 	  <p>광산 수레와 염수 강을 건너 소금 결정을 안전하게 획득하세요!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
-        <router-link to="/salt-alchemy" class="feature-card alchemy game">
-        <div class="card-icon"><i class="fas fa-flask"></i></div>
-        <h3>솔트 알케미</h3>
-        <p>재료를 합쳐 새로운 아이템을 발견하고 '연금술 가루'를 획득하세요!</p>
-        <span class="card-enter">플레이 &rarr;</span>
-        </router-link>
+	<router-link to="/salt-alchemy" class="feature-card alchemy game">
+	  <div class="card-icon"><i class="fas fa-flask"></i></div>
+	  <h3>솔트 알케미</h3>
+	  <p>재료를 합쳐 새로운 아이템을 발견하고 '연금술 가루'를 획득하세요!</p>
+	  <span class="card-enter">플레이 &rarr;</span>
+	</router-link>
         <router-link to="/salt-block-puzzle" class="feature-card block-puzzle game">
         <div class="card-icon"><i class="fas fa-th-large"></i></div>
         <h3>솔트 블록 1010</h3>
