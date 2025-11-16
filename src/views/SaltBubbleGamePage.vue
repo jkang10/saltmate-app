@@ -2,6 +2,10 @@
   <div class="bubble-shooter-page">
     <audio ref="bgmPlayer" src="/sound/freepik-future-disco.mp3" loop preload="auto"></audio>
     <div class="game-stats-glass">
+      <button @click="toggleSound" class="sound-toggle-btn">
+        <i v-if="isSoundPlaying" class="fas fa-volume-up"></i>
+        <i v-else class="fas fa-volume-mute"></i>
+      </button>
       <div class="stat-item">
         <span>최고 점수</span>
         <strong>{{ highScore }}</strong>
@@ -75,6 +79,11 @@ const startGameFunc = httpsCallable(functions, 'startBubbleGame');
 const endGameFunc = httpsCallable(functions, 'endBubbleGame');
 const router = useRouter();
 
+// --- [★핵심 3★] BGM 제어 변수 추가 ---
+const bgmPlayer = ref(null);
+const isSoundPlaying = ref(false);
+// --- (추가 완료) ---
+
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
 const isClearing = ref(false); 
@@ -98,7 +107,7 @@ let isAiming = false;
 let aimAngle = ref(-Math.PI / 2); // (위로)
 let shotsLeft = ref(5);
 
-// --- [★핵심★] 게임 설정 (육각 그리드 기준) ---
+// --- 게임 설정 (육각 그리드 기준) ---
 const COLS = 10;
 const ROWS = 13; 
 const BUBBLE_RADIUS = 18; 
@@ -112,8 +121,6 @@ let canvasWidth = 360;
 let canvasHeight = 550;
 let shooterPos = reactive({ x: canvasWidth / 2, y: canvasHeight - 30 });
 
-// --- [★핵심 수정★] 이미지 로드 로직 제거 ---
-
 const getBubbleColor = (colorId) => {
   const colorMap = { 
     1: '#e74c3c', // 빨강 (Gem 1)
@@ -126,11 +133,26 @@ const getBubbleColor = (colorId) => {
   return colorMap[colorId] || '#bdc3c7'; // (회색)
 };
 
+// --- [★핵심 4★] BGM 토글 함수 추가 ---
+const toggleSound = () => {
+  if (!bgmPlayer.value) return;
+  if (isSoundPlaying.value) {
+    bgmPlayer.value.pause();
+    isSoundPlaying.value = false;
+  } else {
+    bgmPlayer.value.play().then(() => {
+      isSoundPlaying.value = true;
+    }).catch(error => {
+      console.warn("BGM 재생이 차단되었습니다.", error);
+      isSoundPlaying.value = false;
+    });
+  }
+};
+// --- (추가 완료) ---
+
 // --- 1. 게임 초기화/시작/재시작 ---
 onMounted(() => {
-  // ▼▼▼ [★핵심 수정★] await loadImages() 제거 ▼▼▼
   startGameLogic();
-  // ▲▲▲ (수정 완료) ▲▲▲
   
   const observer = new ResizeObserver(entries => {
     if (entries[0] && gameCanvasRef.value) { 
@@ -146,7 +168,27 @@ onMounted(() => {
   if (gameWrapperRef.value) {
     observer.observe(gameWrapperRef.value);
   }
-  onUnmounted(() => observer.disconnect());
+
+  // --- [★핵심 5★] BGM 자동재생 시도 (onMounted) ---
+  if (bgmPlayer.value) {
+    bgmPlayer.value.volume = 0.3; 
+    bgmPlayer.value.play().then(() => {
+      isSoundPlaying.value = true;
+    }).catch(error => {
+      console.warn("BGM 자동재생이 차단되었습니다. 음소거 버튼을 눌러주세요.", error);
+      isSoundPlaying.value = false;
+    });
+  }
+  // --- (추가 완료) ---
+
+  onUnmounted(() => {
+    observer.disconnect();
+    // --- [★핵심 6★] BGM 정지 (onUnmounted) ---
+    if (bgmPlayer.value) {
+      bgmPlayer.value.pause();
+    }
+    // --- (추가 완료) ---
+  });
 });
 
 const startGameLogic = async () => {
@@ -473,7 +515,6 @@ const getBubbleCoords = (r, c) => {
   const y = (r * HEX_HEIGHT) + BUBBLE_RADIUS + boardOffsetY;
   return { x, y };
 };
-// ▼▼▼ [★핵심 수정 3★] 이미지 로직 제거, 색상/하이라이트만 그리도록 수정 ▼▼▼
 const drawBubble = (x, y, colorId) => {
   // 1. 메인 색상
   ctx.fillStyle = getBubbleColor(colorId);
@@ -487,7 +528,6 @@ const drawBubble = (x, y, colorId) => {
   ctx.arc(x - BUBBLE_RADIUS * 0.3, y - BUBBLE_RADIUS * 0.3, BUBBLE_RADIUS * 0.4, 0, Math.PI * 2);
   ctx.fill();
 };
-// ▲▲▲ (수정 완료) ▲▲▲
 
 const drawAimingLine = () => {
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
@@ -534,6 +574,8 @@ const drawAimingLine = () => {
   box-sizing: border-box;
 }
 .game-stats-glass {
+  /* [★수정★] BGM 버튼 공간 확보 */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
@@ -546,6 +588,26 @@ const drawAimingLine = () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   margin-bottom: 10px;
 }
+/* ▼▼▼ [★핵심 6★] BGM 버튼 스타일 추가 ▼▼▼ */
+.sound-toggle-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+.sound-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
 .stat-item { text-align: center; }
 .stat-item span { font-size: 0.8rem; color: #bdc3c7; }
 .stat-item strong { font-size: 1.2rem; color: #ffffff; }
@@ -588,10 +650,7 @@ canvas {
   border-radius: 50%;
   border: 2px solid white;
 }
-/* ▼▼▼ [★핵심 수정★] <img> 태그 제거 ▼▼▼ */
-/* .bubble-next img { ... } */
-/* ▲▲▲ (수정 완료) ▲▲▲ */
-
+/* (이미지 태그 관련 스타일은 제거됨) */
 .combo-popup {
   position: absolute;
   top: 50%;
@@ -612,7 +671,7 @@ canvas {
   100% { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
 }
 
-/* ( ... 모달 스타일은 SaltBlockPuzzleGame과 100% 동일 ... ) */
+/* ( ... 모달 스타일 ... ) */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.7);
