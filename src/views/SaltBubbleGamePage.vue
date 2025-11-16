@@ -67,7 +67,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { functions, auth } from '@/firebaseConfig';
+import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
 // --- Firebase ---
@@ -77,6 +77,10 @@ const router = useRouter();
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
+// ▼▼▼ [★핵심 수정★] 이 2줄을 추가하세요 ▼▼▼
+const isClearing = ref(false); // (콤보/애니메이션 중 입력 방지)
+const canDropItem = ref(true); // (버블 발사 쿨다운)
+// ▲▲▲ (추가 완료) ▲▲▲
 const score = ref(0);
 const highScore = ref(localStorage.getItem('bubbleShooterHighScore') || 0);
 const alchemyDust = ref(0);
