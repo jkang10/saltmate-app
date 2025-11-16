@@ -55,7 +55,7 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 // ▼▼▼ [★핵심 수정 2★] 'db' 제거 ▼▼▼
-import { functions, auth } from '@/firebaseConfig';
+import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 // ▼▼▼ [★핵심 수정 3★] 'doc', 'getDoc' import 라인 전체 제거 ▼▼▼
 // import { doc, getDoc } from 'firebase/firestore'; 
