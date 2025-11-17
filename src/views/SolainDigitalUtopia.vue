@@ -767,14 +767,18 @@ const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
-  let moveDirection = { x: 0, z: 0 };
+  let moveDirection = new THREE.Vector3(0, 0, 0); // (x, y, z) - 로컬 방향
   let currentAnimation = 'idle';
-  let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
-  let applyRotation = false;
+  let applyRotation = false; // 아바타가 회전해야 하는지 여부
+  let speedFactor = 1.0;
 
-  // --- 1. 클릭/터치 이동 처리 (현재 로직 유지) ---
+  // 카메라의 현재 Y축 회전값 (오일러 각도)
+  const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+
+  // --- 1. 클릭/터치 이동 처리 ---
   if (navigationTarget.value != null) {
+    // 키보드/조이스틱 입력이 감지되면 클릭 이동 중지
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
     } else {
@@ -783,94 +787,108 @@ const updatePlayerMovement = (deltaTime) => {
       const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
       if (distance < 0.2) {
+        // 목표 도착
         navigationTarget.value = null;
         moved = false;
         currentAnimation = 'idle';
       } else {
+        // 목표를 향해 이동
         const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
         direction.y = 0;
+        
+        // 아바타가 목표 지점을 바라보도록 회전
         targetRotationY = Math.atan2(direction.x, direction.z);
         applyRotation = true;
-        moveDirection.z = -1; // 앞으로 (클릭 이동은 -Z가 맞을 수 있음)
+        
+        // 아바타 기준 '앞으로' 이동 설정
+        moveDirection.z = -1; // -Z (Forward)
         moved = true;
         currentAnimation = 'walk';
-        currentSpeedFactor = 1.0;
       }
     }
   }
   
-  // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
-  if (navigationTarget.value == null) { 
-    if (joystickData.value.active && joystickData.value.distance > 10) {
-      // 조이스틱 로직 (기존과 동일)
-      targetRotationY = -joystickData.value.angle + Math.PI / 2;
-      applyRotation = true;
-      moveDirection.z = -1; // 조이스틱은 회전하므로 항상 -Z (앞으로)
+  // --- 2. 조이스틱 이동 (클릭 이동 중이 아닐 때) ---
+  if (navigationTarget.value == null && joystickData.value.active && joystickData.value.distance > 10) {
+    // 조이스틱은 아바타가 해당 방향을 바라보며 이동 (기존 로직 유지)
+    targetRotationY = -joystickData.value.angle + Math.PI / 2;
+    applyRotation = true;
+    moveDirection.z = -1; // -Z (Forward)
+    speedFactor = joystickData.value.force;
+    moved = true;
+    currentAnimation = 'walk';
+  } 
+  // --- 3. 키보드 이동 (클릭/조이스틱 이동 중이 아닐 때) ---
+  else if (navigationTarget.value == null) { 
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
+      moveDirection.x = -1; // 로컬 Left (A)
+      currentAnimation = 'strafeLeft';
+    }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
+      moveDirection.x = 1; // 로컬 Right (D)
+      currentAnimation = 'strafeRight';
+    }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+      moveDirection.z = -1; // 로컬 Forward (W)
+      if (currentAnimation === 'idle') currentAnimation = 'walk';
+    }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
+      moveDirection.z = 1; // 로컬 Backward (S)
+      if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+    }
+    
+    // 키보드 입력이 있었는지 확인
+    if (moveDirection.x !== 0 || moveDirection.z !== 0) {
       moved = true;
-      currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force;
-
-    } else if (!joystickData.value.active) { // 키보드 입력
       
-      // ▼▼▼ [수정] P4: 키보드 이동 키가 눌렸을 때만 카메라 방향 동기화 ▼▼▼
-      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] ||
-                               keysPressed['KeyS'] || keysPressed['ArrowDown'] ||
-                               keysPressed['KeyA'] || keysPressed['ArrowLeft'] ||
-                               keysPressed['KeyD'] || keysPressed['ArrowRight'];
-
-      if (isKeyboardMoving) {
-        const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-        myAvatar.rotation.y = cameraEuler.y;
-        moved = true; // 이동 키 눌렸으니 moved=true
+      // [핵심 수정] W(앞으로) 키를 눌렀을 때만 아바타가 카메라 방향으로 회전
+      if (moveDirection.z < 0) { // -Z (Forward)
+        targetRotationY = cameraEuler.y;
+        applyRotation = true;
+      } 
+      // S(뒤로) 또는 A/D(좌우)만 눌렀을 때는 회전하지 않음
+      else if (moveDirection.z > 0 || moveDirection.x !== 0) {
+         applyRotation = false; 
       }
-      // ▲▲▲ 수정 완료 ▲▲▲
-
-      currentSpeedFactor = 1.0;
-      
-      // ▼▼▼ [수정] P1: 키보드 이동 방향 반전 ▼▼▼
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
-        moveDirection.x = -1; // A (Left)
-        currentAnimation = 'strafeLeft';
-      }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
-        moveDirection.x = 1; // D (Right)
-        currentAnimation = 'strafeRight';
-      }
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-        moveDirection.z = -1; // W (Forward)
-        if (currentAnimation === 'idle') currentAnimation = 'walk';
-      }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-        moveDirection.z = 1; // S (Backward)
-        if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
-      }
-      // ▲▲▲ 수정 완료 ▲▲▲
     }
   }
   // --- 입력 처리 끝 ---
 
-  // --- 회전 적용 (클릭 이동 또는 조이스틱 사용 시) ---
+  // --- 4. 회전 적용 (필요한 경우) ---
   if (applyRotation) {
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
       let targetY = targetRotationY;
+      // 가장 가까운 각도로 회전하도록 보정
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      const rotationChange = diff * deltaTime * 8;
+      // 부드러운 회전 (Lerp)
+      const rotationChange = diff * deltaTime * 8; 
       myAvatar.rotation.y += rotationChange;
   }
 
-  // --- 이동 적용 (moved=true일 때) ---
+  // --- 5. 이동 적용 (움직임이 감지된 경우) ---
   if (moved) {
+    // 최종 속도 벡터 생성
     const velocity = new THREE.Vector3(
-      moveDirection.x * moveSpeed * 0.7 * deltaTime,
+      moveDirection.x * moveSpeed * 0.7 * deltaTime, // 좌우 이동 속도 (감속)
       0,
-      moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
+      moveDirection.z * moveSpeed * speedFactor * deltaTime // 앞뒤 이동 속도
     );
-    velocity.applyQuaternion(myAvatar.quaternion);
+
+    // [핵심 수정] 이동 방식 분기
+    // 키보드 입력 시: 카메라 기준(Camera-Relative)으로 이동
+    if (navigationTarget.value == null && !joystickData.value.active) {
+        velocity.applyEuler(new THREE.Euler(0, cameraEuler.y, 0)); 
+    } 
+    // 클릭 또는 조이스틱 입력 시: 아바타 기준(Avatar-Relative)으로 이동
+    else {
+        velocity.applyQuaternion(myAvatar.quaternion); 
+    }
+    
     myAvatar.position.add(velocity);
   }
 
-  // --- 경계 처리 및 Y 위치 고정 (변경 없음) ---
+  // --- 6. 경계 처리 및 바닥 높이 맞추기 (기존과 동일) ---
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
@@ -887,33 +905,37 @@ const updatePlayerMovement = (deltaTime) => {
   myAvatar.position.y = groundY;
   // --- Y 위치 고정 끝 ---
 
-  // ▼▼▼ [수정] P1: 임시 로그 라인 삭제 ▼▼▼
-  // console.log(`Avatar Position - X: ...`);
-  // ▲▲▲ 삭제 완료 ▲▲▲
-
-  // 이동/회전했으면 서버 업데이트
+  // --- 7. 서버 상태 업데이트 (기존과 동일) ---
   if (moved) { throttledUpdate(); }
 
-  // --- 애니메이션 전환 로직 (변경 없음) ---
+  // --- 8. 애니메이션 전환 로직 (기존과 동일) ---
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   const availableActions = Object.keys(actions);
 
   if (mixer && availableActions.length > 0) {
+    // currentAnimation 값 (예: 'walk', 'idle')에 맞는 액션을 찾음
     const targetAction = actions[currentAnimation] || actions.idle;
     let currentPlayingAction = null;
+    
+    // 현재 재생 중인 다른 액션을 찾음
     for (const key of availableActions) {
       if (actions[key].isRunning() && actions[key] !== targetAction) {
         currentPlayingAction = actions[key];
         break;
       }
     }
+    
+    // 목표 액션이 재생 중이 아니라면, 재생시킴
     if (targetAction && !targetAction.isRunning()) {
       targetAction.reset().play();
+      // 다른 액션이 재생 중이었다면, 부드럽게 교차(Fade)시킴
       if (currentPlayingAction) {
         currentPlayingAction.crossFadeTo(targetAction, 0.3);
       }
-    } else if (!targetAction && actions.idle && !actions.idle.isRunning()) {
+    } 
+    // 목표 액션이 없는데 'idle'이 재생 중이 아니라면 'idle' 재생
+    else if (!targetAction && actions.idle && !actions.idle.isRunning()) {
       actions.idle.reset().play();
       if (currentPlayingAction) {
         currentPlayingAction.crossFadeTo(actions.idle, 0.3);
