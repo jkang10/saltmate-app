@@ -50,13 +50,19 @@ onMounted(async () => {
 <style scoped>
 /* (TokenMine.vue와 유사한 프리미엄 테마) */
 .premium-glass {
-  background: rgba(10, 0, 20, 0.7) !important; /* [★] !important 추가 */
+  background: rgba(10, 0, 20, 0.7) !important;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(170, 70, 255, 0.3) !important; /* [★] 테두리도 추가 */
-  color: #f0f0f0 !important; /* [★] !important 추가 */
+  border: 1px solid rgba(170, 70, 255, 0.3) !important;
+  color: #f0f0f0 !important;
   padding: 20px;
   border-radius: 15px;
+
+  /* ▼▼▼ [★핵심 수정 1★] 카드를 flex-column으로 만들고, 그리드 셀 높이를 채웁니다. ▼▼▼ */
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* 그리드 영역의 높이를 100% 사용합니다. */
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .widget-header { text-align: center; margin-bottom: 25px; }
 .widget-header h3 {
@@ -72,30 +78,23 @@ onMounted(async () => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  
-  /* ▼▼▼ [★핵심 수정 1★] 간격을 10px -> 5px로 줄여 모바일 폭에 대응합니다. ▼▼▼ */
   gap: 5px; 
-  /* ▲▲▲ (수정 완료) ▲▲▲ */
-  
   height: 200px;
 
-  /* ▼▼▼ [★핵심 수정 2★] 상단 여백을 15px -> 25px로 늘립니다. ▼▼▼ */
-  margin-top: 25px; 
+  /* ▼▼▼ [★핵심 수정 2★] margin-top을 고정값(25px)에서 'auto'로 변경합니다. ▼▼▼ */
+  margin-top: auto; /* 이것이 차트를 아래로 밀어냅니다. */
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
-/* ▼▼▼ [★핵심 수정 3★] width: 30%를 삭제하고 flex-basis로 변경합니다. ▼▼▼ */
+
 .podium-item {
-  /* width: 30%; */ /* <-- 이 줄을 삭제합니다. */
-  flex-basis: 32%; /* <-- 이 줄을 추가합니다. (3개가 100% 미만이 되도록) */
-  max-width: 120px; /* <-- 이 줄을 추가하여 너무 커지는 것을 방지합니다. */
-  
+  flex-basis: 32%; 
+  max-width: 120px; 
   padding: 15px 10px;
   border-radius: 10px 10px 0 0;
   text-align: center;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   transition: all 0.3s ease;
 }
-/* ▲▲▲ (수정 완료) ▲▲▲ */
 .podium-rank { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
 .player-name { font-size: 1.1em; font-weight: 600; margin-bottom: 5px; color: #fff; }
 .player-score { font-size: 1em; font-weight: 500; color: #f0f0f0; }
@@ -123,9 +122,21 @@ onMounted(async () => {
   border: 2px solid #CD7F32;
 }
 
-.no-data { text-align: center; padding: 20px; color: #94a3b8; }
+.no-data { 
+  text-align: center; 
+  padding: 20px; 
+  color: #94a3b8; 
+  
+  /* ▼▼▼ [★핵심 수정 3★] 남은 공간을 채우고 수직/수평 중앙 정렬합니다. ▼▼▼ */
+  margin-top: auto;
+  margin-bottom: auto;
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
+}
 .loading-spinner {
-  margin: 20px auto;
+  /* ▼▼▼ [★핵심 수정 4★] 남은 공간의 중앙에 오도록 'auto' 마진을 줍니다. ▼▼▼ */
+  margin: auto; /* (기존 margin: 20px auto;) */
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
+  
   display: block;
   border: 4px solid rgba(255, 255, 255, 0.2);
   border-top-color: #FFD700;
