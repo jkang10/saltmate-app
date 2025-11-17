@@ -82,7 +82,7 @@ onMounted(async () => {
   height: 200px;
 
   /* ▼▼▼ [★핵심 수정 2★] 'auto' 대신 고정 여백을 다시 사용합니다. (겹치지 않을 만큼) ▼▼▼ */
-  margin-top: 45px; 
+  margin-top: 85px; 
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 
@@ -134,7 +134,7 @@ onMounted(async () => {
 }
 .loading-spinner {
   /* ▼▼▼ [★핵심 수정 4★] 'auto' 마진을 일반 마진으로 되돌립니다. ▼▼▼ */
-  margin: 40px auto; 
+  margin: 80px auto; 
   /* ▲▲▲ (수정 완료) ▲▲▲ */
   
   display: block;
