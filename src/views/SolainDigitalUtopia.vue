@@ -403,7 +403,7 @@ const throttledUpdate = () => {
   }
 };
 
-// --- [수정] listenToOtherPlayers (닉네임 부착 위치 수정) ---
+// 다른 플레이어들의 입장/상태변경/퇴장 실시간 감지
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -428,14 +428,11 @@ const listenToOtherPlayers = (preloadedAnimations) => {
           loadedModel.rotation.y = otherPlayers[userId].targetRotationY;
           if (otherPlayers[userId].userName !== '익명') {
               const otherNickname = createNicknameSprite(otherPlayers[userId].userName);
-              
-              // ▼▼▼ [수정] 닉네임을 visuals 그룹에 추가 (닉네임 지연 문제) ▼▼▼
               if (loadedModel.userData.visuals) {
                   loadedModel.userData.visuals.add(otherNickname);
               } else {
-                  loadedModel.add(otherNickname); // 비상시
+                  loadedModel.add(otherNickname);
               }
-              // ▲▲▲ 수정 완료 ▲▲▲
           }
           scene.add(loadedModel);
           otherPlayers[userId].mesh = loadedModel;
@@ -467,20 +464,62 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     player.targetPosition.set(playerData.position.x ?? 0, playerData.position.y ?? 0, playerData.position.z ?? 0);
   });
 
+  // ▼▼▼ [수정] onChildRemoved 블록 수정 ▼▼▼
   onChildRemoved(playersListenerRef, (snapshot) => {
     const userId = snapshot.key;
     if (userId === currentUid || !otherPlayers[userId]) return;
     const playerToRemove = otherPlayers[userId];
-    // ... (말풍선 정리) ...
+
+    // 말풍선 리소스 정리
+    if (playerToRemove.mesh && playerToRemove.mesh.activeBubble) {
+      clearTimeout(playerToRemove.mesh.activeBubble.timeoutId);
+      if (playerToRemove.mesh.activeBubble.material.map) {
+          playerToRemove.mesh.activeBubble.material.map.dispose();
+      }
+      playerToRemove.mesh.activeBubble.material.dispose();
+    }
+    
     if (scene && playerToRemove.mesh) { scene.remove(playerToRemove.mesh); }
+    
+    // ▼▼▼ [수정] 'child' 변수를 사용하는 리소스 정리 코드 추가 ▼▼▼
     if (playerToRemove.mesh) {
-        playerToRemove.mesh.traverse(child => {
-           // ... (리소스 정리) ...
+        playerToRemove.mesh.traverse(child => { // <--- 'child' 사용
+           if (child.isSkinnedMesh) {
+             if (child.geometry) child.geometry.dispose();
+             if (Array.isArray(child.material)) {
+               child.material.forEach(material => {
+                 if (material.map) material.map.dispose();
+                 material.dispose();
+               });
+             } else if (child.material) {
+               if (child.material.map) child.material.map.dispose();
+               child.material.dispose();
+             }
+           }
+           else if (child.isMesh) {
+             if (child.geometry) child.geometry.dispose();
+             if (Array.isArray(child.material)) {
+               child.material.forEach(material => {
+                 if (material.map) material.map.dispose();
+                 material.dispose();
+               });
+             } else if (child.material) {
+               if (child.material.map) child.material.map.dispose();
+               child.material.dispose();
+             }
+           }
+           else if (child instanceof THREE.Sprite) { // 닉네임, 말풍선
+             if (child.material.map) child.material.map.dispose();
+             child.material.dispose();
+           }
         });
     }
+    // ▲▲▲ 수정 완료 ▲▲▲
+
     delete otherPlayers[userId];
     console.log(`플레이어 ${userId} 퇴장`);
   });
+  // ▲▲▲ [수정] onChildRemoved 블록 수정 끝 ▲▲▲
 };
 
 const listenToChat = () => {
@@ -770,7 +809,7 @@ const updatePlayerMovement = (deltaTime) => {
   // --- 애니메이션 전환 로직 끝 ---
 }; // updatePlayerMovement 함수 끝
 
-// --- [수정] updateOtherPlayersMovement (닉네임 지연 문제) ---
+// --- [수정] updateOtherPlayersMovement (닉네임 지연 및 애니메이션 로직) ---
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 8;
   const moveThreshold = 0.01;
@@ -779,21 +818,40 @@ const updateOtherPlayersMovement = (deltaTime) => {
     if (!player.mesh) continue;
     const mesh = player.mesh;
     
-    // ▼▼▼ [수정] 닉네임 지연 문제 해결 (부모 matrixAutoUpdate = true) ▼▼▼
+    // 닉네임 지연 문제 해결 (부모 matrixAutoUpdate = true)
     mesh.matrixAutoUpdate = true;
-    // ▲▲▲
     
     const distance = mesh.position.distanceTo(player.targetPosition);
-    const wasMoving = player.isMoving;
+    const wasMoving = player.isMoving; // <--- 'wasMoving' 선언 (Line 787)
     player.isMoving = distance > moveThreshold;
     mesh.position.lerp(player.targetPosition, lerpFactor);
+    
+    // 회전 보간
     let currentY = mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
     currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     mesh.rotation.y += diff * lerpFactor;
     mesh.rotation.x = 0; mesh.rotation.z = 0;
     
-    // ... (애니메이션 전환 로직 동일) ...
+    // ▼▼▼ [수정] 'wasMoving' 변수를 사용하는 애니메이션 로직 추가 ▼▼▼
+    const mixer = player.mixer;
+    const actions = player.actions;
+    const idleAction = actions.idle;
+    const walkAction = actions.walk; // 다른 플레이어는 앞/뒤/좌/우 구분 없이 walk만 사용
+
+    if (mixer && idleAction && walkAction) {
+      if (player.isMoving && !wasMoving) { // 멈춤 -> 이동 시작 (wasMoving 사용)
+        walkAction.reset().play();
+        idleAction.crossFadeTo(walkAction, 0.3);
+      } else if (!player.isMoving && wasMoving) { // 이동 -> 멈춤 (wasMoving 사용)
+        idleAction.reset().play();
+        walkAction.crossFadeTo(idleAction, 0.3);
+      }
+    } else if (mixer && idleAction && !walkAction && !idleAction.isRunning()) {
+       // Walk 애니메이션이 없으면 Idle만 계속 재생
+       idleAction.reset().play();
+    }
+    // ▲▲▲ 수정 완료 ▲▲▲
   }
 };
 
