@@ -85,6 +85,10 @@ let clickMarkerId = 0;
 // [핵심 추가] 중앙 카운트다운을 위한 상태 변수
 const countdown = reactive({ visible: false, number: 0 });
 
+// ▼▼▼ [★핵심 수정 1★] 중복 클릭(요청)을 방지하기 위한 '확인 중' 플래그 ▼▼▼
+const isChecking = ref(false);
+// ▲▲▲ (수정 완료) ▲▲▲
+
 const resolvedImageUrl = computed(() => {
   if (!level.value?.imageUrl) return '';
   try {
@@ -121,7 +125,10 @@ const onImageLoad = (event) => {
 };
 
 const handleImageClick = async (event) => {
-    if (!imageAreaRef.value || gameResult.status) return;
+    // ▼▼▼ [★핵심 수정 2★] 이미 확인 중이거나 게임이 끝났으면 클릭을 무시합니다. ▼▼▼
+    if (isChecking.value || !imageAreaRef.value || gameResult.status) return;
+    // ▲▲▲ (수정 완료) ▲▲▲
+
     const img = imageAreaRef.value.querySelector('img');
     if (!img || imageDimensions.naturalWidth === 0) return;
     const rect = imageAreaRef.value.getBoundingClientRect();
@@ -149,6 +156,9 @@ const handleImageClick = async (event) => {
             const toleranceRadius = Math.sqrt(width*width + height*height) / 2 * 1.5;
 
             if (distance < toleranceRadius) {
+                // ▼▼▼ [★핵심 수정 3★] 서버에 확인 요청 전, '확인 중' 상태로 잠급니다. ▼▼▼
+                isChecking.value = true; 
+                // ▲▲▲ (수정 완료) ▲▲▲
                 try {
                     const foundHiddenObject = httpsCallable(functions, 'foundHiddenObject');
                     const result = await foundHiddenObject({ objectId: obj.id });
@@ -158,7 +168,13 @@ const handleImageClick = async (event) => {
                             endGame('win', result.data.reward);
                         }
                     }
-                } catch (e) { console.error("오브젝트 확인 오류:", e); }
+                } catch (e) { 
+                    console.error("오브젝트 확인 오류:", e); 
+                } finally {
+                    // ▼▼▼ [★핵심 수정 4★] 서버 응답 후, '확인 중' 상태를 해제합니다. ▼▼▼
+                    isChecking.value = false; 
+                    // ▲▲▲ (수정 완료) ▲▲▲
+                }
                 return;
             }
         }
