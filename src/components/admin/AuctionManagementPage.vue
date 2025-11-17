@@ -70,7 +70,6 @@
             <label>지속 시간 (분)</label>
             <input type="number" v-model.number="nextAuction.couponDetails.durationMinutes" required min="1" />
         </div>
-
         <button type="submit" class="btn btn-primary" :disabled="isSaving">
           <span v-if="isSaving" class="spinner-small"></span>
           <span v-else>다음 주 경매 설정 저장</span>
@@ -79,7 +78,7 @@
     </div>
 
     <div class="card manual-create">
-      <h4><i class="fas fa-exclamation-triangle"></i> 비상시 수동 생성</h4>
+      <h4><i class="fas fa-exclamation-triangle"></i> 비상시 수동 작업</h4>
       <p>
         매주 월요일 00:30에 경매가 자동으로 시작되지 않았을 경우,
         아래 버튼을 눌러 '이번 주' 경매를 수동으로 생성할 수 있습니다.
@@ -88,7 +87,25 @@
         <span v-if="isCreatingManually" class="spinner-small"></span>
         <span v-else>이번 주 경매 지금 생성하기</span>
       </button>
-    </div>
+
+      <hr style="margin: 20px 0;">
+      <p>
+        월요일 00:05~00:20에 랭킹이 집계되지 않았을 경우, <strong>'지난주 월요일' 날짜</strong>를 입력하고
+        수동으로 집계할 수 있습니다. (예: 오늘이 11월 17일이면 <strong>2025-11-10</strong> 입력)
+      </p>
+      <div class="form-group-inline">
+        <div class="form-group">
+            <label>집계할 주차 ID (지난주 월요일)</label>
+            <input type="text" v-model="manualWeekId" placeholder="YYYY-MM-DD" />
+        </div>
+        <button @click="callManualGoldRank" class="btn btn-warning" :disabled="!manualWeekId || isCreatingManually">
+          '주간 GOLD' 랭킹 집계
+        </button>
+        <button @click="callManualAlchemyRank" class="btn btn-warning" :disabled="!manualWeekId || isCreatingManually">
+          '알케미' 랭킹 집계
+        </button>
+      </div>
+      </div>
 
   </div>
 </template>
@@ -101,6 +118,12 @@ import { httpsCallable } from 'firebase/functions'; // [★신규★]
 
 // [★신규★] 수동 생성 함수 정의
 const manualCreateFunc = httpsCallable(functions, 'manuallyCreateAuction');
+// ▼▼▼ [★신규 추가★] ▼▼▼
+const manualGoldRankFunc = httpsCallable(functions, 'manuallyCalculateGoldWinners');
+const manualAlchemyRankFunc = httpsCallable(functions, 'manuallyCalculateAlchemyWinners');
+const manualWeekId = ref(''); // 수동 집계를 위한 weekId
+// ▲▲▲ (추가 완료) ▲▲▲
+
 const isCreatingManually = ref(false);
 
 const isSaving = ref(false);
@@ -123,6 +146,41 @@ const callManualCreate = async () => {
   }
 };
 
+// ▼▼▼ [★신규 추가★] 수동 랭킹 집계 함수 ▼▼▼
+const callManualGoldRank = async () => {
+  if (!manualWeekId.value) return alert("지난주 월요일 날짜(YYYY-MM-DD)를 입력하세요.");
+  if (!confirm(`'${manualWeekId.value}' 주차의 '주간 GOLD 수익 랭킹'을 지금 집계하시겠습니까?`)) return;
+
+  isCreatingManually.value = true;
+  try {
+    const result = await manualGoldRankFunc({ weekId: manualWeekId.value });
+    alert(`성공: ${result.data.message}`);
+  } catch (error) {
+    console.error("GOLD 랭킹 수동 집계 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isCreatingManually.value = false;
+  }
+};
+
+const callManualAlchemyRank = async () => {
+  if (!manualWeekId.value) return alert("지난주 월요일 날짜(YYYY-MM-DD)를 입력하세요.");
+  if (!confirm(`'${manualWeekId.value}' 주차의 '솔트 알케미 랭킹'을 지금 집계하시겠습니까?`)) return;
+
+  isCreatingManually.value = true;
+  try {
+    const result = await manualAlchemyRankFunc({ weekId: manualWeekId.value });
+    alert(`성공: ${result.data.message}`);
+  } catch (error) {
+    console.error("알케미 랭킹 수동 집계 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isCreatingManually.value = false;
+  }
+};
+// ▲▲▲ (추가 완료) ▲▲▲
+
+
 const nextAuction = reactive({
   prizeName: '',
   prizeDescription: '',
@@ -135,6 +193,7 @@ const nextAuction = reactive({
 });
 
 const couponTypes = ref([
+    // (쿠폰 타입 목록은 기존과 동일)
     { id: 'SALT_MINE_BOOST', name: '소금 광산 채굴 부스트' },
     { id: 'DEEP_SEA_AUTOSELL', name: '심해 해구 자동판매' },
     { id: 'SALTPANG_TIME_PLUS_5', name: '솔트팡 +5초 시간 추가' },
@@ -149,9 +208,7 @@ const couponTypes = ref([
 
 // [신규 추가] 현재 KST 기준 주간 ID 계산
 const getWeekId = () => {
-  // (참고: KST 기준이므로, new Date()가 서버 시간이 아닌 사용자 PC 시간을 사용합니다.
-  //  일관성을 위해 서버 함수와 동일한 로직을 사용하는 것이 좋습니다.)
-  const nowKST = new Date(); // 사용자의 로컬 시간을 KST라고 가정
+  const nowKST = new Date(); 
   const dayOfWeek = nowKST.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(nowKST);
@@ -162,6 +219,7 @@ const getWeekId = () => {
   return `${y}-${m}-${d}`;
 };
 
+// (이하 로직은 기존과 동일)
 watch(() => nextAuction.couponType, () => {
   nextAuction.couponDetails = {
     boostPercentage: null,
@@ -192,7 +250,6 @@ const fetchNextAuction = async () => {
   }
 };
 
-// [신규 추가] 현재 경매 정보 실시간 구독
 const fetchCurrentAuction = () => {
   const weekId = getWeekId();
   const auctionRef = doc(db, "auctions", weekId);
@@ -232,7 +289,7 @@ const saveNextAuction = async () => {
 
 onMounted(() => {
   fetchNextAuction();
-  fetchCurrentAuction(); // [신규 추가]
+  fetchCurrentAuction(); 
 });
 </script>
 
@@ -245,7 +302,7 @@ h4 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; }
 .card.current-auction h4 { color: #28a745; }
 .card.next-auction h4 { color: #007bff; }
 .form-group { margin-bottom: 20px; }
-.form-group-inline { display: flex; gap: 20px; margin-bottom: 20px; }
+.form-group-inline { display: flex; gap: 20px; margin-bottom: 20px; align-items: flex-end; } /* [수정] align-items: flex-end 추가 */
 .form-group-inline .form-group { flex: 1; margin-bottom: 0; }
 label { display: block; margin-bottom: 8px; font-weight: 600; }
 input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; box-sizing: border-box; }
@@ -289,5 +346,26 @@ input:disabled, textarea:disabled { background-color: #e9ecef; cursor: not-allow
 }
 .card.manual-create h4 {
   color: #dc3545;
+}
+
+/* [★신규★] 경고 버튼 스타일 (수동 집계용) */
+.btn-warning {
+  background-color: #ffc107;
+  color: #212529;
+  padding: 10px 15px; /* [수정] 패딩 조정 */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+  height: 40px; /* [추가] 높이 고정 */
+}
+.btn-warning:hover:not(:disabled) {
+  background-color: #e0a800;
+}
+.btn-warning:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
 }
 </style>
