@@ -77,17 +77,51 @@
         </button>
       </form>
     </div>
+
+    <div class="card manual-create">
+      <h4><i class="fas fa-exclamation-triangle"></i> 비상시 수동 생성</h4>
+      <p>
+        매주 월요일 00:30에 경매가 자동으로 시작되지 않았을 경우,
+        아래 버튼을 눌러 '이번 주' 경매를 수동으로 생성할 수 있습니다.
+      </p>
+      <button @click="callManualCreate" class="btn btn-danger" :disabled="isCreatingManually">
+        <span v-if="isCreatingManually" class="spinner-small"></span>
+        <span v-else>이번 주 경매 지금 생성하기</span>
+      </button>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { db } from '@/firebaseConfig';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'; // [신규 추가] onSnapshot
+import { db, functions } from '@/firebaseConfig'; // [수정] functions 임포트 확인
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'; 
+import { httpsCallable } from 'firebase/functions'; // [★신규★]
+
+// [★신규★] 수동 생성 함수 정의
+const manualCreateFunc = httpsCallable(functions, 'manuallyCreateAuction');
+const isCreatingManually = ref(false);
 
 const isSaving = ref(false);
 const isLoadingCurrent = ref(true); // [신규 추가]
 const currentAuction = ref(null); // [신규 추가]
+
+const callManualCreate = async () => {
+  if (!confirm("지난 스케줄이 실패한 경우에만 사용하세요.\n지금 즉시 '이번 주' 경매를 생성하시겠습니까?")) return;
+  
+  isCreatingManually.value = true;
+  try {
+    const result = await manualCreateFunc();
+    alert(`성공: ${result.data.message}`);
+    // 성공 시 '현재 진행 중인 경매' 컴포넌트가 자동으로 새로고침됩니다.
+  } catch (error) {
+    console.error("수동 경매 생성 실패:", error);
+    alert(`오류: ${error.message}`);
+  } finally {
+    isCreatingManually.value = false;
+  }
+};
 
 const nextAuction = reactive({
   prizeName: '',
@@ -115,7 +149,9 @@ const couponTypes = ref([
 
 // [신규 추가] 현재 KST 기준 주간 ID 계산
 const getWeekId = () => {
-  const nowKST = new Date();
+  // (참고: KST 기준이므로, new Date()가 서버 시간이 아닌 사용자 PC 시간을 사용합니다.
+  //  일관성을 위해 서버 함수와 동일한 로직을 사용하는 것이 좋습니다.)
+  const nowKST = new Date(); // 사용자의 로컬 시간을 KST라고 가정
   const dayOfWeek = nowKST.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(nowKST);
@@ -228,4 +264,30 @@ input:disabled, textarea:disabled { background-color: #e9ecef; cursor: not-allow
 }
 .spinner-small { border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* [★신규★] 수동 생성 버튼 스타일 */
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+}
+.btn-danger:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+.card.manual-create {
+  border: 2px solid #dc3545;
+}
+.card.manual-create h4 {
+  color: #dc3545;
+}
 </style>
