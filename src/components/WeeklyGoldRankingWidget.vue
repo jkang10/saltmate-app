@@ -48,16 +48,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.rank-chart {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
-  align-items: flex-end;
-  gap: 10px;
-  
-  /* ▼▼▼ [★핵심 수정★] 상단 여백을 더 늘려서 타이틀과 겹치지 않게 합니다. ▼▼▼ */
-  margin-top: 40px; /* (기존 30px) */
-  /* ▲▲▲ (수정 완료) ▲▲▲ */
-}
 /* (TokenMine.vue와 유사한 프리미엄 테마) */
 .premium-glass {
   background: rgba(10, 0, 20, 0.7) !important; /* [★] !important 추가 */
