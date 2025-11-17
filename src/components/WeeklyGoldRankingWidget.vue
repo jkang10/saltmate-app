@@ -55,7 +55,7 @@ onMounted(async () => {
   gap: 10px;
   
   /* ▼▼▼ [★핵심 수정★] 상단 여백을 더 늘려서 타이틀과 겹치지 않게 합니다. ▼▼▼ */
-  margin-top: 40px; /* (기존 30px) */
+  margin-top: 80px; /* (기존 30px) */
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 /* (TokenMine.vue와 유사한 프리미엄 테마) */
