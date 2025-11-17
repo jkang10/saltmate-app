@@ -55,7 +55,7 @@ onMounted(async () => {
   gap: 10px;
   
   /* ▼▼▼ [★핵심 수정★] 상단 여백을 더 늘려서 타이틀과 겹치지 않게 합니다. ▼▼▼ */
-  margin-top: 80px; /* (기존 30px) */
+  margin-top: 40px; /* (기존 30px) */
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 /* (TokenMine.vue와 유사한 프리미엄 테마) */
@@ -84,6 +84,10 @@ onMounted(async () => {
   justify-content: center;
   gap: 10px;
   height: 200px;
+
+  /* ▼▼▼ [★핵심 수정★] 이 클래스에 margin-top을 추가해야 합니다. ▼▼▼ */
+  margin-top: 15px; 
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .podium-item {
   width: 30%;
