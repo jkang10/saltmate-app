@@ -58,10 +58,10 @@ onMounted(async () => {
   padding: 20px;
   border-radius: 15px;
 
-  /* ▼▼▼ [★핵심 수정 1★] 카드를 flex-column으로 만들고, 그리드 셀 높이를 채웁니다. ▼▼▼ */
-  display: flex;
-  flex-direction: column;
-  height: 100%; /* 그리드 영역의 높이를 100% 사용합니다. */
+  /* ▼▼▼ [★핵심 수정 1★] 카드 높이를 100%로 강제하는 flex 속성을 제거합니다. ▼▼▼ */
+  /* display: flex; */
+  /* flex-direction: column; */
+  /* height: 100%; */
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .widget-header { text-align: center; margin-bottom: 25px; }
@@ -81,8 +81,8 @@ onMounted(async () => {
   gap: 5px; 
   height: 200px;
 
-  /* ▼▼▼ [★핵심 수정 2★] margin-top을 고정값(25px)에서 'auto'로 변경합니다. ▼▼▼ */
-  margin-top: auto; /* 이것이 차트를 아래로 밀어냅니다. */
+  /* ▼▼▼ [★핵심 수정 2★] 'auto' 대신 고정 여백을 다시 사용합니다. (겹치지 않을 만큼) ▼▼▼ */
+  margin-top: 25px; 
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 
@@ -127,14 +127,14 @@ onMounted(async () => {
   padding: 20px; 
   color: #94a3b8; 
   
-  /* ▼▼▼ [★핵심 수정 3★] 남은 공간을 채우고 수직/수평 중앙 정렬합니다. ▼▼▼ */
-  margin-top: auto;
-  margin-bottom: auto;
+  /* ▼▼▼ [★핵심 수정 3★] flex 관련 auto 마진을 제거합니다. ▼▼▼ */
+  /* margin-top: auto; */
+  /* margin-bottom: auto; */
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .loading-spinner {
-  /* ▼▼▼ [★핵심 수정 4★] 남은 공간의 중앙에 오도록 'auto' 마진을 줍니다. ▼▼▼ */
-  margin: auto; /* (기존 margin: 20px auto;) */
+  /* ▼▼▼ [★핵심 수정 4★] 'auto' 마진을 일반 마진으로 되돌립니다. ▼▼▼ */
+  margin: 20px auto; 
   /* ▲▲▲ (수정 완료) ▲▲▲ */
   
   display: block;
