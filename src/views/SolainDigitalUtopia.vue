@@ -67,7 +67,13 @@ const MAX_CHAT_MESSAGES = 50;
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
 let controls; // OrbitControls 인스턴스
-// [삭제] 클릭 이동 관련 변수 모두 삭제
+
+// ▼▼▼ [복구] 클릭/터치 이동 관련 변수 ▼▼▼
+const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
+const pointerDownPos = new THREE.Vector2(); // 클릭 시작 지점 (X, Y)
+const pointerDownTime = ref(0); // 클릭 시작 시간
+// ▲▲▲ 복구 완료 ▲▲▲
+
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -252,19 +258,70 @@ const createNicknameSprite = (text) => {
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, canvas.width / 2, canvas.height / 2);
-  const texture = new THREE.CanvasTexture(canvas);
+const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
   const sprite = new THREE.Sprite(material);
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
-  sprite.position.y = 1.5;
+  
+  // ▼▼▼ [수정] P1: 닉네임이 너무 낮음 ▼▼▼
+  sprite.position.y = 2.0; // 1.5 -> 2.0
+  // ▲▲▲ 수정 완료 ▲▲▲
 
-  // ▼▼▼ [수정] matrixAutoUpdate 라인 삭제 (닉네임이 먼저 가는 현상 수정) ▼▼▼
-  // sprite.matrixAutoUpdate = true;
+  // ▼▼▼ [수정] P2: 닉네임이 먼저 가는 현상 수정 ▼▼▼
+  // sprite.matrixAutoUpdate = true; // 이 라인을 삭제합니다.
   // ▲▲▲ 수정 완료 ▲▲▲
 
   return sprite;
+};
+
+// --- [복구] 헬퍼 함수: 클릭/터치 시작 ---
+const handlePointerDown = (event) => {
+  // 채팅창 입력 중일 때는 무시
+  if (chatInputRef.value === document.activeElement) return;
+
+  // 클릭 시작 시간과 좌표 저장
+  pointerDownTime.value = Date.now();
+  pointerDownPos.set(event.clientX, event.clientY);
+};
+
+// --- [복구] 헬퍼 함수: 클릭/터치 종료 (클릭 vs 드래그 판별) ---
+const handlePointerUp = (event) => {
+  // 채팅창 입력 중일 때는 무시
+  if (chatInputRef.value === document.activeElement) return;
+
+  const cityMap = scene.getObjectByName("cityMap");
+  if (!cityMap) return; // 맵이 아직 로드되지 않았으면 중단
+
+  const DRAG_THRESHOLD_TIME = 200; // 200ms
+  const DRAG_THRESHOLD_DISTANCE = 10; // 10px (드래그 민감도)
+
+  const timeElapsed = Date.now() - pointerDownTime.value;
+  const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
+
+  // --- '클릭'으로 판정 (짧은 시간, 적은 움직임) ---
+  if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
+    // 기존 키보드/조이스틱 입력 초기화
+    keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
+    keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
+    joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
+    
+    // --- Raycasting 로직 ---
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(cityMap, true);
+
+    if (intersects.length > 0) {
+      const targetPoint = intersects[0].point;
+      navigationTarget.value = targetPoint; // 이동 목표 지점 설정
+    }
+  }
 };
 
 // --- 헬퍼 함수: 채팅 말풍선 스프라이트 생성 ---
@@ -580,11 +637,12 @@ const initThree = () => {
 
       // 카메라 생성
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      // ★ 카메라 초기 위치를 스크린샷 각도(더 뒤, 더 위)로 설정
-      camera.position.set(startX, startY + 5, startZ + 10);
+      
+      // ▼▼▼ [수정] P1: 카메라 초기 위치를 더 뒤로, 더 높게 설정 ▼▼▼
+      camera.position.set(startX, startY + 8, startZ + 15);
+      // ▲▲▲ 수정 완료 ▲▲▲
 
-      // 렌더러 생성
-      if (!canvasRef.value) { console.error("캔버스 요소를 찾을 수 없습니다!"); return false; }
+      if (!canvasRef.value) { /* ... */ return false; }
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -598,8 +656,20 @@ const initThree = () => {
       controls.dampingFactor = 0.1;
       controls.screenSpacePanning = false;
       controls.minDistance = 2;
-      controls.maxDistance = 20; // 줌 아웃 거리
+      // ▼▼▼ [수정] P1: 최대 줌 아웃 거리 증가 ▼▼▼
+      controls.maxDistance = 40;
+      // ▲▲▲
       controls.maxPolarAngle = Math.PI / 2 - 0.05; // 바닥 아래로 못 보게
+      
+      // ▼▼▼ [복구] P3: 'start' 이벤트 리스너 추가 (클릭 이동 방해 방지) ▼▼▼
+      controls.addEventListener('start', () => {
+        // 마우스/터치 드래그(회전)가 시작되면 클릭 이동 목표를 취소
+        if (navigationTarget.value) {
+          navigationTarget.value = null;
+        }
+      });
+      // ▲▲▲ 복구 완료 ▲▲▲
+
       controls.target.set(startX, startY + 1.0, startZ); // 초기 타겟 설정
       controls.update();
       // --- OrbitControls 초기화 끝 ---
@@ -695,7 +765,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// --- [수정] updatePlayerMovement (클릭 이동 제거, 카메라 연동, 로그 삭제) ---
+// 매 프레임 호출: 내 아바타 위치/회전 업데이트
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -703,47 +773,85 @@ const updatePlayerMovement = (deltaTime) => {
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
+  let targetRotationY = myAvatar.rotation.y;
+  let applyRotation = false; // 부드러운 회전(Lerp)을 적용할지 여부
 
-  // --- [삭제] 클릭/터치 이동 로직 (navigationTarget) 완전 삭제 ---
+  // --- 1. 클릭/터치 이동 처리 ---
+  if (navigationTarget.value != null) {
+    // 1-1. 키보드/조이스틱 입력 시 클릭 이동 즉시 취소
+    if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
+      navigationTarget.value = null;
+    } else {
+      // 1-2. 목표 지점까지의 거리 계산 (X, Z 평면 기준)
+      const targetPos = navigationTarget.value;
+      const currentPos = myAvatar.position;
+      const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
-  // --- 키보드/조이스틱 이동 처리 ---
-  if (joystickData.value.active && joystickData.value.distance > 10) {
-    // 조이스틱 로직 (기존과 동일: 아바타가 조이스틱 방향으로 회전하며 전진)
-    const targetRotationY = -joystickData.value.angle + Math.PI / 2;
-    moveDirection.z = -1;
-    moved = true;
-    currentAnimation = 'walk';
-    currentSpeedFactor = joystickData.value.force;
+      if (distance < 0.2) { // 20cm 이내로 가까워지면 도착
+        navigationTarget.value = null; // 목표 지점 초기화
+        moved = false; // 멈춤
+        currentAnimation = 'idle'; // Idle 애니메이션
+      } else {
+        // 1-3. 목표 지점 바라보도록 회전
+        const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
+        direction.y = 0; // 높이 차이 무시
+        targetRotationY = Math.atan2(direction.x, direction.z); // 목표 회전 설정
+        applyRotation = true; // 회전 적용
 
-    let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    const rotationChange = diff * deltaTime * 8;
-    myAvatar.rotation.y += rotationChange;
-
-  } else if (!joystickData.value.active) { // 키보드 입력
-    // ▼▼▼ [핵심 수정] 키보드 조작 시 아바타 방향을 카메라 방향과 동기화 ▼▼▼
-    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    myAvatar.rotation.y = cameraEuler.y;
-    // ▲▲▲ 수정 완료 ▲▲▲
-
-    currentSpeedFactor = 1.0;
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
-      moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
+        // 1-4. 앞으로 이동
+        moveDirection.z = -1; // -Z (앞으로)
+        moved = true;
+        currentAnimation = 'walk';
+        currentSpeedFactor = 1.0; // 클릭 이동은 최고 속도
+      }
     }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
-      moveDirection.x = -1; moved = true; currentAnimation = 'strafeRight';
-    }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-      moveDirection.z = -1; moved = true;
-      if (currentAnimation === 'idle') currentAnimation = 'walk';
-    }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-      moveDirection.z = 1; moved = true;
-      if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+  }
+  
+  // --- 2. 키보드/조이스틱 이동 처리 (클릭 이동 중이 아닐 때만) ---
+  if (navigationTarget.value == null) { 
+    if (joystickData.value.active && joystickData.value.distance > 10) {
+      // 조이스틱 로직 (아바타가 조이스틱 방향으로 회전하며 전진)
+      targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      applyRotation = true; // 부드러운 회전 적용
+      moveDirection.z = -1;
+      moved = true;
+      currentAnimation = 'walk';
+      currentSpeedFactor = joystickData.value.force;
+
+    } else if (!joystickData.value.active) { // 키보드 입력
+      // ▼▼▼ 키보드 조작 시 아바타 방향을 카메라 방향과 동기화 ▼▼▼
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      myAvatar.rotation.y = cameraEuler.y;
+      // ▲▲▲
+
+      currentSpeedFactor = 1.0;
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
+        moveDirection.x = 1; moved = true; currentAnimation = 'strafeLeft';
+      }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
+        moveDirection.x = -1; moved = true; currentAnimation = 'strafeRight';
+      }
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+        moveDirection.z = -1; moved = true;
+        if (currentAnimation === 'idle') currentAnimation = 'walk';
+      }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
+        moveDirection.z = 1; moved = true;
+        if (currentAnimation === 'idle') currentAnimation = 'walkBackward';
+      }
     }
   }
   // --- 입력 처리 끝 ---
+
+  // --- 회전 적용 (클릭 이동 또는 조이스틱 사용 시) ---
+  if (applyRotation) {
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      const rotationChange = diff * deltaTime * 8; // 부드러운 회전
+      myAvatar.rotation.y += rotationChange;
+  }
 
   // --- 이동 적용 (moved=true일 때) ---
   if (moved) {
@@ -876,12 +984,13 @@ const animate = () => {
       controls.target.lerp(targetLookAt, deltaTime * 5.0);
     }
     controls.update(); // 컨트롤 상태 업데이트
-    
-    // [삭제] 마커 숨김 로직 삭제
   }
 
-  // [삭제] 강제 매트릭스 업데이트 코드 삭제
-  // if (scene) { scene.updateMatrixWorld(true); }
+  // ▼▼▼ [수정] P2: 강제 매트릭스 업데이트 코드 삭제 (닉네임 먼저 감 방지) ▼▼▼
+  // if (scene) {
+  //     scene.updateMatrixWorld(true);
+  // }
+  // ▲▲▲ 삭제 완료 ▲▲▲
 
   // 씬 렌더링
   renderer.render(scene, camera);
@@ -895,92 +1004,162 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
-// --- [수정] onMounted (클릭 리스너 제거) ---
+// --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
+  // 배포 버전 확인용 로그
   console.log('--- DEPLOY TEST VERSION 14 --- THIS IS THE NEWEST CODE ---');
 
-  if (!auth.currentUser) { /* ... 로그인 확인 ... */ return; }
-  const currentUid = auth.currentUser.uid;
+  // 로그인 상태 확인
+  if (!auth.currentUser) {
+    console.error("로그인되지 않음.");
+    loadingMessage.value = "로그인이 필요합니다.";
+    isLoading.value = false; // 로딩 상태 해제
+    return; // 함수 종료
+  }
+  const currentUid = auth.currentUser.uid; // 현재 사용자 UID 저장
 
-  const initSuccess = initThree();
-  if (!initSuccess) { /* ... 초기화 실패 처리 ... */ return; }
-
-  loadingMessage.value = '애니메이션 로딩 중...';
-  const preloadedAnimations = await loadAnimations();
-  if (!preloadedAnimations.idle || !preloadedAnimations.walk) {
-    loadingMessage.value = '기본 애니메이션 로드 실패. 애니메이션 없이 진행합니다.';
+  // 1. Three.js 환경 초기화
+  const initSuccess = initThree(); // initThree 함수 호출
+  if (!initSuccess) { // 초기화 실패 시 (예: 캔버스 요소 못 찾음)
+      loadingMessage.value = "3D 환경 초기화 실패.";
+      isLoading.value = false; // 로딩 상태 해제
+      return; // 함수 종료
   }
 
-  // 3. 브라우저 이벤트 리스너 등록
-  window.addEventListener('resize', handleResize);
-  window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('keyup', handleKeyUp);
+  // 2. 애니메이션 파일 미리 로드
+  loadingMessage.value = '애니메이션 로딩 중...';
+  const preloadedAnimations = await loadAnimations(); // 비동기 로드 완료까지 기다림
+  // Idle 또는 Walk 애니메이션 로드 실패 시 경고 메시지 표시
+  if (!preloadedAnimations.idle || !preloadedAnimations.walk) {
+    loadingMessage.value = '기본 애니메이션 로드 실패. 애니메이션 없이 진행합니다.';
+    // 애니메이션 로드 실패 시에도 진행은 계속함 (선택 사항)
+  }
 
-  // ▼▼▼ [삭제] 클릭/터치 이동 리스너 (down, up) 제거 ▼▼▼
-  // if (canvasRef.value) { ... }
-  // ▲▲▲ 삭제 완료 ▲▲▲
+  // 3. 브라우저 이벤트 리스너 등록 및 애니메이션 루프 시작
+  window.addEventListener('resize', handleResize); // 창 크기 변경 감지
+  window.addEventListener('keydown', handleKeyDown); // 키보드 누름 감지
+  window.addEventListener('keyup', handleKeyUp);     // 키보드 뗌 감지
 
-  animate(); // 렌더링 루프 시작
+  // ▼▼▼ [복구] 클릭/터치 이동 리스너 추가 ▼▼▼
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.addEventListener('pointerup', handlePointerUp);
+  }
+  // ▲▲▲ 복구 완료 ▲▲▲
+
+  animate(); // 렌더링 및 업데이트 루프 시작
 
   // 4. Firestore에서 사용자 정보 가져오기
   loadingMessage.value = '내 정보 로딩 중...';
   try {
+      // users 컬렉션에서 현재 사용자 UID에 해당하는 문서 가져오기
       const userDoc = await getDoc(doc(db, 'users', currentUid));
-      if (userDoc.exists()) {
-          myAvatarUrl = userDoc.data().avatarUrl || '';
-          myUserName = userDoc.data().name || '익명';
+      if (userDoc.exists()) { // 문서가 존재하면
+          myAvatarUrl = userDoc.data().avatarUrl || ''; // avatarUrl 필드 값 가져오기 (없으면 빈 문자열)
+          myUserName = userDoc.data().name || '익명'; // name 필드 값 가져오기 (없으면 '익명')
+
+          // 아바타 URL 로깅 강화
           if (!myAvatarUrl) {
               console.warn("Firestore에서 아바타 URL을 찾을 수 없습니다. 기본 아바타가 로드됩니다.");
           } else {
               console.log("Firestore에서 가져온 아바타 URL:", myAvatarUrl);
           }
-      } else {
+      } else { // 사용자 문서가 Firestore에 없으면
           console.error("Firestore 사용자 문서 없음! 기본 아바타로 진행합니다.");
-          myUserName = '익명'; myAvatarUrl = '';
+          myUserName = '익명';
+          myAvatarUrl = ''; // URL 명시적으로 비움
       }
-  } catch (error) { /* ... 에러 처리 ... */ return; }
+  } catch (error) { // Firestore 데이터 로드 중 에러 발생 시
+      console.error("Firestore 정보 가져오기 실패:", error);
+      loadingMessage.value = '내 정보 로딩 실패.';
+      isLoading.value = false; // 로딩 상태 해제
+      return; // 함수 종료
+  }
 
   // 5. 내 아바타 로드 및 닉네임 추가
   loadingMessage.value = '내 아바타 로딩 중...';
   try {
+    // loadAvatar 함수 호출 직전 URL 확인 로그
     console.log(`[중요] loadAvatar 함수에 전달될 URL: '${myAvatarUrl}' (타입: ${typeof myAvatarUrl})`);
+    // loadAvatar 함수 호출 (아바타 URL과 미리 로드된 애니메이션 전달)
     const loadedModel = await loadAvatar(myAvatarUrl, preloadedAnimations);
-    myAvatar = loadedModel;
 
+    myAvatar = loadedModel; // 로드된 모델을 myAvatar 변수에 할당
+
+    // 초기 위치/회전 설정은 initThree 함수 내부의 도시 맵 로드 콜백에서 진행됨
+
+    // 사용자 이름이 있으면 닉네임 스프라이트 생성 및 추가
     if (myUserName && myUserName !== '익명') {
         const myNickname = createNicknameSprite(myUserName);
+        
         // ▼▼▼ [수정] 닉네임을 visuals 그룹에 추가 (닉네임 지연 문제) ▼▼▼
         if (myAvatar.userData.visuals) {
             myAvatar.userData.visuals.add(myNickname);
         } else {
-            myAvatar.add(myNickname);
+            myAvatar.add(myNickname); // 비상시
         }
         // ▲▲▲ 수정 완료 ▲▲▲
     }
+
+    // 최종 아바타 객체를 씬에 추가
     scene.add(myAvatar);
     console.log('[DEBUG] myAvatar added to scene (초기 위치는 맵 로드 후 설정됨)');
 
-  } catch (error) { /* ... 아바타 로드 실패 시 처리 ... */ }
+  } catch (error) { // 아바타 로드 실패 시 (URL이 유효하지 않거나 로드 중 에러 발생)
+    console.error("내 아바타 로드 중 에러 발생 (또는 URL 없음):", error);
+    loadingMessage.value = '아바타 로딩 실패. 기본 아바타로 시작합니다.';
+
+    // myAvatar 객체가 아직 생성되지 않았다면 기본 그룹 생성
+    if (!myAvatar) { myAvatar = new THREE.Group(); myAvatar.matrixAutoUpdate = true; }
+
+    try { // 기본 아바타(빨간색 큐브) 로드 시도
+      const fallbackModel = await loadAvatar(null, preloadedAnimations); // null URL 전달
+      myAvatar = fallbackModel; // 기본 아바타 모델 할당
+      scene.add(myAvatar); // 씬에 기본 아바타 추가
+    } catch (e) { // 기본 아바타 로드조차 실패한 경우
+        console.error("기본 아바타 로드조차 실패.", e);
+        isLoading.value = false; // 로딩 상태 해제
+        return; // 함수 종료
+    }
+  }
 
   // 6. 조이스틱 초기화
-  await nextTick();
-  const joystickZone = document.getElementById('joystick-zone');
-  if (joystickZone) {
+  await nextTick(); // DOM 업데이트 기다림
+  const joystickZone = document.getElementById('joystick-zone'); // 조이스틱 영역 DOM 요소 찾기
+  if (joystickZone) { // 요소가 존재하면
     try {
-        joystickManager = nipplejs.create({ /* ... 조이스틱 설정 ... */ });
-        joystickManager.on('move', handleJoystickMove);
-        joystickManager.on('end', handleJoystickEnd);
+        // nipplejs 인스턴스 생성 및 설정
+        joystickManager = nipplejs.create({
+          zone: joystickZone, // 조이스틱 영역 지정
+          mode: 'static', // 조이스틱 모드
+          position: { right: '80px', bottom: '80px' }, // 위치
+          color: 'rgba(255, 255, 255, 0.5)', // 색상
+          size: 100 // 크기
+        });
+        // 조이스틱 이벤트 리스너 등록
+        joystickManager.on('move', handleJoystickMove); // 움직일 때
+        joystickManager.on('end', handleJoystickEnd);   // 놓았을 때
         console.log("조이스틱 생성 완료");
-    } catch (e) { console.error("조이스틱 생성 실패:", e); }
-  } else { console.warn("조이스틱 영역('#joystick-zone')을 찾을 수 없습니다."); }
+    } catch (e) { // 조이스틱 생성 실패 시
+        console.error("조이스틱 생성 실패:", e);
+    }
+  } else { // 조이스틱 영역 요소를 찾지 못했을 때
+    console.warn("조이스틱 영역('#joystick-zone')을 찾을 수 없습니다.");
+  }
 
   // 7. RTDB 연결 및 리스너 시작
   loadingMessage.value = '다른 플레이어 접속 중...';
-  await joinPlaza();
-  if(isReady.value){
-    listenToOtherPlayers(preloadedAnimations);
-    listenToChat();
-  } else { loadingMessage.value = 'Plaza 연결 실패.'; return; }
+  await joinPlaza(); // Plaza 입장 시도 (RTDB에 내 정보 등록)
+  if(isReady.value){ // joinPlaza 성공 시
+    listenToOtherPlayers(preloadedAnimations); // 다른 플레이어 리스너 시작 (애니메이션 객체 전달)
+    listenToChat(); // 채팅 리스너 시작
+  }
+  else { // joinPlaza 실패 시
+    loadingMessage.value = 'Plaza 연결 실패.'; // 실패 메시지 표시
+    return; // 함수 종료
+  }
+
+  // 모든 로딩 및 초기화 완료
   isLoading.value = false;
 }); // onMounted 함수 끝
 
