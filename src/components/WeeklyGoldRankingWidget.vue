@@ -72,21 +72,30 @@ onMounted(async () => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 10px;
+  
+  /* ▼▼▼ [★핵심 수정 1★] 간격을 10px -> 5px로 줄여 모바일 폭에 대응합니다. ▼▼▼ */
+  gap: 5px; 
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
+  
   height: 200px;
 
-  /* ▼▼▼ [★핵심 수정★] 이 클래스에 margin-top을 추가해야 합니다. ▼▼▼ */
-  margin-top: 15px; 
+  /* ▼▼▼ [★핵심 수정 2★] 상단 여백을 15px -> 25px로 늘립니다. ▼▼▼ */
+  margin-top: 25px; 
   /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
+/* ▼▼▼ [★핵심 수정 3★] width: 30%를 삭제하고 flex-basis로 변경합니다. ▼▼▼ */
 .podium-item {
-  width: 30%;
+  /* width: 30%; */ /* <-- 이 줄을 삭제합니다. */
+  flex-basis: 32%; /* <-- 이 줄을 추가합니다. (3개가 100% 미만이 되도록) */
+  max-width: 120px; /* <-- 이 줄을 추가하여 너무 커지는 것을 방지합니다. */
+  
   padding: 15px 10px;
   border-radius: 10px 10px 0 0;
   text-align: center;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   transition: all 0.3s ease;
 }
+/* ▲▲▲ (수정 완료) ▲▲▲ */
 .podium-rank { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
 .player-name { font-size: 1.1em; font-weight: 600; margin-bottom: 5px; color: #fff; }
 .player-score { font-size: 1em; font-weight: 500; color: #f0f0f0; }
