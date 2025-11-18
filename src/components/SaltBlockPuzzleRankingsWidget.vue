@@ -89,7 +89,20 @@ const getRankClass = (index) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+
+  /* ▼▼▼ [★핵심 1★] 애니메이션 효과 추가 ▼▼▼ */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  /* ▲▲▲ (추가 완료) ▲▲▲ */
 }
+
+/* ▼▼▼ [★핵심 2★] 마우스 오버 시 올라가는 효과 추가 ▼▼▼ */
+.rank-card:hover {
+  transform: translateY(-8px);
+  /* 이 위젯의 고유한 파란색 그림자를 유지하면서 더 강하게 만듭니다. */
+  box-shadow: 0 12px 35px rgba(52, 152, 219, 0.6); 
+}
+/* ▲▲▲ (추가 완료) ▲▲▲ */
+
 
 /* ▼▼▼ [★핵심 추가★] 솔트 블록 랭킹 전용 스타일 ▼▼▼ */
 .block-puzzle-rank-card {
@@ -148,8 +161,11 @@ const getRankClass = (index) => {
   padding: 0;
   margin: 0;
   flex-grow: 1;
-  overflow-y: auto;
-  max-height: 300px;
+  
+  /* ▼▼▼ [★핵심 3★] 스크롤바 관련 속성 2줄을 제거(주석 처리)합니다. ▼▼▼ */
+  /* overflow-y: auto; */
+  /* max-height: 300px; */
+  /* ▲▲▲ (수정 완료) ▲▲▲ */
 }
 .rank-item {
   display: grid;
