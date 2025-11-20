@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue'; // [수정] watch 제거
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/firebaseConfig';
 
@@ -169,8 +169,7 @@ const dropBall = async () => {
     const { selectedIndex, multiplier, profit } = result.data;
 
     // 공 생성
-    const spacing = width / (rows + 2);
-    const targetX = (width / 2) - ((rows) * spacing / 2) + (selectedIndex * spacing) + (spacing / 2);
+    // [수정] targetX 변수 삭제
     
     // [핵심] 서버 결과(selectedIndex)에 도달하도록 목표 지점 설정
     balls.push({
@@ -239,7 +238,7 @@ const update = () => {
         ball.x += ball.vx;
 
         // 핀 충돌 처리
-        let hit = false;
+        // [수정] unused var 'hit' 제거
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
@@ -253,7 +252,6 @@ const update = () => {
                 ball.vy *= -0.5; // 탄성
                 ball.vx += (Math.random() - 0.5) * 2; // 랜덤 튐
                 ball.y -= 2; // 겹침 방지
-                hit = true;
                 
                 // [핵심 유도 로직] 목표 방향으로 미세하게 밈
                 const spacing = width / (rows + 2);
