@@ -63,12 +63,12 @@ const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
 const canvasRef = ref(null);
-const cinemaVideoRef = ref(null); // 비디오 참조
+const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
 const loadingMessage = ref('유토피아 입장 준비 중...');
 const isReady = ref(false);
-const isAdmin = ref(false); // 관리자 여부
-const isVideoPlaying = ref(false); // 현재 비디오 재생 상태 (UI용)
+const isAdmin = ref(false);
+const isVideoPlaying = ref(false);
 
 // --- 아바타 관련 ---
 let myAvatar = null;
@@ -86,16 +86,22 @@ const MAX_CHAT_MESSAGES = 50;
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
 let controls;
+
+// 클릭/터치 이동 관련 변수
+const navigationTarget = ref(null);
+const pointerDownPos = new THREE.Vector2();
+const pointerDownTime = ref(0);
+
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
-const plazaVideoPath = 'plaza/videoState'; // [신규] 영상 상태 경로
+const plazaVideoPath = 'plaza/videoState';
 let playerRef = null;
 let playersListenerRef = null;
 let chatListenerRef = null;
-let videoListenerRef = null; // [신규] 영상 리스너
+let videoListenerRef = null;
 
 // --- 플레이어 이동 관련 ---
 const moveSpeed = 2.0;
@@ -103,16 +109,14 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [신규] 관리자 영상 제어 함수 ---
+// --- 관리자 영상 제어 함수 ---
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
-  
   const newStatus = !isVideoPlaying.value;
-  // DB에 상태 업데이트
   update(dbRef(rtdb, plazaVideoPath), {
     isPlaying: newStatus,
-    timestamp: Date.now(), // 명령 내린 서버 시간(추정)
-    videoTime: cinemaVideoRef.value.currentTime // 현재 영상 시간
+    timestamp: Date.now(),
+    videoTime: cinemaVideoRef.value.currentTime
   });
 };
 
@@ -121,11 +125,11 @@ const syncVideoTime = () => {
   update(dbRef(rtdb, plazaVideoPath), {
     timestamp: Date.now(),
     videoTime: cinemaVideoRef.value.currentTime,
-    forceSync: true // 강제 동기화 플래그 (선택)
+    forceSync: true
   });
 };
 
-// --- [신규] 영상 상태 리스너 (모든 유저용) ---
+// --- 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -136,27 +140,17 @@ const listenToVideoState = () => {
     const videoEl = cinemaVideoRef.value;
 
     if (data.isPlaying) {
-      // 네트워크 지연을 고려한 현재 재생 위치 계산
-      // (현재시간 - 명령시간) / 1000초 + 명령당시영상시간
       const latency = (Date.now() - data.timestamp) / 1000;
       const targetTime = data.videoTime + latency;
-
-      // 현재 플레이어의 영상 시간과 서버 시간 차이가 1초 이상 나면 동기화
       if (Math.abs(videoEl.currentTime - targetTime) > 1) {
         videoEl.currentTime = targetTime;
       }
-
-      // 재생 시도 (모바일 정책 대응)
       const playPromise = videoEl.play();
       if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.log("자동 재생 차단됨 (사용자 인터랙션 필요):", error);
-          // 여기서 사용자에게 '화면을 터치해주세요' 같은 안내를 띄울 수도 있음
-        });
+        playPromise.catch(() => {});
       }
     } else {
       videoEl.pause();
-      // 멈췄을 때도 시간 싱크 한 번 맞춤
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
         videoEl.currentTime = data.videoTime;
       }
@@ -164,7 +158,7 @@ const listenToVideoState = () => {
   });
 };
 
-// --- 헬퍼 함수들 (기존 유지) ---
+// --- 애니메이션 로드 함수 ---
 const loadAnimations = async () => {
   const animationPaths = {
     idle: '/animations/M_Standing_Idle_Variations_008.glb',
@@ -175,6 +169,7 @@ const loadAnimations = async () => {
   };
   const loadedAnimations = { idle: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null };
   const keys = Object.keys(animationPaths);
+
   try {
     const gltfResults = await Promise.all(
       Object.values(animationPaths).map(path => loader.loadAsync(path).catch(e => {
@@ -192,6 +187,7 @@ const loadAnimations = async () => {
   } catch (error) { return loadedAnimations; }
 };
 
+// --- 아바타 로드 함수 ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -222,6 +218,7 @@ const loadAvatar = (url, animations) => {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
           }
+          child.matrixAutoUpdate = true;
         });
         visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
@@ -255,6 +252,7 @@ const loadAvatar = (url, animations) => {
   });
 };
 
+// --- 닉네임 스프라이트 생성 함수 ---
 const createNicknameSprite = (text) => {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -268,7 +266,6 @@ const createNicknameSprite = (text) => {
   canvas.height = fontSize + 20;
   context.fillStyle = 'rgba(0, 0, 0, 0.7)';
   
-  // 라운드 사각형 그리기
   const r = 16;
   const w = canvas.width;
   const h = canvas.height;
@@ -297,7 +294,229 @@ const createNicknameSprite = (text) => {
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   sprite.position.y = 2.0;
+  // sprite.matrixAutoUpdate = true; // 닉네임 지연 해결 위해 제거
   return sprite;
+};
+
+// --- 말풍선 생성 함수 ---
+const createChatBubbleSprite = (text) => {
+  const resolutionScale = 2;
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const fontSize = 20 * resolutionScale;
+  const fontWeight = 'normal';
+  const fontFamily = 'Arial';
+  context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  const maxWidth = 300 * resolutionScale;
+  const textMetrics = context.measureText(text);
+  const textWidth = Math.min(textMetrics.width, maxWidth);
+  const padding = 10 * resolutionScale;
+  const verticalPadding = 5 * resolutionScale;
+  canvas.width = textWidth + padding * 2;
+  canvas.height = fontSize + verticalPadding * 2;
+  context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  context.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+  context.lineWidth = 2 * resolutionScale;
+  const radius = 8 * resolutionScale;
+  context.beginPath();
+  context.moveTo(radius, 0);
+  context.lineTo(canvas.width - radius, 0);
+  context.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+  context.lineTo(canvas.width, canvas.height - radius);
+  context.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+  context.lineTo(radius, canvas.height);
+  context.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+  context.lineTo(0, radius);
+  context.quadraticCurveTo(0, 0, radius, 0);
+  context.closePath();
+  context.fill();
+  context.stroke();
+  context.fillStyle = 'black';
+  context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  const scale = 0.0025;
+  sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
+  sprite.position.y = 1.9;
+  return sprite;
+};
+
+const showChatBubble = (avatar, message) => {
+  if (!avatar) return;
+  if (avatar.activeBubble) {
+    avatar.remove(avatar.activeBubble);
+    avatar.activeBubble.material.map.dispose();
+    avatar.activeBubble.material.dispose();
+    clearTimeout(avatar.activeBubble.timeoutId);
+    avatar.activeBubble = null;
+  }
+  const newBubble = createChatBubbleSprite(message);
+  const timeoutId = setTimeout(() => {
+    if (avatar.activeBubble === newBubble) {
+      avatar.remove(newBubble);
+      newBubble.material.map.dispose();
+      newBubble.material.dispose();
+      avatar.activeBubble = null;
+    }
+  }, 5000);
+  newBubble.timeoutId = timeoutId;
+  avatar.activeBubble = newBubble;
+  avatar.add(newBubble);
+};
+
+// --- 클릭/터치 핸들러 ---
+const handlePointerDown = (event) => {
+  if (chatInputRef.value === document.activeElement) return;
+  pointerDownTime.value = Date.now();
+  pointerDownPos.set(event.clientX, event.clientY);
+};
+
+const handlePointerUp = (event) => {
+  if (chatInputRef.value === document.activeElement) return;
+  const cityMap = scene.getObjectByName("cityMap");
+  if (!cityMap) return;
+
+  const DRAG_THRESHOLD_TIME = 200;
+  const DRAG_THRESHOLD_DISTANCE = 10;
+  const timeElapsed = Date.now() - pointerDownTime.value;
+  const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
+
+  if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
+    // 클릭으로 판정 시 이동 목표 설정
+    keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
+    keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
+    joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
+    
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(cityMap, true);
+
+    if (intersects.length > 0) {
+      navigationTarget.value = intersects[0].point;
+    }
+  }
+};
+
+const handleUserInteraction = () => {
+  if (cinemaVideoRef.value && isVideoPlaying.value && cinemaVideoRef.value.paused) {
+    cinemaVideoRef.value.play().catch(() => {});
+  }
+};
+
+// --- Firebase RTDB 함수 (이전에 누락되었던 부분 복구) ---
+const joinPlaza = async () => {
+  if (!auth.currentUser || !myAvatar) return;
+  const currentUid = auth.currentUser.uid;
+  playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
+  const playerData = {
+    avatarUrl: myAvatarUrl,
+    userName: myUserName,
+    position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z },
+    rotationY: myAvatar.rotation.y,
+    timestamp: serverTimestamp(),
+  };
+  try {
+    await set(playerRef, playerData);
+    await onDisconnect(playerRef).remove();
+    isReady.value = true;
+  } catch (error) { console.error("Plaza 입장 실패:", error); }
+};
+
+const updateMyStateInRTDB = () => {
+  if (!playerRef || !myAvatar || !isReady.value) return;
+  const { x, y, z } = myAvatar.position;
+  const currentRotationY = myAvatar.rotation.y;
+  const newState = {
+    position: {
+      x: isFiniteNumber(x) ? x : 0,
+      y: isFiniteNumber(y) ? y : 0,
+      z: isFiniteNumber(z) ? z : 0,
+    },
+    rotationY: isFiniteNumber(currentRotationY) ? currentRotationY : 0,
+    timestamp: serverTimestamp(),
+  };
+  update(playerRef, newState).catch(() => {});
+};
+
+let lastUpdateTime = 0;
+const throttledUpdate = () => {
+  const now = Date.now();
+  if (now - lastUpdateTime > 100) {
+    updateMyStateInRTDB();
+    lastUpdateTime = now;
+  }
+};
+
+const sendMessage = () => {
+  if (!chatInput.value.trim() || !isReady.value || !auth.currentUser) return;
+  const chatMessage = { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() };
+  push(dbRef(rtdb, plazaChatPath), chatMessage);
+  chatInput.value = '';
+  if (chatInputRef.value) { chatInputRef.value.blur(); }
+};
+
+const listenToChat = () => {
+  chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
+  onChildAdded(chatListenerRef, (snapshot) => {
+    const msg = { id: snapshot.key, ...snapshot.val() };
+    chatMessages.value.push(msg);
+    if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
+    nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
+    const currentUid = auth.currentUser?.uid;
+    if (msg.userId === currentUid && myAvatar) {
+      showChatBubble(myAvatar, msg.message);
+    } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) {
+      showChatBubble(otherPlayers[msg.userId].mesh, msg.message);
+    }
+  });
+};
+
+const listenToOtherPlayers = (preloadedAnimations) => {
+  playersListenerRef = dbRef(rtdb, plazaPlayersPath);
+  const currentUid = auth.currentUser.uid;
+  onChildAdded(playersListenerRef, async (snapshot) => {
+    if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
+    const val = snapshot.val();
+    otherPlayers[snapshot.key] = {
+      mesh: null, mixer: null, actions: {},
+      targetPosition: new THREE.Vector3(val.position?.x, val.position?.y, val.position?.z),
+      targetRotationY: val.rotationY || 0,
+      userName: val.userName, isMoving: false
+    };
+    const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
+    if (scene && otherPlayers[snapshot.key]) {
+      model.position.copy(otherPlayers[snapshot.key].targetPosition);
+      if (val.userName !== '익명') {
+        const nick = createNicknameSprite(val.userName);
+        if (model.userData.visuals) model.userData.visuals.add(nick);
+        else model.add(nick);
+      }
+      scene.add(model);
+      otherPlayers[snapshot.key].mesh = model;
+      otherPlayers[snapshot.key].mixer = model.userData.mixer;
+      otherPlayers[snapshot.key].actions = model.userData.actions;
+    }
+  });
+  onChildChanged(playersListenerRef, (snap) => {
+    if (snap.key === currentUid || !otherPlayers[snap.key]) return;
+    const val = snap.val();
+    otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
+    otherPlayers[snap.key].targetRotationY = val.rotationY;
+  });
+  onChildRemoved(playersListenerRef, (snap) => {
+    if (!otherPlayers[snap.key]) return;
+    if (scene) scene.remove(otherPlayers[snap.key].mesh);
+    delete otherPlayers[snap.key];
+  });
 };
 
 // --- Three.js 초기화 ---
@@ -328,6 +547,9 @@ const initThree = () => {
       controls.minDistance = 2;
       controls.maxDistance = 40;
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      controls.addEventListener('start', () => {
+        if (navigationTarget.value) navigationTarget.value = null;
+      });
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
 
@@ -360,28 +582,16 @@ const initThree = () => {
           scene.add(city);
 
           if (myAvatar) { myAvatar.position.set(startX, groundLevelY, startZ); }
-          
-          // [신규] 시네마 스크린 생성 및 배치
-          // 도시 맵의 적절한 위치에 스크린을 배치합니다. (예: 광장 중앙 근처)
-          // 비디오 텍스처 생성
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
-            
-            // 16:9 비율 스크린
             const screenGeo = new THREE.PlaneGeometry(16, 9);
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat);
-            
-            // 위치: 아바타 시작점 근처, 약간 위쪽
             screen.position.set(startX, groundLevelY + 7, startZ - 15); 
-            // 회전: 아바타를 바라보도록 (필요시 조정)
-            // screen.rotation.y = Math.PI; 
-            
             scene.add(screen);
-            console.log("시네마 스크린 설치 완료");
           }
       });
 
@@ -399,13 +609,6 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [신규] 모바일 터치 시 오디오 컨텍스트 잠금 해제 및 비디오 재생 시도
-const handleUserInteraction = () => {
-  if (cinemaVideoRef.value && isVideoPlaying.value && cinemaVideoRef.value.paused) {
-    cinemaVideoRef.value.play().catch(() => {});
-  }
-};
-
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -416,36 +619,63 @@ const updatePlayerMovement = (deltaTime) => {
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
 
-  const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+  if (navigationTarget.value != null) {
+    if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
+      navigationTarget.value = null;
+    } else {
+      const targetPos = navigationTarget.value;
+      const currentPos = myAvatar.position;
+      const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
 
-  if (joystickData.value.active && joystickData.value.distance > 10) {
-    targetRotationY = -joystickData.value.angle + Math.PI / 2;
-    applyRotation = true;
-    moveDirection.z = -1;
-    moved = true;
-    currentAnimation = 'walk';
-    currentSpeedFactor = joystickData.value.force;
-    let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    myAvatar.rotation.y += diff * deltaTime * 8;
-
-  } else if (!joystickData.value.active) {
-    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    if (isKeyboardMoving) {
-      myAvatar.rotation.y = cameraEuler.y;
-      moved = true;
+      if (distance < 0.2) {
+        navigationTarget.value = null;
+        moved = false;
+        currentAnimation = 'idle';
+      } else {
+        const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
+        direction.y = 0;
+        targetRotationY = Math.atan2(direction.x, direction.z);
+        applyRotation = true;
+        moveDirection.z = -1;
+        moved = true;
+        currentAnimation = 'walk';
+      }
     }
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
+  }
+  
+  if (navigationTarget.value == null) { 
+    if (joystickData.value.active && joystickData.value.distance > 10) {
+      targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      applyRotation = true;
+      moveDirection.z = -1;
+      moved = true;
+      currentAnimation = 'walk';
+      currentSpeedFactor = joystickData.value.force;
+
+    } else if (!joystickData.value.active) {
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+      if (isKeyboardMoving) {
+        myAvatar.rotation.y = cameraEuler.y;
+        moved = true;
+      }
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
+    }
+  }
+
+  if (applyRotation) {
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      myAvatar.rotation.y += diff * deltaTime * 8;
   }
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    if (!joystickData.value.active) { velocity.applyEuler(new THREE.Euler(0, cameraEuler.y, 0)); }
-    else { velocity.applyQuaternion(myAvatar.quaternion); }
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
   }
 
@@ -518,52 +748,10 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
-// --- 기타 리스너들 ---
-const listenToOtherPlayers = (preloadedAnimations) => {
-  playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  const currentUid = auth.currentUser.uid;
-  onChildAdded(playersListenerRef, async (snapshot) => {
-    if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
-    const val = snapshot.val();
-    otherPlayers[snapshot.key] = {
-      mesh: null, mixer: null, actions: {},
-      targetPosition: new THREE.Vector3(val.position?.x, val.position?.y, val.position?.z),
-      targetRotationY: val.rotationY || 0,
-      userName: val.userName, isMoving: false
-    };
-    const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    if (scene && otherPlayers[snapshot.key]) {
-      model.position.copy(otherPlayers[snapshot.key].targetPosition);
-      if (val.userName !== '익명') {
-        const nick = createNicknameSprite(val.userName);
-        if (model.userData.visuals) model.userData.visuals.add(nick);
-        else model.add(nick);
-      }
-      scene.add(model);
-      otherPlayers[snapshot.key].mesh = model;
-      otherPlayers[snapshot.key].mixer = model.userData.mixer;
-      otherPlayers[snapshot.key].actions = model.userData.actions;
-    }
-  });
-  onChildChanged(playersListenerRef, (snap) => {
-    if (snap.key === currentUid || !otherPlayers[snap.key]) return;
-    const val = snap.val();
-    otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
-    otherPlayers[snap.key].targetRotationY = val.rotationY;
-  });
-  onChildRemoved(playersListenerRef, (snap) => {
-    if (!otherPlayers[snap.key]) return;
-    if (scene) scene.remove(otherPlayers[snap.key].mesh);
-    delete otherPlayers[snap.key];
-  });
-};
-
-// --- Lifecycle Hooks ---
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
   
-  // 관리자 권한 확인
   try {
     const token = await auth.currentUser.getIdTokenResult();
     if (token.claims.role === 'superAdmin') {
@@ -578,9 +766,12 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // [신규] 모바일 영상 재생을 위한 터치 이벤트 리스너
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.addEventListener('pointerup', handlePointerUp);
+  }
 
   animate();
 
@@ -609,7 +800,7 @@ onMounted(async () => {
   await joinPlaza();
   if (isReady.value) {
     listenToOtherPlayers(preloadedAnimations);
-    listenToVideoState(); // [신규] 영상 상태 리스닝 시작
+    listenToVideoState();
   }
   isLoading.value = false;
 });
@@ -620,6 +811,10 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.removeEventListener('pointerup', handlePointerUp);
+  }
   
   if (playersListenerRef) off(playersListenerRef);
   if (videoListenerRef) off(videoListenerRef);
