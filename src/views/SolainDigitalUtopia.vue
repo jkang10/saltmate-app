@@ -2,7 +2,7 @@
   <div class="utopia-container">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-    <video
+<video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="display: none"
@@ -10,6 +10,10 @@
       playsinline
       webkit-playsinline
       loop
+      muted 
+      autoplay
+      @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.src)"
+      @loadeddata="console.log('비디오 데이터 로드 성공')"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
     </video>
