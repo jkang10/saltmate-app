@@ -217,29 +217,44 @@ const update = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, width, height);
 
-  // 핀 그리기
+  // 핀 그리기 (기존과 동일)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
   pegs.forEach(peg => {
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, pegSize, 0, Math.PI * 2);
     ctx.fill();
-    // 빛나는 효과
     ctx.shadowBlur = 5;
     ctx.shadowColor = '#fff';
   });
-  ctx.shadowBlur = 0; // 초기화
+  ctx.shadowBlur = 0;
 
   // 공 업데이트 및 그리기
   for (let i = balls.length - 1; i >= 0; i--) {
     const ball = balls[i];
     
     if (!ball.finished) {
-        // 간단한 물리 + 유도 로직
+        // 1. 기본 물리 적용
         ball.vy += 0.2; // 중력
         ball.y += ball.vy;
         ball.x += ball.vx;
 
-        // 핀 충돌 처리
+        // 2. [★핵심 수정★] 강력한 유도 로직 (Guidance)
+        // 목표 바구니의 정확한 X 좌표 계산
+        const spacing = width / (rows + 2);
+        // selectedIndex가 0부터 시작하므로, 바구니 위치는 (index + 1.5) * spacing 지점 근처입니다.
+        // 정확한 중앙 정렬을 위해 조정:
+        const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
+
+        // 공이 화면 중간(30%)부터 목표 지점을 향해 강하게 이끌립니다.
+        if (ball.y > height * 0.3) {
+            const dx = finalTargetX - ball.x;
+            // 목표 지점과의 거리에 비례하여 힘을 가함 (PD 제어와 유사)
+            ball.vx += dx * 0.02; 
+            // 속도 감쇠 (너무 빨라지는 것 방지)
+            ball.vx *= 0.95;
+        }
+
+        // 3. 핀 충돌 처리
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
@@ -249,47 +264,44 @@ const update = () => {
                 // 충돌!
                 playPingSound();
                 
-                // 반사 (단순화)
-                ball.vy *= -0.5; // 탄성
-                ball.vx += (Math.random() - 0.5) * 2; // 랜덤 튐
-                ball.y -= 2; // 겹침 방지
+                // 반사
+                ball.vy *= -0.5;
+                ball.vx += (Math.random() - 0.5) * 2; // 랜덤성 추가
+                ball.y -= 2;
                 
-                // [핵심 유도 로직] 목표 방향으로 미세하게 밈
-                const spacing = width / (rows + 2);
-                const finalTargetX = (width / 2) - ((rows) * spacing / 2) + (ball.targetIndex * spacing) + (spacing / 2);
-                
-                if (ball.y > height * 0.4) { // 절반 이상 내려왔을 때 유도 시작
-                    if (ball.x < finalTargetX) ball.vx += 0.5;
-                    else ball.vx -= 0.5;
-                }
-                break; // 한 프레임에 하나의 핀만 충돌
+                // 충돌 시에도 목표 방향으로 살짝 밀어줌
+                if (ball.x < finalTargetX) ball.vx += 0.5;
+                else ball.vx -= 0.5;
+
+                break;
             }
         }
         
-        // 바닥 도착 확인
+        // 4. 바닥 도착 확인
         if (ball.y > height - 30) {
+            // [★시각적 보정★] 떨어지는 순간 강제로 목표 바구니 X좌표로 이동시켜 시각적 불일치 완전 제거
+            // (공이 너무 빨리 움직여서 튀는 경우를 방지)
+            ball.x = finalTargetX; 
+
             ball.finished = true;
             activeIndex.value = ball.targetIndex;
             lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
-            setTimeout(() => { activeIndex.value = -1; }, 500); // 하이라이트 끄기
+            setTimeout(() => { activeIndex.value = -1; }, 500);
             
-            // 배열에서 제거 (메모리 관리)
             balls.splice(i, 1);
             
-            // 공이 다 사라졌고 자동 모드가 아니면 종료
             if (balls.length === 0 && !isAutoMode.value) {
                 isPlaying.value = false;
             }
-            continue; // 다음 루프로
+            continue;
         }
     }
 
-    // 공 그리기
+    // 공 그리기 (기존과 동일)
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ballSize, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFD700'; // 황금색
+    ctx.fillStyle = '#FFD700';
     ctx.fill();
-    // 공 광원 효과
     ctx.shadowBlur = 10;
     ctx.shadowColor = '#FFD700';
   }
@@ -310,6 +322,7 @@ onUnmounted(() => {
     cancelAnimationFrame(animationId);
     if(audioCtx) audioCtx.close();
 });
+
 </script>
 
 <style scoped>
