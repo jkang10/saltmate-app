@@ -413,6 +413,12 @@
 	  <p>손끝으로 긁어서 당첨을 확인하세요! 매일 5번의 기회!</p>
 	  <span class="card-enter">긁으러 가기 &rarr;</span>
 	</router-link>
+	<router-link to="/salt-plinko" class="feature-card plinko-card">
+	  <div class="card-icon"><i class="fas fa-water"></i></div>
+	  <h3>황금 소금 폭포</h3>
+	  <p>구슬이 떨어지며 운명을 결정합니다. 최대 100배 대박의 기회!</p>
+	  <span class="card-enter">도전하기 &rarr;</span>
+	</router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
@@ -712,6 +718,32 @@ TransactionHistoryModal,
 </script>
 
 <style scoped>
+/* 황금 소금 폭포 카드 스타일 */
+.feature-card.plinko-card {
+  background: linear-gradient(135deg, #1a2333 0%, #2c3e50 100%);
+  border: 1px solid #FFD700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+}
+.feature-card.plinko-card .card-icon {
+  color: #FFD700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+  animation: bounce 2s infinite;
+}
+.feature-card.plinko-card h3 {
+  color: #FFD700;
+}
+.feature-card.plinko-card p {
+  color: #bdc3c7;
+}
+.feature-card.plinko-card .card-enter {
+  background: rgba(255, 215, 0, 0.2);
+  color: #FFD700;
+}
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+  40% {transform: translateY(-10px);}
+  60% {transform: translateY(-5px);}
+}
 /* ▼▼▼ [★핵심 추가★] "솔트 버블" 게임 카드 스타일 ▼▼▼ */
 .feature-card.bubble-shooter.game {
   background: linear-gradient(135deg, #27ae60 0%, #2c3e50 100%); /* 신비로운 녹색 */

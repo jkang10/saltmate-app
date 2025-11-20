@@ -268,6 +268,12 @@ const routes = [
     component: () => import("@/views/StakingPage.vue"),
     meta: { requiresAuth: true },
   },
+{
+  path: '/salt-plinko',
+  name: 'SaltPlinkoPage',
+  component: () => import('@/views/SaltPlinkoPage.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: "/salt-game",
     name: "SaltCrystalGamePage",
