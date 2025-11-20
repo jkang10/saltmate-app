@@ -407,6 +407,12 @@
 	  <p>타이밍에 맞춰 계단을 오르고 재화를 획득하세요! (원-터치)</p>
 	  <span class="card-enter">플레이 &rarr;</span>
 	</router-link>
+	<router-link to="/scratch-lottery" class="feature-card game">
+	  <div class="card-icon"><i class="fas fa-ticket-alt"></i></div>
+	  <h3>행운의 복권</h3>
+	  <p>손끝으로 긁어서 당첨을 확인하세요! 매일 5번의 기회!</p>
+	  <span class="card-enter">긁으러 가기 &rarr;</span>
+	</router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
