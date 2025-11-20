@@ -33,7 +33,7 @@
           </button>
         </div>
         
-        <div v-if="gameResult" class="result-overlay" :class="{ 'win': gameResult.prizeAmount > 0 }">
+        <div v-if="!isPlaying && gameResult" class="result-overlay" :class="{ 'win': gameResult.prizeAmount > 0 }">
           <h3>{{ resultMessage }}</h3>
           <p v-if="gameResult.prizeAmount > 0" class="prize-amount">+{{ gameResult.prizeAmount.toLocaleString() }} SaltMate</p>
           <button @click="resetGame" class="btn-retry">다시 하기</button>
@@ -58,21 +58,19 @@ import { ref, onMounted, computed, nextTick } from 'vue';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/firebaseConfig';
 
-// 아이콘 이미지 (기존 gems 이미지 재활용)
-import iconLoss from '@/assets/gems/gem_1.png'; // 꽝 (보라)
-import iconSmall from '@/assets/gems/gem_2.png'; // 500 (파랑)
-import iconMedium from '@/assets/gems/gem_4.png'; // 1000 (초록)
-import iconBig from '@/assets/gems/gem_6.png'; // 5000 (빨강/노랑)
+// 아이콘 이미지
+import iconLoss from '@/assets/gems/gem_1.png';
+import iconSmall from '@/assets/gems/gem_2.png';
+import iconMedium from '@/assets/gems/gem_4.png';
+import iconBig from '@/assets/gems/gem_6.png';
 
 const canvasRef = ref(null);
 const cardRef = ref(null);
 const isDrawing = ref(false);
 const isLoading = ref(false);
-const isPlaying = ref(false);
-const gameResult = ref(null); // { prizeAmount, resultType, icons }
-const resultIcons = ref([0,0,0,0,0,0]); // 초기값
-
-// [수정] 사용하지 않는 scratchedPercent 변수 삭제
+const isPlaying = ref(false); // '긁고 있는 중' 상태
+const gameResult = ref(null);
+const resultIcons = ref([0,0,0,0,0,0]);
 
 const getIconSrc = (id) => {
   switch(id) {
@@ -89,39 +87,34 @@ const resultMessage = computed(() => {
   return '아쉽네요... 다음 기회에!';
 });
 
-// Canvas 초기화 (은색 덮기)
 const initCanvas = () => {
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
   const width = cardRef.value.clientWidth;
   const height = cardRef.value.clientHeight;
   
-  // 레티나 디스플레이 대응
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   ctx.scale(dpr, dpr);
   
-  // CSS 사이즈 설정
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
+  canvas.style.opacity = '1'; // 캔버스 보이게 설정
 
-  // 은색 코팅
+  ctx.globalCompositeOperation = 'source-over'; // 덮어쓰기 모드
   ctx.fillStyle = '#C0C0C0'; // 은색
   ctx.fillRect(0, 0, width, height);
   
-  // 텍스트 ("긁어보세요!")
   ctx.font = 'bold 24px sans-serif';
   ctx.fillStyle = '#666666';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('여기를 긁어보세요!', width / 2, height / 2);
   
-  // 합성 모드 설정 (지우개 효과)
-  ctx.globalCompositeOperation = 'destination-out';
+  ctx.globalCompositeOperation = 'destination-out'; // 지우기 모드 전환
 };
 
-// 복권 구매 함수
 const buyTicket = async () => {
   if (!confirm("100 SaltMate를 사용하여 복권을 구매하시겠습니까?")) return;
   
@@ -133,8 +126,10 @@ const buyTicket = async () => {
     gameResult.value = result.data;
     resultIcons.value = result.data.icons;
     
-    isPlaying.value = true;
-    initCanvas(); // 구매 성공 시 캔버스 리셋 (덮기)
+    // [핵심] 캔버스를 먼저 초기화하고 게임 시작 상태로 변경
+    await nextTick();
+    initCanvas();
+    isPlaying.value = true; 
     
   } catch (error) {
     console.error("복권 구매 실패:", error);
@@ -144,7 +139,6 @@ const buyTicket = async () => {
   }
 };
 
-// 스크래치 이벤트 핸들러
 const getPos = (e) => {
   const rect = canvasRef.value.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -167,51 +161,54 @@ const scratch = (e) => {
   const ctx = canvasRef.value.getContext('2d');
   
   ctx.beginPath();
-  ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2); // 브러쉬 크기 25px
+  ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2);
   ctx.fill();
   
-  checkScratchPercent();
+  // [성능 최적화] 너무 자주 검사하지 않도록 함 (쓰로틀링 대신 간단히 처리)
+  // 실제로는 requestAnimationFrame 등을 사용할 수 있으나 여기선 간단히
 };
 
 const stopScratch = () => {
   isDrawing.value = false;
-  checkScratchPercent();
+  if (isPlaying.value) {
+      checkScratchPercent();
+  }
 };
 
-// 긁은 비율 계산
 const checkScratchPercent = () => {
-  if (!isPlaying.value) return; // 이미 결과가 나왔으면 중단
-
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;
-  // 성능을 위해 10% 간격으로 픽셀 샘플링 (전체 픽셀 검사는 너무 느림)
+  
+  // [주의] getImageData는 리소스를 많이 사용하므로 mouseup/touchend 시점에만 호출하는 것이 좋습니다.
   const imageData = ctx.getImageData(0, 0, w, h);
   const pixels = imageData.data;
-  
-  // [수정] 사용하지 않는 transparentPixels 변수 삭제
   const totalPixels = pixels.length / 4;
   
-  // 32px 간격으로 샘플링 (속도 최적화)
-  const step = 32; 
+  const step = 32; // 샘플링 간격
   let sampleCount = 0;
   let clearedCount = 0;
 
   for (let i = 0; i < totalPixels; i += step) {
     sampleCount++;
-    if (pixels[i * 4 + 3] === 0) { // 투명도(Alpha)가 0이면 지워진 것
+    if (pixels[i * 4 + 3] === 0) { // 투명도 0 (지워짐)
       clearedCount++;
     }
   }
 
   const percent = (clearedCount / sampleCount) * 100;
   
-  // 50% 이상 긁으면 자동 공개
-  if (percent > 50) {
-    isPlaying.value = false; // 게임 종료 (결과 오버레이 표시)
-    canvasRef.value.style.opacity = '0'; // 캔버스 숨김 (부드럽게)
+  if (percent > 40) { // [수정] 40%만 긁어도 공개되도록 기준 완화
+    finishGame();
   }
+};
+
+const finishGame = () => {
+    isPlaying.value = false; // 게임 종료 상태로 변경
+    if(canvasRef.value) {
+        canvasRef.value.style.opacity = '0'; // 캔버스 숨김 애니메이션
+    }
 };
 
 const resetGame = () => {
@@ -219,19 +216,19 @@ const resetGame = () => {
   isPlaying.value = false;
   if (canvasRef.value) {
      canvasRef.value.style.opacity = '1';
-     // 다음 게임을 위해 캔버스는 그대로 두거나, 미리보기용으로 초기화할 수 있음
-     // 여기서는 '구매하기' 버튼이 뜨므로 캔버스는 뒤로 숨겨짐
+     // 초기화면(구매 버튼) 상태로 돌아감
+     initCanvas(); // 은색 다시 덮기
   }
 };
 
 onMounted(async () => {
     await nextTick();
-    // 초기 화면용 (더미)
     if(canvasRef.value) initCanvas();
 });
 </script>
 
 <style scoped>
+/* (스타일은 기존과 동일합니다) */
 .lottery-page {
   max-width: 500px;
   margin: 0 auto;
@@ -254,11 +251,10 @@ onMounted(async () => {
   margin-bottom: 30px;
 }
 
-/* 복권 카드 컨테이너 */
 .lottery-card-container {
   width: 100%;
   max-width: 350px;
-  aspect-ratio: 3 / 2; /* 3:2 비율 (일반적인 복권 비율) */
+  aspect-ratio: 3 / 2;
   position: relative;
   border-radius: 15px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -274,7 +270,6 @@ onMounted(async () => {
   position: relative;
 }
 
-/* 결과 아이콘 그리드 (맨 밑바닥) */
 .grid-layer {
   width: 100%;
   height: 100%;
@@ -299,20 +294,18 @@ onMounted(async () => {
   object-fit: contain;
 }
 
-/* 긁는 영역 (Canvas - 중간) */
 .scratch-canvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10; /* 그리드 위에 */
-  cursor: url('https://cdn-icons-png.flaticon.com/32/240/240847.png') 16 16, auto; /* 동전 커서 (선택) */
-  touch-action: none; /* 모바일 스크롤 방지 */
+  z-index: 10;
+  cursor: url('https://cdn-icons-png.flaticon.com/32/240/240847.png') 16 16, auto;
+  touch-action: none;
   transition: opacity 0.5s ease;
 }
 
-/* 구매 버튼 오버레이 (맨 위) */
 .overlay-msg {
   position: absolute;
   top: 0;
@@ -323,7 +316,7 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: rgba(255,255,255,0.3); /* 은은하게 */
+  background: rgba(255,255,255,0.3);
 }
 
 .btn-buy {
@@ -341,7 +334,6 @@ onMounted(async () => {
 .btn-buy:active { transform: scale(0.95); }
 .btn-buy:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
 
-/* 결과 오버레이 (게임 종료 시 표시) */
 .result-overlay {
   position: absolute;
   top: 0;
@@ -357,7 +349,7 @@ onMounted(async () => {
   animation: fadeIn 0.5s;
 }
 .result-overlay.win {
-  background: rgba(255, 243, 205, 0.95); /* 당첨 시 금색 배경 */
+  background: rgba(255, 243, 205, 0.95);
 }
 .result-overlay h3 {
   font-size: 1.8rem;
