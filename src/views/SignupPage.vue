@@ -70,16 +70,12 @@
             </option>
           </select>
         </div>
-        <div class="form-group">
+	<div class="form-group">
           <label for="investment-amount">구독 등급:</label>
           <select id="investment-amount" v-model="investmentAmount" required>
             <option value="">구독 등급을 선택하세요</option>
             <option value="10000">만원의 행복</option>
-            <option value="100000">10만원</option>
-            <option value="300000">30만원</option>
-            <option value="500000">50만원</option>
-            <option value="1000000">100만원</option>
-          </select>
+            </select>
         </div>
         <div class="form-group">
           <label for="referrer">추천인 (선택 사항):</label>
