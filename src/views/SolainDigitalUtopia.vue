@@ -184,7 +184,11 @@ const loadAnimations = async () => {
       }
     });
     return loadedAnimations;
-  } catch (error) { return loadedAnimations; }
+  } catch (error) { 
+    // ▼▼▼ [수정] error 변수를 사용하여 로그 출력 (ESLint 오류 해결) ▼▼▼
+    console.error('애니메이션 로딩 중 전체 오류 발생:', error);
+    return loadedAnimations; 
+  }
 };
 
 // --- 아바타 로드 함수 ---
@@ -748,6 +752,7 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
+// --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
@@ -768,10 +773,6 @@ onMounted(async () => {
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
-  if (canvasRef.value) {
-    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
-    canvasRef.value.addEventListener('pointerup', handlePointerUp);
-  }
 
   animate();
 
@@ -801,6 +802,9 @@ onMounted(async () => {
   if (isReady.value) {
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
+    // ▼▼▼ [수정] 채팅 리스너 실행 추가 (ESLint 오류 해결 및 채팅 기능 활성화) ▼▼▼
+    listenToChat();
+    // ▲▲▲
   }
   isLoading.value = false;
 });
