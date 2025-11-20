@@ -63,11 +63,11 @@ const betAmount = ref(100);
 const isPlaying = ref(false);
 const isAutoMode = ref(false);
 const lastResult = ref(null);
-const activeIndex = ref(-1);
+const activeIndex = ref(-1); // 공이 들어간 바구니 인덱스 (애니메이션용)
 
 // 게임 설정
 const multipliers = [100, 10, 5, 2, 0.5, 2, 5, 10, 100];
-const rows = 8;
+const rows = 8; // 핀 줄 수
 const pegSize = 4;
 const ballSize = 7;
 let ctx = null;
@@ -75,8 +75,11 @@ let width = 0;
 let height = 0;
 let animationId = null;
 
+// 물리 객체들
 const balls = [];
 const pegs = [];
+
+// 오디오 컨텍스트 (효과음용)
 let audioCtx = null;
 
 const initAudio = () => {
@@ -95,22 +98,28 @@ const playPingSound = () => {
   osc.connect(gain);
   gain.connect(audioCtx.destination);
   
+  // 랜덤 피치 (실로폰 느낌)
   const freqs = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00];
   osc.frequency.value = freqs[Math.floor(Math.random() * freqs.length)];
+  
   osc.type = 'sine';
+  
   gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+  
   osc.start();
   osc.stop(audioCtx.currentTime + 0.5);
 };
 
+// 핀(Peg) 초기화
 const initBoard = () => {
   const canvas = canvasRef.value;
-  if (!canvas || !canvasWrapper.value) return; // 방어 코드
+  if (!canvas || !canvasWrapper.value) return;
 
   width = canvasWrapper.value.clientWidth;
   height = canvasWrapper.value.clientHeight;
   
+  // 레티나 대응
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
@@ -121,13 +130,13 @@ const initBoard = () => {
   canvas.style.height = `${height}px`;
 
   pegs.length = 0;
-  const spacing = width / (rows + 2);
+  const spacing = width / (rows + 2); // 간격 계산
   const startY = 50;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col <= row; col++) {
       const x = (width / 2) - (row * spacing / 2) + (col * spacing);
-      const y = startY + (row * spacing * 0.8);
+      const y = startY + (row * spacing * 0.8); // 0.8은 수직 간격 조정
       pegs.push({ x, y });
     }
   }
@@ -144,14 +153,11 @@ const getMultiplierClass = (mul) => {
   return 'low';
 };
 
-// [★수정★] dropBall 함수 로직 개선
+// 공 떨어뜨리기
 const dropBall = async () => {
-  // 1. 수동 모드인데 이미 플레이 중이면 중단
   if (isPlaying.value && !isAutoMode.value) return;
   
-  // 2. 자동 모드 끄기 요청이 들어온 경우
   if (isAutoMode.value && isPlaying.value && !balls.length) { 
-      // 공이 없을 때만 멈춤 (공이 있으면 다 떨어지고 멈춤)
       isAutoMode.value = false;
       return;
   }
@@ -164,25 +170,23 @@ const dropBall = async () => {
     const result = await playFunc({ betAmount: betAmount.value });
     const { selectedIndex, multiplier, profit } = result.data;
 
-    const spacing = width / (rows + 2);
+    // [수정] 사용하지 않는 spacing 변수 삭제
     
+    // [핵심] 서버 결과(selectedIndex)에 도달하도록 목표 지점 설정
     balls.push({
-      x: width / 2 + (Math.random() - 0.5) * 10,
+      x: width / 2 + (Math.random() - 0.5) * 10, // 시작은 중앙 부근
       y: 20,
       vx: 0,
       vy: 0,
-      targetIndex: selectedIndex,
+      targetIndex: selectedIndex, // 목표 바구니 인덱스
       finished: false,
-      // 결과 메시지는 나중에 할당하거나 여기서 미리 할당
       resultMessage: profit >= 0 
           ? `🎉 대박! ${multiplier}배! (+${profit.toLocaleString()} P)` 
           : `아쉽네요.. (${profit.toLocaleString()} P)`,
       resultProfit: profit
     });
 
-    // [★수정★] 자동 모드일 때 다음 공 예약 (재귀 호출)
     if (isAutoMode.value) {
-        // 1.5초 뒤에 다음 공 발사 (단, 자동 모드가 유지되고 있을 때만)
         setTimeout(() => {
             if (isAutoMode.value) {
                 dropBall();
@@ -192,10 +196,9 @@ const dropBall = async () => {
 
   } catch (error) {
     console.error(error);
-    alert(error.message); // 에러 메시지 표시 (예: 포인트 부족)
-    isAutoMode.value = false; // 에러 발생 시 자동 모드 해제
+    alert(error.message);
+    isAutoMode.value = false;
     
-    // 공이 하나도 없으면 플레이 상태 해제
     if (balls.length === 0) {
         isPlaying.value = false;
     }
@@ -204,76 +207,89 @@ const dropBall = async () => {
 
 const toggleAuto = () => {
     isAutoMode.value = !isAutoMode.value;
-    // 자동 모드를 켰는데 현재 플레이 중이 아니라면 즉시 시작
     if (isAutoMode.value && !isPlaying.value) {
         dropBall();
     }
 };
 
+// 애니메이션 루프
 const update = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, width, height);
 
+  // 핀 그리기
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
   pegs.forEach(peg => {
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, pegSize, 0, Math.PI * 2);
     ctx.fill();
+    // 빛나는 효과
     ctx.shadowBlur = 5;
     ctx.shadowColor = '#fff';
   });
-  ctx.shadowBlur = 0;
+  ctx.shadowBlur = 0; // 초기화
 
+  // 공 업데이트 및 그리기
   for (let i = balls.length - 1; i >= 0; i--) {
     const ball = balls[i];
     
     if (!ball.finished) {
-        ball.vy += 0.2;
+        // 간단한 물리 + 유도 로직
+        ball.vy += 0.2; // 중력
         ball.y += ball.vy;
         ball.x += ball.vx;
 
+        // 핀 충돌 처리
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             
             if (dist < ballSize + pegSize) {
+                // 충돌!
                 playPingSound();
-                ball.vy *= -0.5;
-                ball.vx += (Math.random() - 0.5) * 2;
-                ball.y -= 2;
                 
+                // 반사 (단순화)
+                ball.vy *= -0.5; // 탄성
+                ball.vx += (Math.random() - 0.5) * 2; // 랜덤 튐
+                ball.y -= 2; // 겹침 방지
+                
+                // [핵심 유도 로직] 목표 방향으로 미세하게 밈
                 const spacing = width / (rows + 2);
                 const finalTargetX = (width / 2) - ((rows) * spacing / 2) + (ball.targetIndex * spacing) + (spacing / 2);
                 
-                if (ball.y > height * 0.4) {
+                if (ball.y > height * 0.4) { // 절반 이상 내려왔을 때 유도 시작
                     if (ball.x < finalTargetX) ball.vx += 0.5;
                     else ball.vx -= 0.5;
                 }
-                break;
+                break; // 한 프레임에 하나의 핀만 충돌
             }
         }
         
+        // 바닥 도착 확인
         if (ball.y > height - 30) {
             ball.finished = true;
             activeIndex.value = ball.targetIndex;
             lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
-            setTimeout(() => { activeIndex.value = -1; }, 500);
+            setTimeout(() => { activeIndex.value = -1; }, 500); // 하이라이트 끄기
             
+            // 배열에서 제거 (메모리 관리)
             balls.splice(i, 1);
             
-            // [★수정★] 공이 다 사라졌고 자동 모드가 아니면 종료
+            // 공이 다 사라졌고 자동 모드가 아니면 종료
             if (balls.length === 0 && !isAutoMode.value) {
                 isPlaying.value = false;
             }
-            continue;
+            continue; // 다음 루프로
         }
     }
 
+    // 공 그리기
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ballSize, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = '#FFD700'; // 황금색
     ctx.fill();
+    // 공 광원 효과
     ctx.shadowBlur = 10;
     ctx.shadowColor = '#FFD700';
   }
