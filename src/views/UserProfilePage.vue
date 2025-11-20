@@ -42,7 +42,7 @@
           </div>
           <div class="info-item">
             <label><i class="fas fa-phone"></i> 연락처</label>
-            <span>{{ userProfileData.phone || "미등록" }}</span>
+            <span>{{ userProfileData.phone || userProfileData.phoneNumber || "미등록" }}</span>
           </div>
           <div class="info-item">
              <label><i class="fas fa-star"></i> 등급</label>
@@ -101,7 +101,7 @@
         <div class="detail-card widget-card">
           <h3><i class="fas fa-cog"></i> 계정 설정</h3>
           <div class="settings-grid">
-            <button class="setting-item" @click="emitOpenPasswordModal">
+            <button class="setting-item" @click="showPasswordModal = true">
               <i class="fas fa-key"></i>
               <span>비밀번호 변경</span>
             </button>
@@ -112,20 +112,27 @@
           </div>
         </div>
       </section>
-      </div>
+    </div>
+    
+    <ChangePasswordModal 
+      v-if="showPasswordModal" 
+      @close="showPasswordModal = false" 
+    />
+
   </div>
 </template>
 
 <script setup>
-// [수정] watch 제거
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, Timestamp, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import '@google/model-viewer';
+// [신규] ChangePasswordModal 임포트 (경로 확인 필요: 보통 components/common 안에 있음)
+import ChangePasswordModal from '@/components/common/ChangePasswordModal.vue'; 
 
-const emit = defineEmits(['openPasswordModal', 'openNotificationSettingsModal']);
+const emit = defineEmits(['openNotificationSettingsModal']); // 'openPasswordModal' 제거
 
 const userProfileData = ref(null);
 const isLoading = ref(true);
@@ -135,6 +142,9 @@ const centerName = ref('');
 const isRequestingPayment = ref(false);
 const referralInput = ref(null);
 const requestMonthlyPaymentFunc = httpsCallable(functions, 'requestMonthlyPayment');
+
+// [신규] 비밀번호 모달 상태
+const showPasswordModal = ref(false);
 
 const referralLink = computed(() => {
   if (!auth.currentUser?.uid) return "";
@@ -202,7 +212,6 @@ const requestPayment = async () => {
   }
 };
 
-const emitOpenPasswordModal = () => { emit('openPasswordModal'); };
 const emitOpenNotificationSettingsModal = () => { emit('openNotificationSettingsModal'); };
 
 const fetchCenterName = async (centerId) => {
@@ -263,17 +272,17 @@ onMounted(() => {
     authUnsubscribe();
   });
 });
-
 </script>
 
 <style scoped>
-/* 3D 아바타 관련 스타일 */
+/* 기존 스타일 유지 (3D 아바타 관련 등) */
 .profile-avatar-3d { width: 70px; height: 70px; border-radius: 50%; overflow: hidden; background-color: #e9ecef; display: flex; justify-content: center; align-items: center; cursor: pointer; flex-shrink: 0; }
 .profile-avatar-3d a { display: block; width: 100%; height: 100%; }
 .avatar-model { width: 100%; height: 100%; --poster-color: transparent; }
 .profile-avatar-default { font-size: 2.5em; color: #adb5bd; }
 
-/* 나머지 스타일 */
+/* (나머지 스타일은 변경 없음) */
+/* ... (이전 코드의 스타일을 그대로 붙여넣으세요) ... */
 .user-profile-container { padding: 0; background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); overflow: hidden; max-width: 1100px; margin: 80px auto 20px; }
 .widget-layout { display: grid; grid-template-columns: 1fr; gap: 0; }
 .profile-info-section { padding: 25px; background-color: #ffffff; border-bottom: 1px solid #e9ecef; }
