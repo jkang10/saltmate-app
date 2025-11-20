@@ -2,7 +2,7 @@
   <div class="utopia-container">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-<video
+    <video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="display: none"
@@ -85,9 +85,9 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let controls;
+let controls; // OrbitControls 인스턴스
 
-// 클릭/터치 이동 관련 변수
+// 클릭/터치 이동 관련 변수 복구
 const navigationTarget = ref(null);
 const pointerDownPos = new THREE.Vector2();
 const pointerDownTime = ref(0);
@@ -177,7 +177,6 @@ const loadAnimations = async () => {
         return null;
       }))
     );
-
     gltfResults.forEach((gltf, index) => {
       const key = keys[index];
       if (gltf && gltf.animations && gltf.animations.length > 0) {
@@ -185,11 +184,9 @@ const loadAnimations = async () => {
       }
     });
     return loadedAnimations;
-
   } catch (error) {
-    // ▼▼▼ [수정] error 변수를 사용하여 로그를 출력 (ESLint 'unused vars' 오류 해결) ▼▼▼
+    // [수정] error 변수 사용 (ESLint 오류 해결)
     console.error('애니메이션 로딩 중 전체 오류 발생:', error);
-    // ▲▲▲ 수정 완료 ▲▲▲
     return loadedAnimations;
   }
 };
@@ -198,18 +195,20 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true;
+    model.matrixAutoUpdate = true; // [수정] 부모 그룹은 true 유지
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
 
     if (!url || !url.endsWith('.glb')) {
+      console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const visuals = new THREE.Group();
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
       cube.position.y = 0.5;
       visuals.add(cube);
+      visuals.scale.set(0.7, 0.7, 0.7);
       model.add(visuals);
       resolve(model);
       return;
@@ -246,12 +245,14 @@ const loadAvatar = (url, animations) => {
       },
       undefined,
       (error) => {
+        console.error('아바타 로딩 실패:', error, 'URL:', url);
         const visuals = new THREE.Group();
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
         visuals.add(cube);
+        visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
         resolve(model);
       }
@@ -296,12 +297,18 @@ const createNicknameSprite = (text) => {
   context.fillText(text, w / 2, h / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
   const sprite = new THREE.Sprite(material);
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
-  sprite.position.y = 2.0;
-  // sprite.matrixAutoUpdate = true; // 닉네임 지연 해결 위해 제거
+  
+  // [수정] P1: 닉네임 높이 조정
+  sprite.position.y = 2.0; 
+  
+  // [수정] P2: 닉네임 지연 해결을 위해 matrixAutoUpdate 설정 제거 (기본값 true)
+  // sprite.matrixAutoUpdate = true; // 삭제
+
   return sprite;
 };
 
@@ -376,7 +383,7 @@ const showChatBubble = (avatar, message) => {
   avatar.add(newBubble);
 };
 
-// --- 클릭/터치 핸들러 ---
+// --- 클릭/터치 핸들러 (P3 복구) ---
 const handlePointerDown = (event) => {
   if (chatInputRef.value === document.activeElement) return;
   pointerDownTime.value = Date.now();
@@ -393,8 +400,9 @@ const handlePointerUp = (event) => {
   const timeElapsed = Date.now() - pointerDownTime.value;
   const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
 
+  // 짧은 클릭일 경우에만 이동 목표 설정
   if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
-    // 클릭으로 판정 시 이동 목표 설정
+    // 키보드/조이스틱 입력 초기화
     keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
     keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
     joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
@@ -419,7 +427,7 @@ const handleUserInteraction = () => {
   }
 };
 
-// --- Firebase RTDB 함수 (이전에 누락되었던 부분 복구) ---
+// --- Firebase RTDB 함수 ---
 const joinPlaza = async () => {
   if (!auth.currentUser || !myAvatar) return;
   const currentUid = auth.currentUser.uid;
@@ -535,11 +543,17 @@ const initThree = () => {
           texture.mapping = THREE.EquirectangularReflectionMapping;
           scene.background = texture;
           scene.environment = texture;
+          console.log("배경 이미지 로드 완료");
+      }, undefined, (err) => {
+          console.error('배경 이미지 로드 실패:', err);
+          scene.background = new THREE.Color(0xade6ff);
       });
+
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
 
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      // [수정] P1: 카메라 초기 위치
       camera.position.set(startX, startY + 5, startZ + 10);
 
       if (!canvasRef.value) return false;
@@ -548,15 +562,19 @@ const initThree = () => {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+      // [수정] P3: OrbitControls 설정 및 클릭 이동 충돌 방지
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
       controls.minDistance = 2;
       controls.maxDistance = 40;
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      
       controls.addEventListener('start', () => {
+        // 드래그(회전) 시작 시 클릭 이동 목표 취소
         if (navigationTarget.value) navigationTarget.value = null;
       });
+
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
 
@@ -589,6 +607,7 @@ const initThree = () => {
           scene.add(city);
 
           if (myAvatar) { myAvatar.position.set(startX, groundLevelY, startZ); }
+          
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
@@ -600,11 +619,17 @@ const initThree = () => {
             screen.position.set(startX, groundLevelY + 7, startZ - 15); 
             scene.add(screen);
           }
+      }, undefined, (error) => {
+          console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
       });
 
       clock = new THREE.Clock();
       return true;
-  } catch (error) { return false; }
+  } catch (error) { 
+      // [수정] error 변수 사용
+      console.error("Three.js 초기화 중 오류 발생:", error);
+      return false; 
+  }
 };
 
 // --- 입력 및 이동 로직 ---
@@ -626,6 +651,7 @@ const updatePlayerMovement = (deltaTime) => {
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
 
+  // 1. 클릭/터치 이동 (P3)
   if (navigationTarget.value != null) {
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
@@ -650,6 +676,7 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
   
+  // 2. 키보드/조이스틱 이동
   if (navigationTarget.value == null) { 
     if (joystickData.value.active && joystickData.value.distance > 10) {
       targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -660,12 +687,15 @@ const updatePlayerMovement = (deltaTime) => {
       currentSpeedFactor = joystickData.value.force;
 
     } else if (!joystickData.value.active) {
+      // [수정] P4: 키보드 이동 시 아바타 방향을 카메라와 동기화
       const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
       const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+      
       if (isKeyboardMoving) {
         myAvatar.rotation.y = cameraEuler.y;
         moved = true;
       }
+
       if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
       if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
       if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
@@ -675,7 +705,8 @@ const updatePlayerMovement = (deltaTime) => {
 
   if (applyRotation) {
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
   }
@@ -715,47 +746,6 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
-const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 8;
-  for (const userId in otherPlayers) {
-    const player = otherPlayers[userId];
-    if (!player.mesh) continue;
-    player.mesh.matrixAutoUpdate = true;
-    
-    const distance = player.mesh.position.distanceTo(player.targetPosition);
-    const wasMoving = player.isMoving;
-    player.isMoving = distance > 0.01;
-    player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    
-    let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    player.mesh.rotation.y += diff * lerpFactor;
-
-    const mixer = player.mixer;
-    const actions = player.actions;
-    if (mixer && actions.walk && actions.idle) {
-      if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.3); }
-      else if (!player.isMoving && wasMoving) { actions.idle.reset().play(); actions.walk.crossFadeTo(actions.idle, 0.3); }
-    }
-  }
-};
-
-const animate = () => {
-  if (!renderer || !scene || !camera || !clock) return;
-  requestAnimationFrame(animate);
-  const deltaTime = clock.getDelta();
-
-  if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
-  for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
-
-  updatePlayerMovement(deltaTime);
-  updateOtherPlayersMovement(deltaTime);
-  if (controls) controls.update();
-  renderer.render(scene, camera);
-};
-
-// --- 컴포넌트 라이프사이클 훅 ---
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
@@ -776,13 +766,23 @@ onMounted(async () => {
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
+  
+  // [복구] P3: 클릭 이동 리스너 추가
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
+    canvasRef.value.addEventListener('pointerup', handlePointerUp);
+  }
 
   animate();
 
-  const userDoc = await getDoc(doc(db, 'users', currentUid));
-  if (userDoc.exists()) {
-    myAvatarUrl = userDoc.data().avatarUrl;
-    myUserName = userDoc.data().name;
+  try {
+    const userDoc = await getDoc(doc(db, 'users', currentUid));
+    if (userDoc.exists()) {
+        myAvatarUrl = userDoc.data().avatarUrl;
+        myUserName = userDoc.data().name;
+    }
+  } catch (error) {
+    console.error("Firestore 정보 가져오기 실패:", error);
   }
 
   myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
@@ -805,9 +805,7 @@ onMounted(async () => {
   if (isReady.value) {
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
-    // ▼▼▼ [수정] 채팅 리스너 실행 추가 (ESLint 오류 해결 및 채팅 기능 활성화) ▼▼▼
-    listenToChat();
-    // ▲▲▲
+    listenToChat(); // [수정] 채팅 리스너 호출
   }
   isLoading.value = false;
 });
@@ -818,6 +816,8 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
+  
+  // [복구] P3: 클릭 이동 리스너 제거
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
     canvasRef.value.removeEventListener('pointerup', handlePointerUp);
@@ -850,29 +850,7 @@ const handleResize = () => {
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
 .joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
-/* [신규] 관리자 영상 제어 패널 스타일 */
-.admin-video-controls {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 15px;
-  border-radius: 8px;
-  color: white;
-  z-index: 100;
-}
-.admin-video-controls button {
-  display: block;
-  margin-top: 10px;
-  padding: 8px 12px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  width: 100%;
-}
-.admin-video-controls button:hover {
-  background: #0056b3;
-}
+.admin-video-controls { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; color: white; z-index: 100; }
+.admin-video-controls button { display: block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
+.admin-video-controls button:hover { background: #0056b3; }
 </style>
