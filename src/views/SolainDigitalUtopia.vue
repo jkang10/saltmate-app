@@ -5,15 +5,17 @@
 <video
       ref="cinemaVideoRef"
       id="cinema-video"
-      style="display: none"
+      v-show="false" 
       crossorigin="anonymous"
       playsinline
       webkit-playsinline
       loop
-      muted 
+      muted
       autoplay
-      @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.src)"
+      preload="auto"
+      @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
       @loadeddata="console.log('비디오 데이터 로드 성공')"
+      @canplay="console.log('비디오 재생 가능')"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
     </video>
