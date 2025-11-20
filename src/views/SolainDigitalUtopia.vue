@@ -177,6 +177,7 @@ const loadAnimations = async () => {
         return null;
       }))
     );
+
     gltfResults.forEach((gltf, index) => {
       const key = keys[index];
       if (gltf && gltf.animations && gltf.animations.length > 0) {
@@ -184,10 +185,12 @@ const loadAnimations = async () => {
       }
     });
     return loadedAnimations;
-  } catch (error) { 
-    // ▼▼▼ [수정] error 변수를 사용하여 로그 출력 (ESLint 오류 해결) ▼▼▼
+
+  } catch (error) {
+    // ▼▼▼ [수정] error 변수를 사용하여 로그를 출력 (ESLint 'unused vars' 오류 해결) ▼▼▼
     console.error('애니메이션 로딩 중 전체 오류 발생:', error);
-    return loadedAnimations; 
+    // ▲▲▲ 수정 완료 ▲▲▲
+    return loadedAnimations;
   }
 };
 
