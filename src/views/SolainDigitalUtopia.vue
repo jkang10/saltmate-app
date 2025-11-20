@@ -87,10 +87,10 @@ const MAX_CHAT_MESSAGES = 50;
 let scene, camera, renderer, clock;
 let controls; // OrbitControls 인스턴스
 
-// 클릭/터치 이동 관련 변수 복구
-const navigationTarget = ref(null);
-const pointerDownPos = new THREE.Vector2();
-const pointerDownTime = ref(0);
+// --- 클릭/터치 이동 관련 변수 ---
+const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
+const pointerDownPos = new THREE.Vector2(); // 클릭 시작 지점
+const pointerDownTime = ref(0); // 클릭 시작 시간
 
 const loader = new GLTFLoader();
 
@@ -185,7 +185,6 @@ const loadAnimations = async () => {
     });
     return loadedAnimations;
   } catch (error) {
-    // [수정] error 변수 사용 (ESLint 오류 해결)
     console.error('애니메이션 로딩 중 전체 오류 발생:', error);
     return loadedAnimations;
   }
@@ -195,7 +194,7 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true; // [수정] 부모 그룹은 true 유지
+    model.matrixAutoUpdate = true; // 부모 그룹은 true (이동 반영)
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
@@ -219,6 +218,7 @@ const loadAvatar = (url, animations) => {
         const visuals = gltf.scene;
         const box = new THREE.Box3().setFromObject(visuals);
         const center = box.getCenter(new THREE.Vector3());
+
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
@@ -226,6 +226,7 @@ const loadAvatar = (url, animations) => {
           }
           child.matrixAutoUpdate = true;
         });
+
         visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
         model.userData.visuals = visuals;
@@ -303,12 +304,9 @@ const createNicknameSprite = (text) => {
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
-  // [수정] P1: 닉네임 높이 조정
-  sprite.position.y = 2.0; 
+  sprite.position.y = 2.0; // 닉네임 높이
+  // sprite.matrixAutoUpdate = true; // 닉네임 지연 문제로 제거 (부모가 업데이트됨)
   
-  // [수정] P2: 닉네임 지연 해결을 위해 matrixAutoUpdate 설정 제거 (기본값 true)
-  // sprite.matrixAutoUpdate = true; // 삭제
-
   return sprite;
 };
 
@@ -383,7 +381,7 @@ const showChatBubble = (avatar, message) => {
   avatar.add(newBubble);
 };
 
-// --- 클릭/터치 핸들러 (P3 복구) ---
+// --- 클릭/터치 핸들러 ---
 const handlePointerDown = (event) => {
   if (chatInputRef.value === document.activeElement) return;
   pointerDownTime.value = Date.now();
@@ -400,9 +398,9 @@ const handlePointerUp = (event) => {
   const timeElapsed = Date.now() - pointerDownTime.value;
   const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
 
-  // 짧은 클릭일 경우에만 이동 목표 설정
+  // 클릭으로 판정된 경우에만 이동 목표 설정
   if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
-    // 키보드/조이스틱 입력 초기화
+    // 이동 시작 시 키보드/조이스틱 입력 초기화
     keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
     keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
     joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
@@ -553,7 +551,6 @@ const initThree = () => {
 
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      // [수정] P1: 카메라 초기 위치
       camera.position.set(startX, startY + 5, startZ + 10);
 
       if (!canvasRef.value) return false;
@@ -562,7 +559,6 @@ const initThree = () => {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      // [수정] P3: OrbitControls 설정 및 클릭 이동 충돌 방지
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -570,8 +566,8 @@ const initThree = () => {
       controls.maxDistance = 40;
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
       
+      // 카메라 회전 시작 시 클릭 이동 취소
       controls.addEventListener('start', () => {
-        // 드래그(회전) 시작 시 클릭 이동 목표 취소
         if (navigationTarget.value) navigationTarget.value = null;
       });
 
@@ -608,6 +604,7 @@ const initThree = () => {
 
           if (myAvatar) { myAvatar.position.set(startX, groundLevelY, startZ); }
           
+          // 시네마 스크린
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
@@ -626,7 +623,6 @@ const initThree = () => {
       clock = new THREE.Clock();
       return true;
   } catch (error) { 
-      // [수정] error 변수 사용
       console.error("Three.js 초기화 중 오류 발생:", error);
       return false; 
   }
@@ -651,7 +647,7 @@ const updatePlayerMovement = (deltaTime) => {
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
 
-  // 1. 클릭/터치 이동 (P3)
+  // 1. 클릭/터치 이동 처리
   if (navigationTarget.value != null) {
     if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
       navigationTarget.value = null;
@@ -687,7 +683,6 @@ const updatePlayerMovement = (deltaTime) => {
       currentSpeedFactor = joystickData.value.force;
 
     } else if (!joystickData.value.active) {
-      // [수정] P4: 키보드 이동 시 아바타 방향을 카메라와 동기화
       const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
       const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
       
@@ -746,6 +741,46 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
+const updateOtherPlayersMovement = (deltaTime) => {
+  const lerpFactor = deltaTime * 8;
+  for (const userId in otherPlayers) {
+    const player = otherPlayers[userId];
+    if (!player.mesh) continue;
+    player.mesh.matrixAutoUpdate = true;
+    
+    const distance = player.mesh.position.distanceTo(player.targetPosition);
+    const wasMoving = player.isMoving;
+    player.isMoving = distance > 0.01;
+    player.mesh.position.lerp(player.targetPosition, lerpFactor);
+    
+    let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
+    currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+    player.mesh.rotation.y += diff * lerpFactor;
+
+    const mixer = player.mixer;
+    const actions = player.actions;
+    if (mixer && actions.walk && actions.idle) {
+      if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.3); }
+      else if (!player.isMoving && wasMoving) { actions.idle.reset().play(); actions.walk.crossFadeTo(actions.idle, 0.3); }
+    }
+  }
+};
+
+const animate = () => {
+  if (!renderer || !scene || !camera || !clock) return;
+  requestAnimationFrame(animate);
+  const deltaTime = clock.getDelta();
+
+  if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
+  for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
+
+  updatePlayerMovement(deltaTime);
+  updateOtherPlayersMovement(deltaTime);
+  if (controls) controls.update();
+  renderer.render(scene, camera);
+};
+
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
@@ -766,8 +801,6 @@ onMounted(async () => {
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
-  
-  // [복구] P3: 클릭 이동 리스너 추가
   if (canvasRef.value) {
     canvasRef.value.addEventListener('pointerdown', handlePointerDown);
     canvasRef.value.addEventListener('pointerup', handlePointerUp);
@@ -780,6 +813,7 @@ onMounted(async () => {
     if (userDoc.exists()) {
         myAvatarUrl = userDoc.data().avatarUrl;
         myUserName = userDoc.data().name;
+        if (!myAvatarUrl) console.warn("아바타 URL 없음");
     }
   } catch (error) {
     console.error("Firestore 정보 가져오기 실패:", error);
@@ -805,7 +839,7 @@ onMounted(async () => {
   if (isReady.value) {
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
-    listenToChat(); // [수정] 채팅 리스너 호출
+    listenToChat();
   }
   isLoading.value = false;
 });
@@ -816,8 +850,6 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
-  
-  // [복구] P3: 클릭 이동 리스너 제거
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
     canvasRef.value.removeEventListener('pointerup', handlePointerUp);
