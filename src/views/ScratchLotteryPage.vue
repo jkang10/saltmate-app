@@ -71,7 +71,8 @@ const isLoading = ref(false);
 const isPlaying = ref(false);
 const gameResult = ref(null); // { prizeAmount, resultType, icons }
 const resultIcons = ref([0,0,0,0,0,0]); // 초기값
-const scratchedPercent = ref(0);
+
+// [수정] 사용하지 않는 scratchedPercent 변수 삭제
 
 const getIconSrc = (id) => {
   switch(id) {
@@ -188,7 +189,8 @@ const checkScratchPercent = () => {
   // 성능을 위해 10% 간격으로 픽셀 샘플링 (전체 픽셀 검사는 너무 느림)
   const imageData = ctx.getImageData(0, 0, w, h);
   const pixels = imageData.data;
-  let transparentPixels = 0;
+  
+  // [수정] 사용하지 않는 transparentPixels 변수 삭제
   const totalPixels = pixels.length / 4;
   
   // 32px 간격으로 샘플링 (속도 최적화)
