@@ -112,8 +112,9 @@ const hasAnswered = computed(() => {
 });
 
 const winnerName = computed(() => {
-    if(!game.value || !game.value.winner) return '';
-    return game.value.participants?.[game.value.winner]?.name || '알 수 없음';
+    if(!game.value || !game.value.winner) return '알 수 없음';
+    // [★수정★] game.winner 자체가 이미 이름 문자열이므로 그대로 반환합니다.
+    return game.value.winner;
 });
 
 // ▼▼▼ [핵심 추가] 다음 게임 시간을 계산하는 computed 속성 ▼▼▼
