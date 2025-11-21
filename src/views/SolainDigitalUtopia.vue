@@ -287,37 +287,31 @@ const loadAvatar = (url, animations) => {
       return;
     }
 
+    // ▼▼▼ 여기서부터 수정된 부분입니다 ▼▼▼
     loader.load(url,
       (gltf) => {
         const visuals = gltf.scene;
+        
+        // 1. 지오메트리 강제 이동 로직 삭제
+        visuals.traverse((child) => {
+          if (child.isMesh || child.isSkinnedMesh) {
+            // child.geometry.translate(...)  <-- 삭제 또는 주석 처리 필수!
+            child.castShadow = true;
+            child.receiveShadow = true; // [추가] 그림자 받기
+            child.frustumCulled = false; // 렌더링 누락 방지 유지
+          }
+        });
+
+        visuals.scale.set(0.7, 0.7, 0.7);
+        model.add(visuals);
+        model.userData.visuals = visuals; // 비주얼 객체 참조 저장
+
+        // 2. 모델의 위치(높이) 보정은 geometry 대신 model.position으로 해결해야 함
         const box = new THREE.Box3().setFromObject(visuals);
-        const center = box.getCenter(new THREE.Vector3());
+        // 발바닥을 (0,0,0)에 맞추고 싶다면 visuals 자체를 이동
+        visuals.position.y = -box.min.y; 
 
-	loader.load(url,
-	  (gltf) => {
-	    const visuals = gltf.scene;
-	    
-	    // 1. 지오메트리 강제 이동 로직 삭제
-	    visuals.traverse((child) => {
-	      if (child.isMesh || child.isSkinnedMesh) {
-		// child.geometry.translate(...)  <-- 삭제 또는 주석 처리 필수!
-		child.castShadow = true;
-		child.receiveShadow = true; // [추가] 그림자 받기
-		child.frustumCulled = false; // 렌더링 누락 방지 유지
-	      }
-	    });
-
-	    visuals.scale.set(0.7, 0.7, 0.7);
-	    model.add(visuals);
-	    model.userData.visuals = visuals; // 비주얼 객체 참조 저장
-
-	    // 2. 모델의 위치(높이) 보정은 geometry 대신 model.position으로 해결해야 함
-	    // 필요하다면 visuals.position.y = -box.min.y 와 같이 그룹 내부에서 조정
-	    const box = new THREE.Box3().setFromObject(visuals);
-	    // 발바닥을 (0,0,0)에 맞추고 싶다면 visuals 자체를 이동
-	    visuals.position.y = -box.min.y; 
-
-	    if (animations) {
+        if (animations) {
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
           for (const key in animations) {
