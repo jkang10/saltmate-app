@@ -12,6 +12,7 @@
       loop
       muted
       preload="auto"
+      @timeupdate="checkVideoProgress"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
@@ -97,7 +98,7 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let controls; // OrbitControls 인스턴스
+let controls; 
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -122,7 +123,6 @@ const toggleMute = () => {
     cinemaVideoRef.value.muted = isMuted.value;
     if (!isMuted.value) {
       cinemaVideoRef.value.volume = 1.0;
-      // 소리 켤 때 재생이 멈춰있다면 재생 시도
       if (isVideoPlaying.value && cinemaVideoRef.value.paused) {
          cinemaVideoRef.value.play().catch(() => {});
       }
@@ -176,7 +176,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [핵심 수정] 영상 상태 리스너 (로딩 대기 로직 추가) ---
+// --- 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -186,7 +186,6 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
-    // [수정] 비디오가 아직 로드되지 않았다면, 메타데이터 로드 후 실행되도록 이벤트 등록
     if (videoEl.readyState === 0) {
       const onLoaded = () => {
         applyVideoState(videoEl, data);
@@ -196,12 +195,10 @@ const listenToVideoState = () => {
       return;
     }
 
-    // 비디오가 준비된 상태라면 즉시 적용
     applyVideoState(videoEl, data);
   });
 };
 
-// [신규] 비디오 상태 적용 헬퍼 함수
 const applyVideoState = (videoEl, data) => {
     if (data.isPlaying) {
       const latency = (Date.now() - data.timestamp) / 1000;
@@ -304,7 +301,6 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
-            // [수정] 렌더링 누락 방지
             child.frustumCulled = false;
           }
           child.matrixAutoUpdate = true;
@@ -389,9 +385,6 @@ const createNicknameSprite = (text) => {
   
   sprite.position.y = 2.0;
   
-  // 닉네임 동기화
-  sprite.matrixAutoUpdate = true;
-
   return sprite;
 };
 
@@ -538,7 +531,7 @@ const listenToChat = () => {
   });
 };
 
-// --- [수정] 다른 플레이어 리스너 (안전한 좌표 및 애니메이션 처리) ---
+// --- 다른 플레이어 리스너 ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -573,7 +566,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [중요] 추가 직후 Idle 애니메이션 재생 보장 및 렌더링 업데이트
+      // [중요] 추가 직후 렌더링 업데이트 및 Idle 재생
       model.updateMatrixWorld(true);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
@@ -697,7 +690,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [수정] 클릭 이동 제거 (이동 관련 로직 삭제)
+// [수정] 클릭 이동 관련 로직 제거 및 applyRotation 변수 제거
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -705,24 +698,27 @@ const updatePlayerMovement = (deltaTime) => {
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
-  let applyRotation = false;
+  let targetRotationY = myAvatar.rotation.y;
+  // applyRotation 변수 제거됨
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      const targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      
+      // [수정] 조이스틱 회전 직접 적용
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
 
-      applyRotation = true;
       moveDirection.z = -1;
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동 (카메라 방향 기준)
+    // 2. 키보드 이동
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
@@ -736,8 +732,6 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
-
-  // applyRotation 변수는 조이스틱 로직 내에서만 사용되므로 여기서 체크할 필요 없음
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
@@ -832,7 +826,7 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // [수정] mousemove 이벤트 추가 (마우스만 움직여도 재생 시도)
+  // 영상 재생을 위한 사용자 인터랙션 감지 (전역 클릭/터치/이동)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
   window.addEventListener('mousemove', handleUserInteraction); 
