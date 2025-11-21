@@ -135,7 +135,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [수정] 영상 상태 리스너 (안정성 강화) ---
+// --- [수정] 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -158,8 +158,9 @@ const listenToVideoState = () => {
         videoEl.currentTime = targetTime;
       }
       
-      videoEl.play().catch((e) => {
-          console.log("자동 재생 차단됨. 사용자 클릭 대기 중.");
+      // [수정] 'e' -> 'error'로 변경하고 로그에 출력하여 오류 해결
+      videoEl.play().catch((error) => {
+          console.log("자동 재생 차단됨. 사용자 클릭 대기 중.", error);
       });
     } else {
       videoEl.pause();
