@@ -693,7 +693,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [수정] 클릭 이동 제거
+// [수정] applyRotation 변수 삭제
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -702,7 +702,7 @@ const updatePlayerMovement = (deltaTime) => {
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
-  let applyRotation = false;
+  // let applyRotation = false; // [삭제] 불필요한 변수 삭제
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
@@ -721,7 +721,7 @@ const updatePlayerMovement = (deltaTime) => {
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동
+    // 2. 키보드 이동 (카메라 방향 기준)
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
@@ -736,9 +736,15 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
+  // [삭제] 이전에 있던 applyRotation 체크 로직은 이미 위에서 직접 처리하므로 필요 없음
+
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion);
+    if (joystickData.value.active) {
+        velocity.applyQuaternion(myAvatar.quaternion);
+    } else {
+        velocity.applyQuaternion(myAvatar.quaternion);
+    }
     myAvatar.position.add(velocity);
   }
 
