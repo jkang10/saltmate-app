@@ -65,11 +65,11 @@ const isAutoMode = ref(false);
 const lastResult = ref(null);
 const activeIndex = ref(-1);
 
-// [수정] 배율 및 핀 설정 변경
 const multipliers = [3, 2.5, 2, 1.5, 0.5, 1.5, 2, 2.5, 3];
-const rows = 12; // [수정] 핀 줄 수 증가 (8 -> 12)
+const rows = 12; 
 const pegSize = 4;
-const ballSize = 6;
+// [★수정★] ballSize를 let으로 변경 (반응형 조절을 위해)
+let ballSize = 6; 
 let ctx = null;
 let width = 0;
 let height = 0;
@@ -111,6 +111,13 @@ const initBoard = () => {
 
   width = canvasWrapper.value.clientWidth;
   height = canvasWrapper.value.clientHeight;
+
+  // [★수정★] 모바일 화면(600px 미만)에서는 공 크기를 4로 줄임
+  if (width < 600) {
+      ballSize = 4; 
+  } else {
+      ballSize = 6;
+  }
   
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
@@ -122,14 +129,13 @@ const initBoard = () => {
   canvas.style.height = `${height}px`;
 
   pegs.length = 0;
-  // [수정] 핀 간격 계산 (rows가 12이므로 간격이 좁아져서 화면에 꽉 참)
   const spacing = width / (rows + 2);
   const startY = 40;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col <= row; col++) {
       const x = (width / 2) - (row * spacing / 2) + (col * spacing);
-      const y = startY + (row * spacing * 0.85);
+      const y = startY + (row * spacing * 0.8); 
       pegs.push({ x, y });
     }
   }
@@ -140,9 +146,9 @@ const setBet = (amount) => {
 };
 
 const getMultiplierClass = (mul) => {
-  if (mul >= 3) return 'jackpot';
-  if (mul >= 2) return 'high';
-  if (mul >= 1.5) return 'medium';
+  if (mul >= 100) return 'jackpot';
+  if (mul >= 10) return 'high';
+  if (mul >= 2) return 'medium';
   return 'low';
 };
 
@@ -165,7 +171,7 @@ const dropBall = async () => {
     const { selectedIndex, multiplier, profit } = result.data;
 
     balls.push({
-      x: width / 2 + (Math.random() - 0.5) * 5, 
+      x: width / 2 + (Math.random() - 0.5) * 4, 
       y: 10,
       vx: 0,
       vy: 0,
@@ -182,7 +188,7 @@ const dropBall = async () => {
     if (isAutoMode.value) {
         setTimeout(() => {
             if (isAutoMode.value) dropBall();
-        }, 1500); 
+        }, 1200); 
     }
 
   } catch (error) {
@@ -214,23 +220,22 @@ const update = () => {
     const ball = balls[i];
     
     if (!ball.finished) {
-        // 1. 물리
-        ball.vy += 0.18; // 중력
-        ball.y += ball.vy;
+        ball.vy += 0.25; 
+        ball.vy *= 0.99; 
+        ball.vx *= 0.98; 
+        
         ball.x += ball.vx;
+        ball.y += ball.vy;
 
-        // 2. 유도 로직 (12줄에 맞게 조정)
         const spacing = width / (rows + 2);
-        // 배율 박스도 중앙 정렬
         const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
 
         if (ball.y > height * 0.5) {
             const dx = finalTargetX - ball.x;
-            ball.vx += dx * 0.006; 
-            ball.vx *= 0.97; 
+            ball.vx += dx * 0.008; 
+            ball.vx *= 0.96; 
         }
 
-        // 3. 충돌
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
@@ -239,32 +244,34 @@ const update = () => {
             if (dist < ballSize + pegSize) {
                 playPingSound();
                 ball.vy *= -0.4; 
-                ball.vx += (Math.random() - 0.5) * 1.5; 
+                ball.vx += (Math.random() - 0.5) * 1.2; 
                 ball.y -= 2; 
                 
-                if (ball.x < finalTargetX) ball.vx += 0.15;
-                else ball.vx -= 0.15;
+                if (ball.x < finalTargetX) ball.vx += 0.2;
+                else ball.vx -= 0.2;
 
                 break;
             }
         }
         
-        if (ball.vx > 3.5) ball.vx = 3.5;
-        if (ball.vx < -3.5) ball.vx = -3.5;
+        if (ball.vx > 4) ball.vx = 4;
+        if (ball.vx < -4) ball.vx = -4;
         
-        // 4. 바닥
         if (ball.y > height - 30) {
-            ball.x = finalTargetX; // 시각적 보정
-            ball.finished = true;
-            activeIndex.value = ball.targetIndex;
-            lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
-            setTimeout(() => { activeIndex.value = -1; }, 300);
-            balls.splice(i, 1);
-            
-            if (balls.length === 0 && !isAutoMode.value) {
-                isPlaying.value = false;
+            if (Math.abs(ball.x - finalTargetX) > 15) { 
+                ball.x += (finalTargetX - ball.x) * 0.3;
+            } else {
+                ball.finished = true;
+                activeIndex.value = ball.targetIndex;
+                lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
+                setTimeout(() => { activeIndex.value = -1; }, 300);
+                balls.splice(i, 1);
+                
+                if (balls.length === 0 && !isAutoMode.value) {
+                    isPlaying.value = false;
+                }
+                continue;
             }
-            continue;
         }
     }
 
