@@ -112,7 +112,8 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 플레이어 이동 관련 ---
-const moveSpeed = 2.0;
+// [수정] 변수 선언부 (기존 2.0 -> 1.2로 변경)
+const moveSpeed = 1.2; // 걷는 속도로 변경하여 이름표와의 괴리감 해소
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
@@ -842,21 +843,22 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
+// [수정] updateOtherPlayersMovement 함수
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 8;
+  // [핵심 수정] 8 -> 15로 변경 (이름표와 몸체가 더 착 붙어서 따라다님)
+  const lerpFactor = deltaTime * 15; 
+
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
     
-    // 거리 계산 및 이동 상태 확인
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
     
-    // [이동 처리]
+    // 이동 및 회전 보간 (부드럽게 따라가기)
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
     
-    // [회전 처리]
     let currentY = player.mesh.rotation.y; 
     let targetY = player.targetRotationY; 
     const PI2 = Math.PI * 2;
@@ -866,8 +868,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
 
-    // [중요 해결책] 이동/회전 후 즉시 매트릭스 강제 업데이트
-    // 이 코드가 없으면 무거운 모델은 다음 프레임에 그려지면서 이름표와 분리되어 보일 수 있습니다.
+    // 매트릭스 강제 업데이트 (잔상 제거)
     player.mesh.updateMatrixWorld(true);
 
     // 애니메이션 처리
