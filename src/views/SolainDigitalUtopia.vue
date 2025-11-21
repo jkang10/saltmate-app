@@ -2,7 +2,7 @@
   <div class="utopia-container">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-<video
+    <video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="display: none"
@@ -10,11 +10,9 @@
       playsinline
       webkit-playsinline
       loop
-      muted 
+      muted
       preload="auto"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
-      @loadeddata="console.log('비디오 데이터 로드 성공')"
-      @canplay="console.log('비디오 재생 가능')"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
     </video>
@@ -91,12 +89,6 @@ const MAX_CHAT_MESSAGES = 50;
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
 let controls; // OrbitControls 인스턴스
-
-// --- 클릭/터치 이동 관련 변수 ---
-const navigationTarget = ref(null); // 클릭/터치로 이동할 목표 지점
-const pointerDownPos = new THREE.Vector2(); // 클릭 시작 지점
-const pointerDownTime = ref(0); // 클릭 시작 시간
-
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -114,18 +106,16 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 관리자 영상 제어 함수 ---
+// --- [관리자] 영상 제어 함수 ---
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
-  const video = cinemaVideoRef.value;
-  
   const newStatus = !isVideoPlaying.value;
   
-  // [추가] 로컬에서도 즉시 상태 반영 시도 (디버깅용)
+  // 로컬에서 먼저 반영 (반응성 향상)
   if (newStatus) {
-      video.play().catch(e => console.error("비디오 재생 실패:", e));
+      cinemaVideoRef.value.play().catch(e => console.log(e));
   } else {
-      video.pause();
+      cinemaVideoRef.value.pause();
   }
 
   update(dbRef(rtdb, plazaVideoPath), {
@@ -135,7 +125,16 @@ const toggleVideoPlay = () => {
   });
 };
 
-// --- 영상 상태 리스너 ---
+const syncVideoTime = () => {
+  if (!cinemaVideoRef.value) return;
+  update(dbRef(rtdb, plazaVideoPath), {
+    timestamp: Date.now(),
+    videoTime: cinemaVideoRef.value.currentTime,
+    forceSync: true
+  });
+};
+
+// --- [회원] 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -146,22 +145,47 @@ const listenToVideoState = () => {
     const videoEl = cinemaVideoRef.value;
 
     if (data.isPlaying) {
+      // 네트워크 지연 보정
       const latency = (Date.now() - data.timestamp) / 1000;
       const targetTime = data.videoTime + latency;
+      
+      // 1초 이상 차이나면 시간 동기화
       if (Math.abs(videoEl.currentTime - targetTime) > 1) {
         videoEl.currentTime = targetTime;
       }
+      
       const playPromise = videoEl.play();
       if (playPromise !== undefined) {
-        playPromise.catch(() => {});
+        playPromise.catch((error) => {
+          console.log("자동 재생 차단됨 (사용자 인터랙션 대기 중):", error);
+          // 여기서 별도의 UI를 띄워 '영상 재생하기' 버튼을 누르게 할 수도 있습니다.
+        });
       }
     } else {
       videoEl.pause();
+      // 멈췄을 때도 시간 싱크 (0.5초 이상 차이나면)
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
         videoEl.currentTime = data.videoTime;
       }
     }
   });
+};
+
+// --- [핵심] 사용자 인터랙션 감지 (영상 재생 및 소리 켜기) ---
+const handleUserInteraction = () => {
+  const video = cinemaVideoRef.value;
+  if (video) {
+    // 1. 소리 켜기 (브라우저 정책 대응)
+    if (video.muted) {
+      video.muted = false;
+      video.volume = 1.0;
+      console.log("사용자 활동 감지: 음소거 해제 🔊");
+    }
+    // 2. 재생 중이어야 하는데 멈춰있다면 강제 재생
+    if (isVideoPlaying.value && video.paused) {
+      video.play().catch(() => {});
+    }
+  }
 };
 
 // --- 애니메이션 로드 함수 ---
@@ -200,7 +224,7 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true; // 부모 그룹은 true (이동 반영)
+    model.matrixAutoUpdate = true;
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
@@ -309,9 +333,7 @@ const createNicknameSprite = (text) => {
   const sprite = new THREE.Sprite(material);
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
-  
   sprite.position.y = 2.0; // 닉네임 높이
-  // sprite.matrixAutoUpdate = true; // 닉네임 지연 문제로 제거 (부모가 업데이트됨)
   
   return sprite;
 };
@@ -385,50 +407,6 @@ const showChatBubble = (avatar, message) => {
   newBubble.timeoutId = timeoutId;
   avatar.activeBubble = newBubble;
   avatar.add(newBubble);
-};
-
-// --- 클릭/터치 핸들러 ---
-const handlePointerDown = (event) => {
-  if (chatInputRef.value === document.activeElement) return;
-  pointerDownTime.value = Date.now();
-  pointerDownPos.set(event.clientX, event.clientY);
-};
-
-const handlePointerUp = (event) => {
-  if (chatInputRef.value === document.activeElement) return;
-  const cityMap = scene.getObjectByName("cityMap");
-  if (!cityMap) return;
-
-  const DRAG_THRESHOLD_TIME = 200;
-  const DRAG_THRESHOLD_DISTANCE = 10;
-  const timeElapsed = Date.now() - pointerDownTime.value;
-  const distanceMoved = pointerDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
-
-  // 클릭으로 판정된 경우에만 이동 목표 설정
-  if (timeElapsed < DRAG_THRESHOLD_TIME && distanceMoved < DRAG_THRESHOLD_DISTANCE) {
-    // 이동 시작 시 키보드/조이스틱 입력 초기화
-    keysPressed['KeyW'] = false; keysPressed['KeyS'] = false;
-    keysPressed['KeyA'] = false; keysPressed['KeyD'] = false;
-    joystickData.value = { active: false, angle: 0, distance: 0, force: 0 };
-    
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(cityMap, true);
-
-    if (intersects.length > 0) {
-      navigationTarget.value = intersects[0].point;
-    }
-  }
-};
-
-const handleUserInteraction = () => {
-  if (cinemaVideoRef.value && isVideoPlaying.value && cinemaVideoRef.value.paused) {
-    cinemaVideoRef.value.play().catch(() => {});
-  }
 };
 
 // --- Firebase RTDB 함수 ---
@@ -571,12 +549,6 @@ const initThree = () => {
       controls.minDistance = 2;
       controls.maxDistance = 40;
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
-      
-      // 카메라 회전 시작 시 클릭 이동 취소
-      controls.addEventListener('start', () => {
-        if (navigationTarget.value) navigationTarget.value = null;
-      });
-
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
 
@@ -591,6 +563,7 @@ const initThree = () => {
       dirLight.shadow.camera.far = 200;
       dirLight.shadow.camera.left = -80; dirLight.shadow.camera.right = 80;
       dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
+      dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
 
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
@@ -610,16 +583,12 @@ const initThree = () => {
 
           if (myAvatar) { myAvatar.position.set(startX, groundLevelY, startZ); }
           
-          // 시네마 스크린
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.format = THREE.RGBAFormat; // 포맷 명시
-
             const screenGeo = new THREE.PlaneGeometry(16, 9);
-            // [수정] MeshBasicMaterial 사용 및 DoubleSide 설정 확인
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat);
             screen.position.set(startX, groundLevelY + 7, startZ - 15); 
@@ -646,6 +615,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
+// [완전 수정] 마우스/터치 클릭 이동 로직 제거 -> 오직 카메라 회전 및 영상 상호작용만 남김
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -656,75 +626,53 @@ const updatePlayerMovement = (deltaTime) => {
   let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
 
-  // 1. 클릭/터치 이동 처리
-  if (navigationTarget.value != null) {
-    if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
-      navigationTarget.value = null;
-    } else {
-      const targetPos = navigationTarget.value;
-      const currentPos = myAvatar.position;
-      const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
-
-      if (distance < 0.2) {
-        navigationTarget.value = null;
-        moved = false;
-        currentAnimation = 'idle';
-      } else {
-        const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
-        direction.y = 0;
-        targetRotationY = Math.atan2(direction.x, direction.z);
-        applyRotation = true;
-        moveDirection.z = -1;
-        moved = true;
-        currentAnimation = 'walk';
-      }
-    }
-  }
-  
-  // 2. 키보드/조이스틱 이동
-  if (navigationTarget.value == null) { 
-    if (joystickData.value.active && joystickData.value.distance > 10) {
+  // 1. 조이스틱 이동
+  if (joystickData.value.active && joystickData.value.distance > 10) {
       targetRotationY = -joystickData.value.angle + Math.PI / 2;
       applyRotation = true;
       moveDirection.z = -1;
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
-
-    } else if (!joystickData.value.active) {
-      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      
-      if (isKeyboardMoving) {
-        myAvatar.rotation.y = cameraEuler.y;
-        moved = true;
-      }
-
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
-    }
-  }
-
-  if (applyRotation) {
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
+
+  } else if (!joystickData.value.active) { 
+    // 2. 키보드 이동 (카메라 방향 기준)
+    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+    
+    if (isKeyboardMoving) {
+      myAvatar.rotation.y = cameraEuler.y;
+      moved = true;
+    }
+
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion);
+    // 조이스틱일 때는 이미 아바타가 회전했으므로 로컬 Z축으로 전진
+    if (joystickData.value.active) {
+        velocity.applyQuaternion(myAvatar.quaternion);
+    } else {
+        // 키보드일 때는 카메라 방향(이미 아바타에 적용됨) 기준으로 이동
+        velocity.applyQuaternion(myAvatar.quaternion);
+    }
     myAvatar.position.add(velocity);
   }
 
+  // 경계 처리
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
+  // Y 위치 고정 (Raycasting)
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
@@ -738,6 +686,7 @@ const updatePlayerMovement = (deltaTime) => {
 
   if (moved) throttledUpdate();
 
+  // 애니메이션
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
@@ -808,12 +757,9 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+  // 영상 재생을 위한 사용자 인터랙션 감지 (전역 클릭/터치)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
-  if (canvasRef.value) {
-    canvasRef.value.addEventListener('pointerdown', handlePointerDown);
-    canvasRef.value.addEventListener('pointerup', handlePointerUp);
-  }
 
   animate();
 
@@ -822,7 +768,6 @@ onMounted(async () => {
     if (userDoc.exists()) {
         myAvatarUrl = userDoc.data().avatarUrl;
         myUserName = userDoc.data().name;
-        if (!myAvatarUrl) console.warn("아바타 URL 없음");
     }
   } catch (error) {
     console.error("Firestore 정보 가져오기 실패:", error);
@@ -859,10 +804,6 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
-  if (canvasRef.value) {
-    canvasRef.value.removeEventListener('pointerdown', handlePointerDown);
-    canvasRef.value.removeEventListener('pointerup', handlePointerUp);
-  }
   
   if (playersListenerRef) off(playersListenerRef);
   if (videoListenerRef) off(videoListenerRef);
