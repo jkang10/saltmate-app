@@ -65,11 +65,11 @@ const isAutoMode = ref(false);
 const lastResult = ref(null);
 const activeIndex = ref(-1);
 
-// [수정] 새로운 배율 적용 (대칭형)
+// [수정] 배율 및 핀 설정 변경
 const multipliers = [3, 2.5, 2, 1.5, 0.5, 1.5, 2, 2.5, 3];
-const rows = 8; 
+const rows = 12; // [수정] 핀 줄 수 증가 (8 -> 12)
 const pegSize = 4;
-const ballSize = 6; // 공 크기 약간 축소 (더 자연스럽게)
+const ballSize = 6;
 let ctx = null;
 let width = 0;
 let height = 0;
@@ -89,10 +89,13 @@ const initAudio = () => {
 const playPingSound = () => {
   if (!audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
+  
   osc.connect(gain);
   gain.connect(audioCtx.destination);
+  
   const freqs = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00];
   osc.frequency.value = freqs[Math.floor(Math.random() * freqs.length)];
   osc.type = 'sine';
@@ -115,10 +118,13 @@ const initBoard = () => {
   ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   
-  // 핀 배치 (삼각형 형태)
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
   pegs.length = 0;
+  // [수정] 핀 간격 계산 (rows가 12이므로 간격이 좁아져서 화면에 꽉 참)
   const spacing = width / (rows + 2);
-  const startY = 60;
+  const startY = 40;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col <= row; col++) {
@@ -158,9 +164,8 @@ const dropBall = async () => {
     const result = await playFunc({ betAmount: betAmount.value });
     const { selectedIndex, multiplier, profit } = result.data;
 
-    // 공 생성 위치 (상단 중앙 + 약간의 랜덤성)
     balls.push({
-      x: width / 2 + (Math.random() - 0.5) * 4, 
+      x: width / 2 + (Math.random() - 0.5) * 5, 
       y: 10,
       vx: 0,
       vy: 0,
@@ -177,7 +182,7 @@ const dropBall = async () => {
     if (isAutoMode.value) {
         setTimeout(() => {
             if (isAutoMode.value) dropBall();
-        }, 1200); 
+        }, 1500); 
     }
 
   } catch (error) {
@@ -194,15 +199,10 @@ const toggleAuto = () => {
     if (isAutoMode.value && !isPlaying.value) dropBall();
 };
 
-// [핵심 수정] 물리 엔진 업데이트 루프
 const update = () => {
   if (!ctx) return;
-  const cvsWidth = width;
-  const cvsHeight = height;
-  
-  ctx.clearRect(0, 0, cvsWidth, cvsHeight);
+  ctx.clearRect(0, 0, width, height);
 
-  // 핀 그리기
   ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   pegs.forEach(peg => {
     ctx.beginPath();
@@ -214,28 +214,23 @@ const update = () => {
     const ball = balls[i];
     
     if (!ball.finished) {
-        // 1. 중력 및 속도
-        ball.vy += 0.25; // 중력
-        ball.vy *= 0.99; // 공기 저항 (Y)
-        ball.vx *= 0.98; // 공기 저항 (X) - 좌우 흔들림 방지
-        
-        ball.x += ball.vx;
+        // 1. 물리
+        ball.vy += 0.18; // 중력
         ball.y += ball.vy;
+        ball.x += ball.vx;
 
-        // 2. [자연스러운 유도 로직]
-        // 목표 지점을 향해 '바람'처럼 아주 미세하게만 힘을 가함
-        const spacing = cvsWidth / (rows + 2);
-        const targetX = (cvsWidth / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
-        
-        // 공이 핀 영역을 지나갈 때만 미세하게 조정
-        if (ball.y > 50 && ball.y < cvsHeight - 50) {
-            const dx = targetX - ball.x;
-            // 거리에 따라 힘을 조절하되, 최대 힘을 제한 (0.002 아주 약하게)
-            const force = Math.min(Math.max(dx * 0.002, -0.05), 0.05);
-            ball.vx += force;
+        // 2. 유도 로직 (12줄에 맞게 조정)
+        const spacing = width / (rows + 2);
+        // 배율 박스도 중앙 정렬
+        const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
+
+        if (ball.y > height * 0.5) {
+            const dx = finalTargetX - ball.x;
+            ball.vx += dx * 0.006; 
+            ball.vx *= 0.97; 
         }
 
-        // 3. 핀 충돌 (간단한 원형 충돌)
+        // 3. 충돌
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
@@ -243,44 +238,36 @@ const update = () => {
             
             if (dist < ballSize + pegSize) {
                 playPingSound();
+                ball.vy *= -0.4; 
+                ball.vx += (Math.random() - 0.5) * 1.5; 
+                ball.y -= 2; 
                 
-                // 충돌 반응: 
-                // 공이 핀 위에 있으면 Y속도 반전, 아니면 X속도에 랜덤성 부여
-                const angle = Math.atan2(dy, dx);
-                const speed = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 0.6; // 에너지 손실
-                
-                ball.vx = Math.cos(angle) * speed + (Math.random() - 0.5); // 랜덤 튀김 추가
-                ball.vy = Math.sin(angle) * speed;
-                
-                // 겹침 방지
-                ball.x += Math.cos(angle) * (ballSize + pegSize - dist + 1);
-                ball.y += Math.sin(angle) * (ballSize + pegSize - dist + 1);
-                
-                break; 
+                if (ball.x < finalTargetX) ball.vx += 0.15;
+                else ball.vx -= 0.15;
+
+                break;
             }
         }
         
-        // 4. 바닥 도착
-        if (ball.y > cvsHeight - 30) {
-            // 시각적 보정: 너무 멀리 떨어져 있으면 목표 위치로 스르륵 이동
-            if (Math.abs(ball.x - targetX) > 10) {
-                ball.x += (targetX - ball.x) * 0.2;
-            } else {
-                ball.finished = true;
-                activeIndex.value = ball.targetIndex;
-                lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
-                setTimeout(() => { activeIndex.value = -1; }, 300);
-                balls.splice(i, 1);
-                
-                if (balls.length === 0 && !isAutoMode.value) {
-                    isPlaying.value = false;
-                }
-                continue;
+        if (ball.vx > 3.5) ball.vx = 3.5;
+        if (ball.vx < -3.5) ball.vx = -3.5;
+        
+        // 4. 바닥
+        if (ball.y > height - 30) {
+            ball.x = finalTargetX; // 시각적 보정
+            ball.finished = true;
+            activeIndex.value = ball.targetIndex;
+            lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
+            setTimeout(() => { activeIndex.value = -1; }, 300);
+            balls.splice(i, 1);
+            
+            if (balls.length === 0 && !isAutoMode.value) {
+                isPlaying.value = false;
             }
+            continue;
         }
     }
 
-    // 공 그리기
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ballSize, 0, Math.PI * 2);
     ctx.fillStyle = '#FFD700';
@@ -341,7 +328,7 @@ onUnmounted(() => {
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  height: 380px;
+  height: 450px; /* [수정] 핀이 늘어났으므로 높이 증가 */
   background: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
   overflow: hidden;
