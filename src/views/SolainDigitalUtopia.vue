@@ -98,10 +98,7 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let controls; // OrbitControls 인스턴스
-
-// [삭제] 클릭 이동 관련 변수 삭제 (navigationTarget 등)
-
+let controls; 
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -119,17 +116,13 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] 음소거 토글 함수 (비디오 제어 확실하게) ---
+// --- 음소거 토글 함수 ---
 const toggleMute = () => {
   isMuted.value = !isMuted.value;
   if (cinemaVideoRef.value) {
     cinemaVideoRef.value.muted = isMuted.value;
     if (!isMuted.value) {
       cinemaVideoRef.value.volume = 1.0;
-      // 소리 켤 때 재생 중이라면 확실히 play() 호출 (브라우저 정책 대응)
-      if (isVideoPlaying.value && cinemaVideoRef.value.paused) {
-          cinemaVideoRef.value.play().catch(() => {});
-      }
     }
   }
 };
@@ -137,7 +130,6 @@ const toggleMute = () => {
 // --- 영상 진행률 체크 및 보상 지급 ---
 const checkVideoProgress = async () => {
   const video = cinemaVideoRef.value;
-  // [수정] 로그인 체크 수정
   if (!video || rewardClaimedLocal.value || !auth.currentUser) return;
 
   if (video.duration > 0 && video.currentTime >= video.duration * 0.95) {
@@ -179,7 +171,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [수정] 영상 상태 리스너 (자동 재생 대응 강화) ---
+// --- 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -194,18 +186,12 @@ const listenToVideoState = () => {
     if (data.isPlaying) {
       const latency = (Date.now() - data.timestamp) / 1000;
       const targetTime = data.videoTime + latency;
-      
       if (Math.abs(videoEl.currentTime - targetTime) > 1) {
         videoEl.currentTime = targetTime;
       }
-      
-      // [핵심] play() 호출 시 catch 블록 추가
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-          playPromise.catch((error) => {
-              console.log("자동 재생 차단됨 (사용자 인터랙션 필요):", error);
-          });
-      }
+      videoEl.play().catch((error) => {
+          console.log("자동 재생 차단됨:", error);
+      });
     } else {
       videoEl.pause();
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
@@ -215,17 +201,19 @@ const listenToVideoState = () => {
   });
 };
 
-// --- [수정] 사용자 인터랙션 감지 (터치/클릭 시 재생 시도) ---
+// --- [수정] 사용자 인터랙션 감지 (강력한 재생 시도) ---
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
-  // 영상이 존재하고, 관리자가 재생 중인 상태라면
-  if (video && isVideoPlaying.value) {
-    // 1. 일시정지 상태면 재생
-    if (video.paused) {
-        video.play().catch(() => {});
+  if (video) {
+    // 소리 켜기
+    if (video.muted) {
+      video.muted = false;
+      video.volume = 1.0;
     }
-    // 2. 음소거가 되어 있고 사용자가 소리 켜기를 원하면 (여기서는 자동 해제 안 함, 버튼으로 함)
-    // 단, 최초 인터랙션 시 음소거 상태여도 재생을 시작하기 위해 play()는 호출함
+    // 재생 중이어야 하는데 멈춰있다면 강제 재생
+    if (isVideoPlaying.value && video.paused) {
+      video.play().catch(() => {});
+    }
   }
 };
 
@@ -261,7 +249,7 @@ const loadAnimations = async () => {
   }
 };
 
-// --- [수정] 아바타 로드 함수 (입장 시 바로 보이게) ---
+// --- 아바타 로드 함수 ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -311,7 +299,6 @@ const loadAvatar = (url, animations) => {
             if (animations[key]) {
               const action = mixer.clipAction(animations[key]);
               model.userData.actions[key] = action;
-              // [중요] 로드 직후 Idle 재생
               if (key === 'idle') action.play();
             }
           }
@@ -379,7 +366,9 @@ const createNicknameSprite = (text) => {
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
   sprite.position.y = 2.0;
-  sprite.matrixAutoUpdate = true; // [수정] 닉네임 동기화 위해 true 복원
+  
+  // [수정] 닉네임 동기화
+  sprite.matrixAutoUpdate = true;
 
   return sprite;
 };
@@ -459,8 +448,6 @@ const showChatBubble = (avatar, message, color = "black") => {
   avatar.add(newBubble);
 };
 
-// [삭제] 클릭/터치 핸들러 완전 삭제 (이동 불가)
-
 // --- Firebase RTDB 함수 ---
 const joinPlaza = async () => {
   if (!auth.currentUser || !myAvatar) return;
@@ -529,7 +516,7 @@ const listenToChat = () => {
   });
 };
 
-// --- [수정] 다른 플레이어 리스너 (안전한 좌표 및 애니메이션 처리) ---
+// --- [수정] 다른 플레이어 리스너 (아바타 늦게 뜨는 문제 해결) ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -537,7 +524,6 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
-    // 좌표값 null 체크 및 기본값 설정
     const posX = val.position?.x ?? 0;
     const posY = val.position?.y ?? 0;
     const posZ = val.position?.z ?? 0;
@@ -565,7 +551,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [중요] 추가 직후 Idle 애니메이션 재생 보장
+      // [중요] 추가 직후 렌더링 보정
       model.updateMatrixWorld(true);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
@@ -637,8 +623,6 @@ const initThree = () => {
       dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
-      scene.add(hemiLight);
 
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
@@ -829,8 +813,12 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+  
+  // [수정] mousemove 이벤트 추가 (마우스만 움직여도 재생 시도)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
+  window.addEventListener('mousemove', handleUserInteraction); 
+  window.addEventListener('keydown', handleUserInteraction);
 
   animate();
 
@@ -878,6 +866,7 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
+  window.removeEventListener('mousemove', handleUserInteraction);
   
   if (playersListenerRef) off(playersListenerRef);
   if (videoListenerRef) off(videoListenerRef);
