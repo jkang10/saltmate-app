@@ -546,10 +546,11 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
-    const posX = val.position?.x ?? 0;
-    const posY = val.position?.y ?? 0;
-    const posZ = val.position?.z ?? 0;
-    const rotY = val.rotationY ?? 0;
+    // 좌표 데이터가 없으면 기본값 0 처리
+    const posX = isFiniteNumber(val.position?.x) ? val.position.x : 0;
+    const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0;
+    const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 0;
+    const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
 
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
@@ -558,28 +559,35 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       userName: val.userName, isMoving: false
     };
     
+    // 아바타 로드
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     
+    // 비동기 로드 후 플레이어가 여전히 존재하는지 확인
     if (scene && otherPlayers[snapshot.key]) {
-      // 이름표 부착
+      // 이름표 부착 (높이 1.7)
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        // [수정] 상대방 이름 높이도 1.7로 낮춤
         nick.position.set(0, 1.7, 0); 
         model.add(nick); 
       }
 
-      model.position.copy(otherPlayers[snapshot.key].targetPosition);
-      model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
+      // [핵심 해결책] 초기 위치와 회전을 강제로 적용
+      model.position.set(posX, posY, posZ);
+      model.rotation.y = rotY;
       
       scene.add(model);
+      
+      // [핵심 해결책] 씬에 추가된 직후 월드 매트릭스를 강제로 업데이트하여 즉시 보이게 함
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      if (model.userData.mixer) model.userData.mixer.update(0.01);
+      // [핵심 해결책] 애니메이션 믹서를 강제로 한번 업데이트하여 T-pose가 아닌 Idle 상태로 즉시 렌더링
+      if (model.userData.mixer) {
+          model.userData.mixer.update(0.01); // 0.01초 강제 진행
+      }
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
       }
@@ -910,20 +918,22 @@ onMounted(async () => {
   // 1. 아바타 로드
   myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
   
-  // 2. 초기 위치 강제 지정 (Plaza 입장 전 좌표 확정)
-  myAvatar.position.set(37.16, 0.5, 7.85); 
+  // 2. 초기 위치 강제 지정
+  const startX = 37.16;
+  const startY = 0.5;
+  const startZ = 7.85;
+  myAvatar.position.set(startX, startY, startZ); 
   
   // 3. 내 닉네임 생성 및 부착
   if (myUserName) {
     const nick = createNicknameSprite(myUserName);
-    // [수정] 높이를 2.0 -> 1.7로 낮춤 (머리 위 적절한 위치)
-    nick.position.set(0, 1.7, 0); 
+    nick.position.set(0, 1.7, 0); // 높이 1.7
     myAvatar.add(nick);
   }
   
   scene.add(myAvatar);
   
-  // 매트릭스 강제 업데이트
+  // [핵심] 내 아바타도 매트릭스와 애니메이션 강제 업데이트
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) {
       myAvatar.userData.mixer.update(0.01);
@@ -937,9 +947,14 @@ onMounted(async () => {
       joystickManager.on('end', handleJoystickEnd);
   }
 
+  // 입장 처리
   await joinPlaza();
   
   if (isReady.value) {
+    // [핵심 해결책] 입장 직후 움직이지 않았어도 내 위치를 강제로 한번 전송합니다.
+    // 이것이 없으면 다른 사람은 내가 움직이기 전까지 나를 (0,0,0)이나 투명한 상태로 인식할 수 있습니다.
+    updateMyStateInRTDB();
+
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
     listenToChat();
