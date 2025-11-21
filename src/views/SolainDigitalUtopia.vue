@@ -89,6 +89,7 @@ const MAX_CHAT_MESSAGES = 50;
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
 let controls; // OrbitControls 인스턴스
+
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -106,7 +107,7 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [관리자] 영상 제어 함수 ---
+// --- 관리자 영상 제어 함수 ---
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
@@ -158,12 +159,10 @@ const listenToVideoState = () => {
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
           console.log("자동 재생 차단됨 (사용자 인터랙션 대기 중):", error);
-          // 여기서 별도의 UI를 띄워 '영상 재생하기' 버튼을 누르게 할 수도 있습니다.
         });
       }
     } else {
       videoEl.pause();
-      // 멈췄을 때도 시간 싱크 (0.5초 이상 차이나면)
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
         videoEl.currentTime = data.videoTime;
       }
@@ -615,7 +614,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// 매 프레임 호출: 내 아바타 위치/회전 업데이트
+// [완전 수정] 마우스/터치 클릭 이동 로직 제거 -> 오직 카메라 회전 및 영상 상호작용만 남김
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -624,85 +623,59 @@ const updatePlayerMovement = (deltaTime) => {
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
-  // let applyRotation = false; // [수정] 불필요한 변수 삭제
+  let applyRotation = false;
 
-  // 1. 클릭/터치 이동 처리 (navigationTarget 변수가 존재하는 경우에만)
-  if (navigationTarget.value != null) {
-    if (joystickData.value.active || keysPressed['KeyW'] || keysPressed['KeyS'] || keysPressed['KeyA'] || keysPressed['KeyD'] || keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) {
-      navigationTarget.value = null;
-    } else {
-      const targetPos = navigationTarget.value;
-      const currentPos = myAvatar.position;
-      const distance = Math.sqrt(Math.pow(targetPos.x - currentPos.x, 2) + Math.pow(targetPos.z - currentPos.z, 2));
-
-      if (distance < 0.2) {
-        navigationTarget.value = null;
-        moved = false;
-        currentAnimation = 'idle';
-      } else {
-        const direction = new THREE.Vector3().subVectors(targetPos, currentPos);
-        direction.y = 0;
-        targetRotationY = Math.atan2(direction.x, direction.z);
-        
-        // [수정] 변수 대신 직접 회전 로직 실행
-        let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-        let targetY = targetRotationY;
-        currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-        let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-        myAvatar.rotation.y += diff * deltaTime * 8;
-
-        moveDirection.z = -1;
-        moved = true;
-        currentAnimation = 'walk';
-      }
-    }
-  }
-  
-  // 2. 키보드/조이스틱 이동
-  if (navigationTarget.value == null) { 
-    if (joystickData.value.active && joystickData.value.distance > 10) {
+  // 1. 조이스틱 이동
+  if (joystickData.value.active && joystickData.value.distance > 10) {
       targetRotationY = -joystickData.value.angle + Math.PI / 2;
-      
-      // [수정] 조이스틱 회전 로직 (변수 없이 직접 수행)
-      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      myAvatar.rotation.y += diff * deltaTime * 8;
-
+      applyRotation = true;
       moveDirection.z = -1;
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
 
-    } else if (!joystickData.value.active) {
-      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      
-      if (isKeyboardMoving) {
-        myAvatar.rotation.y = cameraEuler.y;
-        moved = true;
-      }
-
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
+  } else if (!joystickData.value.active) { 
+    // 2. 키보드 이동 (카메라 방향 기준)
+    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+    
+    if (isKeyboardMoving) {
+      myAvatar.rotation.y = cameraEuler.y;
+      moved = true;
     }
+
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
-  // [수정] if (applyRotation) 블록 삭제 (위에서 직접 처리함)
+  // 회전 적용
+  if (joystickData.value.active && applyRotation) {
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      myAvatar.rotation.y += diff * deltaTime * 8;
+  }
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion);
+    // 조이스틱일 때는 이미 아바타가 회전했으므로 로컬 Z축으로 전진
+    if (joystickData.value.active) {
+        velocity.applyQuaternion(myAvatar.quaternion);
+    } else {
+        // 키보드일 때는 카메라 방향(이미 아바타에 적용됨) 기준으로 이동
+        velocity.applyQuaternion(myAvatar.quaternion);
+    }
     myAvatar.position.add(velocity);
   }
 
+  // 경계 처리
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
+  // Y 위치 고정 (Raycasting)
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
@@ -716,6 +689,7 @@ const updatePlayerMovement = (deltaTime) => {
 
   if (moved) throttledUpdate();
 
+  // 애니메이션
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
