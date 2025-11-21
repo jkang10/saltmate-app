@@ -133,20 +133,37 @@ let joystickManager = null;
 // [수정] initAgora 함수
 const initAgora = async () => {
   if (!auth.currentUser) return;
-  const currentUid = auth.currentUser.uid; // 내 UID 가져오기
+  
+  // [핵심 수정] Firebase 문자열 UID를 숫자로 변환
+  const currentStringUid = auth.currentUser.uid;
+  const currentIntUid = uidToNum(currentStringUid); 
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // [추가] 누가 말하는지 감지하기 위한 설정 (2초마다 체크)
+    // 말하는 사람 감지 설정 (0.2초마다 체크)
     agoraClient.value.enableAudioVolumeIndicator();
 
-    // [추가] 말하는 사람 감지 이벤트 리스너
+    // [핵심 수정] 볼륨 감지 이벤트
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // level(소리 크기)이 5 이상이면 말하는 것으로 간주
-        updateSpeakingIndicator(uid, level > 5);
+        
+        // Agora에서 내 목소리는 uid가 0으로 들어옵니다.
+        // 따라서 uid가 0이거나, 내 숫자 ID와 같으면 내 아바타를 업데이트합니다.
+        if (uid === 0 || uid === currentIntUid) {
+            updateSpeakingIndicator(currentStringUid, level > 5);
+        } else {
+            // 다른 사람의 경우 숫자 ID를 다시 문자열 ID로 매핑해야 하는데,
+            // 현재 구조상 역변환이 어려우므로 otherPlayers를 순회하며 찾습니다.
+            // (가장 확실한 방법은 otherPlayers에 agoraUid를 같이 저장하는 것이지만, 
+            //  일단 여기서는 모든 플레이어를 돌며 Agora ID가 일치하는지 확인하거나, 
+            //  간단히 '다른 사람' 처리를 합니다.)
+            
+            // *임시 해결책*: 현재 접속한 otherPlayers 중 
+            // 이 숫자 UID를 가진 사람을 찾아 표시 (아래 updateSpeakingIndicator 수정 참고)
+            updateSpeakingIndicator(uid, level > 5, true); 
+        }
       });
     });
 
@@ -158,34 +175,49 @@ const initAgora = async () => {
       }
     });
 
-    // 상대방 퇴장/오디오 중지 감지
+    // 상대방 퇴장 감지
     agoraClient.value.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "audio") {
         if (user.audioTrack) user.audioTrack.stop();
       }
     });
 
-    // [중요 수정] 입장 시 내 UID를 직접 사용 (null 대신 currentUid 사용)
-    // 문자열 UID를 사용하려면 Agora 콘솔 프로젝트 설정에서 'String UID'가 활성화되어 있어야 합니다.
-    // (대부분 기본적으로 숫자/문자 모두 지원하지만, 안 될 경우 숫자로 변환 필요)
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
+    // [핵심 수정] 숫자 ID로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentIntUid);
     
-    console.log("Agora 음성 채널 입장 성공 (UID:", currentUid, ")");
+    console.log(`Agora 입장 성공 (StringUID: ${currentStringUid} -> IntUID: ${currentIntUid})`);
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
   }
 };
 
-// [신규 추가] 말하는 중일 때 머리 위에 표시하는 함수
-const updateSpeakingIndicator = (uid, isSpeaking) => {
+// [수정] 말하는 중일 때 아이콘 표시 함수
+// targetUid: Firebase UID(문자열) 또는 Agora UID(숫자)
+// isAgoraId: 들어온 ID가 Agora 숫자 ID인지 여부
+const updateSpeakingIndicator = (targetUid, isSpeaking, isAgoraId = false) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
-  // 나인지 다른 사람인지 확인하여 대상 모델 찾기
-  if (uid === currentUid) {
+  // 1. 나 자신인지 확인 (내 Agora ID는 init에서 0으로 처리되어 currentUid로 넘어옴)
+  if (targetUid === currentUid) {
     targetMesh = myAvatar;
-  } else if (otherPlayers[uid] && otherPlayers[uid].mesh) {
-    targetMesh = otherPlayers[uid].mesh;
+  } 
+  // 2. 다른 사람인지 확인
+  else {
+    if (isAgoraId) {
+      // Agora 숫자 ID로 들어온 경우, otherPlayers를 순회하며 매칭되는 사람 찾기
+      for (const key in otherPlayers) {
+        if (uidToNum(key) === targetUid) {
+          targetMesh = otherPlayers[key].mesh;
+          break;
+        }
+      }
+    } else {
+      // Firebase 문자열 ID로 들어온 경우
+      if (otherPlayers[targetUid]) {
+        targetMesh = otherPlayers[targetUid].mesh;
+      }
+    }
   }
 
   if (!targetMesh) return;
@@ -194,16 +226,21 @@ const updateSpeakingIndicator = (uid, isSpeaking) => {
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
 
   if (isSpeaking) {
-    // 말하는 중인데 아이콘이 없다면 생성
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = 64;
       canvas.height = 64;
-      context.font = '50px Arial';
+      // 눈에 더 잘 띄는 색상과 아이콘으로 변경
+      context.fillStyle = '#00ff00'; // 말할 때 초록색 배경
+      context.beginPath();
+      context.arc(32, 32, 30, 0, Math.PI * 2);
+      context.fill();
+      
+      context.font = '40px Arial';
       context.textAlign = 'center';
       context.textBaseline = 'middle';
-      context.fillText('🔊', 32, 32); // 스피커 이모지
+      context.fillText('🔊', 32, 32); 
 
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
@@ -211,18 +248,29 @@ const updateSpeakingIndicator = (uid, isSpeaking) => {
       
       sprite.name = "speakingIcon";
       sprite.scale.set(0.8, 0.8, 1);
-      sprite.position.set(0, 2.3, 0); // 닉네임(1.7)보다 더 위에 표시
+      sprite.position.set(0, 2.3, 0); 
       
       targetMesh.add(sprite);
     }
   } else {
-    // 말을 멈췄는데 아이콘이 있다면 제거
     if (existingIcon) {
       targetMesh.remove(existingIcon);
       existingIcon.material.map.dispose();
       existingIcon.material.dispose();
     }
   }
+};
+
+// [신규 추가] 문자열 UID를 고유한 숫자 UID로 변환하는 함수
+const uidToNum = (uid) => {
+  let hash = 0;
+  if (uid.length === 0) return hash;
+  for (let i = 0; i < uid.length; i++) {
+    const char = uid.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // 32bit integer로 변환
+  }
+  return Math.abs(hash); // 음수 방지
 };
 
 // --- [추가] 마이크 토글 함수 ---
