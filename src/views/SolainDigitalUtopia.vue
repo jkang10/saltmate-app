@@ -386,7 +386,8 @@ const createNicknameSprite = (text) => {
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
-  sprite.position.y = 2.0;
+  // [수정] 여기서 높이를 주지 않고 0으로 둡니다. (외부에서 조정)
+  sprite.position.set(0, 0, 0);
   sprite.matrixAutoUpdate = true;
 
   return sprite;
@@ -560,39 +561,43 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     
     // 비동기 로드 완료 후 플레이어가 여전히 존재하는지 확인
     if (scene && otherPlayers[snapshot.key]) {
-      // [핵심 수정 2] 이름표를 'visuals'가 아닌 최상위 'model' 그룹에 직접 추가
-      // 이렇게 해야 model이 이동할 때 이름표가 정확히 같이 이동합니다.
+      // 이름표 부착
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        nick.position.y += 2.0; // 머리 위 높이 조정
-        model.add(nick); // visuals.add(nick) 대신 model.add(nick) 사용!
+        // [수정] 높이를 여기서 한 번만 정확히 설정 (아바타 키에 맞춰 2.2 정도가 적당)
+        nick.position.y = 2.2; 
+        model.add(nick); 
       }
 
-      // 위치 동기화 및 씬 추가
+      // 초기 위치 설정
       model.position.copy(otherPlayers[snapshot.key].targetPosition);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
       
-      // 깜빡임 방지를 위한 강제 업데이트
+      // [중요 해결책] 씬에 추가한 직후 월드 매트릭스 강제 업데이트
+      // 아바타가 안 보이는 문제를 방지합니다.
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      if (model.userData.mixer) model.userData.mixer.update(0.01);
+      if (model.userData.mixer) {
+          // 애니메이션 믹서도 한번 강제 실행하여 T-pose 방지
+          model.userData.mixer.update(0.01);
+      }
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
       }
     }
   });
 
+  // ... (onChildChanged, onChildRemoved는 기존 코드 유지)
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
     if (!val.position) return;
-    // 목표 위치 업데이트
     otherPlayers[snap.key].targetPosition.set(val.position.x ?? 0, val.position.y ?? 0, val.position.z ?? 0);
     otherPlayers[snap.key].targetRotationY = val.rotationY ?? 0;
   });
@@ -821,23 +826,41 @@ const updateOtherPlayersMovement = (deltaTime) => {
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    player.mesh.matrixAutoUpdate = true;
     
+    // 거리 계산 및 이동 상태 확인
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
+    
+    // [이동 처리]
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
     
-    let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+    // [회전 처리]
+    let currentY = player.mesh.rotation.y; 
+    let targetY = player.targetRotationY; 
+    const PI2 = Math.PI * 2;
+    currentY = (currentY % PI2 + PI2) % PI2; 
+    targetY = (targetY % PI2 + PI2) % PI2;
+    let diff = targetY - currentY; 
+    if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
 
+    // [중요 해결책] 이동/회전 후 즉시 매트릭스 강제 업데이트
+    // 이 코드가 없으면 무거운 모델은 다음 프레임에 그려지면서 이름표와 분리되어 보일 수 있습니다.
+    player.mesh.updateMatrixWorld(true);
+
+    // 애니메이션 처리
     const mixer = player.mixer;
     const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
-      if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.3); }
-      else if (!player.isMoving && wasMoving) { actions.idle.reset().play(); actions.walk.crossFadeTo(actions.idle, 0.3); }
+      if (player.isMoving && !wasMoving) { 
+          actions.walk.reset().play(); 
+          actions.idle.crossFadeTo(actions.walk, 0.3); 
+      }
+      else if (!player.isMoving && wasMoving) { 
+          actions.idle.reset().play(); 
+          actions.walk.crossFadeTo(actions.idle, 0.3); 
+      }
     }
   }
 };
