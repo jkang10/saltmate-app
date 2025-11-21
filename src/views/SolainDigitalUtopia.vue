@@ -749,7 +749,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [수정] updatePlayerMovement 함수
+// [전체 수정] updatePlayerMovement 함수
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -759,68 +759,97 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
 
-  // 1. 조이스틱 이동
+  // 1. 조이스틱 이동 로직
   if (joystickData.value.active && joystickData.value.distance > 10) {
       targetRotationY = -joystickData.value.angle + Math.PI / 2;
       
-      // 조이스틱 회전 직접 적용
-      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      // 조이스틱 회전 부드럽게 적용
+      let currentY = myAvatar.rotation.y; 
+      const PI2 = Math.PI * 2;
       let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      
+      currentY = (currentY % PI2 + PI2) % PI2; 
+      targetY = (targetY % PI2 + PI2) % PI2;
+      
+      let diff = targetY - currentY; 
+      if (Math.abs(diff) > Math.PI) { 
+          diff = diff > 0 ? diff - PI2 : diff + PI2; 
+      }
       myAvatar.rotation.y += diff * deltaTime * 8;
 
-      moveDirection.z = -1;
+      moveDirection.z = -1; // 조이스틱은 항상 전진 방향 기준
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동
+    // 2. 키보드 이동 로직
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+    
+    // 키보드 입력 감지
+    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || 
+                             keysPressed['KeyS'] || keysPressed['ArrowDown'] || 
+                             keysPressed['KeyA'] || keysPressed['ArrowLeft'] || 
+                             keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
     if (isKeyboardMoving) {
+      // 이동 중일 때만 아바타가 카메라 정면을 바라보게 함
       myAvatar.rotation.y = cameraEuler.y;
       moved = true;
     }
 
-    // [핵심 수정] 좌우 이동 방향 반전 적용 (사용자 요청 반영)
-    // 원래: Left = -1, Right = 1
-    // 수정: Left = 1, Right = -1
+    // [핵심 수정 1] 좌우 이동 방향 반전 (카메라가 정면을 볼 때 방향 맞춤)
+    // A키(좌) -> x: 1 (오른쪽 이동 -> 화면상 왼쪽)
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { 
-        moveDirection.x = 1; // -1에서 1로 변경 (반대 방향)
+        moveDirection.x = 1; 
         currentAnimation = 'strafeLeft'; 
     }
+    // D키(우) -> x: -1 (왼쪽 이동 -> 화면상 오른쪽)
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { 
-        moveDirection.x = -1; // 1에서 -1로 변경 (반대 방향)
+        moveDirection.x = -1; 
         currentAnimation = 'strafeRight'; 
     }
     
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
+    // 전후 이동 (기존 유지)
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
+        moveDirection.z = -1; 
+        if (currentAnimation === 'idle') currentAnimation = 'walk'; 
+    }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
+        moveDirection.z = 1; 
+        if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; 
+    }
   }
 
+  // 3. 실제 위치 이동 처리
   if (moved) {
-    const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
+    const velocity = new THREE.Vector3(
+        moveDirection.x * moveSpeed * 0.7 * deltaTime, 
+        0, 
+        moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
+    );
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
+
+    // [핵심 수정 2] 움직일 때만 위치 전송 (멈추면 즉시 전송 중단하여 이름표 고정)
+    throttledUpdate();
   }
 
-  // 맵 경계 제한
+  // 4. 맵 경계 제한 (Boundary Check)
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // 바닥 높이 조정 (Raycaster)
+  // 5. 바닥 높이 조정 (Raycaster) - 계단/지형 인식
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
-      // Ray 시작점을 약간 위로 올려서 바닥을 제대로 감지하도록 함
+      // Ray 시작점을 약간 위로 올려서(y+1) 바닥을 제대로 감지하도록 함
       raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
       const intersects = raycaster.intersectObject(cityMap, true);
+      
       // 감지된 바닥이 있으면 그 높이로, 없으면 현재 높이 유지
       if (intersects.length > 0) {
           groundY = intersects[0].point.y;
@@ -828,17 +857,18 @@ const updatePlayerMovement = (deltaTime) => {
   }
   myAvatar.position.y = groundY;
 
-  if (moved) throttledUpdate();
-
-  // 애니메이션 처리
+  // 6. 애니메이션 처리 (Mixer)
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions.idle;
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
+    
     if (targetAction && !targetAction.isRunning()) {
       targetAction.reset().play();
-      if (activeAction) activeAction.crossFadeTo(targetAction, 0.3);
+      if (activeAction) {
+          activeAction.crossFadeTo(targetAction, 0.3);
+      }
     }
   }
 };
