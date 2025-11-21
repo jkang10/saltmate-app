@@ -224,12 +224,19 @@ const applyVideoState = (videoEl, data) => {
     }
 };
 
-// --- 사용자 인터랙션 감지 ---
+// --- 사용자 인터랙션 감지 및 비디오 재생 ---
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    if (isVideoPlaying.value && video.paused) {
-      video.play().catch(() => {});
+    // 비디오가 멈춰있거나 재생되지 않은 상태라면 강제 재생 시도
+    if (video.paused) {
+      video.play().then(() => {
+        // 재생 성공 시 비디오 텍스처 업데이트가 잘 되도록 설정
+        isVideoPlaying.value = true;
+        console.log("사용자 인터랙션으로 비디오 재생 시작");
+      }).catch((e) => {
+        console.log("비디오 재생 권한 획득 실패 (아직 준비 안됨):", e);
+      });
     }
   }
 };
@@ -270,12 +277,13 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true;
+    model.matrixAutoUpdate = true; // [중요] 그룹의 매트릭스 자동 업데이트
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
 
     if (!url || !url.endsWith('.glb')) {
+      // URL 오류 시 대체 박스 생성
       const visuals = new THREE.Group();
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
@@ -287,30 +295,31 @@ const loadAvatar = (url, animations) => {
       return;
     }
 
-    // ▼▼▼ 여기서부터 수정된 부분입니다 ▼▼▼
     loader.load(url,
       (gltf) => {
         const visuals = gltf.scene;
         
-        // 1. 지오메트리 강제 이동 로직 삭제
+        // [핵심 수정 1] 모든 자식 요소에 대해 렌더링 강제 활성화 (투명 현상 해결)
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
-            // child.geometry.translate(...)  <-- 삭제 또는 주석 처리 필수!
             child.castShadow = true;
-            child.receiveShadow = true; // [추가] 그림자 받기
-            child.frustumCulled = false; // 렌더링 누락 방지 유지
+            child.receiveShadow = true;
+            child.frustumCulled = false; // 카메라 시야 계산 무시하고 무조건 렌더링
+            child.matrixAutoUpdate = true; // 매트릭스 업데이트 강제
           }
         });
 
         visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
-        model.userData.visuals = visuals; // 비주얼 객체 참조 저장
+        
+        // [중요] visuals 참조를 저장하되, 이름표는 여기에 붙이지 않음
+        model.userData.visuals = visuals; 
 
-        // 2. 모델의 위치(높이) 보정은 geometry 대신 model.position으로 해결해야 함
+        // 높이 보정
         const box = new THREE.Box3().setFromObject(visuals);
-        // 발바닥을 (0,0,0)에 맞추고 싶다면 visuals 자체를 이동
         visuals.position.y = -box.min.y; 
 
+        // 애니메이션 설정
         if (animations) {
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
@@ -321,22 +330,14 @@ const loadAvatar = (url, animations) => {
               if (key === 'idle') action.play();
             }
           }
-          // [중요] 믹서 강제 업데이트 (아바타 즉시 표시용)
-          mixer.update(0.01);
+          mixer.update(0.01); // 초기 포즈 잡기
         }
         resolve(model);
       },
       undefined,
       (error) => {
         console.error('아바타 로딩 실패:', error);
-        const visuals = new THREE.Group();
-        const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.y = 0.5;
-        visuals.add(cube);
-        model.add(visuals);
-        resolve(model);
+        resolve(model); // 실패하더라도 빈 그룹 반환하여 에러 방지
       }
     );
   });
@@ -534,10 +535,11 @@ const listenToChat = () => {
   });
 };
 
-// --- [수정] 다른 플레이어 리스너 (아바타 즉시 표시 로직 강화) ---
+// --- 다른 플레이어 리스너 수정 ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
+  
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
@@ -555,31 +557,31 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     };
     
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
+    
+    // 비동기 로드 완료 후 플레이어가 여전히 존재하는지 확인
     if (scene && otherPlayers[snapshot.key]) {
-      model.position.copy(otherPlayers[snapshot.key].targetPosition);
-
-      // [추가] 모델이 씬에 추가된 직후 월드 매트릭스를 강제로 업데이트하여 깜빡임 방지
-     scene.add(model);
-     model.position.copy(otherPlayers[snapshot.key].targetPosition);
-     model.rotation.y = otherPlayers[snapshot.key].targetRotationY; // 회전값도 즉시 적용
-     model.updateMatrixWorld(true); // [중요] 강제 업데이트
-      
+      // [핵심 수정 2] 이름표를 'visuals'가 아닌 최상위 'model' 그룹에 직접 추가
+      // 이렇게 해야 model이 이동할 때 이름표가 정확히 같이 이동합니다.
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        if (model.userData.visuals) model.userData.visuals.add(nick);
-        else model.add(nick);
+        nick.position.y += 2.0; // 머리 위 높이 조정
+        model.add(nick); // visuals.add(nick) 대신 model.add(nick) 사용!
       }
+
+      // 위치 동기화 및 씬 추가
+      model.position.copy(otherPlayers[snapshot.key].targetPosition);
+      model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
+      
+      // 깜빡임 방지를 위한 강제 업데이트
+      model.updateMatrixWorld(true);
+      
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [핵심] 강제 업데이트 및 애니메이션 실행
-      model.updateMatrixWorld(true);
-      if (model.userData.mixer) {
-          model.userData.mixer.update(0.01); // 믹서 1프레임 강제 업데이트
-      }
+      if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
       }
@@ -590,6 +592,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
     if (!val.position) return;
+    // 목표 위치 업데이트
     otherPlayers[snap.key].targetPosition.set(val.position.x ?? 0, val.position.y ?? 0, val.position.z ?? 0);
     otherPlayers[snap.key].targetRotationY = val.rotationY ?? 0;
   });
@@ -605,6 +608,8 @@ const listenToOtherPlayers = (preloadedAnimations) => {
 const initThree = () => {
   try {
       scene = new THREE.Scene();
+      
+      // 배경 설정
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load('/my_background.jpg', (texture) => {
           texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -627,6 +632,7 @@ const initThree = () => {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+      // 컨트롤 설정
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -636,11 +642,14 @@ const initThree = () => {
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
 
+      // 조명 설정
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
       dirLight.position.set(50, 80, 40);
       dirLight.castShadow = true;
+      
+      // 그림자 품질 설정
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
       dirLight.shadow.camera.near = 1;
@@ -649,9 +658,11 @@ const initThree = () => {
       dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
+      
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
 
+      // 도시 맵 로드
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
@@ -664,37 +675,42 @@ const initThree = () => {
           const scaledBox = new THREE.Box3().setFromObject(city);
           const groundLevelY = -scaledBox.min.y;
           city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
-          city.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+          
+          city.traverse(child => { 
+            if (child.isMesh) { 
+              child.castShadow = true; 
+              child.receiveShadow = true; 
+            } 
+          });
           scene.add(city);
 
+          // 내 아바타 위치 조정
           if (myAvatar) { 
              myAvatar.position.set(startX, groundLevelY, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
           
-	// [수정 전 코드 위치: initThree 함수 내부의 video 관련 로직]
-	// const videoTexture = new THREE.VideoTexture(video);
-	// ...
+          // [수정됨] 시네마 스크린 및 비디오 텍스처 설정
+          const video = cinemaVideoRef.value;
+          if (video) {
+            const videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            videoTexture.colorSpace = THREE.SRGBColorSpace; // 색상 보정
+            
+            const screenGeo = new THREE.PlaneGeometry(16, 9);
+            const screenMat = new THREE.MeshBasicMaterial({ 
+                map: videoTexture, 
+                side: THREE.DoubleSide,
+                toneMapped: false // 조명 영향 받지 않게 설정 (원래 색상 유지)
+            });
+            const screen = new THREE.Mesh(screenGeo, screenMat);
+            // 스크린 위치 (도시 맵 로드 후 배치)
+            screen.position.set(startX, groundLevelY + 7, startZ - 15); 
+            screen.name = "cinemaScreen";
+            scene.add(screen);
+          }
 
-	// [수정 후 코드: initThree 함수 내부]
-	const video = cinemaVideoRef.value;
-	if (video) {
-	  const videoTexture = new THREE.VideoTexture(video);
-	  videoTexture.minFilter = THREE.LinearFilter;
-	  videoTexture.magFilter = THREE.LinearFilter;
-	  videoTexture.colorSpace = THREE.SRGBColorSpace; // [추가] 색상 공간 설정 (Three.js 버전에 따라 encoding일 수 있음)
-	  
-	  const screenGeo = new THREE.PlaneGeometry(16, 9);
-	  const screenMat = new THREE.MeshBasicMaterial({ 
-	      map: videoTexture, 
-	      side: THREE.DoubleSide,
-	      toneMapped: false // [추가] 비디오가 빛의 영향을 덜 받고 원본 색상대로 나오게 함
-	  });
-	  const screen = new THREE.Mesh(screenGeo, screenMat);
-	  screen.position.set(startX, groundLevelY + 7, startZ - 15); 
-	  screen.name = "cinemaScreen"; // [추가] 나중에 참조하기 위해 이름 지정
-	  scene.add(screen);
-	}
       }, undefined, (error) => {
           console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
       });
