@@ -2,7 +2,7 @@
   <div class="utopia-container">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-      <video
+    <video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="display: none"
@@ -10,8 +10,9 @@
       playsinline
       webkit-playsinline
       loop
-      :muted="true"
+      :muted="isMuted"
       preload="auto"
+      @timeupdate="checkVideoProgress"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
@@ -39,6 +40,12 @@
         ref="chatInputRef" />
     </div>
 
+    <div class="user-controls">
+      <button @click="toggleMute" :class="{ 'active': !isMuted }">
+        {{ isMuted ? '🔇 소리 켜기' : '🔊 소리 끄기' }}
+      </button>
+    </div>
+
     <div v-if="isAdmin" class="admin-video-controls">
       <h3>🎥 시네마 제어</h3>
       <button @click="toggleVideoPlay">{{ isVideoPlaying ? '일시정지' : '재생 시작' }}</button>
@@ -52,8 +59,9 @@ import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { auth, db, rtdb } from '@/firebaseConfig';
+import { auth, db, rtdb, functions } from '@/firebaseConfig'; // functions 추가
 import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions'; // 추가
 import {
   ref as dbRef, onChildAdded, onChildChanged, onChildRemoved, onValue,
   set, onDisconnect, push, serverTimestamp, off, query, limitToLast, remove,
@@ -72,6 +80,8 @@ const loadingMessage = ref('유토피아 입장 준비 중...');
 const isReady = ref(false);
 const isAdmin = ref(false);
 const isVideoPlaying = ref(false);
+const isMuted = ref(true); // [신규] 음소거 상태 관리
+const rewardClaimedLocal = ref(false); // [신규] 로컬 보상 수령 체크
 
 // --- 아바타 관련 ---
 let myAvatar = null;
@@ -88,8 +98,7 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let controls; // OrbitControls 인스턴스
-
+let controls; 
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -107,12 +116,46 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
+// --- [신규] 음소거 토글 함수 ---
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (cinemaVideoRef.value) {
+    cinemaVideoRef.value.muted = isMuted.value;
+    // 소리를 켤 때 볼륨을 확실히 올림
+    if (!isMuted.value) {
+      cinemaVideoRef.value.volume = 1.0;
+    }
+  }
+};
+
+// --- [신규] 영상 진행률 체크 및 보상 지급 ---
+const checkVideoProgress = async () => {
+  const video = cinemaVideoRef.value;
+  if (!video || rewardClaimedLocal.value || !isLoggedIn.value) return;
+
+  // 영상 길이가 유효하고, 현재 시간이 전체 길이의 95%를 넘어가면 보상 지급 시도
+  if (video.duration > 0 && video.currentTime >= video.duration * 0.95) {
+    rewardClaimedLocal.value = true; // 중복 요청 방지
+    
+    try {
+      const claimRewardFunc = httpsCallable(functions, 'claimVideoReward');
+      const result = await claimRewardFunc();
+      
+      if (result.data.success) {
+        // 보상 지급 성공 시 말풍선 표시 (색상: 노랑/골드)
+        showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급! 🎉", "#FFD700"); 
+      }
+    } catch (error) {
+      console.error("보상 지급 실패:", error);
+    }
+  }
+};
+
 // --- 관리자 영상 제어 함수 ---
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
   
-  // 로컬에서 먼저 반영 (반응성 향상)
   if (newStatus) {
       cinemaVideoRef.value.play().catch(e => console.log(e));
   } else {
@@ -135,7 +178,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [수정] 영상 상태 리스너 ---
+// --- 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -145,10 +188,7 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
-    // 영상 메타데이터가 로드된 후에만 조작 (중요!)
-    if (videoEl.readyState === 0) { 
-        return; // 아직 로드 안됨
-    }
+    if (videoEl.readyState === 0) return;
 
     if (data.isPlaying) {
       const latency = (Date.now() - data.timestamp) / 1000;
@@ -158,9 +198,8 @@ const listenToVideoState = () => {
         videoEl.currentTime = targetTime;
       }
       
-      // [수정] 'e' -> 'error'로 변경하고 로그에 출력하여 오류 해결
       videoEl.play().catch((error) => {
-          console.log("자동 재생 차단됨. 사용자 클릭 대기 중.", error);
+          console.log("자동 재생 차단됨:", error);
       });
     } else {
       videoEl.pause();
@@ -171,35 +210,11 @@ const listenToVideoState = () => {
   });
 };
 
-// --- [수정] 사용자 상호작용 핸들러 (강력한 재생 시도) ---
+// --- 사용자 인터랙션 감지 ---
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
-  if (!video) return;
-
-  // 1. 브라우저 정책으로 인해 재생이 막혀있을 수 있으므로 무조건 재생 시도
-  if (video.paused) {
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          console.log("사용자 상호작용으로 영상 재생 시작 성공");
-          // 재생 성공 후 음소거 해제 시도
-          if (video.muted) {
-            video.muted = false;
-            video.volume = 1.0;
-            console.log("음소거 해제 🔊");
-          }
-        })
-        .catch((error) => {
-          console.warn("영상 재생 실패 (여전히 상호작용 필요):", error);
-        });
-    }
-  } else {
-    // 이미 재생 중이라면 음소거만 해제
-    if (video.muted) {
-      video.muted = false;
-      video.volume = 1.0;
-    }
+  if (video && isVideoPlaying.value && video.paused) {
+    video.play().catch(() => {});
   }
 };
 
@@ -245,7 +260,6 @@ const loadAvatar = (url, animations) => {
     model.userData.actions = {};
 
     if (!url || !url.endsWith('.glb')) {
-      console.warn("아바타 URL이 유효하지 않거나 GLB 파일이 아닙니다. 기본 큐브를 사용합니다.", url);
       const visuals = new THREE.Group();
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
@@ -263,7 +277,6 @@ const loadAvatar = (url, animations) => {
         const visuals = gltf.scene;
         const box = new THREE.Box3().setFromObject(visuals);
         const center = box.getCenter(new THREE.Vector3());
-
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
@@ -271,7 +284,6 @@ const loadAvatar = (url, animations) => {
           }
           child.matrixAutoUpdate = true;
         });
-
         visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
         model.userData.visuals = visuals;
@@ -291,7 +303,7 @@ const loadAvatar = (url, animations) => {
       },
       undefined,
       (error) => {
-        console.error('아바타 로딩 실패:', error, 'URL:', url);
+        console.error('아바타 로딩 실패:', error);
         const visuals = new THREE.Group();
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
@@ -348,18 +360,19 @@ const createNicknameSprite = (text) => {
   const sprite = new THREE.Sprite(material);
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
-  sprite.position.y = 2.0; // 닉네임 높이
+  sprite.position.y = 2.0;
+  // sprite.matrixAutoUpdate = true; // 닉네임 지연 해결 위해 제거
   
   return sprite;
 };
 
-// --- 말풍선 생성 함수 ---
-const createChatBubbleSprite = (text) => {
+// --- [수정] 말풍선 생성 함수 (색상 파라미터 추가) ---
+const createChatBubbleSprite = (text, textColor = "black") => {
   const resolutionScale = 2;
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   const fontSize = 20 * resolutionScale;
-  const fontWeight = 'normal';
+  const fontWeight = 'bold'; // 조금 더 굵게
   const fontFamily = 'Arial';
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   const maxWidth = 300 * resolutionScale;
@@ -369,10 +382,13 @@ const createChatBubbleSprite = (text) => {
   const verticalPadding = 5 * resolutionScale;
   canvas.width = textWidth + padding * 2;
   canvas.height = fontSize + verticalPadding * 2;
-  context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  
+  // 배경 (흰색, 투명도 약간)
+  context.fillStyle = 'rgba(255, 255, 255, 0.95)';
   context.strokeStyle = 'rgba(0, 0, 0, 0.5)';
   context.lineWidth = 2 * resolutionScale;
   const radius = 8 * resolutionScale;
+  
   context.beginPath();
   context.moveTo(radius, 0);
   context.lineTo(canvas.width - radius, 0);
@@ -386,11 +402,14 @@ const createChatBubbleSprite = (text) => {
   context.closePath();
   context.fill();
   context.stroke();
-  context.fillStyle = 'black';
+  
+  // [수정] 텍스트 색상 적용
+  context.fillStyle = textColor;
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, canvas.width / 2, canvas.height / 2);
+  
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
@@ -401,7 +420,8 @@ const createChatBubbleSprite = (text) => {
   return sprite;
 };
 
-const showChatBubble = (avatar, message) => {
+// --- [수정] 말풍선 표시 함수 (색상 파라미터 추가) ---
+const showChatBubble = (avatar, message, color = "black") => {
   if (!avatar) return;
   if (avatar.activeBubble) {
     avatar.remove(avatar.activeBubble);
@@ -410,7 +430,7 @@ const showChatBubble = (avatar, message) => {
     clearTimeout(avatar.activeBubble.timeoutId);
     avatar.activeBubble = null;
   }
-  const newBubble = createChatBubbleSprite(message);
+  const newBubble = createChatBubbleSprite(message, color);
   const timeoutId = setTimeout(() => {
     if (avatar.activeBubble === newBubble) {
       avatar.remove(newBubble);
@@ -580,6 +600,8 @@ const initThree = () => {
       dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
+      scene.add(hemiLight);
 
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
@@ -630,7 +652,6 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [완전 수정] 마우스/터치 클릭 이동 로직 제거 -> 오직 카메라 회전 및 영상 상호작용만 남김
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -666,32 +687,28 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
-  // 회전 적용
-  if (joystickData.value.active && applyRotation) {
+  if (applyRotation) {
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
   }
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    // 조이스틱일 때는 이미 아바타가 회전했으므로 로컬 Z축으로 전진
     if (joystickData.value.active) {
         velocity.applyQuaternion(myAvatar.quaternion);
     } else {
-        // 키보드일 때는 카메라 방향(이미 아바타에 적용됨) 기준으로 이동
         velocity.applyQuaternion(myAvatar.quaternion);
     }
     myAvatar.position.add(velocity);
   }
 
-  // 경계 처리
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // Y 위치 고정 (Raycasting)
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
@@ -705,7 +722,6 @@ const updatePlayerMovement = (deltaTime) => {
 
   if (moved) throttledUpdate();
 
-  // 애니메이션
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
@@ -776,17 +792,8 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // 영상 재생을 위한 사용자 인터랙션 감지 (전역 클릭/터치)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
-
-  // [추가] 비디오 로드 완료 시 한 번 체크
-  if (cinemaVideoRef.value) {
-    cinemaVideoRef.value.addEventListener('loadedmetadata', () => {
-        console.log("비디오 메타데이터 로드됨. 상태 동기화 준비 완료.");
-        // 필요시 여기서 listenToVideoState()를 호출하거나 플래그를 세울 수 있음
-    });
-  }
 
   animate();
 
@@ -795,6 +802,10 @@ onMounted(async () => {
     if (userDoc.exists()) {
         myAvatarUrl = userDoc.data().avatarUrl;
         myUserName = userDoc.data().name;
+        // [신규] 이미 보상을 받았는지 로컬 상태에 반영
+        if (userDoc.data().hasReceivedVideoReward) {
+          rewardClaimedLocal.value = true;
+        }
     }
   } catch (error) {
     console.error("Firestore 정보 가져오기 실패:", error);
@@ -862,4 +873,29 @@ const handleResize = () => {
 .admin-video-controls { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; color: white; z-index: 100; }
 .admin-video-controls button { display: block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
 .admin-video-controls button:hover { background: #0056b3; }
+
+/* [신규] 사용자 컨트롤 (음소거 버튼 등) */
+.user-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+}
+.user-controls button {
+  padding: 10px 15px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+.user-controls button:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+.user-controls button.active {
+  border-color: #28a745;
+  color: #28a745;
+}
 </style>
