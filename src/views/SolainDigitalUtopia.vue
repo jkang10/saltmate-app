@@ -5,7 +5,7 @@
     <video
       ref="cinemaVideoRef"
       id="cinema-video"
-      style="display: none"
+      style="position: absolute; top: -9999px; left: -9999px; opacity: 0;"
       crossorigin="anonymous"
       playsinline
       webkit-playsinline
@@ -116,15 +116,22 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 음소거 토글 함수 ---
+// --- [수정] 음소거 토글 함수 (확실한 제어) ---
 const toggleMute = () => {
-  isMuted.value = !isMuted.value;
-  if (cinemaVideoRef.value) {
-    cinemaVideoRef.value.muted = isMuted.value;
+  const video = cinemaVideoRef.value;
+  if (video) {
+    // 1. 음소거 상태 반전
+    isMuted.value = !isMuted.value;
+    video.muted = isMuted.value;
+
+    // 2. 소리를 켰을 때 볼륨 확보
     if (!isMuted.value) {
-      cinemaVideoRef.value.volume = 1.0;
-      if (isVideoPlaying.value && cinemaVideoRef.value.paused) {
-         cinemaVideoRef.value.play().catch(() => {});
+      video.volume = 1.0;
+      
+      // 3. 만약 영상이 멈춰있고, 관리자는 재생 중이라면 -> 강제 재생 시도
+      // (브라우저가 소리 때문에 막았던 재생을 다시 시도)
+      if (isVideoPlaying.value && video.paused) {
+         video.play().catch(e => console.log("재생 시도 실패 (권한 필요):", e));
       }
     }
   }
@@ -154,6 +161,7 @@ const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
   
+  // 로컬 즉시 반영
   if (newStatus) {
       cinemaVideoRef.value.play().catch(e => console.log(e));
   } else {
@@ -176,7 +184,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- 영상 상태 리스너 ---
+// --- [수정] 영상 상태 리스너 (로딩 대기 로직) ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -186,6 +194,7 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
+    // 로딩이 덜 되었으면 대기
     if (videoEl.readyState === 0) {
       const onLoaded = () => {
         applyVideoState(videoEl, data);
@@ -208,12 +217,9 @@ const applyVideoState = (videoEl, data) => {
         videoEl.currentTime = targetTime;
       }
       
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
+      videoEl.play().catch((error) => {
           console.log("자동 재생 차단됨 (사용자 인터랙션 필요):", error);
-        });
-      }
+      });
     } else {
       videoEl.pause();
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
@@ -226,10 +232,8 @@ const applyVideoState = (videoEl, data) => {
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    if (video.muted) {
-      video.muted = false;
-      video.volume = 1.0;
-    }
+    // 첫 인터랙션 시 무조건 음소거 해제 시도하지 않음 (사용자가 버튼으로 제어하도록 유도)
+    // 다만 재생이 막혀있다면 재생은 시도함
     if (isVideoPlaying.value && video.paused) {
       video.play().catch(() => {});
     }
@@ -268,7 +272,7 @@ const loadAnimations = async () => {
   }
 };
 
-// --- 아바타 로드 함수 ---
+// --- [수정] 아바타 로드 함수 (렌더링 최적화 비활성화) ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -301,7 +305,8 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
-            child.frustumCulled = false;
+            // [중요] 아바타가 시야각 문제로 사라지는 것 방지
+            child.frustumCulled = false; 
           }
           child.matrixAutoUpdate = true;
         });
@@ -384,7 +389,8 @@ const createNicknameSprite = (text) => {
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
   sprite.position.y = 2.0;
-  
+  sprite.matrixAutoUpdate = true; // 닉네임 동기화
+
   return sprite;
 };
 
@@ -531,7 +537,7 @@ const listenToChat = () => {
   });
 };
 
-// --- 다른 플레이어 리스너 ---
+// --- [수정] 다른 플레이어 리스너 (아바타 즉시 표시) ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -566,7 +572,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [중요] 추가 직후 렌더링 업데이트 및 Idle 재생
+      // [핵심] 강제 업데이트 및 애니메이션 실행
       model.updateMatrixWorld(true);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
@@ -656,7 +662,11 @@ const initThree = () => {
           city.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
           scene.add(city);
 
-          if (myAvatar) { myAvatar.position.set(startX, groundLevelY, startZ); }
+          if (myAvatar) { 
+             myAvatar.position.set(startX, groundLevelY, startZ); 
+             // [중요] 내 아바타 위치 설정 후 즉시 업데이트
+             myAvatar.updateMatrixWorld(true);
+          }
           
           const video = cinemaVideoRef.value;
           if (video) {
@@ -690,7 +700,6 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [수정] 클릭 이동 관련 로직 제거 및 applyRotation 변수 제거
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -698,20 +707,17 @@ const updatePlayerMovement = (deltaTime) => {
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
-  let targetRotationY = myAvatar.rotation.y;
-  // applyRotation 변수 제거됨
+  let applyRotation = false;
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      targetRotationY = -joystickData.value.angle + Math.PI / 2;
-      
-      // [수정] 조이스틱 회전 직접 적용
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
 
+      applyRotation = true;
       moveDirection.z = -1;
       moved = true;
       currentAnimation = 'walk';
@@ -826,11 +832,10 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // 영상 재생을 위한 사용자 인터랙션 감지 (전역 클릭/터치/이동)
+  // [수정] 클릭/터치는 오직 영상 제어용으로만 사용
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
   window.addEventListener('mousemove', handleUserInteraction); 
-  window.addEventListener('keydown', handleUserInteraction);
 
   animate();
 
@@ -854,6 +859,8 @@ onMounted(async () => {
     else myAvatar.add(nick);
   }
   scene.add(myAvatar);
+  // [중요] 아바타 로드 후 즉시 렌더링 업데이트
+  myAvatar.updateMatrixWorld(true);
 
   await nextTick();
   const joystickZone = document.getElementById('joystick-zone');
