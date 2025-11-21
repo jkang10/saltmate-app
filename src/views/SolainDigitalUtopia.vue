@@ -273,17 +273,16 @@ const loadAnimations = async () => {
   }
 };
 
-// --- 아바타 로드 함수 ---
+// [수정] loadAvatar 함수
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true; // [중요] 그룹의 매트릭스 자동 업데이트
+    model.matrixAutoUpdate = true;
     model.position.set(0, 0, 0);
     model.userData.mixer = null;
     model.userData.actions = {};
 
     if (!url || !url.endsWith('.glb')) {
-      // URL 오류 시 대체 박스 생성
       const visuals = new THREE.Group();
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
@@ -299,27 +298,29 @@ const loadAvatar = (url, animations) => {
       (gltf) => {
         const visuals = gltf.scene;
         
-        // [핵심 수정 1] 모든 자식 요소에 대해 렌더링 강제 활성화 (투명 현상 해결)
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; // 카메라 시야 계산 무시하고 무조건 렌더링
-            child.matrixAutoUpdate = true; // 매트릭스 업데이트 강제
+            child.frustumCulled = false;
+            child.matrixAutoUpdate = true;
           }
         });
 
         visuals.scale.set(0.7, 0.7, 0.7);
-        model.add(visuals);
         
-        // [중요] visuals 참조를 저장하되, 이름표는 여기에 붙이지 않음
+        // [핵심 수정] 모델의 중심점을 정확히 0,0,0으로 맞춤 (따로 노는 현상 방지)
+        const box = new THREE.Box3().setFromObject(visuals);
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // Y축은 발바닥을 0에 맞추고, X/Z축은 중앙을 0에 맞춥니다.
+        visuals.position.x = -center.x; // 좌우 편차 제거
+        visuals.position.z = -center.z; // 앞뒤 편차 제거
+        visuals.position.y = -box.min.y; // 높이 보정
+
+        model.add(visuals);
         model.userData.visuals = visuals; 
 
-        // 높이 보정
-        const box = new THREE.Box3().setFromObject(visuals);
-        visuals.position.y = -box.min.y; 
-
-        // 애니메이션 설정
         if (animations) {
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
@@ -330,14 +331,14 @@ const loadAvatar = (url, animations) => {
               if (key === 'idle') action.play();
             }
           }
-          mixer.update(0.01); // 초기 포즈 잡기
+          mixer.update(0.01);
         }
         resolve(model);
       },
       undefined,
       (error) => {
         console.error('아바타 로딩 실패:', error);
-        resolve(model); // 실패하더라도 빈 그룹 반환하여 에러 방지
+        resolve(model);
       }
     );
   });
@@ -560,37 +561,31 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     
     if (scene && otherPlayers[snapshot.key]) {
-      // [수정] 상대방 닉네임 높이 조절
+      // 이름표 부착
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        // 기존 2.2에서 2.0 또는 1.8로 낮춤 (아바타 머리 바로 위)
-        nick.position.set(0, 2.0, 0); 
+        // [수정] 상대방 이름 높이도 1.7로 낮춤
+        nick.position.set(0, 1.7, 0); 
         model.add(nick); 
       }
 
-      // 위치 동기화
       model.position.copy(otherPlayers[snapshot.key].targetPosition);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
-      
-      // [중요] 렌더링 누락 방지를 위한 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      if (model.userData.mixer) {
-          model.userData.mixer.update(0.01);
-      }
+      if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
       }
     }
   });
 
-  // (onChildChanged, onChildRemoved 부분은 기존과 동일하게 유지)
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
@@ -876,12 +871,11 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
-// [수정] onMounted 전체를 이 코드로 교체하거나, 내부 로직을 참고하여 수정하세요.
+// [수정] onMounted
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
   
-  // 권한 확인
   try {
     const token = await auth.currentUser.getIdTokenResult();
     if (token.claims.role === 'superAdmin') isAdmin.value = true;
@@ -900,7 +894,6 @@ onMounted(async () => {
 
   animate();
 
-  // Firestore 유저 정보 로드
   try {
     const userDoc = await getDoc(doc(db, 'users', currentUid));
     if (userDoc.exists()) {
@@ -917,22 +910,20 @@ onMounted(async () => {
   // 1. 아바타 로드
   myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
   
-  // 2. [핵심 수정] 로드 직후 초기 위치를 '강제로' 지정 (initThree의 startX, startZ와 동일하게)
-  // 이 좌표가 설정된 상태로 joinPlaza가 호출되어야 다른 사람에게 내가 보입니다.
+  // 2. 초기 위치 강제 지정 (Plaza 입장 전 좌표 확정)
   myAvatar.position.set(37.16, 0.5, 7.85); 
   
-  // 3. [핵심 수정] 내 닉네임 위치 설정
+  // 3. 내 닉네임 생성 및 부착
   if (myUserName) {
     const nick = createNicknameSprite(myUserName);
-    // visuals(내부 모델)이 아닌 myAvatar(최상위 그룹)에 붙여야 크기/회전 영향이 적음
-    // 높이(y)를 2.0 정도로 설정하여 머리 위에 띄움
-    nick.position.set(0, 2.0, 0); 
+    // [수정] 높이를 2.0 -> 1.7로 낮춤 (머리 위 적절한 위치)
+    nick.position.set(0, 1.7, 0); 
     myAvatar.add(nick);
   }
   
   scene.add(myAvatar);
   
-  // 매트릭스 강제 업데이트 (깜빡임 방지)
+  // 매트릭스 강제 업데이트
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) {
       myAvatar.userData.mixer.update(0.01);
@@ -946,7 +937,6 @@ onMounted(async () => {
       joystickManager.on('end', handleJoystickEnd);
   }
 
-  // 위치 설정이 완료된 후 입장 처리
   await joinPlaza();
   
   if (isReady.value) {
