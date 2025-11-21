@@ -130,10 +130,25 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [추가] Agora 음성 채팅 초기화 함수 ---
+// [수정] initAgora 함수
 const initAgora = async () => {
+  if (!auth.currentUser) return;
+  const currentUid = auth.currentUser.uid; // 내 UID 가져오기
+
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+    // [추가] 누가 말하는지 감지하기 위한 설정 (2초마다 체크)
+    agoraClient.value.enableAudioVolumeIndicator();
+
+    // [추가] 말하는 사람 감지 이벤트 리스너
+    agoraClient.value.on("volume-indicator", (volumes) => {
+      volumes.forEach((volumeInfo) => {
+        const { uid, level } = volumeInfo;
+        // level(소리 크기)이 5 이상이면 말하는 것으로 간주
+        updateSpeakingIndicator(uid, level > 5);
+      });
+    });
 
     // 상대방 오디오 게시 감지
     agoraClient.value.on("user-published", async (user, mediaType) => {
@@ -150,10 +165,63 @@ const initAgora = async () => {
       }
     });
 
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, null);
-    console.log("Agora 음성 채널 입장 성공");
+    // [중요 수정] 입장 시 내 UID를 직접 사용 (null 대신 currentUid 사용)
+    // 문자열 UID를 사용하려면 Agora 콘솔 프로젝트 설정에서 'String UID'가 활성화되어 있어야 합니다.
+    // (대부분 기본적으로 숫자/문자 모두 지원하지만, 안 될 경우 숫자로 변환 필요)
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
+    
+    console.log("Agora 음성 채널 입장 성공 (UID:", currentUid, ")");
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
+  }
+};
+
+// [신규 추가] 말하는 중일 때 머리 위에 표시하는 함수
+const updateSpeakingIndicator = (uid, isSpeaking) => {
+  let targetMesh = null;
+  const currentUid = auth.currentUser?.uid;
+
+  // 나인지 다른 사람인지 확인하여 대상 모델 찾기
+  if (uid === currentUid) {
+    targetMesh = myAvatar;
+  } else if (otherPlayers[uid] && otherPlayers[uid].mesh) {
+    targetMesh = otherPlayers[uid].mesh;
+  }
+
+  if (!targetMesh) return;
+
+  // 이미 아이콘이 있는지 확인
+  const existingIcon = targetMesh.getObjectByName("speakingIcon");
+
+  if (isSpeaking) {
+    // 말하는 중인데 아이콘이 없다면 생성
+    if (!existingIcon) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = 64;
+      canvas.height = 64;
+      context.font = '50px Arial';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('🔊', 32, 32); // 스피커 이모지
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      
+      sprite.name = "speakingIcon";
+      sprite.scale.set(0.8, 0.8, 1);
+      sprite.position.set(0, 2.3, 0); // 닉네임(1.7)보다 더 위에 표시
+      
+      targetMesh.add(sprite);
+    }
+  } else {
+    // 말을 멈췄는데 아이콘이 있다면 제거
+    if (existingIcon) {
+      targetMesh.remove(existingIcon);
+      existingIcon.material.map.dispose();
+      existingIcon.material.dispose();
+    }
   }
 };
 
