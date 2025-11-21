@@ -128,10 +128,13 @@ const toggleMute = () => {
   }
 };
 
-// --- [신규] 영상 진행률 체크 및 보상 지급 ---
+// --- [수정] 영상 진행률 체크 및 보상 지급 ---
 const checkVideoProgress = async () => {
   const video = cinemaVideoRef.value;
-  if (!video || rewardClaimedLocal.value || !isLoggedIn.value) return;
+  
+  // [수정] isLoggedIn.value -> auth.currentUser 로 변경
+  // auth.currentUser가 null이면 로그인이 안 된 상태입니다.
+  if (!video || rewardClaimedLocal.value || !auth.currentUser) return;
 
   // 영상 길이가 유효하고, 현재 시간이 전체 길이의 95%를 넘어가면 보상 지급 시도
   if (video.duration > 0 && video.currentTime >= video.duration * 0.95) {
@@ -147,6 +150,8 @@ const checkVideoProgress = async () => {
       }
     } catch (error) {
       console.error("보상 지급 실패:", error);
+      // 실패 시 다시 시도할 수 있도록 플래그 초기화 (선택 사항)
+      // rewardClaimedLocal.value = false; 
     }
   }
 };
