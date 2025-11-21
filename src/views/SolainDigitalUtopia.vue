@@ -302,21 +302,20 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false;
+            child.frustumCulled = false; // 시야 밖 렌더링 문제 방지
             child.matrixAutoUpdate = true;
           }
         });
 
         visuals.scale.set(0.7, 0.7, 0.7);
         
-        // [핵심 수정] 모델의 중심점을 정확히 0,0,0으로 맞춤 (따로 노는 현상 방지)
+        // [핵심 수정] X, Z축 강제 이동 코드 삭제!
+        // 아바타의 원점(발바닥 사이)을 그대로 사용해야 회전 시 어긋나지 않습니다.
         const box = new THREE.Box3().setFromObject(visuals);
-        const center = box.getCenter(new THREE.Vector3());
         
-        // Y축은 발바닥을 0에 맞추고, X/Z축은 중앙을 0에 맞춥니다.
-        visuals.position.x = -center.x; // 좌우 편차 제거
-        visuals.position.z = -center.z; // 앞뒤 편차 제거
-        visuals.position.y = -box.min.y; // 높이 보정
+        // Y축(높이)만 지면(0)에 맞게 보정합니다.
+        // (대부분의 모델은 box.min.y가 0이 아니므로 발바닥을 0에 맞춤)
+        visuals.position.y = -box.min.y; 
 
         model.add(visuals);
         model.userData.visuals = visuals; 
@@ -546,12 +545,13 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
-    // 좌표 데이터가 없으면 기본값 0 처리
-    const posX = isFiniteNumber(val.position?.x) ? val.position.x : 0;
-    const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0;
-    const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 0;
+    // 초기 데이터 파싱
+    const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
+    const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
+    const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
 
+    // 플레이어 객체 먼저 생성 (데이터 바인딩용)
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
@@ -559,10 +559,10 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       userName: val.userName, isMoving: false
     };
     
-    // 아바타 로드
+    // 아바타 로드 시작
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     
-    // 비동기 로드 후 플레이어가 여전히 존재하는지 확인
+    // 로드 완료 후 씬에 추가
     if (scene && otherPlayers[snapshot.key]) {
       // 이름표 부착 (높이 1.7)
       if (val.userName !== '익명') {
@@ -571,22 +571,27 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [핵심 해결책] 초기 위치와 회전을 강제로 적용
-      model.position.set(posX, posY, posZ);
-      model.rotation.y = rotY;
+      // [핵심 수정] 로딩이 끝난 시점의 '최신 목표 위치'를 가져옵니다.
+      const currentTarget = otherPlayers[snapshot.key].targetPosition;
+      
+      // [핵심 수정] 만약 Y값이 0.1 미만(땅속)이라면 강제로 0.5(지면)로 보정
+      if (currentTarget.y < 0.1) currentTarget.y = 0.5;
+
+      model.position.copy(currentTarget);
+      model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
       
-      // [핵심 해결책] 씬에 추가된 직후 월드 매트릭스를 강제로 업데이트하여 즉시 보이게 함
+      // 즉시 렌더링을 위한 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [핵심 해결책] 애니메이션 믹서를 강제로 한번 업데이트하여 T-pose가 아닌 Idle 상태로 즉시 렌더링
+      // 애니메이션 1프레임 강제 실행 (T-pose 방지)
       if (model.userData.mixer) {
-          model.userData.mixer.update(0.01); // 0.01초 강제 진행
+          model.userData.mixer.update(0.01);
       }
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
@@ -598,7 +603,13 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
     if (!val.position) return;
-    otherPlayers[snap.key].targetPosition.set(val.position.x ?? 0, val.position.y ?? 0, val.position.z ?? 0);
+    
+    // 위치 업데이트 수신
+    otherPlayers[snap.key].targetPosition.set(
+      val.position.x ?? 0, 
+      val.position.y ?? 0, 
+      val.position.z ?? 0
+    );
     otherPlayers[snap.key].targetRotationY = val.rotationY ?? 0;
   });
 
