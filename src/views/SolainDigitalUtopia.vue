@@ -748,7 +748,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [수정] applyRotation 변수 삭제
+// [수정] updatePlayerMovement 함수
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -757,7 +757,6 @@ const updatePlayerMovement = (deltaTime) => {
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
-  // let applyRotation = false; // [삭제] 불필요한 변수 삭제
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
@@ -776,7 +775,7 @@ const updatePlayerMovement = (deltaTime) => {
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동 (카메라 방향 기준)
+    // 2. 키보드 이동
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
@@ -785,41 +784,52 @@ const updatePlayerMovement = (deltaTime) => {
       moved = true;
     }
 
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = -1; currentAnimation = 'strafeLeft'; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = 1; currentAnimation = 'strafeRight'; }
+    // [핵심 수정] 좌우 이동 방향 반전 적용 (사용자 요청 반영)
+    // 원래: Left = -1, Right = 1
+    // 수정: Left = 1, Right = -1
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { 
+        moveDirection.x = 1; // -1에서 1로 변경 (반대 방향)
+        currentAnimation = 'strafeLeft'; 
+    }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { 
+        moveDirection.x = -1; // 1에서 -1로 변경 (반대 방향)
+        currentAnimation = 'strafeRight'; 
+    }
+    
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = -1; if (currentAnimation === 'idle') currentAnimation = 'walk'; }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
-  // [삭제] 이전에 있던 applyRotation 체크 로직은 이미 위에서 직접 처리하므로 필요 없음
-
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    if (joystickData.value.active) {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    } else {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    }
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
   }
 
+  // 맵 경계 제한
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
+  // 바닥 높이 조정 (Raycaster)
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
+      // Ray 시작점을 약간 위로 올려서 바닥을 제대로 감지하도록 함
       raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
       const intersects = raycaster.intersectObject(cityMap, true);
-      groundY = intersects.length > 0 ? intersects[0].point.y : cityMap.position.y;
+      // 감지된 바닥이 있으면 그 높이로, 없으면 현재 높이 유지
+      if (intersects.length > 0) {
+          groundY = intersects[0].point.y;
+      }
   }
   myAvatar.position.y = groundY;
 
   if (moved) throttledUpdate();
 
+  // 애니메이션 처리
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
