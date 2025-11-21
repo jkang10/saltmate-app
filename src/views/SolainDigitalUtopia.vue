@@ -11,6 +11,7 @@
       webkit-playsinline
       loop
       muted
+      autoplay
       preload="auto"
       @timeupdate="checkVideoProgress"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
@@ -116,20 +117,16 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] 음소거 토글 함수 (확실한 제어) ---
+// --- 음소거 토글 함수 ---
 const toggleMute = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    // 1. 음소거 상태 반전
     isMuted.value = !isMuted.value;
     video.muted = isMuted.value;
 
-    // 2. 소리를 켰을 때 볼륨 확보
     if (!isMuted.value) {
       video.volume = 1.0;
-      
-      // 3. 만약 영상이 멈춰있고, 관리자는 재생 중이라면 -> 강제 재생 시도
-      // (브라우저가 소리 때문에 막았던 재생을 다시 시도)
+      // 관리자가 재생 중이라면 소리 켤 때 강제 재생 시도
       if (isVideoPlaying.value && video.paused) {
          video.play().catch(e => console.log("재생 시도 실패 (권한 필요):", e));
       }
@@ -161,7 +158,6 @@ const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
   
-  // 로컬 즉시 반영
   if (newStatus) {
       cinemaVideoRef.value.play().catch(e => console.log(e));
   } else {
@@ -184,7 +180,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [수정] 영상 상태 리스너 (로딩 대기 로직) ---
+// --- 영상 상태 리스너 ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -194,7 +190,7 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
-    // 로딩이 덜 되었으면 대기
+    // 로딩 대기
     if (videoEl.readyState === 0) {
       const onLoaded = () => {
         applyVideoState(videoEl, data);
@@ -232,8 +228,6 @@ const applyVideoState = (videoEl, data) => {
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    // 첫 인터랙션 시 무조건 음소거 해제 시도하지 않음 (사용자가 버튼으로 제어하도록 유도)
-    // 다만 재생이 막혀있다면 재생은 시도함
     if (isVideoPlaying.value && video.paused) {
       video.play().catch(() => {});
     }
@@ -272,7 +266,7 @@ const loadAnimations = async () => {
   }
 };
 
-// --- [수정] 아바타 로드 함수 (렌더링 최적화 비활성화) ---
+// --- 아바타 로드 함수 ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -282,14 +276,12 @@ const loadAvatar = (url, animations) => {
     model.userData.actions = {};
 
     if (!url || !url.endsWith('.glb')) {
-      console.warn("아바타 URL 오류. 기본 큐브 사용.");
       const visuals = new THREE.Group();
       const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       const cube = new THREE.Mesh(geometry, material);
       cube.position.y = 0.5;
       visuals.add(cube);
-      visuals.scale.set(0.7, 0.7, 0.7);
       model.add(visuals);
       resolve(model);
       return;
@@ -305,8 +297,7 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.geometry.translate(-center.x, -box.min.y, -center.z);
             child.castShadow = true;
-            // [중요] 아바타가 시야각 문제로 사라지는 것 방지
-            child.frustumCulled = false; 
+            child.frustumCulled = false; // [중요] 렌더링 누락 방지
           }
           child.matrixAutoUpdate = true;
         });
@@ -325,6 +316,8 @@ const loadAvatar = (url, animations) => {
               if (key === 'idle') action.play();
             }
           }
+          // [중요] 믹서 강제 업데이트 (아바타 즉시 표시용)
+          mixer.update(0.01);
         }
         resolve(model);
       },
@@ -337,7 +330,6 @@ const loadAvatar = (url, animations) => {
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5;
         visuals.add(cube);
-        visuals.scale.set(0.7, 0.7, 0.7);
         model.add(visuals);
         resolve(model);
       }
@@ -389,7 +381,7 @@ const createNicknameSprite = (text) => {
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
   sprite.position.y = 2.0;
-  sprite.matrixAutoUpdate = true; // 닉네임 동기화
+  sprite.matrixAutoUpdate = true;
 
   return sprite;
 };
@@ -537,7 +529,7 @@ const listenToChat = () => {
   });
 };
 
-// --- [수정] 다른 플레이어 리스너 (아바타 즉시 표시) ---
+// --- [수정] 다른 플레이어 리스너 (아바타 즉시 표시 로직 강화) ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -574,6 +566,9 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       
       // [핵심] 강제 업데이트 및 애니메이션 실행
       model.updateMatrixWorld(true);
+      if (model.userData.mixer) {
+          model.userData.mixer.update(0.01); // 믹서 1프레임 강제 업데이트
+      }
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
       }
@@ -604,7 +599,6 @@ const initThree = () => {
           texture.mapping = THREE.EquirectangularReflectionMapping;
           scene.background = texture;
           scene.environment = texture;
-          console.log("배경 이미지 로드 완료");
       }, undefined, (err) => {
           console.error('배경 이미지 로드 실패:', err);
           scene.background = new THREE.Color(0xade6ff);
@@ -664,7 +658,6 @@ const initThree = () => {
 
           if (myAvatar) { 
              myAvatar.position.set(startX, groundLevelY, startZ); 
-             // [중요] 내 아바타 위치 설정 후 즉시 업데이트
              myAvatar.updateMatrixWorld(true);
           }
           
@@ -700,6 +693,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
+// [수정] 클릭 이동 제거
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -708,7 +702,7 @@ const updatePlayerMovement = (deltaTime) => {
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
-  // [수정] applyRotation 변수 삭제 (사용하지 않음)
+  let applyRotation = false;
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
@@ -727,7 +721,7 @@ const updatePlayerMovement = (deltaTime) => {
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동 (카메라 방향 기준)
+    // 2. 키보드 이동
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
@@ -744,11 +738,7 @@ const updatePlayerMovement = (deltaTime) => {
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    if (joystickData.value.active) {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    } else {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    }
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
   }
 
@@ -839,7 +829,7 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // [수정] 클릭/터치는 오직 영상 제어용으로만 사용
+  // [수정] 영상 재생을 위한 사용자 인터랙션 감지
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
   window.addEventListener('mousemove', handleUserInteraction); 
@@ -866,8 +856,12 @@ onMounted(async () => {
     else myAvatar.add(nick);
   }
   scene.add(myAvatar);
-  // [중요] 아바타 로드 후 즉시 렌더링 업데이트
+  
+  // [핵심] 아바타 로드 직후 업데이트
   myAvatar.updateMatrixWorld(true);
+  if (myAvatar.userData.mixer) {
+      myAvatar.userData.mixer.update(0.01);
+  }
 
   await nextTick();
   const joystickZone = document.getElementById('joystick-zone');
