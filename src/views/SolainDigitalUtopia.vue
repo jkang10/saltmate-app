@@ -536,7 +536,7 @@ const listenToChat = () => {
   });
 };
 
-// --- 다른 플레이어 리스너 수정 ---
+// [수정] listenToOtherPlayers 함수
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -559,24 +559,22 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     
-    // 비동기 로드 완료 후 플레이어가 여전히 존재하는지 확인
     if (scene && otherPlayers[snapshot.key]) {
-      // 이름표 부착
+      // [수정] 상대방 닉네임 높이 조절
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        // [수정] 높이를 여기서 한 번만 정확히 설정 (아바타 키에 맞춰 2.2 정도가 적당)
-        nick.position.y = 2.2; 
+        // 기존 2.2에서 2.0 또는 1.8로 낮춤 (아바타 머리 바로 위)
+        nick.position.set(0, 2.0, 0); 
         model.add(nick); 
       }
 
-      // 초기 위치 설정
+      // 위치 동기화
       model.position.copy(otherPlayers[snapshot.key].targetPosition);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
       
-      // [중요 해결책] 씬에 추가한 직후 월드 매트릭스 강제 업데이트
-      // 아바타가 안 보이는 문제를 방지합니다.
+      // [중요] 렌더링 누락 방지를 위한 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
@@ -584,7 +582,6 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
       if (model.userData.mixer) {
-          // 애니메이션 믹서도 한번 강제 실행하여 T-pose 방지
           model.userData.mixer.update(0.01);
       }
       if (model.userData.actions && model.userData.actions.idle) {
@@ -593,7 +590,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     }
   });
 
-  // ... (onChildChanged, onChildRemoved는 기존 코드 유지)
+  // (onChildChanged, onChildRemoved 부분은 기존과 동일하게 유지)
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
@@ -879,15 +876,15 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
+// [수정] onMounted 전체를 이 코드로 교체하거나, 내부 로직을 참고하여 수정하세요.
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
   
+  // 권한 확인
   try {
     const token = await auth.currentUser.getIdTokenResult();
-    if (token.claims.role === 'superAdmin') {
-      isAdmin.value = true;
-    }
+    if (token.claims.role === 'superAdmin') isAdmin.value = true;
   } catch(e) { console.log("권한 확인 실패"); }
 
   if (!initThree()) return;
@@ -897,13 +894,13 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  // [수정] 영상 재생을 위한 사용자 인터랙션 감지
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
   window.addEventListener('mousemove', handleUserInteraction); 
 
   animate();
 
+  // Firestore 유저 정보 로드
   try {
     const userDoc = await getDoc(doc(db, 'users', currentUid));
     if (userDoc.exists()) {
@@ -917,15 +914,25 @@ onMounted(async () => {
     console.error("Firestore 정보 가져오기 실패:", error);
   }
 
+  // 1. 아바타 로드
   myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
+  
+  // 2. [핵심 수정] 로드 직후 초기 위치를 '강제로' 지정 (initThree의 startX, startZ와 동일하게)
+  // 이 좌표가 설정된 상태로 joinPlaza가 호출되어야 다른 사람에게 내가 보입니다.
+  myAvatar.position.set(37.16, 0.5, 7.85); 
+  
+  // 3. [핵심 수정] 내 닉네임 위치 설정
   if (myUserName) {
     const nick = createNicknameSprite(myUserName);
-    if (myAvatar.userData.visuals) myAvatar.userData.visuals.add(nick);
-    else myAvatar.add(nick);
+    // visuals(내부 모델)이 아닌 myAvatar(최상위 그룹)에 붙여야 크기/회전 영향이 적음
+    // 높이(y)를 2.0 정도로 설정하여 머리 위에 띄움
+    nick.position.set(0, 2.0, 0); 
+    myAvatar.add(nick);
   }
+  
   scene.add(myAvatar);
   
-  // [핵심] 아바타 로드 직후 업데이트
+  // 매트릭스 강제 업데이트 (깜빡임 방지)
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) {
       myAvatar.userData.mixer.update(0.01);
@@ -939,7 +946,9 @@ onMounted(async () => {
       joystickManager.on('end', handleJoystickEnd);
   }
 
+  // 위치 설정이 완료된 후 입장 처리
   await joinPlaza();
+  
   if (isReady.value) {
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
