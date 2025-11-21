@@ -3,7 +3,7 @@
     <div class="game-container card glassmorphism">
       <header class="game-header">
         <h2><i class="fas fa-water"></i> 황금 소금 폭포</h2>
-        <p>구슬이 어디로 떨어질까요? 대박을 노려보세요!</p>
+        <p>구슬이 떨어지는 곳에 운명이 있습니다!</p>
       </header>
 
       <div class="canvas-wrapper" ref="canvasWrapper">
@@ -24,11 +24,11 @@
           <label>1회 투입 금액</label>
           <div class="bet-buttons">
             <button @click="setBet(100)" :class="{ active: betAmount === 100 }">100</button>
-            <button @click="setBet(500)" :class="{ active: betAmount === 500 }">500</button>
-            <button @click="setBet(1000)" :class="{ active: betAmount === 1000 }">1K</button>
-            <button @click="setBet(5000)" :class="{ active: betAmount === 5000 }">5K</button>
+            <button @click="setBet(150)" :class="{ active: betAmount === 150 }">150</button>
+            <button @click="setBet(200)" :class="{ active: betAmount === 200 }">200</button>
+            <button @click="setBet(300)" :class="{ active: betAmount === 300 }">300</button>
           </div>
-          <input type="number" v-model.number="betAmount" class="bet-input" min="100" step="100">
+          <p class="current-bet">현재 베팅: <strong>{{ betAmount }} P</strong></p>
         </div>
 
         <div class="action-buttons">
@@ -65,10 +65,11 @@ const isAutoMode = ref(false);
 const lastResult = ref(null);
 const activeIndex = ref(-1);
 
-const multipliers = [100, 10, 5, 2, 0.5, 2, 5, 10, 100];
+// [수정] 새로운 배율 적용 (대칭형)
+const multipliers = [3, 2.5, 2, 1.5, 0.5, 1.5, 2, 2.5, 3];
 const rows = 8; 
 const pegSize = 4;
-const ballSize = 7;
+const ballSize = 6; // 공 크기 약간 축소 (더 자연스럽게)
 let ctx = null;
 let width = 0;
 let height = 0;
@@ -88,20 +89,17 @@ const initAudio = () => {
 const playPingSound = () => {
   if (!audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
-  
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  
   osc.connect(gain);
   gain.connect(audioCtx.destination);
-  
   const freqs = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00];
   osc.frequency.value = freqs[Math.floor(Math.random() * freqs.length)];
   osc.type = 'sine';
-  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+  gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
   osc.start();
-  osc.stop(audioCtx.currentTime + 0.5);
+  osc.stop(audioCtx.currentTime + 0.3);
 };
 
 const initBoard = () => {
@@ -117,17 +115,15 @@ const initBoard = () => {
   ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-
+  // 핀 배치 (삼각형 형태)
   pegs.length = 0;
   const spacing = width / (rows + 2);
-  const startY = 50;
+  const startY = 60;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col <= row; col++) {
       const x = (width / 2) - (row * spacing / 2) + (col * spacing);
-      const y = startY + (row * spacing * 0.8);
+      const y = startY + (row * spacing * 0.85);
       pegs.push({ x, y });
     }
   }
@@ -138,9 +134,9 @@ const setBet = (amount) => {
 };
 
 const getMultiplierClass = (mul) => {
-  if (mul >= 100) return 'jackpot';
-  if (mul >= 10) return 'high';
-  if (mul >= 2) return 'medium';
+  if (mul >= 3) return 'jackpot';
+  if (mul >= 2) return 'high';
+  if (mul >= 1.5) return 'medium';
   return 'low';
 };
 
@@ -162,15 +158,16 @@ const dropBall = async () => {
     const result = await playFunc({ betAmount: betAmount.value });
     const { selectedIndex, multiplier, profit } = result.data;
 
+    // 공 생성 위치 (상단 중앙 + 약간의 랜덤성)
     balls.push({
-      x: width / 2 + (Math.random() - 0.5) * 5, // 랜덤 범위 축소 (5px)
-      y: 20,
+      x: width / 2 + (Math.random() - 0.5) * 4, 
+      y: 10,
       vx: 0,
       vy: 0,
       targetIndex: selectedIndex, 
       finished: false,
       resultMessage: profit >= 0 
-          ? `🎉 대박! ${multiplier}배! (+${profit.toLocaleString()} P)` 
+          ? `🎉 축하합니다! ${multiplier}배! (+${profit.toLocaleString()} P)` 
           : `아쉽네요.. (${profit.toLocaleString()} P)`,
       resultProfit: profit
     });
@@ -179,10 +176,8 @@ const dropBall = async () => {
 
     if (isAutoMode.value) {
         setTimeout(() => {
-            if (isAutoMode.value) {
-                dropBall();
-            }
-        }, 1500); 
+            if (isAutoMode.value) dropBall();
+        }, 1200); 
     }
 
   } catch (error) {
@@ -190,55 +185,57 @@ const dropBall = async () => {
     alert(error.message);
     isAutoMode.value = false;
     isDropping.value = false;
-    
-    if (balls.length === 0) {
-        isPlaying.value = false;
-    }
+    if (balls.length === 0) isPlaying.value = false;
   }
 };
 
 const toggleAuto = () => {
     isAutoMode.value = !isAutoMode.value;
-    if (isAutoMode.value && !isPlaying.value) {
-        dropBall();
-    }
+    if (isAutoMode.value && !isPlaying.value) dropBall();
 };
 
+// [핵심 수정] 물리 엔진 업데이트 루프
 const update = () => {
   if (!ctx) return;
-  ctx.clearRect(0, 0, width, height);
+  const cvsWidth = width;
+  const cvsHeight = height;
+  
+  ctx.clearRect(0, 0, cvsWidth, cvsHeight);
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  // 핀 그리기
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   pegs.forEach(peg => {
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, pegSize, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 5;
-    ctx.shadowColor = '#fff';
   });
-  ctx.shadowBlur = 0; 
 
   for (let i = balls.length - 1; i >= 0; i--) {
     const ball = balls[i];
     
     if (!ball.finished) {
-        // 1. 기본 물리
-        ball.vy += 0.15; // 중력 (0.2 -> 0.15로 낮춰서 천천히 떨어지게 함)
-        ball.y += ball.vy;
+        // 1. 중력 및 속도
+        ball.vy += 0.25; // 중력
+        ball.vy *= 0.99; // 공기 저항 (Y)
+        ball.vx *= 0.98; // 공기 저항 (X) - 좌우 흔들림 방지
+        
         ball.x += ball.vx;
+        ball.y += ball.vy;
 
-        // 2. [핵심 수정] 유도 로직 (Guidance) 최적화
-        const spacing = width / (rows + 2);
-        const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
-
-        // [수정] 유도 시작 지점을 화면 하단부(60%)로 늦춤
-        if (ball.y > height * 0.6) {
-            const dx = finalTargetX - ball.x;
-            ball.vx += dx * 0.005; // [수정] 유도 힘 대폭 감소 (0.01 -> 0.005)
-            ball.vx *= 0.95; // 속도 감쇠
+        // 2. [자연스러운 유도 로직]
+        // 목표 지점을 향해 '바람'처럼 아주 미세하게만 힘을 가함
+        const spacing = cvsWidth / (rows + 2);
+        const targetX = (cvsWidth / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
+        
+        // 공이 핀 영역을 지나갈 때만 미세하게 조정
+        if (ball.y > 50 && ball.y < cvsHeight - 50) {
+            const dx = targetX - ball.x;
+            // 거리에 따라 힘을 조절하되, 최대 힘을 제한 (0.002 아주 약하게)
+            const force = Math.min(Math.max(dx * 0.002, -0.05), 0.05);
+            ball.vx += force;
         }
 
-        // 3. 충돌 처리
+        // 3. 핀 충돌 (간단한 원형 충돌)
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
@@ -246,45 +243,49 @@ const update = () => {
             
             if (dist < ballSize + pegSize) {
                 playPingSound();
-                // [수정] 반발력 감소 (-0.5 -> -0.3)
-                ball.vy *= -0.3; 
-                ball.vx += (Math.random() - 0.5) * 1.5; // 랜덤 튐 감소
-                ball.y -= 2; 
                 
-                // [수정] 충돌 시 유도 힘도 감소 (0.3 -> 0.1)
-                if (ball.x < finalTargetX) ball.vx += 0.1;
-                else ball.vx -= 0.1;
-
-                break;
+                // 충돌 반응: 
+                // 공이 핀 위에 있으면 Y속도 반전, 아니면 X속도에 랜덤성 부여
+                const angle = Math.atan2(dy, dx);
+                const speed = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 0.6; // 에너지 손실
+                
+                ball.vx = Math.cos(angle) * speed + (Math.random() - 0.5); // 랜덤 튀김 추가
+                ball.vy = Math.sin(angle) * speed;
+                
+                // 겹침 방지
+                ball.x += Math.cos(angle) * (ballSize + pegSize - dist + 1);
+                ball.y += Math.sin(angle) * (ballSize + pegSize - dist + 1);
+                
+                break; 
             }
         }
         
-        // [신규] 최대 속도 제한 (공이 날아가는 현상 방지)
-        if (ball.vx > 3) ball.vx = 3;
-        if (ball.vx < -3) ball.vx = -3;
-        
-        // 4. 바닥 처리
-        if (ball.y > height - 30) {
-            ball.x = finalTargetX; 
-            ball.finished = true;
-            activeIndex.value = ball.targetIndex;
-            lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
-            setTimeout(() => { activeIndex.value = -1; }, 500);
-            
-            balls.splice(i, 1);
-            
-            if (balls.length === 0 && !isAutoMode.value) {
-                isPlaying.value = false;
+        // 4. 바닥 도착
+        if (ball.y > cvsHeight - 30) {
+            // 시각적 보정: 너무 멀리 떨어져 있으면 목표 위치로 스르륵 이동
+            if (Math.abs(ball.x - targetX) > 10) {
+                ball.x += (targetX - ball.x) * 0.2;
+            } else {
+                ball.finished = true;
+                activeIndex.value = ball.targetIndex;
+                lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
+                setTimeout(() => { activeIndex.value = -1; }, 300);
+                balls.splice(i, 1);
+                
+                if (balls.length === 0 && !isAutoMode.value) {
+                    isPlaying.value = false;
+                }
+                continue;
             }
-            continue; 
         }
     }
 
+    // 공 그리기
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ballSize, 0, Math.PI * 2);
     ctx.fillStyle = '#FFD700';
     ctx.fill();
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.shadowColor = '#FFD700';
   }
   ctx.shadowBlur = 0;
@@ -307,7 +308,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* (스타일은 기존과 동일) */
 .plinko-page {
   padding: 20px;
   min-height: 100vh;
@@ -327,7 +327,7 @@ onUnmounted(() => {
   color: #fff;
 }
 .game-header h2 {
-  font-size: 2rem;
+  font-size: 1.8rem;
   color: #FFD700;
   text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
   margin-bottom: 5px;
@@ -341,7 +341,7 @@ onUnmounted(() => {
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  height: 400px;
+  height: 380px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
   overflow: hidden;
@@ -362,7 +362,7 @@ canvas {
   padding-bottom: 5px;
 }
 .multiplier-box {
-  width: 30px;
+  width: 10%;
   height: 25px;
   border-radius: 4px;
   display: flex;
@@ -370,7 +370,7 @@ canvas {
   align-items: center;
   font-size: 0.7rem;
   font-weight: bold;
-  transition: transform 0.2s;
+  transition: transform 0.1s;
   box-shadow: 0 -2px 5px rgba(0,0,0,0.2);
 }
 .low { background: #95a5a6; color: #2c3e50; }
@@ -383,6 +383,7 @@ canvas {
   padding: 15px;
   border-radius: 15px;
 }
+.bet-control { margin-bottom: 15px; }
 .bet-control label {
   display: block;
   font-size: 0.9rem;
@@ -392,30 +393,28 @@ canvas {
 .bet-buttons {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 10px;
 }
 .bet-buttons button {
   background: transparent;
   border: 1px solid #4a4a4a;
   color: #fff;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border-radius: 5px;
   cursor: pointer;
+  font-size: 0.9rem;
 }
 .bet-buttons button.active {
   background: #FFD700;
   color: #000;
   border-color: #FFD700;
-}
-.bet-input {
-  width: 100px;
-  padding: 8px;
-  border-radius: 5px;
-  border: none;
-  text-align: center;
   font-weight: bold;
-  margin-bottom: 15px;
+}
+.current-bet {
+  font-size: 1rem;
+  color: #fff;
+  margin: 0;
 }
 
 .action-buttons {
@@ -447,23 +446,20 @@ canvas {
   color: #fff;
   border-radius: 10px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 .btn-auto.active {
   background: #27ae60;
   border-color: #2ecc71;
-  animation: pulse 1s infinite;
 }
 
 .game-log {
   font-size: 0.9rem;
-  height: 20px;
+  min-height: 20px;
 }
 .win { color: #2ecc71; font-weight: bold; }
 .lose { color: #e74c3c; }
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
-}
 </style>
