@@ -68,8 +68,7 @@ const activeIndex = ref(-1);
 const multipliers = [3, 2.5, 2, 1.5, 0.5, 1.5, 2, 2.5, 3];
 const rows = 12; 
 const pegSize = 4;
-// [★수정★] ballSize를 let으로 변경 (반응형 조절을 위해)
-let ballSize = 6; 
+let ballSize = 6; // 반응형
 let ctx = null;
 let width = 0;
 let height = 0;
@@ -112,7 +111,7 @@ const initBoard = () => {
   width = canvasWrapper.value.clientWidth;
   height = canvasWrapper.value.clientHeight;
 
-  // [★수정★] 모바일 화면(600px 미만)에서는 공 크기를 4로 줄임
+  // 모바일 화면 대응
   if (width < 600) {
       ballSize = 4; 
   } else {
@@ -146,9 +145,9 @@ const setBet = (amount) => {
 };
 
 const getMultiplierClass = (mul) => {
-  if (mul >= 100) return 'jackpot';
-  if (mul >= 10) return 'high';
-  if (mul >= 2) return 'medium';
+  if (mul >= 3) return 'jackpot';
+  if (mul >= 2) return 'high';
+  if (mul >= 1.5) return 'medium';
   return 'low';
 };
 
@@ -205,10 +204,12 @@ const toggleAuto = () => {
     if (isAutoMode.value && !isPlaying.value) dropBall();
 };
 
+// [핵심 수정] 물리 엔진 업데이트
 const update = () => {
   if (!ctx) return;
   ctx.clearRect(0, 0, width, height);
 
+  // 핀 그리기
   ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   pegs.forEach(peg => {
     ctx.beginPath();
@@ -220,6 +221,7 @@ const update = () => {
     const ball = balls[i];
     
     if (!ball.finished) {
+        // 1. 기본 물리
         ball.vy += 0.25; 
         ball.vy *= 0.99; 
         ball.vx *= 0.98; 
@@ -227,38 +229,55 @@ const update = () => {
         ball.x += ball.vx;
         ball.y += ball.vy;
 
+        // 2. 유도 로직
         const spacing = width / (rows + 2);
         const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
 
-        if (ball.y > height * 0.5) {
+        if (ball.y > height * 0.5) { 
             const dx = finalTargetX - ball.x;
             ball.vx += dx * 0.008; 
             ball.vx *= 0.96; 
         }
 
+        // 3. [핵심] 충돌 처리 개선
         for (const peg of pegs) {
             const dx = ball.x - peg.x;
             const dy = ball.y - peg.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
+            const minDist = ballSize + pegSize;
             
-            if (dist < ballSize + pegSize) {
+            if (dist < minDist) {
                 playPingSound();
-                ball.vy *= -0.4; 
-                ball.vx += (Math.random() - 0.5) * 1.2; 
-                ball.y -= 2; 
+
+                // [수정 A] 겹침 방지: 공을 핀 바깥으로 즉시 밀어냄 (필수)
+                const angle = Math.atan2(dy, dx);
+                const pushOut = minDist - dist + 0.5; 
+                ball.x += Math.cos(angle) * pushOut;
+                ball.y += Math.sin(angle) * pushOut;
+
+                // [수정 B] 튀는 힘 감소: 위로 튀는 것을 억제 (-0.4 -> -0.2)
+                ball.vy *= -0.2; 
                 
-                if (ball.x < finalTargetX) ball.vx += 0.2;
-                else ball.vx -= 0.2;
+                // [수정 C] 측면 반발력: 충돌 각도에 따라 옆으로 밀어냄
+                ball.vx += Math.cos(angle) * 0.8;
+                
+                // 약간의 랜덤성
+                ball.vx += (Math.random() - 0.5) * 0.5; 
+                
+                // 목표 방향 미세 유도
+                if (ball.x < finalTargetX) ball.vx += 0.1;
+                else ball.vx -= 0.1;
 
                 break;
             }
         }
         
-        if (ball.vx > 4) ball.vx = 4;
+        if (ball.vx > 4) ball.vx = 4; 
         if (ball.vx < -4) ball.vx = -4;
         
+        // 4. 바닥 도착
         if (ball.y > height - 30) {
-            if (Math.abs(ball.x - finalTargetX) > 15) { 
+            if (Math.abs(ball.x - finalTargetX) > 15) {
                 ball.x += (finalTargetX - ball.x) * 0.3;
             } else {
                 ball.finished = true;
@@ -302,6 +321,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* (스타일은 기존과 동일) */
 .plinko-page {
   padding: 20px;
   min-height: 100vh;
@@ -335,7 +355,7 @@ onUnmounted(() => {
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  height: 450px; /* [수정] 핀이 늘어났으므로 높이 증가 */
+  height: 450px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
   overflow: hidden;

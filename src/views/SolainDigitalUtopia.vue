@@ -43,7 +43,10 @@
 
     <div class="user-controls">
       <button @click="toggleMute" :class="{ 'active': !isMuted }">
-        {{ isMuted ? '🔇 소리 켜기' : '🔊 소리 끄기' }}
+        {{ isMuted ? '🔇 배경음 켜기' : '🔊 배경음 끄기' }}
+      </button>
+      <button @click="toggleMic" :class="{ 'active': isMicOn }" style="margin-left: 10px;">
+        {{ isMicOn ? '🎤 마이크 끄기' : '🎙️ 마이크 켜기' }}
       </button>
     </div>
 
@@ -69,6 +72,8 @@ import {
   update
 } from 'firebase/database';
 import nipplejs from 'nipplejs';
+// [추가] Agora SDK 임포트
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 // --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
@@ -83,6 +88,14 @@ const isAdmin = ref(false);
 const isVideoPlaying = ref(false);
 const isMuted = ref(true); 
 const rewardClaimedLocal = ref(false);
+
+// --- Agora 음성 채팅 관련 변수 ---
+const agoraAppId = "YOUR_AGORA_APP_ID"; // ★ 아고라 콘솔에서 발급받은 App ID를 여기에 입력하세요!
+const agoraChannel = "plaza_voice_chat";
+const agoraToken = null; // 테스트 모드라면 null
+const agoraClient = ref(null);
+const localAudioTrack = ref(null);
+const isMicOn = ref(false);
 
 // --- 아바타 관련 ---
 let myAvatar = null;
@@ -112,13 +125,72 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 플레이어 이동 관련 ---
-// [수정] 변수 선언부 (기존 2.0 -> 1.2로 변경)
-const moveSpeed = 1.2; // 걷는 속도로 변경하여 이름표와의 괴리감 해소
+const moveSpeed = 1.2; // 걷는 속도로 설정 (동기화 문제 해결)
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 음소거 토글 함수 ---
+// --- [추가] Agora 음성 채팅 초기화 함수 ---
+const initAgora = async () => {
+  try {
+    agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+    // 상대방 오디오 게시 감지
+    agoraClient.value.on("user-published", async (user, mediaType) => {
+      await agoraClient.value.subscribe(user, mediaType);
+      if (mediaType === "audio") {
+        user.audioTrack.play();
+      }
+    });
+
+    // 상대방 퇴장/오디오 중지 감지
+    agoraClient.value.on("user-unpublished", (user, mediaType) => {
+      if (mediaType === "audio") {
+        if (user.audioTrack) user.audioTrack.stop();
+      }
+    });
+
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, null);
+    console.log("Agora 음성 채널 입장 성공");
+  } catch (error) {
+    console.error("Agora 초기화 실패:", error);
+  }
+};
+
+// --- [추가] 마이크 토글 함수 ---
+const toggleMic = async () => {
+  try {
+    if (!localAudioTrack.value) {
+      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack();
+      await agoraClient.value.publish([localAudioTrack.value]);
+      isMicOn.value = true;
+    } else {
+      if (isMicOn.value) {
+        await localAudioTrack.value.setEnabled(false);
+        isMicOn.value = false;
+      } else {
+        await localAudioTrack.value.setEnabled(true);
+        isMicOn.value = true;
+      }
+    }
+  } catch (error) {
+    console.error("마이크 제어 실패:", error);
+  }
+};
+
+// --- [추가] Agora 리소스 정리 ---
+const leaveAgora = async () => {
+  if (localAudioTrack.value) {
+    localAudioTrack.value.close();
+    localAudioTrack.value = null;
+  }
+  if (agoraClient.value) {
+    await agoraClient.value.leave();
+    agoraClient.value = null;
+  }
+};
+
+// --- 배경음 음소거 토글 함수 ---
 const toggleMute = () => {
   const video = cinemaVideoRef.value;
   if (video) {
@@ -127,7 +199,6 @@ const toggleMute = () => {
 
     if (!isMuted.value) {
       video.volume = 1.0;
-      // 관리자가 재생 중이라면 소리 켤 때 강제 재생 시도
       if (isVideoPlaying.value && video.paused) {
          video.play().catch(e => console.log("재생 시도 실패 (권한 필요):", e));
       }
@@ -191,7 +262,6 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
-    // 로딩 대기
     if (videoEl.readyState === 0) {
       const onLoaded = () => {
         applyVideoState(videoEl, data);
@@ -229,14 +299,11 @@ const applyVideoState = (videoEl, data) => {
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    // 비디오가 멈춰있거나 재생되지 않은 상태라면 강제 재생 시도
     if (video.paused) {
       video.play().then(() => {
-        // 재생 성공 시 비디오 텍스처 업데이트가 잘 되도록 설정
         isVideoPlaying.value = true;
-        console.log("사용자 인터랙션으로 비디오 재생 시작");
       }).catch((e) => {
-        console.log("비디오 재생 권한 획득 실패 (아직 준비 안됨):", e);
+        console.log("비디오 재생 권한 획득 실패:", e);
       });
     }
   }
@@ -274,7 +341,7 @@ const loadAnimations = async () => {
   }
 };
 
-// [수정] loadAvatar 함수
+// --- 아바타 로드 함수 (수정됨) ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -303,19 +370,16 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; // 시야 밖 렌더링 문제 방지
+            child.frustumCulled = false;
             child.matrixAutoUpdate = true;
           }
         });
 
         visuals.scale.set(0.7, 0.7, 0.7);
         
-        // [핵심 수정] X, Z축 강제 이동 코드 삭제!
-        // 아바타의 원점(발바닥 사이)을 그대로 사용해야 회전 시 어긋나지 않습니다.
+        // X, Z축 강제 이동 삭제 (Ghosting 방지)
+        // Y축(높이)만 지면(0)에 맞게 보정
         const box = new THREE.Box3().setFromObject(visuals);
-        
-        // Y축(높이)만 지면(0)에 맞게 보정합니다.
-        // (대부분의 모델은 box.min.y가 0이 아니므로 발바닥을 0에 맞춤)
         visuals.position.y = -box.min.y; 
 
         model.add(visuals);
@@ -387,7 +451,6 @@ const createNicknameSprite = (text) => {
   const scale = 0.0025;
   sprite.scale.set(canvas.width * scale, canvas.height * scale, 1.0);
   
-  // [수정] 여기서 높이를 주지 않고 0으로 둡니다. (외부에서 조정)
   sprite.position.set(0, 0, 0);
   sprite.matrixAutoUpdate = true;
 
@@ -537,7 +600,7 @@ const listenToChat = () => {
   });
 };
 
-// [수정] listenToOtherPlayers 함수
+// [수정] listenToOtherPlayers 함수 (즉시 렌더링 + 위치 보정)
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -546,13 +609,11 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
-    // 초기 데이터 파싱
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
 
-    // 플레이어 객체 먼저 생성 (데이터 바인딩용)
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
@@ -560,37 +621,28 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       userName: val.userName, isMoving: false
     };
     
-    // 아바타 로드 시작
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     
-    // 로드 완료 후 씬에 추가
     if (scene && otherPlayers[snapshot.key]) {
-      // 이름표 부착 (높이 1.7)
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
         nick.position.set(0, 1.7, 0); 
         model.add(nick); 
       }
 
-      // [핵심 수정] 로딩이 끝난 시점의 '최신 목표 위치'를 가져옵니다.
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
-      
-      // [핵심 수정] 만약 Y값이 0.1 미만(땅속)이라면 강제로 0.5(지면)로 보정
       if (currentTarget.y < 0.1) currentTarget.y = 0.5;
 
       model.position.copy(currentTarget);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       
       scene.add(model);
-      
-      // 즉시 렌더링을 위한 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // 애니메이션 1프레임 강제 실행 (T-pose 방지)
       if (model.userData.mixer) {
           model.userData.mixer.update(0.01);
       }
@@ -605,7 +657,6 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     const val = snap.val();
     if (!val.position) return;
     
-    // 위치 업데이트 수신
     otherPlayers[snap.key].targetPosition.set(
       val.position.x ?? 0, 
       val.position.y ?? 0, 
@@ -626,7 +677,6 @@ const initThree = () => {
   try {
       scene = new THREE.Scene();
       
-      // 배경 설정
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load('/my_background.jpg', (texture) => {
           texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -649,7 +699,6 @@ const initThree = () => {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      // 컨트롤 설정
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -659,14 +708,12 @@ const initThree = () => {
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
 
-      // 조명 설정
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
       dirLight.position.set(50, 80, 40);
       dirLight.castShadow = true;
       
-      // 그림자 품질 설정
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
       dirLight.shadow.camera.near = 1;
@@ -679,7 +726,6 @@ const initThree = () => {
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
 
-      // 도시 맵 로드
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
@@ -701,35 +747,32 @@ const initThree = () => {
           });
           scene.add(city);
 
-          // 내 아바타 위치 조정
           if (myAvatar) { 
              myAvatar.position.set(startX, groundLevelY, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
           
-          // [수정됨] 시네마 스크린 및 비디오 텍스처 설정
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.colorSpace = THREE.SRGBColorSpace; // 색상 보정
+            videoTexture.colorSpace = THREE.SRGBColorSpace; 
             
             const screenGeo = new THREE.PlaneGeometry(16, 9);
             const screenMat = new THREE.MeshBasicMaterial({ 
                 map: videoTexture, 
                 side: THREE.DoubleSide,
-                toneMapped: false // 조명 영향 받지 않게 설정 (원래 색상 유지)
+                toneMapped: false 
             });
             const screen = new THREE.Mesh(screenGeo, screenMat);
-            // 스크린 위치 (도시 맵 로드 후 배치)
             screen.position.set(startX, groundLevelY + 7, startZ - 15); 
             screen.name = "cinemaScreen";
             scene.add(screen);
           }
 
       }, undefined, (error) => {
-          console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
+          console.error('!!! 도시 맵 로드 실패:', error);
       });
 
       clock = new THREE.Clock();
@@ -749,7 +792,7 @@ const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 
-// [전체 수정] updatePlayerMovement 함수
+// [수정] updatePlayerMovement 함수 (좌우 반전, 이동 멈춤 시 즉시 전송)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -759,58 +802,45 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   let targetRotationY = myAvatar.rotation.y;
 
-  // 1. 조이스틱 이동 로직
   if (joystickData.value.active && joystickData.value.distance > 10) {
       targetRotationY = -joystickData.value.angle + Math.PI / 2;
       
-      // 조이스틱 회전 부드럽게 적용
       let currentY = myAvatar.rotation.y; 
       const PI2 = Math.PI * 2;
       let targetY = targetRotationY;
-      
       currentY = (currentY % PI2 + PI2) % PI2; 
       targetY = (targetY % PI2 + PI2) % PI2;
       
       let diff = targetY - currentY; 
-      if (Math.abs(diff) > Math.PI) { 
-          diff = diff > 0 ? diff - PI2 : diff + PI2; 
-      }
+      if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
 
-      moveDirection.z = -1; // 조이스틱은 항상 전진 방향 기준
+      moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
-    // 2. 키보드 이동 로직
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    
-    // 키보드 입력 감지
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || 
                              keysPressed['KeyS'] || keysPressed['ArrowDown'] || 
                              keysPressed['KeyA'] || keysPressed['ArrowLeft'] || 
                              keysPressed['KeyD'] || keysPressed['ArrowRight'];
     
     if (isKeyboardMoving) {
-      // 이동 중일 때만 아바타가 카메라 정면을 바라보게 함
       myAvatar.rotation.y = cameraEuler.y;
       moved = true;
     }
 
-    // [핵심 수정 1] 좌우 이동 방향 반전 (카메라가 정면을 볼 때 방향 맞춤)
-    // A키(좌) -> x: 1 (오른쪽 이동 -> 화면상 왼쪽)
+    // 좌우 반전 적용
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { 
         moveDirection.x = 1; 
         currentAnimation = 'strafeLeft'; 
     }
-    // D키(우) -> x: -1 (왼쪽 이동 -> 화면상 오른쪽)
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { 
         moveDirection.x = -1; 
         currentAnimation = 'strafeRight'; 
     }
-    
-    // 전후 이동 (기존 유지)
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
         moveDirection.z = -1; 
         if (currentAnimation === 'idle') currentAnimation = 'walk'; 
@@ -821,7 +851,6 @@ const updatePlayerMovement = (deltaTime) => {
     }
   }
 
-  // 3. 실제 위치 이동 처리
   if (moved) {
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * 0.7 * deltaTime, 
@@ -831,51 +860,40 @@ const updatePlayerMovement = (deltaTime) => {
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
 
-    // [핵심 수정 2] 움직일 때만 위치 전송 (멈추면 즉시 전송 중단하여 이름표 고정)
     throttledUpdate();
   }
 
-  // 4. 맵 경계 제한 (Boundary Check)
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // 5. 바닥 높이 조정 (Raycaster) - 계단/지형 인식
   const cityMap = scene.getObjectByName("cityMap");
   let groundY = myAvatar.position.y;
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
-      // Ray 시작점을 약간 위로 올려서(y+1) 바닥을 제대로 감지하도록 함
       raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), down);
       const intersects = raycaster.intersectObject(cityMap, true);
-      
-      // 감지된 바닥이 있으면 그 높이로, 없으면 현재 높이 유지
       if (intersects.length > 0) {
           groundY = intersects[0].point.y;
       }
   }
   myAvatar.position.y = groundY;
 
-  // 6. 애니메이션 처리 (Mixer)
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions.idle;
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
-    
     if (targetAction && !targetAction.isRunning()) {
       targetAction.reset().play();
-      if (activeAction) {
-          activeAction.crossFadeTo(targetAction, 0.3);
-      }
+      if (activeAction) activeAction.crossFadeTo(targetAction, 0.3);
     }
   }
 };
 
-// [수정] updateOtherPlayersMovement 함수
+// [수정] updateOtherPlayersMovement 함수 (보간 계수 증가)
 const updateOtherPlayersMovement = (deltaTime) => {
-  // [핵심 수정] 8 -> 15로 변경 (이름표와 몸체가 더 착 붙어서 따라다님)
   const lerpFactor = deltaTime * 15; 
 
   for (const userId in otherPlayers) {
@@ -886,7 +904,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
     
-    // 이동 및 회전 보간 (부드럽게 따라가기)
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
     
     let currentY = player.mesh.rotation.y; 
@@ -898,10 +915,8 @@ const updateOtherPlayersMovement = (deltaTime) => {
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
 
-    // 매트릭스 강제 업데이트 (잔상 제거)
     player.mesh.updateMatrixWorld(true);
 
-    // 애니메이션 처리
     const mixer = player.mixer;
     const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
@@ -931,7 +946,7 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
-// [수정] onMounted
+// [수정] onMounted (통합 초기화 및 강제 업데이트)
 onMounted(async () => {
   if (!auth.currentUser) return;
   const currentUid = auth.currentUser.uid;
@@ -940,6 +955,9 @@ onMounted(async () => {
     const token = await auth.currentUser.getIdTokenResult();
     if (token.claims.role === 'superAdmin') isAdmin.value = true;
   } catch(e) { console.log("권한 확인 실패"); }
+
+  // [추가] Agora 초기화
+  initAgora();
 
   if (!initThree()) return;
 
@@ -967,25 +985,21 @@ onMounted(async () => {
     console.error("Firestore 정보 가져오기 실패:", error);
   }
 
-  // 1. 아바타 로드
   myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
   
-  // 2. 초기 위치 강제 지정
   const startX = 37.16;
   const startY = 0.5;
   const startZ = 7.85;
   myAvatar.position.set(startX, startY, startZ); 
   
-  // 3. 내 닉네임 생성 및 부착
   if (myUserName) {
     const nick = createNicknameSprite(myUserName);
-    nick.position.set(0, 1.7, 0); // 높이 1.7
+    nick.position.set(0, 1.7, 0); 
     myAvatar.add(nick);
   }
   
   scene.add(myAvatar);
   
-  // [핵심] 내 아바타도 매트릭스와 애니메이션 강제 업데이트
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) {
       myAvatar.userData.mixer.update(0.01);
@@ -999,13 +1013,10 @@ onMounted(async () => {
       joystickManager.on('end', handleJoystickEnd);
   }
 
-  // 입장 처리
   await joinPlaza();
   
   if (isReady.value) {
-    // [핵심 해결책] 입장 직후 움직이지 않았어도 내 위치를 강제로 한번 전송합니다.
-    // 이것이 없으면 다른 사람은 내가 움직이기 전까지 나를 (0,0,0)이나 투명한 상태로 인식할 수 있습니다.
-    updateMyStateInRTDB();
+    updateMyStateInRTDB(); // 즉시 위치 전송
 
     listenToOtherPlayers(preloadedAnimations);
     listenToVideoState();
@@ -1022,6 +1033,9 @@ onUnmounted(() => {
   window.removeEventListener('click', handleUserInteraction);
   window.removeEventListener('mousemove', handleUserInteraction);
   
+  // [추가] Agora 정리
+  leaveAgora();
+
   if (playersListenerRef) off(playersListenerRef);
   if (videoListenerRef) off(videoListenerRef);
   if (playerRef) remove(playerRef);
@@ -1053,7 +1067,6 @@ const handleResize = () => {
 .admin-video-controls button { display: block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
 .admin-video-controls button:hover { background: #0056b3; }
 
-/* [신규] 사용자 컨트롤 (음소거 버튼 등) */
 .user-controls {
   position: absolute;
   top: 20px;
