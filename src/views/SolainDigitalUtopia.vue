@@ -5,13 +5,12 @@
 <video
       ref="cinemaVideoRef"
       id="cinema-video"
-      v-show="false" 
+      style="display: none"
       crossorigin="anonymous"
       playsinline
       webkit-playsinline
       loop
-      muted
-      autoplay
+      muted 
       preload="auto"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
       @loadeddata="console.log('비디오 데이터 로드 성공')"
@@ -118,20 +117,21 @@ let joystickManager = null;
 // --- 관리자 영상 제어 함수 ---
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
+  const video = cinemaVideoRef.value;
+  
   const newStatus = !isVideoPlaying.value;
+  
+  // [추가] 로컬에서도 즉시 상태 반영 시도 (디버깅용)
+  if (newStatus) {
+      video.play().catch(e => console.error("비디오 재생 실패:", e));
+  } else {
+      video.pause();
+  }
+
   update(dbRef(rtdb, plazaVideoPath), {
     isPlaying: newStatus,
     timestamp: Date.now(),
     videoTime: cinemaVideoRef.value.currentTime
-  });
-};
-
-const syncVideoTime = () => {
-  if (!cinemaVideoRef.value) return;
-  update(dbRef(rtdb, plazaVideoPath), {
-    timestamp: Date.now(),
-    videoTime: cinemaVideoRef.value.currentTime,
-    forceSync: true
   });
 };
 
@@ -616,7 +616,10 @@ const initThree = () => {
             const videoTexture = new THREE.VideoTexture(video);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
+            videoTexture.format = THREE.RGBAFormat; // 포맷 명시
+
             const screenGeo = new THREE.PlaneGeometry(16, 9);
+            // [수정] MeshBasicMaterial 사용 및 DoubleSide 설정 확인
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat);
             screen.position.set(startX, groundLevelY + 7, startZ - 15); 
