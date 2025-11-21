@@ -90,7 +90,7 @@ const isMuted = ref(true);
 const rewardClaimedLocal = ref(false);
 
 // --- Agora 음성 채팅 관련 변수 ---
-const agoraAppId = "YOUR_AGORA_APP_ID"; // ★ 아고라 콘솔에서 발급받은 App ID를 여기에 입력하세요!
+const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; // ★ 아고라 콘솔에서 발급받은 App ID를 여기에 입력하세요!
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; // 테스트 모드라면 null
 const agoraClient = ref(null);
