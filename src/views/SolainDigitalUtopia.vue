@@ -12,7 +12,6 @@
       loop
       muted
       preload="auto"
-      @timeupdate="checkVideoProgress"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
@@ -98,7 +97,7 @@ const MAX_CHAT_MESSAGES = 50;
 
 // --- Three.js 관련 ---
 let scene, camera, renderer, clock;
-let controls; 
+let controls; // OrbitControls 인스턴스
 const loader = new GLTFLoader();
 
 // --- Firebase RTDB 경로 ---
@@ -123,6 +122,10 @@ const toggleMute = () => {
     cinemaVideoRef.value.muted = isMuted.value;
     if (!isMuted.value) {
       cinemaVideoRef.value.volume = 1.0;
+      // 소리 켤 때 재생이 멈춰있다면 재생 시도
+      if (isVideoPlaying.value && cinemaVideoRef.value.paused) {
+         cinemaVideoRef.value.play().catch(() => {});
+      }
     }
   }
 };
@@ -150,11 +153,13 @@ const checkVideoProgress = async () => {
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
+  
   if (newStatus) {
       cinemaVideoRef.value.play().catch(e => console.log(e));
   } else {
       cinemaVideoRef.value.pause();
   }
+
   update(dbRef(rtdb, plazaVideoPath), {
     isPlaying: newStatus,
     timestamp: Date.now(),
@@ -171,7 +176,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- 영상 상태 리스너 ---
+// --- [핵심 수정] 영상 상태 리스너 (로딩 대기 로직 추가) ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -181,36 +186,53 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
-    if (videoEl.readyState === 0) return;
+    // [수정] 비디오가 아직 로드되지 않았다면, 메타데이터 로드 후 실행되도록 이벤트 등록
+    if (videoEl.readyState === 0) {
+      const onLoaded = () => {
+        applyVideoState(videoEl, data);
+        videoEl.removeEventListener('loadedmetadata', onLoaded);
+      };
+      videoEl.addEventListener('loadedmetadata', onLoaded);
+      return;
+    }
 
+    // 비디오가 준비된 상태라면 즉시 적용
+    applyVideoState(videoEl, data);
+  });
+};
+
+// [신규] 비디오 상태 적용 헬퍼 함수
+const applyVideoState = (videoEl, data) => {
     if (data.isPlaying) {
       const latency = (Date.now() - data.timestamp) / 1000;
       const targetTime = data.videoTime + latency;
+      
       if (Math.abs(videoEl.currentTime - targetTime) > 1) {
         videoEl.currentTime = targetTime;
       }
-      videoEl.play().catch((error) => {
-          console.log("자동 재생 차단됨:", error);
-      });
+      
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.log("자동 재생 차단됨 (사용자 인터랙션 필요):", error);
+        });
+      }
     } else {
       videoEl.pause();
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
         videoEl.currentTime = data.videoTime;
       }
     }
-  });
 };
 
-// --- [수정] 사용자 인터랙션 감지 (강력한 재생 시도) ---
+// --- 사용자 인터랙션 감지 ---
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
   if (video) {
-    // 소리 켜기
     if (video.muted) {
       video.muted = false;
       video.volume = 1.0;
     }
-    // 재생 중이어야 하는데 멈춰있다면 강제 재생
     if (isVideoPlaying.value && video.paused) {
       video.play().catch(() => {});
     }
@@ -367,7 +389,7 @@ const createNicknameSprite = (text) => {
   
   sprite.position.y = 2.0;
   
-  // [수정] 닉네임 동기화
+  // 닉네임 동기화
   sprite.matrixAutoUpdate = true;
 
   return sprite;
@@ -516,7 +538,7 @@ const listenToChat = () => {
   });
 };
 
-// --- [수정] 다른 플레이어 리스너 (아바타 늦게 뜨는 문제 해결) ---
+// --- [수정] 다른 플레이어 리스너 (안전한 좌표 및 애니메이션 처리) ---
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -551,7 +573,7 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // [중요] 추가 직후 렌더링 보정
+      // [중요] 추가 직후 Idle 애니메이션 재생 보장 및 렌더링 업데이트
       model.updateMatrixWorld(true);
       if (model.userData.actions && model.userData.actions.idle) {
         model.userData.actions.idle.reset().play();
@@ -623,6 +645,8 @@ const initThree = () => {
       dirLight.shadow.camera.top = 80; dirLight.shadow.camera.bottom = -80;
       dirLight.shadow.bias = -0.001;
       scene.add(dirLight);
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
+      scene.add(hemiLight);
 
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
@@ -681,12 +705,16 @@ const updatePlayerMovement = (deltaTime) => {
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
   let currentSpeedFactor = 1.0;
-  let targetRotationY = myAvatar.rotation.y;
   let applyRotation = false;
 
   // 1. 조이스틱 이동
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2;
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
+      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      myAvatar.rotation.y += diff * deltaTime * 8;
+
       applyRotation = true;
       moveDirection.z = -1;
       moved = true;
@@ -709,20 +737,11 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = 1; if (currentAnimation === 'idle') currentAnimation = 'walkBackward'; }
   }
 
-  if (applyRotation) {
-      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2;
-      currentY = (currentY % PI2 + PI2) % PI2; let targetY = (targetRotationY % PI2 + PI2) % PI2;
-      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      myAvatar.rotation.y += diff * deltaTime * 8;
-  }
+  // applyRotation 변수는 조이스틱 로직 내에서만 사용되므로 여기서 체크할 필요 없음
 
   if (moved) {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * 0.7 * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    if (joystickData.value.active) {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    } else {
-        velocity.applyQuaternion(myAvatar.quaternion);
-    }
+    velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
   }
 
@@ -813,7 +832,6 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
-  
   // [수정] mousemove 이벤트 추가 (마우스만 움직여도 재생 시도)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
