@@ -293,20 +293,31 @@ const loadAvatar = (url, animations) => {
         const box = new THREE.Box3().setFromObject(visuals);
         const center = box.getCenter(new THREE.Vector3());
 
-        visuals.traverse((child) => {
-          if (child.isMesh || child.isSkinnedMesh) {
-            child.geometry.translate(-center.x, -box.min.y, -center.z);
-            child.castShadow = true;
-            child.frustumCulled = false; // [중요] 렌더링 누락 방지
-          }
-          child.matrixAutoUpdate = true;
-        });
+	loader.load(url,
+	  (gltf) => {
+	    const visuals = gltf.scene;
+	    
+	    // 1. 지오메트리 강제 이동 로직 삭제
+	    visuals.traverse((child) => {
+	      if (child.isMesh || child.isSkinnedMesh) {
+		// child.geometry.translate(...)  <-- 삭제 또는 주석 처리 필수!
+		child.castShadow = true;
+		child.receiveShadow = true; // [추가] 그림자 받기
+		child.frustumCulled = false; // 렌더링 누락 방지 유지
+	      }
+	    });
 
-        visuals.scale.set(0.7, 0.7, 0.7);
-        model.add(visuals);
-        model.userData.visuals = visuals;
+	    visuals.scale.set(0.7, 0.7, 0.7);
+	    model.add(visuals);
+	    model.userData.visuals = visuals; // 비주얼 객체 참조 저장
 
-        if (animations) {
+	    // 2. 모델의 위치(높이) 보정은 geometry 대신 model.position으로 해결해야 함
+	    // 필요하다면 visuals.position.y = -box.min.y 와 같이 그룹 내부에서 조정
+	    const box = new THREE.Box3().setFromObject(visuals);
+	    // 발바닥을 (0,0,0)에 맞추고 싶다면 visuals 자체를 이동
+	    visuals.position.y = -box.min.y; 
+
+	    if (animations) {
           const mixer = new THREE.AnimationMixer(visuals);
           model.userData.mixer = mixer;
           for (const key in animations) {
@@ -552,6 +563,12 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     if (scene && otherPlayers[snapshot.key]) {
       model.position.copy(otherPlayers[snapshot.key].targetPosition);
+
+      // [추가] 모델이 씬에 추가된 직후 월드 매트릭스를 강제로 업데이트하여 깜빡임 방지
+     scene.add(model);
+     model.position.copy(otherPlayers[snapshot.key].targetPosition);
+     model.rotation.y = otherPlayers[snapshot.key].targetRotationY; // 회전값도 즉시 적용
+     model.updateMatrixWorld(true); // [중요] 강제 업데이트
       
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
@@ -661,17 +678,29 @@ const initThree = () => {
              myAvatar.updateMatrixWorld(true);
           }
           
-          const video = cinemaVideoRef.value;
-          if (video) {
-            const videoTexture = new THREE.VideoTexture(video);
-            videoTexture.minFilter = THREE.LinearFilter;
-            videoTexture.magFilter = THREE.LinearFilter;
-            const screenGeo = new THREE.PlaneGeometry(16, 9);
-            const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-            const screen = new THREE.Mesh(screenGeo, screenMat);
-            screen.position.set(startX, groundLevelY + 7, startZ - 15); 
-            scene.add(screen);
-          }
+	// [수정 전 코드 위치: initThree 함수 내부의 video 관련 로직]
+	// const videoTexture = new THREE.VideoTexture(video);
+	// ...
+
+	// [수정 후 코드: initThree 함수 내부]
+	const video = cinemaVideoRef.value;
+	if (video) {
+	  const videoTexture = new THREE.VideoTexture(video);
+	  videoTexture.minFilter = THREE.LinearFilter;
+	  videoTexture.magFilter = THREE.LinearFilter;
+	  videoTexture.colorSpace = THREE.SRGBColorSpace; // [추가] 색상 공간 설정 (Three.js 버전에 따라 encoding일 수 있음)
+	  
+	  const screenGeo = new THREE.PlaneGeometry(16, 9);
+	  const screenMat = new THREE.MeshBasicMaterial({ 
+	      map: videoTexture, 
+	      side: THREE.DoubleSide,
+	      toneMapped: false // [추가] 비디오가 빛의 영향을 덜 받고 원본 색상대로 나오게 함
+	  });
+	  const screen = new THREE.Mesh(screenGeo, screenMat);
+	  screen.position.set(startX, groundLevelY + 7, startZ - 15); 
+	  screen.name = "cinemaScreen"; // [추가] 나중에 참조하기 위해 이름 지정
+	  scene.add(screen);
+	}
       }, undefined, (error) => {
           console.error('!!! 도시 맵 로드 실패 (GLTFLoader 에러):', error);
       });
