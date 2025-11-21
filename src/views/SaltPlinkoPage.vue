@@ -65,9 +65,8 @@ const isAutoMode = ref(false);
 const lastResult = ref(null);
 const activeIndex = ref(-1);
 
-// 게임 설정
 const multipliers = [100, 10, 5, 2, 0.5, 2, 5, 10, 100];
-const rows = 8;
+const rows = 8; 
 const pegSize = 4;
 const ballSize = 7;
 let ctx = null;
@@ -78,8 +77,6 @@ let animationId = null;
 const balls = [];
 const pegs = [];
 let audioCtx = null;
-
-// [신규] 클릭 방지 쿨다운 플래그
 const isDropping = ref(false);
 
 const initAudio = () => {
@@ -148,7 +145,6 @@ const getMultiplierClass = (mul) => {
 };
 
 const dropBall = async () => {
-  // [핵심 수정] 쿨다운 중이거나 (수동모드인데 플레이중)이면 중단
   if (isDropping.value) return;
   if (isPlaying.value && !isAutoMode.value) return;
   
@@ -157,7 +153,7 @@ const dropBall = async () => {
       return;
   }
   
-  isDropping.value = true; // 쿨다운 시작
+  isDropping.value = true; 
   initAudio();
   isPlaying.value = true;
 
@@ -167,11 +163,11 @@ const dropBall = async () => {
     const { selectedIndex, multiplier, profit } = result.data;
 
     balls.push({
-      x: width / 2 + (Math.random() - 0.5) * 10,
+      x: width / 2 + (Math.random() - 0.5) * 5, // 랜덤 범위 축소 (5px)
       y: 20,
       vx: 0,
       vy: 0,
-      targetIndex: selectedIndex,
+      targetIndex: selectedIndex, 
       finished: false,
       resultMessage: profit >= 0 
           ? `🎉 대박! ${multiplier}배! (+${profit.toLocaleString()} P)` 
@@ -179,7 +175,6 @@ const dropBall = async () => {
       resultProfit: profit
     });
     
-    // 공 생성 성공 후 쿨다운 해제
     setTimeout(() => { isDropping.value = false; }, 500);
 
     if (isAutoMode.value) {
@@ -194,7 +189,7 @@ const dropBall = async () => {
     console.error(error);
     alert(error.message);
     isAutoMode.value = false;
-    isDropping.value = false; // 에러 시 쿨다운 해제
+    isDropping.value = false;
     
     if (balls.length === 0) {
         isPlaying.value = false;
@@ -221,27 +216,26 @@ const update = () => {
     ctx.shadowBlur = 5;
     ctx.shadowColor = '#fff';
   });
-  ctx.shadowBlur = 0;
+  ctx.shadowBlur = 0; 
 
   for (let i = balls.length - 1; i >= 0; i--) {
     const ball = balls[i];
     
     if (!ball.finished) {
         // 1. 기본 물리
-        ball.vy += 0.2;
+        ball.vy += 0.15; // 중력 (0.2 -> 0.15로 낮춰서 천천히 떨어지게 함)
         ball.y += ball.vy;
         ball.x += ball.vx;
 
-        // 2. [핵심 수정] 유도 로직 완화 (모바일 대응)
+        // 2. [핵심 수정] 유도 로직 (Guidance) 최적화
         const spacing = width / (rows + 2);
         const finalTargetX = (width / 2) - ((multipliers.length * spacing) / 2) + (ball.targetIndex * spacing) + (spacing / 2);
 
-        if (ball.y > height * 0.3) {
+        // [수정] 유도 시작 지점을 화면 하단부(60%)로 늦춤
+        if (ball.y > height * 0.6) {
             const dx = finalTargetX - ball.x;
-            // 힘을 0.02 -> 0.01로 줄여서 덜 강하게 당김
-            ball.vx += dx * 0.01; 
-            // 감쇠를 0.95 -> 0.98로 늘려서 자연스럽게 흐르도록 함
-            ball.vx *= 0.98;
+            ball.vx += dx * 0.005; // [수정] 유도 힘 대폭 감소 (0.01 -> 0.005)
+            ball.vx *= 0.95; // 속도 감쇠
         }
 
         // 3. 충돌 처리
@@ -252,21 +246,26 @@ const update = () => {
             
             if (dist < ballSize + pegSize) {
                 playPingSound();
-                ball.vy *= -0.5;
-                ball.vx += (Math.random() - 0.5) * 2;
-                ball.y -= 2;
+                // [수정] 반발력 감소 (-0.5 -> -0.3)
+                ball.vy *= -0.3; 
+                ball.vx += (Math.random() - 0.5) * 1.5; // 랜덤 튐 감소
+                ball.y -= 2; 
                 
-                // 충돌 시 유도도 약하게 적용
-                if (ball.x < finalTargetX) ball.vx += 0.3; // 0.5 -> 0.3
-                else ball.vx -= 0.3;
+                // [수정] 충돌 시 유도 힘도 감소 (0.3 -> 0.1)
+                if (ball.x < finalTargetX) ball.vx += 0.1;
+                else ball.vx -= 0.1;
 
                 break;
             }
         }
         
+        // [신규] 최대 속도 제한 (공이 날아가는 현상 방지)
+        if (ball.vx > 3) ball.vx = 3;
+        if (ball.vx < -3) ball.vx = -3;
+        
         // 4. 바닥 처리
         if (ball.y > height - 30) {
-            ball.x = finalTargetX; // 시각적 보정
+            ball.x = finalTargetX; 
             ball.finished = true;
             activeIndex.value = ball.targetIndex;
             lastResult.value = { message: ball.resultMessage, profit: ball.resultProfit };
@@ -277,7 +276,7 @@ const update = () => {
             if (balls.length === 0 && !isAutoMode.value) {
                 isPlaying.value = false;
             }
-            continue;
+            continue; 
         }
     }
 
@@ -308,6 +307,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* (스타일은 기존과 동일) */
 .plinko-page {
   padding: 20px;
   min-height: 100vh;
@@ -338,11 +338,10 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
-/* 캔버스 영역 */
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  height: 400px; /* 게임판 높이 */
+  height: 400px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
   overflow: hidden;
@@ -353,7 +352,6 @@ canvas {
   height: 100%;
 }
 
-/* 하단 배율 박스 */
 .multipliers-overlay {
   position: absolute;
   bottom: 0;
@@ -375,12 +373,11 @@ canvas {
   transition: transform 0.2s;
   box-shadow: 0 -2px 5px rgba(0,0,0,0.2);
 }
-.low { background: #95a5a6; color: #2c3e50; } /* 0.5배 (회색) */
-.medium { background: #3498db; color: #fff; } /* 2배 (파랑) */
-.high { background: #e67e22; color: #fff; } /* 5~10배 (주황) */
-.jackpot { background: #e74c3c; color: #fff; box-shadow: 0 0 10px #e74c3c; } /* 100배 (빨강) */
+.low { background: #95a5a6; color: #2c3e50; }
+.medium { background: #3498db; color: #fff; }
+.high { background: #e67e22; color: #fff; }
+.jackpot { background: #e74c3c; color: #fff; box-shadow: 0 0 10px #e74c3c; }
 
-/* 컨트롤 영역 */
 .controls-area {
   background: rgba(255, 255, 255, 0.05);
   padding: 15px;
