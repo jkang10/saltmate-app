@@ -2,7 +2,7 @@
   <div class="utopia-container">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-    <video
+      <video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="display: none"
@@ -10,7 +10,7 @@
       playsinline
       webkit-playsinline
       loop
-      muted
+      :muted="true"
       preload="auto"
       @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
     >
@@ -135,7 +135,7 @@ const syncVideoTime = () => {
   });
 };
 
-// --- [회원] 영상 상태 리스너 ---
+// --- [수정] 영상 상태 리스너 (안정성 강화) ---
 const listenToVideoState = () => {
   videoListenerRef = dbRef(rtdb, plazaVideoPath);
   onValue(videoListenerRef, (snapshot) => {
@@ -145,22 +145,22 @@ const listenToVideoState = () => {
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
 
+    // 영상 메타데이터가 로드된 후에만 조작 (중요!)
+    if (videoEl.readyState === 0) { 
+        return; // 아직 로드 안됨
+    }
+
     if (data.isPlaying) {
-      // 네트워크 지연 보정
       const latency = (Date.now() - data.timestamp) / 1000;
       const targetTime = data.videoTime + latency;
       
-      // 1초 이상 차이나면 시간 동기화
       if (Math.abs(videoEl.currentTime - targetTime) > 1) {
         videoEl.currentTime = targetTime;
       }
       
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.log("자동 재생 차단됨 (사용자 인터랙션 대기 중):", error);
-        });
-      }
+      videoEl.play().catch((e) => {
+          console.log("자동 재생 차단됨. 사용자 클릭 대기 중.");
+      });
     } else {
       videoEl.pause();
       if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) {
@@ -170,19 +170,34 @@ const listenToVideoState = () => {
   });
 };
 
-// --- [핵심] 사용자 인터랙션 감지 (영상 재생 및 소리 켜기) ---
+// --- [수정] 사용자 상호작용 핸들러 (강력한 재생 시도) ---
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
-  if (video) {
-    // 1. 소리 켜기 (브라우저 정책 대응)
+  if (!video) return;
+
+  // 1. 브라우저 정책으로 인해 재생이 막혀있을 수 있으므로 무조건 재생 시도
+  if (video.paused) {
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log("사용자 상호작용으로 영상 재생 시작 성공");
+          // 재생 성공 후 음소거 해제 시도
+          if (video.muted) {
+            video.muted = false;
+            video.volume = 1.0;
+            console.log("음소거 해제 🔊");
+          }
+        })
+        .catch((error) => {
+          console.warn("영상 재생 실패 (여전히 상호작용 필요):", error);
+        });
+    }
+  } else {
+    // 이미 재생 중이라면 음소거만 해제
     if (video.muted) {
       video.muted = false;
       video.volume = 1.0;
-      console.log("사용자 활동 감지: 음소거 해제 🔊");
-    }
-    // 2. 재생 중이어야 하는데 멈춰있다면 강제 재생
-    if (isVideoPlaying.value && video.paused) {
-      video.play().catch(() => {});
     }
   }
 };
@@ -763,6 +778,14 @@ onMounted(async () => {
   // 영상 재생을 위한 사용자 인터랙션 감지 (전역 클릭/터치)
   window.addEventListener('touchstart', handleUserInteraction); 
   window.addEventListener('click', handleUserInteraction);
+
+  // [추가] 비디오 로드 완료 시 한 번 체크
+  if (cinemaVideoRef.value) {
+    cinemaVideoRef.value.addEventListener('loadedmetadata', () => {
+        console.log("비디오 메타데이터 로드됨. 상태 동기화 준비 완료.");
+        // 필요시 여기서 listenToVideoState()를 호출하거나 플래그를 세울 수 있음
+    });
+  }
 
   animate();
 
