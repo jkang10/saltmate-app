@@ -57,7 +57,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+// [수정 1] onUnmounted 추가
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable } from 'firebase/functions';
 import { functions, auth, db } from '@/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -70,6 +71,7 @@ const isOpening = ref(false);
 const isOpened = ref(false);
 const reward = ref(0);
 const message = ref('');
+// 이 변수가 사용되지 않았다는 오류였습니다.
 let unsubscribeUser = null;
 
 const todayStr = computed(() => {
@@ -122,10 +124,17 @@ const handleChestClick = async () => {
 
 onMounted(() => {
   onAuthStateChanged(auth, (currentUser) => {
+    // 상태 변경 시 기존 리스너가 있다면 먼저 해제 (안전장치)
+    if (unsubscribeUser) {
+      unsubscribeUser();
+      unsubscribeUser = null;
+    }
+
     if (currentUser) {
       user.value = currentUser;
       checkDailyStatus();
       const userRef = doc(db, 'users', currentUser.uid);
+      // 여기서 할당된 리스너 해제 함수를 unsubscribeUser에 저장합니다.
       unsubscribeUser = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
           userPoints.value = docSnap.data().saltmatePoints || 0;
@@ -137,9 +146,17 @@ onMounted(() => {
     }
   });
 });
+
+// [수정 2] 컴포넌트가 해제될 때 리스너 정리
+onUnmounted(() => {
+  if (unsubscribeUser) {
+    unsubscribeUser();
+  }
+});
 </script>
 
 <style scoped>
+/* 스타일은 기존과 동일합니다 */
 .treasure-box-page {
   padding: 20px;
   min-height: 100vh;
