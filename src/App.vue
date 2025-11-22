@@ -11,6 +11,7 @@
 
         <div v-if="isLoggedIn" class="nav-ticker">
           <router-link to="/salt-trader" class="ticker-content">
+            <span class="ticker-name">SALT</span>
             <span class="ticker-price">{{ saltPriceFormatted }}</span>
             <span class="ticker-delta" :class="priceClass">
               {{ priceChangeFormatted > 0 ? '+' : '' }}{{ priceChangeFormatted }}
@@ -105,7 +106,7 @@ const userRole = ref(null);
 const isProfileMenuOpen = ref(false); 
 const profileMenuRef = ref(null); 
 
-// 스크롤 관련 상태
+// 스크롤 관련
 const isHeaderVisible = ref(true);
 let lastScrollPosition = 0;
 
@@ -150,7 +151,6 @@ const handleClickOutside = (event) => {
   }
 };
 
-// 스크롤 핸들러 (헤더 숨김/표시)
 const handleScroll = () => {
   const currentScrollPosition = window.scrollY || document.documentElement.scrollTop;
   if (currentScrollPosition < 0) return;
@@ -270,9 +270,9 @@ watch(() => router.currentRoute.value, () => {
 </script>
 
 <style scoped>
-/* 전역 레이아웃 설정 */
+/* 전역 설정 */
 * {
-  box-sizing: border-box; /* 중요: 패딩이 너비에 포함되도록 설정 */
+  box-sizing: border-box; 
 }
 
 #app {
@@ -295,12 +295,10 @@ watch(() => router.currentRoute.value, () => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   display: flex;
   align-items: center;
-  /* 가로 패딩 축소하여 공간 확보 */
-  padding: 0 12px; 
+  padding: 0 16px; 
   transition: transform 0.3s ease-in-out;
 }
 
-/* 헤더 숨김 클래스 */
 .navbar.navbar-hidden {
   transform: translateY(-100%);
 }
@@ -315,7 +313,7 @@ watch(() => router.currentRoute.value, () => {
   position: relative;
 }
 
-/* 로고 영역 */
+/* 로고 */
 .nav-logo {
   display: flex;
   align-items: center;
@@ -329,7 +327,7 @@ watch(() => router.currentRoute.value, () => {
   margin-right: 6px;
 }
 
-/* 시세 티커 영역 */
+/* 시세 티커 (중앙) */
 .nav-ticker {
   position: absolute;
   left: 50%;
@@ -338,6 +336,10 @@ watch(() => router.currentRoute.value, () => {
   padding: 4px 10px;
   border-radius: 16px;
   white-space: nowrap;
+  /* 티커가 너무 넓어져서 좌우 침범하지 않도록 */
+  max-width: 45%; 
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ticker-content {
   display: flex;
@@ -348,8 +350,9 @@ watch(() => router.currentRoute.value, () => {
   font-size: 0.9rem;
   font-family: monospace;
   font-weight: 600;
+  justify-content: center;
 }
-.ticker-name { color: #007bff; } /* 모바일에서 숨겨짐 */
+.ticker-name { color: #007bff; } 
 .ticker-delta.up { color: #e74c3c; }
 .ticker-delta.down { color: #007bff; }
 
@@ -361,6 +364,7 @@ watch(() => router.currentRoute.value, () => {
 .profile-wrapper {
   position: relative;
   cursor: pointer;
+  padding-left: 5px; /* 터치 영역 확보 */
 }
 .avatar-circle {
   width: 34px;
@@ -375,7 +379,7 @@ watch(() => router.currentRoute.value, () => {
   transition: background 0.2s;
 }
 
-/* 드롭다운 메뉴 */
+/* 드롭다운 */
 .dropdown-menu {
   position: absolute;
   top: 45px;
@@ -420,25 +424,26 @@ watch(() => router.currentRoute.value, () => {
 .dropdown-item.logout { color: #e74c3c; }
 hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
-/* 메인 컨텐츠 여백 (PC 기본) */
+/* 메인 콘텐츠 여백 */
 .main-content {
   flex: 1;
-  margin-top: 56px;
+  margin-top: 56px; /* 기본 PC */
+  padding-top: 0;
 }
 
-/* 게임 모드일 때 헤더 투명 */
+/* 게임 모드 헤더 */
 #app.game-mode .navbar {
   background: rgba(255,255,255,0.7);
 }
 
-/* QR 버튼 스타일 (원형 복구) */
+/* QR 버튼 */
 .fab-qr-button {
   position: fixed;
   bottom: 20px;
   right: 20px;
   width: 56px;
   height: 56px;
-  border-radius: 50%; /* 원형 강제 */
+  border-radius: 50%; 
   background-color: #2c3e50;
   color: white;
   border: none;
@@ -455,30 +460,31 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
 /* 모바일 반응형 (768px 이하) */
 @media (max-width: 768px) {
-  /* 헤더 높이 축소 및 공지바 공간 확보 */
+  /* 1. 높이 축소 & 패딩 확대 (아이콘 잘림 방지) */
   .navbar {
-    height: 50px;
-    padding: 0 10px;
+    height: 46px;
+    padding: 0 20px; /* 좌우 여백을 충분히 주어 안쪽으로 배치 */
   }
+  
+  /* 2. 본문 여백을 헤더 높이에 정확히 맞춤 */
   .main-content {
-    margin-top: 50px; /* 헤더 높이에 맞춰 딱 붙게 조정 */
+    margin-top: 46px; 
+    padding-top: 0;
   }
 
-  /* 로고 글자 숨김 */
   .logo-text { display: none; }
   
-  /* 티커(시세) 글자 숨기고 숫자만 표시 */
   .ticker-name { display: none; }
   .nav-ticker {
     font-size: 0.8rem;
-    padding: 3px 8px;
+    padding: 2px 8px;
   }
   .ticker-content { font-size: 0.85rem; }
 
-  /* QR 버튼 모바일 최적화 (약간 작게) */
+  /* QR 버튼 최적화 */
   .fab-qr-button {
-    width: 48px;
-    height: 48px;
+    width: 45px;
+    height: 45px;
     font-size: 1.2rem;
     bottom: 20px;
     right: 15px;
@@ -491,7 +497,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   .mobile-nav-links { display: block; }
 }
 
-/* 기타 스타일 */
+/* 기타 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .fab-matchmaking-button { 
