@@ -126,32 +126,31 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 이동 관련 ---
-// [수정] 요청하신 속도 1.0으로 설정 (이름표와 동기화 맞춤)
-const moveSpeed = 1.0; 
+// [수정] 속도 2.0 유지 (적절한 속도)
+const moveSpeed = 2.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] Agora 초기화 (String UID 사용) ---
+// --- [핵심 수정] Agora 초기화 (문자열 UID 직접 사용) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
   
-  // [핵심] Firebase UID 문자열을 그대로 사용 (변환 없음)
+  // [중요] 변환 없이 Firebase UID 문자열 그대로 사용
   const currentUid = auth.currentUser.uid;
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // 볼륨 감지 활성화
+    // 말하는 사람 감지
     agoraClient.value.enableAudioVolumeIndicator();
-
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // [수정] 소리 감지 민감도 40으로 상향 (잡음 무시)
+        // 민감도 설정 (40 이상일 때만 아이콘 표시)
         const isTalking = level > 40; 
 
-        // uid가 0이면 '나', 아니면 다른 사람 (문자열 ID)
+        // 내 목소리 (uid === 0) 또는 다른 사람 (문자열 ID)
         if (uid === 0 || uid === currentUid) {
             updateSpeakingIndicator(currentUid, isTalking);
         } else {
@@ -160,18 +159,12 @@ const initAgora = async () => {
       });
     });
 
-    // [핵심] 상대방 소리 듣기 (구독 및 재생)
+    // [중요] 오디오 구독 및 재생
     agoraClient.value.on("user-published", async (user, mediaType) => {
-      try {
-        await agoraClient.value.subscribe(user, mediaType);
-        console.log(`[Agora] 구독 성공: ${user.uid}`);
-        
-        if (mediaType === "audio") {
-          user.audioTrack.play(); // 소리 재생
-          console.log(`[Agora] 오디오 재생 시작: ${user.uid}`);
-        }
-      } catch (error) {
-        console.error(`[Agora] 구독/재생 실패 (${user.uid}):`, error);
+      await agoraClient.value.subscribe(user, mediaType);
+      if (mediaType === "audio") {
+        user.audioTrack.play(); // 소리 재생
+        console.log(`[Agora] Audio playing for user: ${user.uid}`);
       }
     });
 
@@ -181,26 +174,24 @@ const initAgora = async () => {
       }
     });
 
-    // 문자열 ID로 입장
+    // [중요] 문자열 UID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
-    console.log(`Agora 입장 성공 (UID: ${currentUid})`);
+    console.log(`Agora 입장 성공 (String UID: ${currentUid})`);
 
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
   }
 };
 
-// --- [수정] 말하는 표시 업데이트 (단순화) ---
+// --- 말하는 표시 업데이트 (문자열 ID 매칭) ---
 const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
-  // 1. 나 자신
   if (targetUid === currentUid) {
     targetMesh = myAvatar;
-  } 
-  // 2. 다른 사람 (문자열 ID로 매칭 - 이제 변환 불필요)
-  else if (otherPlayers[targetUid]) {
+  } else if (otherPlayers[targetUid]) {
+    // 문자열 ID로 바로 찾음
     targetMesh = otherPlayers[targetUid].mesh;
   }
 
@@ -242,6 +233,7 @@ const updateSpeakingIndicator = (targetUid, isSpeaking) => {
 const toggleMic = async () => {
   try {
     if (!localAudioTrack.value) {
+      // 마이크 트랙 생성 및 게시(Publish)
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack();
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
@@ -405,7 +397,7 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; 
+            child.frustumCulled = false; // 투명 방지
             child.matrixAutoUpdate = true;
           }
         });
@@ -517,7 +509,8 @@ const joinPlaza = async () => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
   
   const safeX = myAvatar.position.x || 37.16;
-  // 접속 시 공중에서 시작 (바닥 뚫기 방지)
+  
+  // [핵심 수정] 내 시작 높이를 1.0으로 강제하여 땅 위에서 시작
   const safeY = 1.0; 
   const safeZ = myAvatar.position.z || 7.85;
 
@@ -586,7 +579,7 @@ const listenToChat = () => {
   });
 };
 
-// [수정] listenToOtherPlayers (접속 즉시 표시 및 바닥 보정)
+// [핵심 수정] listenToOtherPlayers (접속 시 땅속 방지)
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -596,7 +589,9 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     const val = snapshot.val();
     
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
-    const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
+    // [수정] DB값이 0이어도, 화면에 그릴 땐 0.5(지면 위)로 보정
+    const posYFromDB = isFiniteNumber(val.position?.y) ? val.position.y : 0;
+    const posY = Math.max(posYFromDB, 0.5); 
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
 
@@ -616,16 +611,14 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [핵심] 바닥에 묻히지 않게 강제 보정
-      const currentTarget = otherPlayers[snapshot.key].targetPosition;
-      model.position.set(currentTarget.x, Math.max(currentTarget.y, 0.5), currentTarget.z);
-      
+      // [수정] 강제 위치 보정 적용
+      model.position.set(posX, posY, posZ);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
-      model.visible = true; // 강제 보이기
+      model.visible = true;
       
       scene.add(model);
       
-      // [핵심] 즉시 렌더링 강제
+      // [중요] 추가 직후 월드 매트릭스 갱신
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
@@ -714,6 +707,7 @@ const initThree = () => {
           scene.add(city);
 
           if (myAvatar) { 
+             // [수정] 내 아바타 초기 위치도 안전하게
              myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
