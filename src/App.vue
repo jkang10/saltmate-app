@@ -133,8 +133,11 @@ let authUnsubscribe = null;
 let presenceRef = null;
 let matchmakingUnsubscribe = null;
 
-// [중요] 메타버스 페이지인지 확인하는 변수
-const isGamePage = computed(() => route.meta.isGamePage === true);
+// [핵심 수정] 현재 페이지가 게임(유토피아/광장) 페이지인지 확인하는 로직 강화
+// 라우터 메타데이터 또는 URL 경로(/plaza)를 직접 확인합니다.
+const isGamePage = computed(() => {
+  return route.meta.isGamePage === true || route.path === '/plaza';
+});
 
 const saltPriceFormatted = computed(() => (saltPrice.value || 0).toFixed(3));
 const priceChangeValue = computed(() => {
