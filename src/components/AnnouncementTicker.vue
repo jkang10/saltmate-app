@@ -52,7 +52,7 @@ onUnmounted(() => {
 
 .ticker-wrap {
   position: fixed;
-  top: 70px; /* Navbar height */
+  top: 56px; /* Navbar height */
   left: 0;
   width: 100%;
   overflow: hidden;
