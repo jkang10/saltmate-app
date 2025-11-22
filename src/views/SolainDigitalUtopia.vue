@@ -50,6 +50,10 @@
       </button>
     </div>
 
+    <div v-if="audioBlocked" class="audio-blocked-overlay" @click="resumeAudioContext">
+      <p>🔊 대화를 들으려면 화면을 클릭하세요</p>
+    </div>
+
     <div v-if="isAdmin" class="admin-video-controls">
       <h3>🎥 시네마 제어</h3>
       <div class="admin-buttons">
@@ -89,6 +93,7 @@ const isAdmin = ref(false);
 const isVideoPlaying = ref(false);
 const isMuted = ref(true); 
 const rewardClaimedLocal = ref(false);
+const audioBlocked = ref(false); // [신규] 오디오 차단 감지
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -126,31 +131,33 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 이동 관련 ---
-// [수정] 속도 2.0 유지 (적절한 속도)
-const moveSpeed = 2.0; 
+const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [핵심 수정] Agora 초기화 (문자열 UID 직접 사용) ---
+// --- [수정] Agora 초기화 (오디오 정책 우회 및 String UID) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
-  
-  // [중요] 변환 없이 Firebase UID 문자열 그대로 사용
   const currentUid = auth.currentUser.uid;
 
   try {
+    // [설정] Agora 코덱 및 모드 설정
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+    // 브라우저 오디오 정책 확인
+    AgoraRTC.onAutoplayFailed = () => {
+      console.warn("Audio autoplay failed. Interaction needed.");
+      audioBlocked.value = true;
+    };
 
     // 말하는 사람 감지
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // 민감도 설정 (40 이상일 때만 아이콘 표시)
         const isTalking = level > 40; 
-
-        // 내 목소리 (uid === 0) 또는 다른 사람 (문자열 ID)
+        
         if (uid === 0 || uid === currentUid) {
             updateSpeakingIndicator(currentUid, isTalking);
         } else {
@@ -159,12 +166,17 @@ const initAgora = async () => {
       });
     });
 
-    // [중요] 오디오 구독 및 재생
+    // 상대방 소리 구독
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
-        user.audioTrack.play(); // 소리 재생
-        console.log(`[Agora] Audio playing for user: ${user.uid}`);
+        try {
+            user.audioTrack.play();
+            console.log(`[Agora] Playing audio for ${user.uid}`);
+        } catch (e) {
+            console.error("Audio play failed:", e);
+            audioBlocked.value = true;
+        }
       }
     });
 
@@ -174,16 +186,25 @@ const initAgora = async () => {
       }
     });
 
-    // [중요] 문자열 UID로 입장
+    // 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
-    console.log(`Agora 입장 성공 (String UID: ${currentUid})`);
+    console.log(`Agora Joined: ${currentUid}`);
 
   } catch (error) {
-    console.error("Agora 초기화 실패:", error);
+    console.error("Agora Init Error:", error);
   }
 };
 
-// --- 말하는 표시 업데이트 (문자열 ID 매칭) ---
+// [신규] 오디오 컨텍스트 재개 (차단 시 클릭으로 해결)
+const resumeAudioContext = () => {
+  if (AgoraRTC) {
+    // Agora 내부 오디오 컨텍스트 재개 시도
+    // (SDK가 자동으로 처리하지만, 명시적으로 클릭 이벤트 받음)
+    audioBlocked.value = false;
+  }
+};
+
+// --- 말하는 아이콘 표시 ---
 const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
@@ -191,7 +212,6 @@ const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   if (targetUid === currentUid) {
     targetMesh = myAvatar;
   } else if (otherPlayers[targetUid]) {
-    // 문자열 ID로 바로 찾음
     targetMesh = otherPlayers[targetUid].mesh;
   }
 
@@ -230,13 +250,20 @@ const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   }
 };
 
+// --- 마이크 토글 ---
 const toggleMic = async () => {
   try {
     if (!localAudioTrack.value) {
-      // 마이크 트랙 생성 및 게시(Publish)
-      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack();
+      // [설정] 마이크 트랙 생성 시 노이즈 캔슬링/게인 설정 추가 가능
+      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
+          encoderConfig: "high_quality_stereo",
+          AEC: true, // 에코 캔슬링
+          ANS: true, // 노이즈 억제
+          AGC: true  // 자동 게인 제어
+      });
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
+      console.log("Mic Published");
     } else {
       if (isMicOn.value) {
         await localAudioTrack.value.setEnabled(false);
@@ -247,7 +274,7 @@ const toggleMic = async () => {
       }
     }
   } catch (error) {
-    console.error("마이크 제어 실패:", error);
+    console.error("Mic Toggle Error:", error);
   }
 };
 
@@ -270,7 +297,7 @@ const toggleMute = () => {
     if (!isMuted.value) {
       video.volume = 1.0;
       if (isVideoPlaying.value && video.paused) {
-         video.play().catch(e => console.log("재생 시도 실패:", e));
+         video.play().catch(e => console.log("Video Play Error:", e));
       }
     }
   }
@@ -397,7 +424,7 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; // 투명 방지
+            child.frustumCulled = false; 
             child.matrixAutoUpdate = true;
           }
         });
@@ -509,8 +536,6 @@ const joinPlaza = async () => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
   
   const safeX = myAvatar.position.x || 37.16;
-  
-  // [핵심 수정] 내 시작 높이를 1.0으로 강제하여 땅 위에서 시작
   const safeY = 1.0; 
   const safeZ = myAvatar.position.z || 7.85;
 
@@ -579,7 +604,7 @@ const listenToChat = () => {
   });
 };
 
-// [핵심 수정] listenToOtherPlayers (접속 시 땅속 방지)
+// [핵심 수정] listenToOtherPlayers: 아바타 로드 후 즉시 좌표 보정
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -588,10 +613,9 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
+    // 초기값 설정
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
-    // [수정] DB값이 0이어도, 화면에 그릴 땐 0.5(지면 위)로 보정
-    const posYFromDB = isFiniteNumber(val.position?.y) ? val.position.y : 0;
-    const posY = Math.max(posYFromDB, 0.5); 
+    const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
 
@@ -611,15 +635,19 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [수정] 강제 위치 보정 적용
-      model.position.set(posX, posY, posZ);
+      // [중요] 로딩이 끝난 시점의 '최신 targetPosition'을 확인하여 적용
+      // (비동기 로딩 중에 onChildChanged가 발생했을 수 있으므로)
+      const currentTarget = otherPlayers[snapshot.key].targetPosition;
+      
+      // 땅 밑(-값 또는 0)에 있으면 강제로 0.5로 올림
+      const safeY = Math.max(currentTarget.y, 0.5); 
+
+      model.position.set(currentTarget.x, safeY, currentTarget.z);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
       
       scene.add(model);
-      
-      // [중요] 추가 직후 월드 매트릭스 갱신
-      model.updateMatrixWorld(true);
+      model.updateMatrixWorld(true); // 즉시 렌더링 강제
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
@@ -707,7 +735,7 @@ const initThree = () => {
           scene.add(city);
 
           if (myAvatar) { 
-             // [수정] 내 아바타 초기 위치도 안전하게
+             // 맵 로딩 후 내 아바타 위치 보정
              myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
@@ -941,6 +969,7 @@ onMounted(async () => {
 
   await joinPlaza();
   if (isReady.value) {
+    // [핵심] 입장 즉시 좌표 전송 (0,0,0 방지)
     updateMyStateInRTDB(); 
     listenToOtherPlayers(preloadedAnimations); 
     listenToVideoState(); 
@@ -971,104 +1000,37 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 모바일 주소창 고려한 높이 설정 */
-.utopia-container { 
-  width: 100vw; 
-  height: 100dvh; 
-  margin: 0; 
-  padding: 0; 
-  overflow: hidden; 
-  position: relative; 
-  background-color: #ade6ff; 
-}
+.utopia-container { width: 100vw; height: 100dvh; margin: 0; padding: 0; overflow: hidden; position: relative; background-color: #ade6ff; }
 .main-canvas { display: block; width: 100%; height: 100%; }
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-.chat-ui { 
-  position: absolute; 
-  bottom: 20px; 
-  left: 20px; 
-  width: 300px; 
-  max-width: 80%; 
-  max-height: 20vh; 
-  background-color: rgba(0, 0, 0, 0.7); 
-  border-radius: 8px; 
-  padding: 10px; 
-  display: flex; 
-  flex-direction: column; 
-  z-index: 5; 
-}
+.chat-ui { position: absolute; bottom: 20px; left: 20px; width: 300px; max-width: 80%; max-height: 20vh; background-color: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; z-index: 5; }
 .message-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; color: white; font-size: 0.9em; }
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
 
 .joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
 
-.user-controls {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 100;
-  display: flex;
-  gap: 8px;
-}
-.user-controls button {
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 0.85rem;
-  transition: background 0.3s;
-  white-space: nowrap;
-}
-.user-controls button:hover {
-  background: rgba(0, 0, 0, 0.8);
-}
-.user-controls button.active {
-  border-color: #28a745;
-  color: #28a745;
-}
+.user-controls { position: absolute; top: 10px; right: 10px; z-index: 100; display: flex; gap: 8px; }
+.user-controls button { padding: 8px 12px; background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: background 0.3s; white-space: nowrap; }
+.user-controls button:hover { background: rgba(0, 0, 0, 0.8); }
+.user-controls button.active { border-color: #28a745; color: #28a745; }
 
-.admin-video-controls { 
-  position: absolute; 
-  top: 60px; 
-  right: 10px;
-  background: rgba(0, 0, 0, 0.8); 
-  padding: 10px; 
-  border-radius: 8px; 
-  color: white; 
-  z-index: 100; 
-  width: 150px;
-}
+/* 오디오 차단 시 안내 문구 */
+.audio-blocked-overlay { position: absolute; top: 60px; right: 10px; background: rgba(255,0,0,0.7); color: white; padding: 10px; border-radius: 8px; z-index: 101; cursor: pointer; animation: pulse 2s infinite; }
+
+.admin-video-controls { position: absolute; top: 60px; right: 10px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 8px; color: white; z-index: 100; width: 150px; }
 .admin-video-controls h3 { margin: 0 0 8px 0; font-size: 0.9rem; text-align: center; }
 .admin-buttons { display: flex; gap: 5px; }
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
 
 @media (max-width: 768px) {
-  .chat-ui {
-    bottom: 80px; 
-    width: 60%;
-    font-size: 0.8rem;
-  }
-  .user-controls {
-    top: 10px;
-    right: 10px;
-  }
-  .user-controls button {
-    padding: 6px 10px;
-    font-size: 0.75rem;
-  }
-  .joystick-zone {
-    bottom: 20px;
-    right: 20px;
-    width: 120px;
-    height: 120px;
-  }
+  .chat-ui { bottom: 80px; width: 60%; font-size: 0.8rem; }
+  .user-controls { top: 10px; right: 10px; }
+  .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
+  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
 }
 </style>
