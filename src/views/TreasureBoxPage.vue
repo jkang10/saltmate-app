@@ -139,8 +139,27 @@ const checkFeverTime = () => {
 };
 
 const checkDailyStatus = () => {
-  const lastOpenedDate = localStorage.getItem(`lastTreasureOpen_Normal_${user.value?.uid}`);
-  canOpenNormal.value = lastOpenedDate !== todayStr.value;
+  // 1. 로컬 스토리지 확인 (빠른 UI 응답용)
+  const localLastOpened = localStorage.getItem(`lastTreasureOpen_Normal_${user.value?.uid}`);
+  let isOpenedLocally = localLastOpened === todayStr.value;
+
+  // 2. 서버 데이터 확인 (신뢰성 확보)
+  // user.value는 onSnapshot으로 실시간 업데이트되므로 최신 lastTreasureBoxPlay 정보를 가짐
+  if (user.value?.lastTreasureBoxPlay) {
+    const serverLastDate = user.value.lastTreasureBoxPlay.toDate();
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const serverLastDateStr = new Date(serverLastDate.getTime() + kstOffset).toISOString().slice(0, 10);
+    
+    if (serverLastDateStr === todayStr.value) {
+      isOpenedLocally = true;
+      // 로컬 스토리지도 동기화 (혹시 비었을 경우)
+      localStorage.setItem(`lastTreasureOpen_Normal_${user.value.uid}`, todayStr.value);
+    }
+  }
+
+  // 오늘 이미 열었다면(isOpenedLocally === true) -> canOpenNormal은 false
+  canOpenNormal.value = !isOpenedLocally;
+
   // 일반 상자를 이미 열었으면 자동으로 프리미엄 선택
   if (!canOpenNormal.value && selectedTier.value === 'normal') {
     selectedTier.value = 'premium';
@@ -216,10 +235,22 @@ onMounted(() => {
     if (unsubscribeUser) unsubscribeUser();
     if (currentUser) {
       user.value = currentUser;
+      
+      // 1. 초기 상태 체크
       checkDailyStatus();
+      
+      // 2. 실시간 데이터 구독 (포인트 및 상자 오픈 기록 동기화)
       unsubscribeUser = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
         if (docSnap.exists()) {
-          userPoints.value = docSnap.data().saltmatePoints || 0;
+          const userData = docSnap.data();
+          userPoints.value = userData.saltmatePoints || 0;
+          
+          // ▼▼▼ [핵심 추가] 사용자 정보에 최신 DB 데이터 병합 (lastTreasureBoxPlay 확인용) ▼▼▼
+          user.value = { ...user.value, ...userData }; 
+          
+          // 데이터가 갱신될 때마다(상자 오픈 직후 등) 버튼 상태를 다시 체크
+          checkDailyStatus(); 
+          // ▲▲▲
         }
       });
     } else {

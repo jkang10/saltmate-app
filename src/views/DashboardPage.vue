@@ -1811,7 +1811,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 .treasure-card-enhanced .card-text h3 {
   margin: 0 0 8px 0;
   font-size: 1.3rem;
-  color: #FFFFFF; /* <-- 이 부분을 수정하세요 #FFD700 2025-11-23*/
+  color: #FFED00F; /* <-- 이 부분을 수정하세요 #FFD700 2025-11-23*/
   text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
@@ -1819,7 +1819,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.4;
-  color: #FFFFFF; /* <-- 이 부분을 수정하세요 #e0e0e0 */
+  color: #000000; /* <-- 이 부분을 수정하세요 #e0e0e0 */
 }
 
 /* 피버 타임 안내 텍스트 */
