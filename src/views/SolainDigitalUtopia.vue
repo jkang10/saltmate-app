@@ -43,17 +43,19 @@
 
     <div class="user-controls">
       <button @click="toggleMute" :class="{ 'active': !isMuted }">
-        {{ isMuted ? '🔇 배경음 켜기' : '🔊 배경음 끄기' }}
+        {{ isMuted ? '🔇 소리 켜기' : '🔊 소리 끄기' }}
       </button>
-      <button @click="toggleMic" :class="{ 'active': isMicOn }" style="margin-left: 10px;">
+      <button @click="toggleMic" :class="{ 'active': isMicOn }">
         {{ isMicOn ? '🎤 마이크 끄기' : '🎙️ 마이크 켜기' }}
       </button>
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
       <h3>🎥 시네마 제어</h3>
-      <button @click="toggleVideoPlay">{{ isVideoPlaying ? '일시정지' : '재생 시작' }}</button>
-      <button @click="syncVideoTime">시간 동기화</button>
+      <div class="admin-buttons">
+        <button @click="toggleVideoPlay">{{ isVideoPlaying ? '일시정지' : '재생' }}</button>
+        <button @click="syncVideoTime">동기화</button>
+      </div>
     </div>
   </div>
 </template>
@@ -76,19 +78,6 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 
 // --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
-
-// [확정] 문자열 UID를 고유한 숫자(Integer) UID로 변환하는 함수
-// 이유: Agora Web SDK는 숫자 UID 사용 시 가장 안정적입니다.
-const uidToNum = (uid) => {
-  let hash = 0;
-  if (!uid || uid.length === 0) return hash;
-  for (let i = 0; i < uid.length; i++) {
-    const char = uid.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0; 
-  }
-  return Math.abs(hash);
-};
 
 // --- 상태 변수 ---
 const canvasRef = ref(null);
@@ -137,61 +126,55 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 이동 관련 ---
-const moveSpeed = 4.0; // [수정] 8.0 -> 4.0으로 감속 (빠른 이동 문제 해결)
+const moveSpeed = 4.0; // [완료] 속도 조정 (2.0 ~ 4.0 적절)
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] Agora 초기화 (숫자 ID 사용 확정) ---
+// --- [수정] Agora 초기화 (문자열 UID 사용) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
   
-  // Firebase UID(문자열)를 Agora용 숫자 ID로 변환
-  const currentStringUid = auth.currentUser.uid;
-  const currentIntUid = uidToNum(currentStringUid); 
+  // [핵심] Firebase UID(문자열)를 그대로 사용합니다.
+  const currentUid = auth.currentUser.uid;
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // 볼륨 감지 활성화
+    // 말하는 사람 감지 (볼륨 인디케이터)
     agoraClient.value.enableAudioVolumeIndicator();
 
-    // 볼륨 감지 이벤트
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        
-        // [수정] 소리 민감도 조절 (30 이상일 때만 아이콘 표시 - 관리자 마이크 켜짐 문제 해결)
+        // [수정] 민감도 30으로 상향 (잡음 무시)
         const isTalking = level > 30;
-
-        if (uid === 0 || uid === currentIntUid) {
-            // 나
-            updateSpeakingIndicator(currentStringUid, isTalking, false);
+        
+        // 내 목소리 (uid === 0) 또는 다른 사람 (uid === string)
+        if (uid === 0 || uid === currentUid) {
+            updateSpeakingIndicator(currentUid, isTalking);
         } else {
-            // 상대방 (숫자 ID로 들어옴)
-            updateSpeakingIndicator(uid, isTalking, true);
+            updateSpeakingIndicator(uid, isTalking);
         }
       });
     });
 
-    // 상대방 입장/오디오 게시
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
-        user.audioTrack.play(); // 소리 재생
+        user.audioTrack.play(); // [중요] 소리 재생
       }
     });
 
-    // 상대방 퇴장
     agoraClient.value.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "audio") {
         if (user.audioTrack) user.audioTrack.stop();
       }
     });
 
-    // [확정] 숫자 ID로 입장
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentIntUid);
-    console.log(`Agora 입장 성공 (IntUID: ${currentIntUid})`);
+    // [핵심] 문자열 ID로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
+    console.log(`Agora 입장 성공 (UID: ${currentUid})`);
 
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
@@ -199,33 +182,17 @@ const initAgora = async () => {
 };
 
 // --- [수정] 말하는 표시 (스피커 아이콘) 업데이트 ---
-// targetId: Firebase 문자열 ID 또는 Agora 숫자 ID
-// isAgoraId: true면 숫자 ID이므로 매칭 로직 수행
-const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
+const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
-  // 1. 나 자신 찾기
-  if (!isAgoraId && targetId === currentUid) {
+  // 1. 나 자신
+  if (targetUid === currentUid) {
     targetMesh = myAvatar;
   } 
-  // 2. 다른 사람 찾기 (숫자 ID 매칭)
-  else {
-    if (isAgoraId) {
-        // Agora 숫자 ID와 일치하는 플레이어 찾기 (otherPlayers에 저장된 agoraUid 활용)
-        for (const key in otherPlayers) {
-            // key는 Firebase UID(문자열)
-            if (uidToNum(key) === targetId) {
-                targetMesh = otherPlayers[key].mesh;
-                break;
-            }
-        }
-    } else {
-        // 문자열 ID 직접 매칭 (드문 경우)
-        if (otherPlayers[targetId]) {
-            targetMesh = otherPlayers[targetId].mesh;
-        }
-    }
+  // 2. 다른 사람 (문자열 ID로 바로 매칭)
+  else if (otherPlayers[targetUid]) {
+    targetMesh = otherPlayers[targetUid].mesh;
   }
 
   if (!targetMesh) return;
@@ -238,7 +205,7 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
       const context = canvas.getContext('2d');
       canvas.width = 64; canvas.height = 64;
       
-      context.fillStyle = '#00FF00'; // 말할 때 초록색
+      context.fillStyle = '#00FF00'; // 초록색
       context.beginPath();
       context.arc(32, 32, 30, 0, Math.PI * 2);
       context.fill();
@@ -434,7 +401,7 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; 
+            child.frustumCulled = false; // [중요] 투명 현상 방지
             child.matrixAutoUpdate = true;
           }
         });
@@ -467,7 +434,7 @@ const loadAvatar = (url, animations) => {
   });
 };
 
-// [수정] 닉네임 크기 축소
+// 닉네임 스프라이트
 const createNicknameSprite = (text) => {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -489,8 +456,6 @@ const createNicknameSprite = (text) => {
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
-  
-  // [수정] 닉네임 크기 축소 (1.5, 0.5, 1)
   sprite.scale.set(1.5, 0.5, 1); 
   sprite.position.set(0, 0, 0);
   return sprite;
@@ -617,7 +582,7 @@ const listenToChat = () => {
   });
 };
 
-// [수정] listenToOtherPlayers (아바타 즉시 보이기 및 위치 보정)
+// [수정] listenToOtherPlayers (접속 시 즉시 표시)
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -647,17 +612,16 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [수정] 접속 시 땅에 묻히지 않도록 강제 보정
+      // [핵심] 다른 사용자 초기 위치 보정
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       if (currentTarget.y < 0.1) currentTarget.y = 0.5;
 
       model.position.copy(currentTarget);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
-      model.visible = true; // 강제 보이기
       
       scene.add(model);
       
-      // 매트릭스 강제 업데이트
+      // [핵심] 즉시 렌더링을 위해 매트릭스 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
@@ -781,14 +745,14 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
-// [수정] 이동 로직 (방향 반전 및 속도 변수 적용)
+// [수정] 이동 로직
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
-  let currentSpeedFactor = 1.0; // [수정] 변수 사용
+  let currentSpeedFactor = 1.0;
 
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -804,7 +768,7 @@ const updatePlayerMovement = (deltaTime) => {
       moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force; // [수정] 조이스틱 힘 적용
+      currentSpeedFactor = joystickData.value.force;
 
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
@@ -818,23 +782,20 @@ const updatePlayerMovement = (deltaTime) => {
       moved = true;
     }
 
-    // [수정] A/D 키 반전
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
     
-    // [수정] W/S 키 반전
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
-        moveDirection.z = 1; // W 누르면 카메라 방향으로
+        moveDirection.z = 1; 
         if(currentAnimation === 'idle') currentAnimation = 'walk'; 
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
-        moveDirection.z = -1; // S 누르면 뒤로
+        moveDirection.z = -1; 
         if(currentAnimation === 'idle') currentAnimation = 'walkBackward'; 
     }
   }
 
   if (moved) {
-    // [수정] currentSpeedFactor 적용
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
@@ -869,9 +830,9 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
-// [수정] 다른 플레이어 위치 보간 (Lerp 팩터 증가)
+// [수정] 이동 동기화 (고무줄 현상 최소화)
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 15; // 15배 속도로 따라붙음
+  const lerpFactor = deltaTime * 15; 
 
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
@@ -970,6 +931,7 @@ onMounted(async () => {
   }
   scene.add(myAvatar);
   
+  // [핵심] 초기 접속 시 즉시 업데이트
   myAvatar.visible = true; 
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
@@ -1014,35 +976,63 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.utopia-container { width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; position: relative; background-color: #ade6ff; }
+/* [수정] 100vh -> 100dvh (모바일 주소창 문제 해결) */
+.utopia-container { 
+  width: 100vw; 
+  height: 100dvh; 
+  margin: 0; 
+  padding: 0; 
+  overflow: hidden; 
+  position: relative; 
+  background-color: #ade6ff; 
+}
 .main-canvas { display: block; width: 100%; height: 100%; }
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.chat-ui { position: absolute; bottom: 20px; left: 20px; width: 300px; max-width: 80%; max-height: 20%; background-color: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; z-index: 5; }
+
+/* [수정] 채팅창 위치 및 크기 반응형 적용 */
+.chat-ui { 
+  position: absolute; 
+  bottom: 20px; 
+  left: 20px; 
+  width: 300px; 
+  max-width: 80%; 
+  max-height: 20vh; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  border-radius: 8px; 
+  padding: 10px; 
+  display: flex; 
+  flex-direction: column; 
+  z-index: 5; 
+}
 .message-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; color: white; font-size: 0.9em; }
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
-.joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
-.admin-video-controls { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; color: white; z-index: 100; }
-.admin-video-controls button { display: block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
-.admin-video-controls button:hover { background: #0056b3; }
 
+/* [수정] 조이스틱 위치 (모바일에서만 보임, CSS로 제어 가능하나 JS로 생성됨) */
+.joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
+
+/* [수정] 사용자 컨트롤 (우측 상단) 반응형 */
 .user-controls {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 10px;
+  right: 10px;
   z-index: 100;
+  display: flex;
+  gap: 8px;
 }
 .user-controls button {
-  padding: 10px 15px;
+  padding: 8px 12px;
   background: rgba(0, 0, 0, 0.6);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 20px;
   cursor: pointer;
   font-weight: bold;
+  font-size: 0.85rem;
   transition: background 0.3s;
+  white-space: nowrap;
 }
 .user-controls button:hover {
   background: rgba(0, 0, 0, 0.8);
@@ -1050,5 +1040,44 @@ onUnmounted(() => {
 .user-controls button.active {
   border-color: #28a745;
   color: #28a745;
+}
+
+.admin-video-controls { 
+  position: absolute; 
+  top: 60px; /* 사용자 컨트롤 아래 */
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8); 
+  padding: 10px; 
+  border-radius: 8px; 
+  color: white; 
+  z-index: 100; 
+  width: 150px;
+}
+.admin-video-controls h3 { margin: 0 0 8px 0; font-size: 0.9rem; text-align: center; }
+.admin-buttons { display: flex; gap: 5px; }
+.admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+.admin-buttons button:hover { background: #0056b3; }
+
+/* [추가] 모바일 전용 스타일 */
+@media (max-width: 768px) {
+  .chat-ui {
+    bottom: 80px; /* 조이스틱/하단바 고려 */
+    width: 60%;
+    font-size: 0.8rem;
+  }
+  .user-controls {
+    top: 10px;
+    right: 10px;
+  }
+  .user-controls button {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+  .joystick-zone {
+    bottom: 20px;
+    right: 20px;
+    width: 120px;
+    height: 120px;
+  }
 }
 </style>
