@@ -2,7 +2,6 @@
   <div>
     <OnboardingTutorial :run="shouldRunTutorial" @complete="onTutorialComplete" />
 
-    <AnnouncementTicker />
    <div class="dashboard-container" style="padding-top: 0; gap: 0;">
       <DailyQuestsWidget />
       <section v-if="latestJackpotWinner" class="jackpot-winner-card card">
@@ -483,7 +482,6 @@ import WeeklyLeaderboardWidget from "@/components/WeeklyLeaderboardWidget.vue";
 import SaltPangHallOfFame from "@/components/SaltPangHallOfFame.vue";
 import ChallengeRankingsWidget from "@/components/ChallengeRankingsWidget.vue";
 import SaltPangRankedWidget from "@/components/SaltPangRankedWidget.vue";
-import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
 import EnchantRankingsWidget from '@/components/EnchantRankingsWidget.vue';
 import SaltPangPvpRankingsWidget from '@/components/SaltPangPvpRankingsWidget.vue';
 import SaltGuardiansRankingsWidget from '@/components/SaltGuardiansRankingsWidget.vue';
@@ -515,7 +513,6 @@ TransactionHistoryModal,
     SaltPangHallOfFame,
     ChallengeRankingsWidget,
     SaltPangRankedWidget,
-    AnnouncementTicker,
     EnchantRankingsWidget,
     SaltPangPvpRankingsWidget,
     SaltGuardiansRankingsWidget,
