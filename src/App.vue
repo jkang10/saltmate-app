@@ -11,7 +11,6 @@
 
         <div v-if="isLoggedIn" class="nav-ticker">
           <router-link to="/salt-trader" class="ticker-content">
-            <span class="ticker-name">SALT</span>
             <span class="ticker-price">{{ saltPriceFormatted }}</span>
             <span class="ticker-delta" :class="priceClass">
               {{ priceChangeFormatted > 0 ? '+' : '' }}{{ priceChangeFormatted }}
@@ -106,7 +105,7 @@ const userRole = ref(null);
 const isProfileMenuOpen = ref(false); 
 const profileMenuRef = ref(null); 
 
-// [추가] 스크롤 관련 상태 변수
+// 스크롤 관련 상태
 const isHeaderVisible = ref(true);
 let lastScrollPosition = 0;
 
@@ -151,29 +150,18 @@ const handleClickOutside = (event) => {
   }
 };
 
-// [추가] 스크롤 핸들러 함수
+// 스크롤 핸들러 (헤더 숨김/표시)
 const handleScroll = () => {
   const currentScrollPosition = window.scrollY || document.documentElement.scrollTop;
-  
-  if (currentScrollPosition < 0) {
-    return; // iOS 바운스 효과 무시
-  }
-
-  // 스크롤을 내리는 중이고, 일정 높이(60px) 이상 내려갔을 때 숨김
-  if (Math.abs(currentScrollPosition - lastScrollPosition) < 10) {
-    // 작은 변화는 무시 (떨림 방지)
-    return;
-  }
+  if (currentScrollPosition < 0) return;
+  if (Math.abs(currentScrollPosition - lastScrollPosition) < 10) return;
 
   if (currentScrollPosition > lastScrollPosition && currentScrollPosition > 60) {
-    // 아래로 스크롤 중
     isHeaderVisible.value = false;
-    isProfileMenuOpen.value = false; // 스크롤 시 드롭다운 닫기
+    isProfileMenuOpen.value = false;
   } else {
-    // 위로 스크롤 중
     isHeaderVisible.value = true;
   }
-  
   lastScrollPosition = currentScrollPosition;
 };
 
@@ -267,12 +255,10 @@ const logout = async () => {
 onMounted(() => {
   checkAuthState();
   document.addEventListener('click', handleClickOutside);
-  // [추가] 스크롤 리스너 등록
   window.addEventListener('scroll', handleScroll);
 });
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
-  // [추가] 스크롤 리스너 제거
   window.removeEventListener('scroll', handleScroll);
   if (authUnsubscribe) authUnsubscribe();
   if (saltPriceUnsubscribe) saltPriceUnsubscribe();
@@ -284,6 +270,11 @@ watch(() => router.currentRoute.value, () => {
 </script>
 
 <style scoped>
+/* 전역 레이아웃 설정 */
+* {
+  box-sizing: border-box; /* 중요: 패딩이 너비에 포함되도록 설정 */
+}
+
 #app {
   display: flex;
   flex-direction: column;
@@ -299,19 +290,17 @@ watch(() => router.currentRoute.value, () => {
   width: 100%;
   height: 56px;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  
-  /* [추가] 부드러운 이동 애니메이션 */
+  /* 가로 패딩 축소하여 공간 확보 */
+  padding: 0 12px; 
   transition: transform 0.3s ease-in-out;
 }
 
-/* [추가] 헤더가 숨겨질 때 적용되는 클래스 */
+/* 헤더 숨김 클래스 */
 .navbar.navbar-hidden {
   transform: translateY(-100%);
 }
@@ -326,42 +315,45 @@ watch(() => router.currentRoute.value, () => {
   position: relative;
 }
 
+/* 로고 영역 */
 .nav-logo {
   display: flex;
   align-items: center;
   text-decoration: none;
   color: #333;
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 .nav-logo img {
-  height: 28px;
+  height: 26px;
   margin-right: 6px;
 }
 
+/* 시세 티커 영역 */
 .nav-ticker {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   background-color: #f1f3f5;
-  padding: 4px 12px;
+  padding: 4px 10px;
   border-radius: 16px;
   white-space: nowrap;
 }
 .ticker-content {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   text-decoration: none;
   color: #333;
   font-size: 0.9rem;
   font-family: monospace;
   font-weight: 600;
 }
-.ticker-name { color: #007bff; }
+.ticker-name { color: #007bff; } /* 모바일에서 숨겨짐 */
 .ticker-delta.up { color: #e74c3c; }
 .ticker-delta.down { color: #007bff; }
 
+/* 우측 영역 */
 .nav-right {
   display: flex;
   align-items: center;
@@ -371,50 +363,48 @@ watch(() => router.currentRoute.value, () => {
   cursor: pointer;
 }
 .avatar-circle {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   background-color: #e9ecef;
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
   color: #495057;
-  font-size: 1.1rem;
+  font-size: 1rem;
   transition: background 0.2s;
 }
-.avatar-circle:hover {
-  background-color: #dee2e6;
-}
 
+/* 드롭다운 메뉴 */
 .dropdown-menu {
   position: absolute;
   top: 45px;
   right: 0;
-  width: 200px;
+  width: 180px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   z-index: 1001;
   border: 1px solid #eee;
 }
 .user-info {
-  padding: 8px 12px;
+  padding: 8px;
   font-weight: bold;
   color: #333;
   background-color: #f8f9fa;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
 }
 .dropdown-item {
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-decoration: none;
   color: #555;
-  font-size: 0.9rem;
-  border-radius: 8px;
+  font-size: 0.85rem;
+  border-radius: 6px;
   transition: background 0.2s;
   display: block;
   text-align: left;
@@ -427,62 +417,121 @@ watch(() => router.currentRoute.value, () => {
   background-color: #f1f3f5;
   color: #007bff;
 }
-.dropdown-item.logout {
-  color: #e74c3c;
-}
-hr {
-  border: 0;
-  border-top: 1px solid #eee;
-  margin: 4px 0;
-}
+.dropdown-item.logout { color: #e74c3c; }
+hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
+/* 메인 컨텐츠 여백 (PC 기본) */
 .main-content {
   flex: 1;
   margin-top: 56px;
 }
 
+/* 게임 모드일 때 헤더 투명 */
 #app.game-mode .navbar {
   background: rgba(255,255,255,0.7);
 }
 
+/* QR 버튼 스타일 (원형 복구) */
+.fab-qr-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%; /* 원형 강제 */
+  background-color: #2c3e50;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 999;
+  transition: transform 0.2s;
+}
+.fab-qr-button:active { transform: scale(0.95); }
+
+/* 모바일 반응형 (768px 이하) */
 @media (max-width: 768px) {
-  .logo-text {
-    display: none; 
+  /* 헤더 높이 축소 및 공지바 공간 확보 */
+  .navbar {
+    height: 50px;
+    padding: 0 10px;
   }
-  .nav-logo img {
-    height: 32px; 
+  .main-content {
+    margin-top: 50px; /* 헤더 높이에 맞춰 딱 붙게 조정 */
   }
-  .ticker-name {
-    display: none; 
-  }
+
+  /* 로고 글자 숨김 */
+  .logo-text { display: none; }
+  
+  /* 티커(시세) 글자 숨기고 숫자만 표시 */
+  .ticker-name { display: none; }
   .nav-ticker {
-    font-size: 0.85rem;
-    padding: 4px 10px;
+    font-size: 0.8rem;
+    padding: 3px 8px;
+  }
+  .ticker-content { font-size: 0.85rem; }
+
+  /* QR 버튼 모바일 최적화 (약간 작게) */
+  .fab-qr-button {
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+    bottom: 20px;
+    right: 15px;
   }
   
-  .mobile-nav-links {
-    display: block;
-  }
+  .mobile-nav-links { display: block; }
 }
 
 @media (min-width: 769px) {
-  .mobile-nav-links {
-    display: block; 
-  }
+  .mobile-nav-links { display: block; }
 }
 
+/* 기타 스타일 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-
-.fab-matchmaking-button, .fab-qr-button { /* 기존 스타일 */ }
-.modal-overlay { /* 기존 스타일 */ }
-.login-btn {
-  background-color: #007bff;
-  color: white;
-  padding: 6px 14px;
-  border-radius: 16px;
+.fab-matchmaking-button { 
+  position: fixed; bottom: 90px; right: 20px; width: 50px; height: 50px;
+  background: #e74c3c; color: white; border-radius: 50%;
+  display: flex; justify-content: center; align-items: center;
+  font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 998;
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: bold;
+}
+.fab-badge {
+  position: absolute; top: -5px; right: -5px;
+  background: #f1c40f; color: #333; font-size: 0.7rem;
+  font-weight: bold; padding: 2px 6px; border-radius: 10px;
+  border: 2px solid #e74c3c;
+}
+.pulse-ring {
+  position: absolute; width: 100%; height: 100%; border-radius: 50%;
+  border: 2px solid #e74c3c; animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
+}
+.modal-content {
+  background: white; width: 90%; max-width: 350px; border-radius: 12px; overflow: hidden;
+}
+.modal-header {
+  padding: 15px; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid #eee;
+}
+.modal-body {
+  padding: 20px; display: flex; flex-direction: column; align-items: center;
+}
+.qr-info { margin-top: 10px; color: #666; font-size: 0.9rem; }
+.qr-error { color: #e74c3c; }
+.close-button { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+.login-btn {
+  background-color: #007bff; color: white; padding: 6px 14px;
+  border-radius: 16px; text-decoration: none; font-size: 0.85rem; font-weight: bold;
 }
 </style>
