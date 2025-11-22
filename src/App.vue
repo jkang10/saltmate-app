@@ -34,7 +34,9 @@
                   <router-link to="/profile" class="dropdown-item" @click="closeProfileMenu">
                     <i class="fas fa-id-card"></i> 내 프로필
                   </router-link>
+                  
                   <div class="mobile-nav-links">
+                    <router-link to="/intro" class="dropdown-item" @click="closeProfileMenu">ℹ️ 솔트메이트 소개</router-link>
                     <router-link to="/mall" class="dropdown-item" @click="closeProfileMenu">💎 몰</router-link>
                     <router-link to="/community" class="dropdown-item" @click="closeProfileMenu">💬 커뮤니티</router-link>
                     <router-link to="/help" class="dropdown-item" @click="closeProfileMenu">❓ 도움말</router-link>
@@ -270,7 +272,12 @@ watch(() => router.currentRoute.value, () => {
 </script>
 
 <style scoped>
-/* 전역 설정 */
+/* [수정] 전역 마진 제거하여 상단 공백 삭제 */
+:global(body) {
+  margin: 0;
+  padding: 0;
+}
+
 * {
   box-sizing: border-box; 
 }
@@ -336,7 +343,6 @@ watch(() => router.currentRoute.value, () => {
   padding: 4px 10px;
   border-radius: 16px;
   white-space: nowrap;
-  /* 티커가 너무 넓어져서 좌우 침범하지 않도록 */
   max-width: 45%; 
   overflow: hidden;
   text-overflow: ellipsis;
@@ -364,7 +370,7 @@ watch(() => router.currentRoute.value, () => {
 .profile-wrapper {
   position: relative;
   cursor: pointer;
-  padding-left: 5px; /* 터치 영역 확보 */
+  padding-left: 5px; 
 }
 .avatar-circle {
   width: 34px;
@@ -427,8 +433,8 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 /* 메인 콘텐츠 여백 */
 .main-content {
   flex: 1;
-  margin-top: 56px; /* 기본 PC */
-  padding-top: 0;
+  margin-top: 56px; /* PC 헤더 높이 */
+  padding-top: 0;   /* 추가 패딩 제거 */
 }
 
 /* 게임 모드 헤더 */
@@ -460,13 +466,12 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
 /* 모바일 반응형 (768px 이하) */
 @media (max-width: 768px) {
-  /* 1. 높이 축소 & 패딩 확대 (아이콘 잘림 방지) */
   .navbar {
-    height: 46px;
-    padding: 0 20px; /* 좌우 여백을 충분히 주어 안쪽으로 배치 */
+    height: 46px; /* 더 얇게 */
+    padding: 0 20px;
   }
   
-  /* 2. 본문 여백을 헤더 높이에 정확히 맞춤 */
+  /* [수정] 본문을 헤더 바로 밑으로 바짝 올림 */
   .main-content {
     margin-top: 46px; 
     padding-top: 0;
@@ -474,7 +479,13 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
   .logo-text { display: none; }
   
-  .ticker-name { display: none; }
+  /* [수정] 모바일에서도 SALT 텍스트 표시 (inline-block) */
+  .ticker-name { 
+    display: inline-block; 
+    font-size: 0.75rem; 
+    margin-right: 2px;
+  }
+  
   .nav-ticker {
     font-size: 0.8rem;
     padding: 2px 8px;
