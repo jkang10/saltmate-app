@@ -79,18 +79,6 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 // --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// [필수] 문자열 UID -> 숫자 UID 변환 (오디오 연결 안정성 확보)
-const uidToNum = (uid) => {
-  let hash = 0;
-  if (!uid || uid.length === 0) return hash;
-  for (let i = 0; i < uid.length; i++) {
-    const char = uid.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0; 
-  }
-  return Math.abs(hash);
-};
-
 // --- 상태 변수 ---
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
@@ -138,46 +126,52 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 이동 관련 ---
-// [수정] 속도 2.0 (사용자 요청 '10'은 너무 빠르므로 걷는 속도인 2.0으로 설정)
-const moveSpeed = 2.0; 
+// [수정] 요청하신 속도 1.0으로 설정 (이름표와 동기화 맞춤)
+const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] Agora 초기화 (안정적인 숫자 ID 사용) ---
+// --- [수정] Agora 초기화 (String UID 사용) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
   
-  const currentStringUid = auth.currentUser.uid;
-  const currentIntUid = uidToNum(currentStringUid); 
+  // [핵심] Firebase UID 문자열을 그대로 사용 (변환 없음)
+  const currentUid = auth.currentUser.uid;
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // [수정] 소리 감지 민감도 조정
+    // 볼륨 감지 활성화
     agoraClient.value.enableAudioVolumeIndicator();
+
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // level > 40: 말할 때만 아이콘 켜지도록 민감도 높임 (잡음 무시)
+        // [수정] 소리 감지 민감도 40으로 상향 (잡음 무시)
         const isTalking = level > 40; 
 
-        if (uid === 0 || uid === currentIntUid) {
-            updateSpeakingIndicator(currentStringUid, isTalking, false);
+        // uid가 0이면 '나', 아니면 다른 사람 (문자열 ID)
+        if (uid === 0 || uid === currentUid) {
+            updateSpeakingIndicator(currentUid, isTalking);
         } else {
-            updateSpeakingIndicator(uid, isTalking, true);
+            updateSpeakingIndicator(uid, isTalking);
         }
       });
     });
 
     // [핵심] 상대방 소리 듣기 (구독 및 재생)
     agoraClient.value.on("user-published", async (user, mediaType) => {
-      await agoraClient.value.subscribe(user, mediaType);
-      if (mediaType === "audio") {
-        // 브라우저 정책으로 인해 즉시 재생이 안 될 수 있으므로 catch 처리
-        user.audioTrack.play().catch(err => {
-            console.log("오디오 자동 재생 차단됨 (사용자 인터랙션 필요):", err);
-        });
+      try {
+        await agoraClient.value.subscribe(user, mediaType);
+        console.log(`[Agora] 구독 성공: ${user.uid}`);
+        
+        if (mediaType === "audio") {
+          user.audioTrack.play(); // 소리 재생
+          console.log(`[Agora] 오디오 재생 시작: ${user.uid}`);
+        }
+      } catch (error) {
+        console.error(`[Agora] 구독/재생 실패 (${user.uid}):`, error);
       }
     });
 
@@ -187,37 +181,27 @@ const initAgora = async () => {
       }
     });
 
-    // 숫자 ID로 입장
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentIntUid);
-    console.log(`Agora 입장 성공 (IntUID: ${currentIntUid})`);
+    // 문자열 ID로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
+    console.log(`Agora 입장 성공 (UID: ${currentUid})`);
 
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
   }
 };
 
-// --- 말하는 표시 (스피커 아이콘) ---
-const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
+// --- [수정] 말하는 표시 업데이트 (단순화) ---
+const updateSpeakingIndicator = (targetUid, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
-  if (!isAgoraId && targetId === currentUid) {
+  // 1. 나 자신
+  if (targetUid === currentUid) {
     targetMesh = myAvatar;
-  } else {
-    if (isAgoraId) {
-        // 숫자 ID 매칭
-        for (const key in otherPlayers) {
-            if (uidToNum(key) === targetId) {
-                targetMesh = otherPlayers[key].mesh;
-                break;
-            }
-        }
-    } else {
-        // 문자열 ID 매칭
-        if (otherPlayers[targetId]) {
-            targetMesh = otherPlayers[targetId].mesh;
-        }
-    }
+  } 
+  // 2. 다른 사람 (문자열 ID로 매칭 - 이제 변환 불필요)
+  else if (otherPlayers[targetUid]) {
+    targetMesh = otherPlayers[targetUid].mesh;
   }
 
   if (!targetMesh) return;
@@ -421,7 +405,7 @@ const loadAvatar = (url, animations) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; // 투명 현상 방지
+            child.frustumCulled = false; 
             child.matrixAutoUpdate = true;
           }
         });
@@ -533,7 +517,7 @@ const joinPlaza = async () => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
   
   const safeX = myAvatar.position.x || 37.16;
-  // [수정] 접속 시 공중에서 시작하여 바닥 뚫기 방지
+  // 접속 시 공중에서 시작 (바닥 뚫기 방지)
   const safeY = 1.0; 
   const safeZ = myAvatar.position.z || 7.85;
 
@@ -602,7 +586,7 @@ const listenToChat = () => {
   });
 };
 
-// [수정] listenToOtherPlayers (즉시 보이기 처리)
+// [수정] listenToOtherPlayers (접속 즉시 표시 및 바닥 보정)
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -632,16 +616,16 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [수정] 0.5 높이로 강제 고정하여 바닥 밑으로 가는 것 방지
+      // [핵심] 바닥에 묻히지 않게 강제 보정
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       model.position.set(currentTarget.x, Math.max(currentTarget.y, 0.5), currentTarget.z);
       
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
-      model.visible = true;
+      model.visible = true; // 강제 보이기
       
       scene.add(model);
       
-      // [중요] 즉시 렌더링 강제
+      // [핵심] 즉시 렌더링 강제
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
