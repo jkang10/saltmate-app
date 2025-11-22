@@ -77,17 +77,7 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 // --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// [핵심] 문자열 UID를 고유한 숫자 UID로 변환하는 해시 함수
-const uidToNum = (uid) => {
-  let hash = 0;
-  if (uid.length === 0) return hash;
-  for (let i = 0; i < uid.length; i++) {
-    const char = uid.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0; 
-  }
-  return Math.abs(hash);
-};
+// [수정] uidToNum 삭제 (문자열 ID를 그대로 사용하므로 더 이상 필요 없음)
 
 // --- 상태 변수 ---
 const canvasRef = ref(null);
@@ -101,7 +91,7 @@ const isMuted = ref(true);
 const rewardClaimedLocal = ref(false);
 
 // --- Agora 변수 ---
-const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; // Agora App ID
+const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
 const agoraClient = ref(null);
@@ -145,25 +135,24 @@ let joystickManager = null;
 const initAgora = async () => {
   if (!auth.currentUser) return;
   
-  // [핵심] 문자열 UID -> 숫자 UID 변환
+  // [핵심] 문자열 UID 그대로 사용
   const currentStringUid = auth.currentUser.uid;
-  const currentIntUid = uidToNum(currentStringUid); 
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // [중요] 말하는 사람 감지 (볼륨 인디케이터 활성화)
+    // [중요] 말하는 사람 감지
     agoraClient.value.enableAudioVolumeIndicator();
 
     // 볼륨 감지 이벤트 리스너
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // uid가 0이면 '나', 아니면 다른 사람의 숫자 ID
+        // uid가 0이면 '나', 아니면 다른 사람의 문자열 ID
         if (uid === 0) {
             updateSpeakingIndicator(currentStringUid, level > 5, false);
         } else {
-            updateSpeakingIndicator(uid, level > 5, true);
+            updateSpeakingIndicator(uid, level > 5, false); // Agora String ID 지원 시 false로 처리
         }
       });
     });
@@ -183,9 +172,9 @@ const initAgora = async () => {
       }
     });
 
-    // [핵심] 숫자 ID로 입장
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentIntUid);
-    console.log(`Agora 입장 성공 (String: ${currentStringUid} -> Int: ${currentIntUid})`);
+    // [핵심] 문자열 UID 그대로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentStringUid);
+    console.log(`Agora 입장 성공 (UID: ${currentStringUid})`);
 
   } catch (error) {
     console.error("Agora 초기화 실패:", error);
@@ -193,32 +182,17 @@ const initAgora = async () => {
 };
 
 // --- [수정] 말하는 표시 (스피커 아이콘) 업데이트 ---
-// targetId: Firebase 문자열 UID 또는 Agora 숫자 UID
-// isAgoraId: true면 숫자 ID, false면 문자열 ID
-const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
+const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
   // 1. 나 자신 찾기
-  if (!isAgoraId && targetId === currentUid) {
+  if (targetId === currentUid) {
     targetMesh = myAvatar;
   } 
-  // 2. 다른 사람 찾기
-  else {
-    if (isAgoraId) {
-      // Agora 숫자 ID로 들어온 경우, otherPlayers를 순회하며 매칭
-      for (const key in otherPlayers) {
-        if (uidToNum(key) === targetId) {
-          targetMesh = otherPlayers[key].mesh;
-          break;
-        }
-      }
-    } else {
-      // 문자열 ID로 들어온 경우 (거의 없음, 로컬 테스트용)
-      if (otherPlayers[targetId]) {
-        targetMesh = otherPlayers[targetId].mesh;
-      }
-    }
+  // 2. 다른 사람 찾기 (문자열 ID로 바로 매칭)
+  else if (otherPlayers[targetId]) {
+    targetMesh = otherPlayers[targetId].mesh;
   }
 
   if (!targetMesh) return;
@@ -232,7 +206,6 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
       canvas.width = 64;
       canvas.height = 64;
       
-      // 아이콘 디자인 (초록색 원 + 스피커)
       context.fillStyle = '#00FF00'; 
       context.beginPath();
       context.arc(32, 32, 30, 0, Math.PI * 2);
@@ -401,7 +374,7 @@ const loadAnimations = async () => {
   } catch (error) { return loadedAnimations; }
 };
 
-// --- 아바타 로드 (수정: Frustum Culling 비활성화) ---
+// --- 아바타 로드 ---
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
@@ -425,12 +398,11 @@ const loadAvatar = (url, animations) => {
     loader.load(url, (gltf) => {
         const visuals = gltf.scene;
         
-        // [핵심] 시야각 계산 오류 방지를 위해 항상 렌더링
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false; 
+            child.frustumCulled = false; // 항상 렌더링 (투명 현상 방지)
             child.matrixAutoUpdate = true;
           }
         });
@@ -466,11 +438,10 @@ const loadAvatar = (url, animations) => {
 const createNicknameSprite = (text) => {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
-  canvas.width = 300; canvas.height = 100; // 고정 크기로 텍스처 안정성 확보
+  canvas.width = 300; canvas.height = 100; 
   context.fillStyle = 'rgba(0, 0, 0, 0.6)';
   
   const r = 10; const w = 280; const h = 60;
-  // 둥근 사각형 배경
   context.beginPath();
   context.roundRect(10, 20, w, h, r);
   context.fill();
@@ -479,13 +450,13 @@ const createNicknameSprite = (text) => {
   context.font = 'bold 40px Arial';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(text, 150, 50); // 중앙 정렬
+  context.fillText(text, 150, 50);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(3, 1, 1); // 비율 조정
+  sprite.scale.set(3, 1, 1);
   sprite.position.set(0, 0, 0);
   return sprite;
 };
@@ -588,7 +559,26 @@ const sendMessage = () => {
   chatInput.value = '';
 };
 
-// [수정] listenToOtherPlayers (위치 보정 및 즉시 렌더링)
+// --- 채팅 리스너 (복구됨) ---
+const listenToChat = () => {
+  chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
+  onChildAdded(chatListenerRef, (snapshot) => {
+    const msg = { id: snapshot.key, ...snapshot.val() };
+    chatMessages.value.push(msg);
+    if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
+    
+    nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
+    
+    const currentUid = auth.currentUser?.uid;
+    if (msg.userId === currentUid && myAvatar) {
+      showChatBubble(myAvatar, msg.message);
+    } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) {
+      showChatBubble(otherPlayers[msg.userId].mesh, msg.message);
+    }
+  });
+};
+
+// [수정] listenToOtherPlayers
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -597,7 +587,6 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
     
-    // 좌표가 없으면 기본값 사용
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
@@ -615,11 +604,10 @@ const listenToOtherPlayers = (preloadedAnimations) => {
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
-        nick.position.set(0, 1.8, 0); // 이름표 위치 수정
+        nick.position.set(0, 1.8, 0); 
         model.add(nick); 
       }
 
-      // [핵심] 땅속에 묻히지 않도록 Y좌표 강제 보정
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       if (currentTarget.y < 0.1) currentTarget.y = 0.5;
 
@@ -628,14 +616,12 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       
       scene.add(model);
       
-      // [핵심] 매트릭스 강제 업데이트로 즉시 표시
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
       
-      // 애니메이션 초기화
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
@@ -703,7 +689,6 @@ const initThree = () => {
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
-          // 도시 맵 스케일 조정
           const box = new THREE.Box3().setFromObject(city);
           const size = box.getSize(new THREE.Vector3());
           const center = box.getCenter(new THREE.Vector3());
@@ -747,8 +732,13 @@ const handleKeyDown = (event) => { if(chatInputRef.value !== document.activeElem
 const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
+const handleResize = () => {
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+};
 
-// [수정] updatePlayerMovement (좌우 반전, 즉시 전송)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
@@ -799,12 +789,9 @@ const updatePlayerMovement = (deltaTime) => {
     );
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
-    
-    // 움직이는 동안 즉시 업데이트
     throttledUpdate();
   }
 
-  // 맵 경계 및 바닥 처리
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
@@ -829,9 +816,8 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
-// [수정] updateOtherPlayersMovement (이름표 지연 해결 위해 속도 증가)
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 20; // 15 -> 20으로 증가 (더 빠르게 따라붙음)
+  const lerpFactor = deltaTime * 20; 
 
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
@@ -882,6 +868,103 @@ const animate = () => {
   if (controls) controls.update();
   renderer.render(scene, camera);
 };
+
+// --- [핵심] onMounted (모든 기능 연결) ---
+onMounted(async () => {
+  if (!auth.currentUser) return;
+  const currentUid = auth.currentUser.uid;
+  
+  try {
+    const token = await auth.currentUser.getIdTokenResult();
+    if (token.claims.role === 'superAdmin') isAdmin.value = true;
+  } catch(e) { console.log("권한 확인 실패"); }
+
+  // 1. 시스템 초기화 (Agora, Three.js)
+  await initAgora();
+  if (!initThree()) return;
+
+  // 2. 에셋 로드
+  const preloadedAnimations = await loadAnimations();
+  
+  // 3. 이벤트 리스너 연결
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('touchstart', handleUserInteraction); 
+  window.addEventListener('click', handleUserInteraction);
+  window.addEventListener('mousemove', handleUserInteraction); 
+
+  // 4. 애니메이션 루프 시작
+  animate();
+
+  // 5. 유저 정보 가져오기
+  try {
+    const userDoc = await getDoc(doc(db, 'users', currentUid));
+    if (userDoc.exists()) {
+        myAvatarUrl = userDoc.data().avatarUrl;
+        myUserName = userDoc.data().name;
+        if (userDoc.data().hasReceivedVideoReward) {
+          rewardClaimedLocal.value = true;
+        }
+    }
+  } catch (error) {
+    console.error("Firestore 정보 가져오기 실패:", error);
+  }
+
+  // 6. 내 아바타 로드 및 배치
+  myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
+  const startX = 37.16; const startY = 0.5; const startZ = 7.85;
+  myAvatar.position.set(startX, startY, startZ); 
+  
+  if (myUserName) {
+    const nick = createNicknameSprite(myUserName);
+    nick.position.set(0, 1.8, 0); 
+    myAvatar.add(nick);
+  }
+  scene.add(myAvatar);
+  myAvatar.updateMatrixWorld(true);
+  if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
+
+  // 7. 조이스틱 초기화
+  await nextTick();
+  const joystickZone = document.getElementById('joystick-zone');
+  if (joystickZone) {
+      joystickManager = nipplejs.create({ zone: joystickZone, mode: 'static', position: { right: '80px', bottom: '80px' }, color: 'rgba(255, 255, 255, 0.5)', size: 100 });
+      joystickManager.on('move', handleJoystickMove);
+      joystickManager.on('end', handleJoystickEnd);
+  }
+
+  // 8. 광장 입장 및 네트워크 리스너 시작
+  await joinPlaza();
+  if (isReady.value) {
+    updateMyStateInRTDB(); // 내 위치 전송
+    listenToOtherPlayers(preloadedAnimations); // 다른 사람 위치 수신
+    listenToVideoState(); // 비디오 동기화
+    listenToChat(); // 채팅 수신
+  }
+  isLoading.value = false;
+});
+
+// --- [핵심] onUnmounted (리소스 정리) ---
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
+  window.removeEventListener('touchstart', handleUserInteraction);
+  window.removeEventListener('click', handleUserInteraction);
+  window.removeEventListener('mousemove', handleUserInteraction);
+  
+  leaveAgora(); // Agora 퇴장
+
+  if (playersListenerRef) off(playersListenerRef);
+  if (chatListenerRef) off(chatListenerRef);
+  if (videoListenerRef) off(videoListenerRef);
+  if (playerRef) remove(playerRef);
+  
+  if (joystickManager) joystickManager.destroy();
+  if (controls) controls.dispose();
+  if (renderer) renderer.dispose();
+});
 </script>
 
 <style scoped>
