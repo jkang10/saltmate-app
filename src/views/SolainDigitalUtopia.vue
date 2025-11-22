@@ -77,7 +77,8 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 // --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// [복구] 문자열 UID -> 숫자 UID 변환 (Agora 통신 필수)
+// [확정] 문자열 UID를 고유한 숫자(Integer) UID로 변환하는 함수
+// 이유: Agora Web SDK는 숫자 UID 사용 시 가장 안정적입니다.
 const uidToNum = (uid) => {
   let hash = 0;
   if (!uid || uid.length === 0) return hash;
@@ -136,12 +137,12 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // --- 이동 관련 ---
-const moveSpeed = 8.0; // [수정] 이동 속도 조정 (맵 크기 비례)
+const moveSpeed = 4.0; // [수정] 8.0 -> 4.0으로 감속 (빠른 이동 문제 해결)
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] Agora 초기화 (숫자 ID 사용) ---
+// --- [수정] Agora 초기화 (숫자 ID 사용 확정) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
   
@@ -159,22 +160,16 @@ const initAgora = async () => {
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        // level > 20: 민감도 조절 (너무 낮은 소리는 무시)
-        if (level > 20) {
-            if (uid === 0 || uid === currentIntUid) {
-                // 나
-                updateSpeakingIndicator(currentStringUid, true, false);
-            } else {
-                // 상대방 (숫자 ID로 들어옴)
-                updateSpeakingIndicator(uid, true, true);
-            }
+        
+        // [수정] 소리 민감도 조절 (30 이상일 때만 아이콘 표시 - 관리자 마이크 켜짐 문제 해결)
+        const isTalking = level > 30;
+
+        if (uid === 0 || uid === currentIntUid) {
+            // 나
+            updateSpeakingIndicator(currentStringUid, isTalking, false);
         } else {
-            // 말 안 할 때 끄기
-            if (uid === 0 || uid === currentIntUid) {
-                updateSpeakingIndicator(currentStringUid, false, false);
-            } else {
-                updateSpeakingIndicator(uid, false, true);
-            }
+            // 상대방 (숫자 ID로 들어옴)
+            updateSpeakingIndicator(uid, isTalking, true);
         }
       });
     });
@@ -194,7 +189,7 @@ const initAgora = async () => {
       }
     });
 
-    // [중요] 숫자 ID로 입장해야 통신 오류가 없음
+    // [확정] 숫자 ID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentIntUid);
     console.log(`Agora 입장 성공 (IntUID: ${currentIntUid})`);
 
@@ -204,7 +199,8 @@ const initAgora = async () => {
 };
 
 // --- [수정] 말하는 표시 (스피커 아이콘) 업데이트 ---
-// isAgoraId: true면 숫자 ID이므로 변환 필요
+// targetId: Firebase 문자열 ID 또는 Agora 숫자 ID
+// isAgoraId: true면 숫자 ID이므로 매칭 로직 수행
 const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
@@ -216,15 +212,16 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isAgoraId = false) => {
   // 2. 다른 사람 찾기 (숫자 ID 매칭)
   else {
     if (isAgoraId) {
-        // Agora 숫자 ID와 일치하는 플레이어 찾기
+        // Agora 숫자 ID와 일치하는 플레이어 찾기 (otherPlayers에 저장된 agoraUid 활용)
         for (const key in otherPlayers) {
+            // key는 Firebase UID(문자열)
             if (uidToNum(key) === targetId) {
                 targetMesh = otherPlayers[key].mesh;
                 break;
             }
         }
     } else {
-        // 문자열 ID 직접 매칭
+        // 문자열 ID 직접 매칭 (드문 경우)
         if (otherPlayers[targetId]) {
             targetMesh = otherPlayers[targetId].mesh;
         }
@@ -433,7 +430,6 @@ const loadAvatar = (url, animations) => {
     loader.load(url, (gltf) => {
         const visuals = gltf.scene;
         
-        // [수정] 항상 렌더링되도록 설정 (안 보임 방지)
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
@@ -476,7 +472,7 @@ const createNicknameSprite = (text) => {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   canvas.width = 300; canvas.height = 100; 
-  context.fillStyle = 'rgba(0, 0, 0, 0.5)'; // 투명도 조절
+  context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
   
   const r = 10; const w = 280; const h = 60;
   context.beginPath();
@@ -494,7 +490,7 @@ const createNicknameSprite = (text) => {
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
   
-  // [수정] 크기를 절반으로 줄임 (3,1,1 -> 1.5, 0.5, 1)
+  // [수정] 닉네임 크기 축소 (1.5, 0.5, 1)
   sprite.scale.set(1.5, 0.5, 1); 
   sprite.position.set(0, 0, 0);
   return sprite;
@@ -552,7 +548,6 @@ const joinPlaza = async () => {
   const currentUid = auth.currentUser.uid;
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
   
-  // 안전한 초기 위치값 (지면 위)
   const safeX = myAvatar.position.x || 37.16;
   const safeY = Math.max(0.5, myAvatar.position.y);
   const safeZ = myAvatar.position.z || 7.85;
@@ -587,7 +582,7 @@ const updateMyStateInRTDB = () => {
 let lastUpdateTime = 0;
 const throttledUpdate = () => {
   const now = Date.now();
-  if (now - lastUpdateTime > 50) { // [수정] 업데이트 빈도 증가 (반응성 향상)
+  if (now - lastUpdateTime > 50) { 
     updateMyStateInRTDB();
     lastUpdateTime = now;
   }
@@ -604,7 +599,6 @@ const sendMessage = () => {
   chatInput.value = '';
 };
 
-// --- 채팅 리스너 ---
 const listenToChat = () => {
   chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES));
   onChildAdded(chatListenerRef, (snapshot) => {
@@ -623,7 +617,7 @@ const listenToChat = () => {
   });
 };
 
-// [수정] listenToOtherPlayers (위치 보정)
+// [수정] listenToOtherPlayers (아바타 즉시 보이기 및 위치 보정)
 const listenToOtherPlayers = (preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   const currentUid = auth.currentUser.uid;
@@ -653,17 +647,17 @@ const listenToOtherPlayers = (preloadedAnimations) => {
         model.add(nick); 
       }
 
-      // [수정] 강제 위치 보정 (땅 위로)
+      // [수정] 접속 시 땅에 묻히지 않도록 강제 보정
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       if (currentTarget.y < 0.1) currentTarget.y = 0.5;
 
       model.position.copy(currentTarget);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
-      model.visible = true; // [수정] 강제 보이기
+      model.visible = true; // 강제 보이기
       
       scene.add(model);
       
-      // [중요] 매트릭스 업데이트로 즉시 렌더링
+      // 매트릭스 강제 업데이트
       model.updateMatrixWorld(true);
       
       otherPlayers[snapshot.key].mesh = model;
@@ -752,7 +746,6 @@ const initThree = () => {
           scene.add(city);
 
           if (myAvatar) { 
-             // [수정] 초기 로드시 안전한 높이 설정
              myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
@@ -788,14 +781,14 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
-// [수정] updatePlayerMovement (속도 계수 적용하여 오류 해결)
+// [수정] 이동 로직 (방향 반전 및 속도 변수 적용)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
-  let currentSpeedFactor = 1.0; // 이 변수가 사용되지 않아서 에러가 났었습니다.
+  let currentSpeedFactor = 1.0; // [수정] 변수 사용
 
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -811,7 +804,7 @@ const updatePlayerMovement = (deltaTime) => {
       moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force; // 조이스틱 압력에 따라 속도 조절 값 할당
+      currentSpeedFactor = joystickData.value.force; // [수정] 조이스틱 힘 적용
 
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
@@ -825,25 +818,27 @@ const updatePlayerMovement = (deltaTime) => {
       moved = true;
     }
 
+    // [수정] A/D 키 반전
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
     
+    // [수정] W/S 키 반전
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
-        moveDirection.z = 1; 
+        moveDirection.z = 1; // W 누르면 카메라 방향으로
         if(currentAnimation === 'idle') currentAnimation = 'walk'; 
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
-        moveDirection.z = -1; 
+        moveDirection.z = -1; // S 누르면 뒤로
         if(currentAnimation === 'idle') currentAnimation = 'walkBackward'; 
     }
   }
 
   if (moved) {
-    // [오류 수정 부분] 여기에 currentSpeedFactor를 곱해줍니다.
+    // [수정] currentSpeedFactor 적용
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
-        moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime 
+        moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
     );
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
@@ -874,10 +869,9 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
-// [수정] 다른 플레이어 이동 동기화 (고무줄 현상 최소화)
+// [수정] 다른 플레이어 위치 보간 (Lerp 팩터 증가)
 const updateOtherPlayersMovement = (deltaTime) => {
-  // [수정] Lerp Factor 대폭 증가 (빠르게 따라붙도록)
-  const lerpFactor = deltaTime * 15; 
+  const lerpFactor = deltaTime * 15; // 15배 속도로 따라붙음
 
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
@@ -887,7 +881,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
     
-    // 위치 및 회전 보간
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
     
     let currentY = player.mesh.rotation.y; 
@@ -977,7 +970,6 @@ onMounted(async () => {
   }
   scene.add(myAvatar);
   
-  // [중요] 초기 로딩 시 강제 업데이트
   myAvatar.visible = true; 
   myAvatar.updateMatrixWorld(true);
   if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
