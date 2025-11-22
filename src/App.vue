@@ -56,6 +56,10 @@
 
       </div>
     </header>
+    
+    <div class="ticker-container" :class="{ 'ticker-up': !isHeaderVisible }">
+      <AnnouncementTicker />
+    </div>
 
     <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0 && !isGamePage" class="fab-matchmaking-button" title="대전 참여">
       <div class="pulse-ring"></div>
@@ -99,6 +103,7 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
 import { useRouter, useRoute } from "vue-router";
 import QrcodeVue from 'qrcode.vue';
+import AnnouncementTicker from '@/components/AnnouncementTicker.vue'; // [추가]
 
 const router = useRouter();
 const route = useRoute();
@@ -272,7 +277,6 @@ watch(() => router.currentRoute.value, () => {
 </script>
 
 <style scoped>
-/* [수정] 전역 마진 제거하여 상단 공백 삭제 */
 :global(body) {
   margin: 0;
   padding: 0;
@@ -437,6 +441,14 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   padding-top: 0;   /* 추가 패딩 제거 */
 }
 
+/* [핵심 수정] Ticker 컨테이너: 헤더 상태에 따라 top 위치 변경 */
+.ticker-container :deep(.ticker-wrap) {
+  transition: top 0.3s ease-in-out;
+}
+.ticker-container.ticker-up :deep(.ticker-wrap) {
+  top: 0 !important; /* 헤더가 사라지면 맨 위로 붙음 */
+}
+
 /* 게임 모드 헤더 */
 #app.game-mode .navbar {
   background: rgba(255,255,255,0.7);
@@ -471,7 +483,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
     padding: 0 20px;
   }
   
-  /* [수정] 본문을 헤더 바로 밑으로 바짝 올림 */
   .main-content {
     margin-top: 46px; 
     padding-top: 0;
@@ -479,7 +490,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
   .logo-text { display: none; }
   
-  /* [수정] 모바일에서도 SALT 텍스트 표시 (inline-block) */
   .ticker-name { 
     display: inline-block; 
     font-size: 0.75rem; 
@@ -492,7 +502,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   }
   .ticker-content { font-size: 0.85rem; }
 
-  /* QR 버튼 최적화 */
   .fab-qr-button {
     width: 45px;
     height: 45px;
