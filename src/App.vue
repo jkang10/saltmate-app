@@ -36,9 +36,9 @@
                   </router-link>
                   
                   <div class="mobile-nav-links">
-                    <router-link to="/intro" class="dropdown-item" @click="closeProfileMenu">ℹ️ 솔트메이트 소개</router-link>
                     <router-link to="/mall" class="dropdown-item" @click="closeProfileMenu">💎 몰</router-link>
                     <router-link to="/community" class="dropdown-item" @click="closeProfileMenu">💬 커뮤니티</router-link>
+                    <router-link to="/about" class="dropdown-item" @click="closeProfileMenu">ℹ️ 솔트메이트 소개</router-link>
                     <router-link to="/help" class="dropdown-item" @click="closeProfileMenu">❓ 도움말</router-link>
                   </div>
                   <hr />
