@@ -788,14 +788,14 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
-// [수정] 이동 로직 (방향 반전 및 속도 조정)
+// [수정] updatePlayerMovement (속도 계수 적용하여 오류 해결)
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = 'idle';
-  let currentSpeedFactor = 1.0;
+  let currentSpeedFactor = 1.0; // 이 변수가 사용되지 않아서 에러가 났었습니다.
 
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -811,7 +811,7 @@ const updatePlayerMovement = (deltaTime) => {
       moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force;
+      currentSpeedFactor = joystickData.value.force; // 조이스틱 압력에 따라 속도 조절 값 할당
 
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
@@ -828,24 +828,22 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
     
-    // [수정] W(앞)는 z값 1(화면 안쪽이 -z라면 반대), S(뒤)는 -1
-    // 플레이어 경험상 W를 눌렀을 때 반대로 간다면 부호를 바꿉니다.
-    // 기존: W = -1, S = 1 -> 반대로 변경
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
-        moveDirection.z = 1; // 반전
+        moveDirection.z = 1; 
         if(currentAnimation === 'idle') currentAnimation = 'walk'; 
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
-        moveDirection.z = -1; // 반전
+        moveDirection.z = -1; 
         if(currentAnimation === 'idle') currentAnimation = 'walkBackward'; 
     }
   }
 
   if (moved) {
+    // [오류 수정 부분] 여기에 currentSpeedFactor를 곱해줍니다.
     const velocity = new THREE.Vector3(
-        moveDirection.x * moveSpeed * deltaTime, 
+        moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
-        moveDirection.z * moveSpeed * deltaTime // 뒤로 걷기 속도 보정 제거 (통일)
+        moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime 
     );
     velocity.applyQuaternion(myAvatar.quaternion);
     myAvatar.position.add(velocity);
