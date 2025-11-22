@@ -248,12 +248,25 @@
             <p>매일 한 번, 행운의 룰렛을 돌리고 SaltMate 포인트를 획득하세요!</p>
             <span class="card-enter">게임 시작 &rarr;</span>
           </router-link>
-          <router-link to="/treasure-box" class="feature-card treasure">
-            <div class="card-icon"><i class="fas fa-box"></i></div>
-            <h3>보물상자 열기</h3>
-            <p>매일 한 번, 행운의 상자를 열고 SaltMate 포인트를 획득하세요!</p>
-            <span class="card-enter">참여하기 &rarr;</span>
-          </router-link>
+	<router-link to="/treasure-box" class="feature-card card-glass treasure-card-enhanced" :class="{ 'is-fever': isFeverTime }">
+	  
+	  <div v-if="isFeverTime" class="fever-badge-mini">
+	    <i class="fas fa-fire"></i> FEVER
+	  </div>
+
+	  <div class="card-content-wrapper">
+	    <div class="chest-icon-container">
+	      <img src="@/assets/chest_closed.png" alt="황금 상자" class="chest-icon-img">
+	      <div class="glow-effect-mini"></div>
+	    </div>
+
+	    <div class="card-text">
+	      <h3>전설의 황금 상자</h3>
+	      <p>매일 터지는 잭팟! 꽝 없는 보물찾기에 도전하세요.</p>
+	      <p v-if="isFeverTime" class="fever-alert">🔥 지금은 피버타임! 보상 확률 UP! 🔥</p>
+	    </div>
+	  </div>
+	</router-link>
 	  <router-link to="/ladder-game" class="feature-card game">
 	    <div class="card-icon"><i class="fas fa-stream"></i></div>
 	    <h3>사다리타기</h3>
@@ -534,6 +547,21 @@ TransactionHistoryModal,
   setup() {
     // --- 1. data()에 있던 변수들을 ref 또는 reactive로 변환 ---
     const userProfile = ref(null);
+
+    // ▼▼▼ [★추가 1★] 여기에 다음 코드를 붙여넣으세요 ▼▼▼
+    const isFeverTime = ref(false);
+    let feverInterval = null;
+
+    const checkFeverTime = () => {
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstNow = new Date(now.getTime() + kstOffset);
+      const currentHour = kstNow.getUTCHours();
+      // 매일 저녁 20시 ~ 22시
+      isFeverTime.value = currentHour >= 20 && currentHour < 22;
+    };
+    // ▲▲▲
+
     const loadingUser = ref(true);
     const error = ref(null);
     const notices = ref([]);
@@ -691,11 +719,18 @@ TransactionHistoryModal,
           loadingUser.value = false;
         }
       });
+      // ▼▼▼ [★추가 2★] onMounted 함수의 맨 마지막 줄 직전에 추가하세요 ▼▼▼
+      checkFeverTime();
+      feverInterval = setInterval(checkFeverTime, 60000); // 1분마다 체크
+      // ▲▲▲
     });
 
     onUnmounted(() => {
       if (unsubscribe) unsubscribe();
       if (unsubscribeJackpot) unsubscribeJackpot();
+      // ▼▼▼ [★추가 3★] 여기에 다음 코드를 붙여넣으세요 ▼▼▼
+      if (feverInterval) clearInterval(feverInterval);
+      // ▲▲▲
     });
 
     // --- 7. template에서 사용할 모든 변수와 함수를 return ---
@@ -709,6 +744,7 @@ TransactionHistoryModal,
       // 튜토리얼 관련
       shouldRunTutorial,
       onTutorialComplete,
+      isFeverTime,
     };
   },
 };
@@ -1690,5 +1726,140 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   grid-column: 1 / -1; 
   /* 최소 높이 설정 (선택 사항) */
   min-height: 250px; 
+}
+/* ▼▼▼ [★신규 추가★] 전설의 황금 상자 카드 전용 스타일 ▼▼▼ */
+
+/* 카드 기본 레이아웃 */
+.treasure-card-enhanced {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 내부 콘텐츠 가로 정렬 (모바일은 세로) */
+.treasure-card-enhanced .card-content-wrapper {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 20px;
+  height: 100%;
+  width: 100%;
+}
+
+/* 피버 타임일 때 배경색 강조 */
+.treasure-card-enhanced.is-fever {
+  background: linear-gradient(145deg, rgba(255, 78, 80, 0.15), rgba(249, 212, 35, 0.15));
+  border-color: rgba(255, 215, 0, 0.5);
+  box-shadow: 0 0 20px rgba(255, 78, 80, 0.2);
+}
+
+/* 피버 배지 스타일 */
+.fever-badge-mini {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: linear-gradient(90deg, #ff4e50, #f9d423);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4);
+  animation: pulse-fever-mini 1.5s infinite;
+  z-index: 2;
+}
+
+/* 상자 아이콘 컨테이너 */
+.chest-icon-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  animation: breathe-mini 3s infinite ease-in-out; /* 숨쉬는 효과 */
+}
+
+.chest-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5));
+  position: relative;
+  z-index: 1;
+}
+
+/* 아이콘 뒤 후광 효과 */
+.glow-effect-mini {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(255,215,0,0.4) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  z-index: 0;
+  opacity: 0.6;
+  transition: background 0.3s ease;
+}
+
+.is-fever .glow-effect-mini {
+  background: radial-gradient(circle, rgba(255, 78, 80, 0.5) 0%, transparent 70%);
+  opacity: 0.8;
+}
+
+/* 텍스트 스타일 */
+.treasure-card-enhanced .card-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.3rem;
+  color: #FFD700;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.treasure-card-enhanced .card-text p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: #e0e0e0;
+}
+
+/* 피버 타임 안내 텍스트 */
+.fever-alert {
+  color: #FFD700 !important;
+  font-weight: bold;
+  font-size: 0.85rem !important;
+  margin-top: 8px !important;
+  text-shadow: 0 0 8px rgba(255, 78, 80, 0.6);
+  animation: pulse-text 1.5s infinite;
+}
+
+/* 애니메이션 키프레임 */
+@keyframes breathe-mini {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes pulse-fever-mini {
+  0% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4); }
+  50% { transform: scale(1.1); box-shadow: 0 4px 15px rgba(255, 78, 80, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4); }
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 모바일 반응형 (화면이 좁을 때 세로 배치) */
+@media (max-width: 600px) {
+  .treasure-card-enhanced .card-content-wrapper {
+    flex-direction: column;
+    text-align: center;
+    justify-content: center;
+    gap: 15px;
+  }
+  .fever-badge-mini {
+    top: 10px;
+    right: 10px;
+  }
 }
 </style>
