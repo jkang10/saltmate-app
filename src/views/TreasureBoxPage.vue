@@ -1,254 +1,381 @@
 <template>
-  <div class="page-container">
-    <header class="page-header">
-      <h1><i class="fas fa-gem"></i> 보물상자 열기</h1>
-      <p class="description">
-        매일 한 번, 행운의 상자를 열어 SaltMate 포인트를 획득하세요!
-      </p>
-    </header>
+  <div class="treasure-box-page">
+    <div class="game-container card glassmorphism">
+      <header class="game-header">
+        <h2><i class="fas fa-gem"></i> 전설의 황금 상자</h2>
+        <p>매일 한 번, 숨겨진 보물을 찾아보세요!</p>
+      </header>
 
-    <main class="content-wrapper card">
-      <div v-if="!resultMessage" class="selection-phase">
-        <h2>세 개의 상자 중 하나를 선택하세요!</h2>
-        <div class="box-grid">
+      <main class="game-content">
+        <div class="chest-stage">
           <div
-            v-for="(box, index) in boxes"
-            :key="index"
-            class="box-container"
-            @click="openBox(index)"
-            :class="{ 
-              'disabled': isOpening || hasPlayed,
-              'selected': selectedIndex === index,
-              'unselected': selectedIndex !== null && selectedIndex !== index
+            class="chest-container"
+            :class="{
+              'is-opening': isOpening,
+              'is-opened': isOpened,
+              'is-idle': !isOpening && !isOpened
             }"
+            @click="handleChestClick"
           >
-            <div class="treasure-box">
-              <div class="box-lid"></div>
-              <div class="box-body"></div>
-              <div class="lock"></div>
+            <img
+              v-show="!isOpened"
+              src="@/assets/chest_closed.png"
+              alt="Closed Treasure Chest"
+              class="chest-image closed"
+            />
+            <img
+              v-show="isOpened"
+              src="@/assets/chest_open.png"
+              alt="Open Treasure Chest"
+              class="chest-image open"
+            />
+            <div class="glow-effect"></div>
+            <div v-if="isOpened" class="particles-container">
+              <div v-for="n in 30" :key="n" class="particle"></div>
             </div>
           </div>
         </div>
-        <p v-if="hasPlayed" class="play-limit-message">
-          오늘은 이미 참여했습니다. 내일 다시 도전해주세요!
-        </p>
-      </div>
 
-      <div v-if="resultMessage" class="result-phase">
-        <div class="result-box" :class="{ open: showResult }">
-          <div class="treasure-box open">
-            <div class="box-lid"></div>
-            <div class="box-body"></div>
-            <div class="lock"></div>
-            <div class="sparkle-container">
-              <div v-for="i in 15" :key="i" class="sparkle"></div>
-            </div>
-          </div>
-          <div class="prize-display" v-html="prizeHtml"></div>
+        <div v-if="message" class="result-message" :class="{ success: reward > 0 }">
+          <i v-if="reward > 0" class="fas fa-coins"></i>
+          <span>{{ message }}</span>
         </div>
-        <p class="result-message" v-html="resultMessage"></p>
-        <router-link to="/dashboard" class="back-button">
-          <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
-        </router-link>
-      </div>
-    </main>
+        <div v-else class="guide-message">
+          <p v-if="canOpen">상자를 터치하여 열어보세요!</p>
+          <p v-else>오늘은 이미 열었습니다. 내일 다시 도전하세요!</p>
+        </div>
+      </main>
+
+      <footer class="game-footer">
+        <p>
+          내 포인트:
+          <strong>{{ (userPoints || 0).toLocaleString() }} SaltMate</strong>
+        </p>
+      </footer>
+    </div>
   </div>
 </template>
 
-<script>
-import { getFunctions, httpsCallable } from "firebase/functions";
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { httpsCallable } from 'firebase/functions';
+import { functions, auth, db } from '@/firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 
-export default {
-  name: "TreasureBoxPage",
-  data() {
-    return {
-      boxes: [{}, {}, {}],
-      isOpening: false,
-      hasPlayed: false,
-      resultMessage: "",
-      prizeHtml: "",
-      showResult: false,
-      selectedIndex: null,
-    };
-  },
-methods: {
-  async openBox(selectedIndex) {
-    if (this.isOpening || this.hasPlayed) return;
-    this.isOpening = true;
-    this.selectedIndex = selectedIndex;
+const user = ref(null);
+const userPoints = ref(0);
+const canOpen = ref(false);
+const isOpening = ref(false);
+const isOpened = ref(false);
+const reward = ref(0);
+const message = ref('');
+let unsubscribeUser = null;
 
-    try {
-      // [최종 핵심 수정] getFunctions를 호출할 때 'asia-northeast3' 지역을 명시적으로 지정합니다.
-      const functions = getFunctions(undefined, "asia-northeast3");
-      const openTreasureBox = httpsCallable(functions, "openTreasureBox");
-      const result = await openTreasureBox();
+const todayStr = computed(() => {
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstDate = new Date(now.getTime() + kstOffset);
+  return kstDate.toISOString().slice(0, 10);
+});
 
-      const winningPrize = result.data.prize;
-
-      setTimeout(() => {
-        this.showResult = true;
-        this.prizeHtml = `${winningPrize.points.toLocaleString()} <small>SaltMate</small>`;
-        if (winningPrize.points > 0) {
-          this.resultMessage = `🎉 <strong>${winningPrize.name}</strong>을 획득했습니다! 🎉`;
-        } else {
-          this.resultMessage = `아쉽지만 꽝입니다. 내일 다시 도전해주세요!`;
-        }
-      }, 1500);
-
-    } catch (error) {
-      console.error("보물상자 오류:", error);
-      this.resultMessage = `오류: ${error.message}`;
-      if (error.code && error.code.includes("already-exists")) {
-        this.hasPlayed = true;
-      }
-      setTimeout(() => {
-        this.isOpening = false;
-        this.selectedIndex = null;
-      }, 1000);
-    }
-  },
-},
+const checkDailyStatus = () => {
+  const lastOpenedDate = localStorage.getItem(`lastTreasureOpen_${user.value.uid}`);
+  canOpen.value = lastOpenedDate !== todayStr.value;
 };
+
+const handleChestClick = async () => {
+  if (!user.value) {
+    alert('로그인이 필요합니다.');
+    return;
+  }
+  if (!canOpen.value || isOpening.value || isOpened.value) return;
+
+  isOpening.value = true;
+  message.value = '보물상자를 여는 중...';
+
+  try {
+    const openTreasureBox = httpsCallable(functions, 'openTreasureBox');
+    
+    // 1. 흔들림 애니메이션 시작 (1.5초 동안)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // 2. 서버 요청 및 결과 수신
+    const result = await openTreasureBox({ boxIndex: 0 });
+    
+    // 3. 열림 상태로 전환
+    isOpening.value = false;
+    isOpened.value = true;
+    reward.value = result.data.reward;
+    message.value = result.data.message;
+
+    if (result.data.success) {
+      localStorage.setItem(`lastTreasureOpen_${user.value.uid}`, todayStr.value);
+      canOpen.value = false;
+    }
+  } catch (error) {
+    console.error('보물상자 열기 오류:', error);
+    message.value = error.message || '오류가 발생했습니다.';
+    isOpening.value = false;
+  }
+};
+
+onMounted(() => {
+  onAuthStateChanged(auth, (currentUser) => {
+    if (currentUser) {
+      user.value = currentUser;
+      checkDailyStatus();
+      const userRef = doc(db, 'users', currentUser.uid);
+      unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+          userPoints.value = docSnap.data().saltmatePoints || 0;
+        }
+      });
+    } else {
+      user.value = null;
+      userPoints.value = 0;
+    }
+  });
+});
 </script>
 
 <style scoped>
-/* 전체적인 스타일은 유지하고, 상자 디자인과 애니메이션을 대폭 강화합니다. */
-.page-container { max-width: 800px; margin: 70px auto 20px; padding: 20px; }
-.page-header { text-align: center; margin-bottom: 30px; }
-.page-header h1 { font-size: 2.8em; }
-.page-header h1 i { color: #f1c40f; }
-.page-header p { font-size: 1.1em; color: #666; }
-.content-wrapper { text-align: center; padding: 40px; border-radius: 15px; background: #fff; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); }
-.selection-phase h2 { font-size: 1.8em; margin-bottom: 40px; }
-.box-grid { display: flex; justify-content: center; gap: 40px; perspective: 1000px; }
-.play-limit-message { margin-top: 30px; font-weight: bold; color: #c0392b; }
-
-/* 신규 보물상자 디자인 */
-.treasure-box {
-  position: relative;
-  width: 150px;
-  height: 120px;
-  cursor: pointer;
-  transform-style: preserve-3d;
-  transition: transform 0.5s ease;
-}
-.box-container:hover .treasure-box {
-  transform: translateY(-10px) rotateY(10deg);
-}
-.box-body, .box-lid {
-  position: absolute;
-  width: 100%;
-  background-color: #8B4513; /* 나무 색상 */
-  border: 4px solid #D4AF37; /* 금속 테두리 */
-  box-sizing: border-box;
-}
-.box-body {
-  height: 80px;
-  bottom: 0;
-}
-.box-lid {
-  height: 40px;
-  top: 0;
-  border-radius: 5px 5px 0 0;
-  transform-origin: bottom;
-  transition: transform 0.5s ease-in-out;
-}
-.lock {
-  position: absolute;
-  top: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 20px;
-  height: 15px;
-  background-color: #FFD700;
-  border-radius: 3px;
-}
-.box-container.disabled .treasure-box {
-  cursor: not-allowed;
-  filter: grayscale(80%);
-}
-.box-container.disabled:hover .treasure-box {
-  transform: none;
+.treasure-box-page {
+  padding: 20px;
+  min-height: 100vh;
+  background: radial-gradient(circle at center, #2c3e50 0%, #1a1a2e 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* overflow: hidden; 제거: 스크롤이 필요할 수 있음 */
 }
 
-/* 선택 애니메이션 */
-.box-container.selected .treasure-box {
-  animation: selectedBox 1.5s forwards ease-in-out;
-}
-.box-container.unselected .treasure-box {
-  animation: unselectedBox 1.5s forwards ease-in-out;
-}
-@keyframes selectedBox {
-  50% { transform: translateY(-20px) scale(1.2); }
-  100% { transform: scale(1.1); }
-}
-@keyframes unselectedBox {
-  100% { opacity: 0; transform: scale(0.8); }
-}
-
-/* 결과 화면 스타일 */
-.result-phase { animation: fadeIn 0.5s ease; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.result-box { position: relative; display: inline-block; }
-.result-box .treasure-box.open .box-lid {
-  transform: rotateX(-120deg);
-}
-.result-message { margin-top: 20px; font-size: 1.2em; font-weight: bold; }
-.back-button { /* ... 이전과 동일 ... */ }
-
-/* 상자 열릴 때 빛 효과 */
-.sparkle-container {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 200px;
-  height: 200px;
-  transform: translateX(-50%);
-  opacity: 0;
-  transition: opacity 0.5s 0.3s;
-}
-.result-box.open .sparkle-container {
-  opacity: 1;
-}
-.sparkle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 10px #fff, 0 0 20px #f1c40f, 0 0 30px #e67e22;
-  animation: sparkle-fly 1.5s forwards;
-  opacity: 0;
-}
-@keyframes sparkle-fly {
-  0% { transform: translate(0, 0) scale(0); opacity: 1; }
-  100% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
-}
-.sparkle:nth-child(1) { --x: -80px; --y: -150px; animation-delay: 0.3s; }
-.sparkle:nth-child(2) { --x: 100px; --y: -120px; animation-delay: 0.4s; }
-.sparkle:nth-child(3) { --x: -120px; --y: -80px; animation-delay: 0.5s; }
-/* (나머지 sparkle 들도 유사하게 지연 시간과 위치를 다르게 설정) */
-.sparkle:nth-child(4) { --x: 150px; --y: -50px; animation-delay: 0.35s; }
-.sparkle:nth-child(5) { --x: -90px; --y: -90px; animation-delay: 0.55s; }
-.sparkle:nth-child(6) { --x: 90px; --y: -180px; animation-delay: 0.6s; }
-.sparkle:nth-child(7) { --x: 130px; --y: -130px; animation-delay: 0.65s; }
-.sparkle:nth-child(8) { --x: -110px; --y: -160px; animation-delay: 0.7s; }
-
-/* 보상 표시 스타일 */
-.prize-display {
-  position: absolute;
-  top: 30%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  font-size: 2.5em;
-  font-weight: bold;
+.game-container {
+  width: 95%; /* [수정] 모바일에서 꽉 차지 않도록 여백 확보 */
+  max-width: 500px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 215, 0, 0.3);
+  border-radius: 25px;
+  padding: 25px; /* [수정] 패딩 약간 축소 */
+  text-align: center;
   color: #fff;
-  text-shadow: 0 0 10px #f1c40f, 0 0 20px #f1c40f;
-  opacity: 0;
-  animation: prize-appear 1s forwards 0.8s;
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
 }
-@keyframes prize-appear {
-  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+
+.game-header h2 {
+  font-size: 1.8rem; /* [수정] 모바일 고려하여 폰트 크기 약간 축소 */
+  color: #FFD700;
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.game-header p {
+  color: #bdc3c7;
+  font-size: 1rem; /* [수정] 폰트 크기 축소 */
+}
+
+.game-content {
+  margin: 30px 0; /* [수정] 마진 축소 */
+}
+
+.chest-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* height: 350px; [삭제] 고정 높이 제거 */
+  min-height: 250px; /* 최소 높이 확보 */
+  position: relative;
+  margin-bottom: 20px; /* 하단 여백 추가 */
+}
+
+.chest-container {
+  position: relative;
+  width: 80%; /* [수정] 반응형 너비 */
+  max-width: 300px; /* 최대 너비 제한 */
+  aspect-ratio: 1 / 1; /* [핵심] 정사각형 비율 유지 */
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  /* height: 300px; [삭제] 고정 높이 제거 */
+}
+
+/* 대기 상태: 숨쉬는 듯한 빛 효과 */
+.chest-container.is-idle .chest-image.closed {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.chest-container:hover.is-idle {
+  transform: scale(1.05);
+}
+
+/* 여는 중: 격렬한 흔들림 */
+.chest-container.is-opening {
+  animation: shake-hard 0.5s ease-in-out infinite;
+}
+
+/* 열린 상태: 튀어오름 */
+.chest-container.is-opened {
+  animation: pop-open 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+  pointer-events: none;
+}
+
+.chest-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* 빛 효과 오버레이 */
+.glow-effect {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%; /* 상자보다 약간 크게 */
+  height: 120%;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+  opacity: 0;
+  z-index: -1;
+}
+
+.chest-container.is-opening .glow-effect {
+  transform: translate(-50%, -50%) scale(1.2);
+  opacity: 1;
+  animation: pulse-glow 0.5s infinite alternate;
+}
+
+.chest-container.is-opened .glow-effect {
+  transform: translate(-50%, -50%) scale(3);
+  opacity: 0;
+  transition: transform 1s ease-out, opacity 1s ease-out;
+}
+
+.result-message {
+  font-size: 1.3rem; /* [수정] 폰트 크기 축소 */
+  font-weight: bold;
+  color: #bdc3c7;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  animation: fade-in-up 0.5s ease-out;
+  word-break: keep-all; /* 단어 단위 줄바꿈 */
+  padding: 0 10px; /* 좌우 여백 */
+}
+
+.result-message.success {
+  color: #2ecc71;
+  text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+}
+
+.guide-message {
+  font-size: 1.1rem; /* [수정] 폰트 크기 축소 */
+  color: #e67e22;
+  font-weight: bold;
+  animation: pulse-text 1.5s infinite alternate;
+}
+
+.game-footer {
+  margin-top: 20px; /* [수정] 마진 축소 */
+  font-size: 1rem;
+  color: #bdc3c7;
+}
+
+.game-footer strong {
+  color: #FFD700;
+  font-size: 1.2rem;
+}
+
+/* --- 애니메이션 키프레임 (기존과 동일) --- */
+@keyframes breathe {
+  0%, 100% { filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5)) brightness(1); }
+  50% { filter: drop-shadow(0 10px 30px rgba(255, 215, 0, 0.4)) brightness(1.2); }
+}
+@keyframes shake-hard {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-5px, -5px) rotate(-3deg); }
+  20% { transform: translate(5px, 5px) rotate(3deg); }
+  30% { transform: translate(-7px, 3px) rotate(-5deg); }
+  40% { transform: translate(7px, -3px) rotate(5deg); }
+  50% { transform: translate(-5px, 5px) rotate(-3deg); }
+  60% { transform: translate(5px, -5px) rotate(3deg); }
+  70% { transform: translate(-3px, 7px) rotate(-2deg); }
+  80% { transform: translate(3px, -7px) rotate(2deg); }
+  90% { transform: translate(-2px, 2px) rotate(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes pop-open {
+  0% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.2) translateY(-30px); }
+  100% { transform: scale(1) translateY(0); }
+}
+@keyframes pulse-glow {
+  0% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-text {
+  from { opacity: 0.8; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+
+/* --- 파티클 효과 (기존과 동일) --- */
+.particles-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #FFD700;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #FFD700;
+  animation: explode 1.5s ease-out forwards;
+}
+.particle:nth-child(1) { --tx: -100px; --ty: -150px; --d: 0s; }
+.particle:nth-child(2) { --tx: 80px; --ty: -180px; --d: 0.1s; }
+.particle:nth-child(3) { --tx: -120px; --ty: -80px; --d: 0.2s; }
+.particle:nth-child(4) { --tx: 150px; --ty: -100px; --d: 0.3s; }
+.particle:nth-child(5) { --tx: -50px; --ty: -200px; --d: 0.1s; background: #fff; }
+.particle:nth-child(odd) { background: #FFD700; }
+.particle:nth-child(even) { background: #ffffff; box-shadow: 0 0 10px #ffffff; }
+@keyframes explode {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+}
+
+/* [신규] 작은 모바일 화면을 위한 미디어 쿼리 */
+@media (max-width: 380px) {
+  .game-container {
+    padding: 20px;
+  }
+  .game-header h2 {
+    font-size: 1.5rem;
+  }
+  .chest-container {
+    width: 90%; /* 더 넓게 사용 */
+  }
+  .result-message {
+    font-size: 1.1rem;
+  }
 }
 </style>
