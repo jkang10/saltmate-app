@@ -441,12 +441,24 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   padding-top: 0;   /* 추가 패딩 제거 */
 }
 
-/* [핵심 수정] Ticker 컨테이너: 헤더 상태에 따라 top 위치 변경 */
+/* [수정] Ticker 위치 제어 */
 .ticker-container :deep(.ticker-wrap) {
   transition: top 0.3s ease-in-out;
+  /* [신규] 기본적으로 헤더 높이(56px)만큼 떨어져 있음 */
+  top: 56px !important; 
 }
+
+/* [수정] 헤더가 숨겨졌을 때 (스크롤 내릴 때) */
 .ticker-container.ticker-up :deep(.ticker-wrap) {
-  top: 0 !important; /* 헤더가 사라지면 맨 위로 붙음 */
+  /* [핵심] 헤더가 사라지면 공지 바가 최상단(0px)에 붙음 */
+  top: 0 !important; 
+}
+
+/* [신규] 모바일 화면 대응 (헤더 높이가 46px이므로 조정) */
+@media (max-width: 768px) {
+  .ticker-container :deep(.ticker-wrap) {
+    top: 46px !important; /* 모바일 헤더 높이에 맞춤 */
+  }
 }
 
 /* 게임 모드 헤더 */
