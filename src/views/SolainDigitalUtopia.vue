@@ -14,7 +14,7 @@
       autoplay
       preload="auto"
       @timeupdate="checkVideoProgress"
-      @error="(e) => console.error('비디오 로드 에러:', e.target.error, e.target.currentSrc)"
+      @error="(e) => console.error('비디오 에러:', e)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
     </video>
@@ -51,7 +51,7 @@
     </div>
 
     <div v-if="audioBlocked" class="audio-blocked-msg">
-      화면을 클릭하여 소리를 켜주세요!
+      🔊 대화를 듣기 위해 화면을 한 번 터치해주세요.
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
@@ -80,7 +80,6 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 유틸리티 함수 ---
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
@@ -98,7 +97,7 @@ const audioBlocked = ref(false);
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
-const agoraToken = null; // [중요] App ID Only 모드인지 확인 필요
+const agoraToken = null; // App ID Only 모드이므로 null 유지
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
@@ -136,55 +135,45 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] 오디오 컨텍스트 강제 재개 ---
-const resumeAudioContext = async () => {
-  // Agora 오디오 자동 재생 차단 해제 시도
-  if (agoraClient.value) {
-    try {
-        // Agora 내부 로직상 클릭 이벤트가 발생하면 오디오 컨텍스트가 풀립니다.
-        // 사용자가 화면을 클릭했을 때 명시적으로 차단 상태 해제
-        audioBlocked.value = false;
-    } catch (e) { console.log(e); }
-  }
-};
-
-// --- [수정] Agora 초기화 ---
+// --- [핵심 수정] Agora 초기화 (String UID 사용 & 자동재생 정책 대응) ---
 const initAgora = async () => {
   if (!auth.currentUser) return;
-  const currentUid = auth.currentUser.uid;
+  const currentUid = auth.currentUser.uid; // [중요] 변환 없이 문자열 그대로 사용
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
     // 자동 재생 차단 감지
     AgoraRTC.onAutoplayFailed = () => {
-        console.warn("오디오 자동 재생이 차단되었습니다. 클릭이 필요합니다.");
         audioBlocked.value = true;
     };
 
+    // 말하는 사람 감지
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
         const isTalking = level > 40; 
         
+        // uid가 0(나)이거나, 내 문자열 ID와 같으면 '나'
         if (uid === 0 || uid === currentUid) {
             updateSpeakingIndicator(currentUid, isTalking);
         } else {
+            // 상대방 문자열 UID 그대로 사용
             updateSpeakingIndicator(uid, isTalking);
         }
       });
     });
 
+    // 상대방 소리 구독
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
         try {
-            user.audioTrack.play(); // 소리 재생
-            user.audioTrack.setVolume(100); // 볼륨 최대
-            console.log(`[Audio] Playing stream from ${user.uid}`);
+            user.audioTrack.play();
+            console.log(`[Audio] Playing: ${user.uid}`);
         } catch (e) {
-            console.error("오디오 재생 실패:", e);
+            console.error("Audio Play Failed:", e);
             audioBlocked.value = true;
         }
       }
@@ -196,13 +185,21 @@ const initAgora = async () => {
       }
     });
 
-    // 입장
+    // [중요] 문자열 UID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
-    console.log(`Agora Joined: ${currentUid}`);
+    console.log(`Agora Joined (String UID): ${currentUid}`);
 
   } catch (error) {
     console.error("Agora Init Error:", error);
   }
+};
+
+const resumeAudioContext = () => {
+    audioBlocked.value = false;
+    // 브라우저 오디오 컨텍스트 재개를 위한 더미 로직 (Three.js AudioListener가 있다면 resume)
+    if (THREE.AudioContext.getContext().state === 'suspended') {
+        THREE.AudioContext.getContext().resume();
+    }
 };
 
 const updateSpeakingIndicator = (targetUid, isSpeaking) => {
@@ -266,7 +263,7 @@ const toggleMic = async () => {
       }
     }
   } catch (error) {
-    console.error("Mic Toggle Error:", error);
+    console.error("Mic Error:", error);
   }
 };
 
@@ -520,7 +517,6 @@ const showChatBubble = (avatar, message, color = "black") => {
   avatar.add(newBubble);
 };
 
-// --- Firebase RTDB ---
 const joinPlaza = async () => {
   if (!auth.currentUser || !myAvatar) return;
   const currentUid = auth.currentUser.uid;
@@ -627,12 +623,21 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
 
+      // [중요] 접속 시 즉시 위치 이동
       model.position.set(currentTarget.x, safeY, currentTarget.z);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
       
       scene.add(model);
-      model.updateMatrixWorld(true); 
+      
+      // [핵심 요청] 접속 시 '자동 한걸음' 효과 (강제 업데이트)
+      // 살짝 위로 띄웠다가 내려서 물리/렌더링 엔진 깨우기
+      model.position.y += 0.1;
+      model.updateMatrixWorld(true);
+      setTimeout(() => {
+          model.position.y -= 0.1;
+          model.updateMatrixWorld(true);
+      }, 100);
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
@@ -659,6 +664,25 @@ const listenToOtherPlayers = (preloadedAnimations) => {
   });
 };
 
+// [핵심 수정] 접속 시 내 아바타 '자동 한걸음'
+const forceInitialMove = () => {
+    if (!myAvatar) return;
+    
+    // 1. 약간 위로 점프
+    const startY = myAvatar.position.y;
+    myAvatar.position.y += 0.5;
+    myAvatar.updateMatrixWorld(true);
+    updateMyStateInRTDB(); // 위치 전송
+
+    // 2. 0.2초 뒤 착지
+    setTimeout(() => {
+        myAvatar.position.y = startY;
+        myAvatar.updateMatrixWorld(true);
+        updateMyStateInRTDB(); // 위치 전송
+    }, 200);
+};
+
+// ... (initThree, handleKey..., updatePlayerMovement, updateOtherPlayersMovement, animate 함수는 기존과 동일)
 const initThree = () => {
   try {
       scene = new THREE.Scene();
@@ -952,8 +976,8 @@ onMounted(async () => {
 
   await joinPlaza();
   if (isReady.value) {
-    // [핵심] 입장 즉시 좌표 전송 (0,0,0 방지)
     updateMyStateInRTDB(); 
+    forceInitialMove(); // [핵심] 접속 시 자동 이동
     listenToOtherPlayers(preloadedAnimations); 
     listenToVideoState(); 
     listenToChat(); 
@@ -983,10 +1007,17 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* [수정] 100% 가로폭, 스크롤바 숨김 */
+/* [수정] 스크롤 방지 스타일 강화 */
+:global(body), :global(html) {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* 세로 스크롤 제거 */
+  height: 100%;
+}
+
 .utopia-container { 
   width: 100%; 
-  height: 100dvh; 
+  height: 100dvh; /* 모바일 뷰포트 대응 */
   margin: 0; 
   padding: 0; 
   overflow: hidden; 
@@ -998,7 +1029,6 @@ onUnmounted(() => {
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* [수정] 채팅창 위로 올림 (bottom: 120px) 및 스크롤바 숨김 */
 .chat-ui { 
   position: absolute; 
   bottom: 120px; 
@@ -1019,35 +1049,17 @@ onUnmounted(() => {
   margin-bottom: 10px; 
   color: white; 
   font-size: 0.9em; 
-  scrollbar-width: none; /* 파이어폭스 */
+  scrollbar-width: none; 
 }
-.message-list::-webkit-scrollbar { display: none; /* 크롬 */ }
+.message-list::-webkit-scrollbar { display: none; }
 
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
 
 .joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
 
-/* [수정] 상단 아이콘 위치 조정 (right: 20px) */
-.user-controls { 
-  position: absolute; 
-  top: 20px; 
-  right: 20px; 
-  z-index: 100; 
-  display: flex; 
-  gap: 8px; 
-}
-.user-controls button { 
-  padding: 10px 15px; 
-  background: rgba(0, 0, 0, 0.6); 
-  color: white; 
-  border: 1px solid rgba(255, 255, 255, 0.5); 
-  border-radius: 20px; 
-  cursor: pointer; 
-  font-weight: bold; 
-  transition: background 0.3s; 
-  white-space: nowrap; /* 줄바꿈 방지 */
-}
+.user-controls { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 8px; }
+.user-controls button { padding: 10px 15px; background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; cursor: pointer; font-weight: bold; transition: background 0.3s; white-space: nowrap; }
 .user-controls button:hover { background: rgba(0, 0, 0, 0.8); }
 .user-controls button.active { border-color: #28a745; color: #28a745; }
 
@@ -1057,18 +1069,7 @@ onUnmounted(() => {
   animation: pulse 2s infinite;
 }
 
-/* [수정] 관리자 버튼 위치 조정 */
-.admin-video-controls { 
-  position: absolute; 
-  top: 80px; 
-  right: 20px; 
-  background: rgba(0, 0, 0, 0.8); 
-  padding: 10px; 
-  border-radius: 8px; 
-  color: white; 
-  z-index: 100; 
-  width: 150px; 
-}
+.admin-video-controls { position: absolute; top: 80px; right: 20px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 8px; color: white; z-index: 100; width: 150px; }
 .admin-video-controls h3 { margin: 0 0 8px 0; font-size: 0.9rem; text-align: center; }
 .admin-buttons { display: flex; gap: 5px; }
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
