@@ -36,9 +36,9 @@
                   </router-link>
                   
                   <div class="mobile-nav-links">
+                    <router-link to="/intro" class="dropdown-item" @click="closeProfileMenu">ℹ️ 솔트메이트 소개</router-link>
                     <router-link to="/mall" class="dropdown-item" @click="closeProfileMenu">💎 몰</router-link>
                     <router-link to="/community" class="dropdown-item" @click="closeProfileMenu">💬 커뮤니티</router-link>
-                    <router-link to="/about" class="dropdown-item" @click="closeProfileMenu">ℹ️ 솔트메이트 소개</router-link>
                     <router-link to="/help" class="dropdown-item" @click="closeProfileMenu">❓ 도움말</router-link>
                   </div>
                   <hr />
@@ -57,7 +57,7 @@
       </div>
     </header>
     
-    <div class="ticker-container" :class="{ 'ticker-up': !isHeaderVisible }">
+    <div v-if="!isGamePage" class="ticker-container" :class="{ 'ticker-up': !isHeaderVisible }">
       <AnnouncementTicker />
     </div>
 
@@ -103,7 +103,7 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ref as dbRef, onValue, set, onDisconnect, remove } from "firebase/database";
 import { useRouter, useRoute } from "vue-router";
 import QrcodeVue from 'qrcode.vue';
-import AnnouncementTicker from '@/components/AnnouncementTicker.vue'; // [추가]
+import AnnouncementTicker from '@/components/AnnouncementTicker.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -133,6 +133,7 @@ let authUnsubscribe = null;
 let presenceRef = null;
 let matchmakingUnsubscribe = null;
 
+// [중요] 메타버스 페이지인지 확인하는 변수
 const isGamePage = computed(() => route.meta.isGamePage === true);
 
 const saltPriceFormatted = computed(() => (saltPrice.value || 0).toFixed(3));
@@ -441,24 +442,15 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   padding-top: 0;   /* 추가 패딩 제거 */
 }
 
-/* [수정] Ticker 위치 제어 */
+/* Ticker 위치 제어 */
 .ticker-container :deep(.ticker-wrap) {
   transition: top 0.3s ease-in-out;
-  /* [신규] 기본적으로 헤더 높이(56px)만큼 떨어져 있음 */
   top: 56px !important; 
 }
 
-/* [수정] 헤더가 숨겨졌을 때 (스크롤 내릴 때) */
+/* 헤더가 숨겨졌을 때 */
 .ticker-container.ticker-up :deep(.ticker-wrap) {
-  /* [핵심] 헤더가 사라지면 공지 바가 최상단(0px)에 붙음 */
   top: 0 !important; 
-}
-
-/* [신규] 모바일 화면 대응 (헤더 높이가 46px이므로 조정) */
-@media (max-width: 768px) {
-  .ticker-container :deep(.ticker-wrap) {
-    top: 46px !important; /* 모바일 헤더 높이에 맞춤 */
-  }
 }
 
 /* 게임 모드 헤더 */
@@ -498,6 +490,11 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   .main-content {
     margin-top: 46px; 
     padding-top: 0;
+  }
+
+  /* 모바일 Ticker 위치 조정 */
+  .ticker-container :deep(.ticker-wrap) {
+    top: 46px !important; 
   }
 
   .logo-text { display: none; }
