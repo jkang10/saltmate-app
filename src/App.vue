@@ -1,49 +1,61 @@
 <template>
   <div id="app" :class="{ 'game-mode': isGamePage }">
     
-    <header class="navbar card glassmorphism">
-      <div class="navbar-container">
-        <router-link to="/" class="navbar-brand">
-          <img src="@/assets/logo.png" alt="Saltmate Logo" />
-          <span>솔트메이트</span>
+    <header class="navbar glassmorphism" :class="{ 'navbar-hidden': !isHeaderVisible }">
+      <div class="navbar-inner">
+        
+        <router-link to="/" class="nav-logo">
+          <img src="@/assets/logo.png" alt="Logo" />
+          <span class="logo-text">SaltMate</span>
         </router-link>
-        <nav class="navbar-nav" :class="{ 'is-active': isNavActive }">
-          <router-link to="/mall" class="nav-link">솔트메이트 몰</router-link>
-          <router-link to="/community" class="nav-link">커뮤니티</router-link>
-          <router-link to="/help" class="nav-link">도움말</router-link>
-          <router-link to="/about" class="nav-link">솔트메이트 소개</router-link>
-        </nav>
-        <div class="navbar-actions">
-          <div v-if="isLoggedIn" class="user-actions">
-            
-            <router-link to="/salt-trader" class="salt-ticker" title="소금 상인 페이지로 이동">
-              <span class="ticker-label">SALT</span>
-              <span class="ticker-price">{{ saltPriceFormatted }}</span>
-              <span class="ticker-change" :class="priceClass">
-                <i v-if="priceClass === 'up'" class="fas fa-caret-up"></i>
-                <i v-if="priceClass === 'down'" class="fas fa-caret-down"></i>
-                {{ priceChangeFormatted }}
-              </span>
-            </router-link>
-            <router-link to="/profile" class="user-profile-link">
-              <i class="fas fa-user-circle"></i>
-              <span>{{ userName }}</span>
-            </router-link>
-            <button @click="logout" class="logout-button">
-              <i class="fas fa-sign-out-alt"></i> 로그아웃
-            </button>
-          </div>
-          <div v-else>
-            <router-link to="/login" class="login-button">로그인</router-link>
-          </div>
-          <button class="navbar-toggler" @click="toggleNav">
-            <i class="fas fa-bars"></i>
-          </button>
+
+        <div v-if="isLoggedIn" class="nav-ticker">
+          <router-link to="/salt-trader" class="ticker-content">
+            <span class="ticker-name">SALT</span>
+            <span class="ticker-price">{{ saltPriceFormatted }}</span>
+            <span class="ticker-delta" :class="priceClass">
+              {{ priceChangeFormatted > 0 ? '+' : '' }}{{ priceChangeFormatted }}
+            </span>
+          </router-link>
         </div>
+
+        <div class="nav-right">
+          <template v-if="isLoggedIn">
+            <div class="profile-wrapper" @click="toggleProfileMenu" ref="profileMenuRef">
+              <div class="avatar-circle">
+                <i class="fas fa-user"></i>
+              </div>
+              <transition name="fade">
+                <div v-if="isProfileMenuOpen" class="dropdown-menu">
+                  <div class="user-info">
+                    <span class="user-name">{{ userName }}</span>님
+                  </div>
+                  <hr />
+                  <router-link to="/profile" class="dropdown-item" @click="closeProfileMenu">
+                    <i class="fas fa-id-card"></i> 내 프로필
+                  </router-link>
+                  <div class="mobile-nav-links">
+                    <router-link to="/mall" class="dropdown-item" @click="closeProfileMenu">💎 몰</router-link>
+                    <router-link to="/community" class="dropdown-item" @click="closeProfileMenu">💬 커뮤니티</router-link>
+                    <router-link to="/help" class="dropdown-item" @click="closeProfileMenu">❓ 도움말</router-link>
+                  </div>
+                  <hr />
+                  <button @click="logout" class="dropdown-item logout">
+                    <i class="fas fa-sign-out-alt"></i> 로그아웃
+                  </button>
+                </div>
+              </transition>
+            </div>
+          </template>
+          <template v-else>
+            <router-link to="/login" class="login-btn">로그인</router-link>
+          </template>
+        </div>
+
       </div>
     </header>
 
-    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0 && !isGamePage" class="fab-matchmaking-button" title="솔트팡 대전 참여하기">
+    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0 && !isGamePage" class="fab-matchmaking-button" title="대전 참여">
       <div class="pulse-ring"></div>
       <i class="fas fa-fist-raised"></i>
       <span class="fab-badge">{{ matchmakingQueueCount }}</span>
@@ -53,21 +65,21 @@
       <router-view />
     </main>
 
-    <button v-if="userRole === 'centerManager' && !isGamePage" @click="generateQR" class="fab-qr-button" title="방문 인증 QR코드 생성">
+    <button v-if="userRole === 'centerManager' && !isGamePage" @click="generateQR" class="fab-qr-button">
       <i class="fas fa-qrcode"></i>
     </button>
 
     <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
       <div class="modal-content">
         <header class="modal-header">
-          <h3>방문 인증 QR코드</h3>
+          <h3>방문 인증 QR</h3>
           <button @click="closeQrModal" class="close-button">&times;</button>
         </header>
         <div class="modal-body">
           <div v-if="qrModal.isLoading" class="loading-spinner"></div>
           <div v-else-if="qrModal.qrId" class="qr-code-container">
             <qrcode-vue :value="qrModal.qrId" :size="250" level="H" />
-            <p class="qr-info">이 QR코드는 5분간 유효하며, 1회만 사용할 수 있습니다.</p>
+            <p class="qr-info">5분간 유효 / 1회 사용</p>
           </div>
           <p v-else class="qr-error">{{ qrModal.error }}</p>
         </div>
@@ -90,8 +102,14 @@ const router = useRouter();
 const route = useRoute();
 const isLoggedIn = ref(false);
 const userName = ref("");
-const isNavActive = ref(false);
 const userRole = ref(null);
+const isProfileMenuOpen = ref(false); 
+const profileMenuRef = ref(null); 
+
+// [추가] 스크롤 관련 상태 변수
+const isHeaderVisible = ref(true);
+let lastScrollPosition = 0;
+
 const qrModal = reactive({
   visible: false,
   isLoading: false,
@@ -99,14 +117,10 @@ const qrModal = reactive({
   error: null,
 });
 
-// ▼▼▼ [★핵심 수정★] 시세 변수 수정 ▼▼▼
-const market = ref({ currentPrice: 0, priceHistory: [] }); // priceChange를 계산하기 위해 market 전체를 저장
-const saltPrice = ref(0); // (기존 변수)
-// const priceChange = ref(0); // (삭제)
-// const priceClass = ref(''); // (삭제)
-// ▲▲▲ (수정 완료) ▲▲▲
-
+const market = ref({ currentPrice: 0, priceHistory: [] });
+const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
+
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
 let presenceRef = null;
@@ -114,32 +128,54 @@ let matchmakingUnsubscribe = null;
 
 const isGamePage = computed(() => route.meta.isGamePage === true);
 
-// ▼▼▼ [★핵심 추가★] 소수점 3자리로 포매팅하는 computed 속성 추가 ▼▼▼
-const saltPriceFormatted = computed(() => {
-  return (saltPrice.value || 0).toFixed(3);
-});
-
+const saltPriceFormatted = computed(() => (saltPrice.value || 0).toFixed(3));
 const priceChangeValue = computed(() => {
   const history = market.value?.priceHistory || [];
   if (history.length < 2) return 0;
-  // (참고: SaltTraderPage.vue와 달리, Navbar는 24시간 기준이 아닌 직전 가격 기준 변동을 계산)
-  // [수정] SaltTraderPage와 동일하게 24시간(history[0]) 기준으로 변경
   const oldPrice = history[0]?.price || saltPrice.value;
   return saltPrice.value - oldPrice;
 });
-
-const priceChangeFormatted = computed(() => {
-  // 변동폭을 소수점 3자리로 고정
-  return Number(priceChangeValue.value.toFixed(3));
-});
-
+const priceChangeFormatted = computed(() => Number(priceChangeValue.value.toFixed(3)));
 const priceClass = computed(() => {
   if (priceChangeValue.value > 0) return 'up';
   if (priceChangeValue.value < 0) return 'down';
   return '';
 });
-// ▲▲▲ (추가 완료) ▲▲▲
 
+const toggleProfileMenu = () => { isProfileMenuOpen.value = !isProfileMenuOpen.value; };
+const closeProfileMenu = () => { isProfileMenuOpen.value = false; };
+
+const handleClickOutside = (event) => {
+  if (profileMenuRef.value && !profileMenuRef.value.contains(event.target)) {
+    isProfileMenuOpen.value = false;
+  }
+};
+
+// [추가] 스크롤 핸들러 함수
+const handleScroll = () => {
+  const currentScrollPosition = window.scrollY || document.documentElement.scrollTop;
+  
+  if (currentScrollPosition < 0) {
+    return; // iOS 바운스 효과 무시
+  }
+
+  // 스크롤을 내리는 중이고, 일정 높이(60px) 이상 내려갔을 때 숨김
+  if (Math.abs(currentScrollPosition - lastScrollPosition) < 10) {
+    // 작은 변화는 무시 (떨림 방지)
+    return;
+  }
+
+  if (currentScrollPosition > lastScrollPosition && currentScrollPosition > 60) {
+    // 아래로 스크롤 중
+    isHeaderVisible.value = false;
+    isProfileMenuOpen.value = false; // 스크롤 시 드롭다운 닫기
+  } else {
+    // 위로 스크롤 중
+    isHeaderVisible.value = true;
+  }
+  
+  lastScrollPosition = currentScrollPosition;
+};
 
 const managePresence = (user) => {
   if (user) {
@@ -162,11 +198,8 @@ const listenToSaltPrice = () => {
   const marketRef = doc(db, "configuration", "saltMarket");
   saltPriceUnsubscribe = onSnapshot(marketRef, (docSnap) => {
     if (docSnap.exists()) {
-      // ▼▼▼ [★핵심 수정★] market 객체 전체를 저장 ▼▼▼
       market.value = docSnap.data();
       saltPrice.value = market.value.currentPrice;
-      // (기존 priceChange, priceClass 계산 로직은 computed로 이동)
-      // ▲▲▲ (수정 완료) ▲▲▲
     }
   });
 };
@@ -197,239 +230,259 @@ const checkAuthState = () => {
           userRole.value = userData.role || 'user';
         }
       } catch (error) {
-        console.error("사용자 정보를 가져오는 중 오류 발생:", error);
         userName.value = "사용자";
-        userRole.value = 'user';
       }
     } else {
       isLoggedIn.value = false;
       userName.value = "";
       userRole.value = null;
-      if (saltPriceUnsubscribe) saltPriceUnsubscribe();
-      if (matchmakingUnsubscribe) matchmakingUnsubscribe();
     }
   });
 };
 const generateQR = async () => {
   qrModal.visible = true;
   qrModal.isLoading = true;
-  qrModal.qrId = null;
-  qrModal.error = null;
   try {
     const generateFunc = httpsCallable(functions, "generateCenterQRCode");
     const result = await generateFunc();
     if (result.data.success) {
       const baseUrl = window.location.origin;
       qrModal.qrId = `${baseUrl}/qr-scanner?qrId=${result.data.qrId}`;
-    } else {
-      throw new Error("QR코드 생성에 실패했습니다.");
     }
   } catch (error) {
-    console.error("QR코드 생성 오류:", error);
-    qrModal.error = error.message;
+    qrModal.error = "QR 생성 실패";
   } finally {
     qrModal.isLoading = false;
   }
 };
-const closeQrModal = () => {
-  qrModal.visible = false;
-};
+const closeQrModal = () => { qrModal.visible = false; };
 const logout = async () => {
   try {
-    if (auth.currentUser) {
-      const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
-      await remove(userPresenceRef);
-    }
+    closeProfileMenu();
     await signOut(auth);
-    alert("로그아웃 되었습니다.");
     router.push("/login");
-  } catch (error) {
-    console.error("로그아웃 실패:", error);
-  }
+  } catch (error) { console.error(error); }
 };
-const toggleNav = () => {
-  isNavActive.value = !isNavActive.value;
-};
+
 onMounted(() => {
   checkAuthState();
+  document.addEventListener('click', handleClickOutside);
+  // [추가] 스크롤 리스너 등록
+  window.addEventListener('scroll', handleScroll);
 });
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  // [추가] 스크롤 리스너 제거
+  window.removeEventListener('scroll', handleScroll);
   if (authUnsubscribe) authUnsubscribe();
   if (saltPriceUnsubscribe) saltPriceUnsubscribe();
   if (matchmakingUnsubscribe) matchmakingUnsubscribe();
-  if (auth.currentUser) {
-    const userPresenceRef = dbRef(rtdb, `presence/${auth.currentUser.uid}`);
-    remove(userPresenceRef);
-  }
 });
 watch(() => router.currentRoute.value, () => {
-  isNavActive.value = false;
+  isProfileMenuOpen.value = false;
 });
 </script>
 
 <style scoped>
-/* (스타일 태그 내용은 변경된 부분 없음 - 기존 코드와 동일) */
-@media (max-width: 768px) {
-  #app.game-mode .navbar {
-    display: none;
-  }
-  
-  #app.game-mode .main-content {
-    margin-top: 0 !important;
-    padding: 0 !important;
-    height: 100dvh;
-  }
-}
-#app.game-mode .main-content {
-  margin-top: 70px;
-}
-@media (max-width: 768px) {
-  #app.game-mode .main-content {
-    margin-top: 0 !important;
-  }
-}
-.fab-matchmaking-button {
-  position: fixed;
-  top: 130px; 
-  right: 25px;
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  background-color: #e74c3c;
-  color: white;
-  border: 2px solid white;
+#app {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 1.6em;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  z-index: 998;
-  transition: all 0.3s ease;
-  text-decoration: none;
-}
-@media (max-width: 768px) {
-  .fab-matchmaking-button {
-    top: 140px;
-    right: 15px;
-    width: 50px;
-    height: 50px;
-    font-size: 1.4em;
-  }
-  .fab-badge {
-    width: 20px;
-    height: 20px;
-    font-size: 11px;
-  }
-}
-.fab-matchmaking-button:hover {
-  background-color: #c0392b;
-  transform: scale(1.1);
-}
-.fab-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 22px;
-  height: 22px;
-  background-color: #007bff;
-  color: white;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: bold;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border: 2px solid white;
-}
-.pulse-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border: 3px solid #e74c3c;
-  border-radius: 50%;
-  animation: pulse-animate 2s infinite cubic-bezier(0.2, 0.8, 0.7, 1);
-  z-index: -1;
-}
-@keyframes pulse-animate {
-  0% {
-    transform: scale(0.9);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-}
-.salt-ticker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  min-height: 100vh;
   background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-family: monospace;
+}
+
+/* Navbar 스타일 */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 56px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  
+  /* [추가] 부드러운 이동 애니메이션 */
+  transition: transform 0.3s ease-in-out;
+}
+
+/* [추가] 헤더가 숨겨질 때 적용되는 클래스 */
+.navbar.navbar-hidden {
+  transform: translateY(-100%);
+}
+
+.navbar-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
   text-decoration: none;
-  color: #212529;
-  transition: box-shadow 0.2s;
-}
-.salt-ticker:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-.ticker-label {
+  color: #333;
   font-weight: bold;
-  font-size: 0.9em;
+  font-size: 1.2rem;
+}
+.nav-logo img {
+  height: 28px;
+  margin-right: 6px;
+}
+
+.nav-ticker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f1f3f5;
+  padding: 4px 12px;
+  border-radius: 16px;
+  white-space: nowrap;
+}
+.ticker-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: #333;
+  font-size: 0.9rem;
+  font-family: monospace;
+  font-weight: 600;
+}
+.ticker-name { color: #007bff; }
+.ticker-delta.up { color: #e74c3c; }
+.ticker-delta.down { color: #007bff; }
+
+.nav-right {
+  display: flex;
+  align-items: center;
+}
+.profile-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+.avatar-circle {
+  width: 36px;
+  height: 36px;
+  background-color: #e9ecef;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #495057;
+  font-size: 1.1rem;
+  transition: background 0.2s;
+}
+.avatar-circle:hover {
+  background-color: #dee2e6;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 45px;
+  right: 0;
+  width: 200px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 1001;
+  border: 1px solid #eee;
+}
+.user-info {
+  padding: 8px 12px;
+  font-weight: bold;
+  color: #333;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.dropdown-item {
+  padding: 10px 12px;
+  text-decoration: none;
+  color: #555;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+}
+.dropdown-item:hover {
+  background-color: #f1f3f5;
   color: #007bff;
 }
-.ticker-price {
-  font-weight: bold;
-  font-size: 1.1em;
+.dropdown-item.logout {
+  color: #e74c3c;
 }
-.ticker-change {
-  font-weight: bold;
-  font-size: 0.9em;
-  display: flex;
-  align-items: center;
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 4px 0;
 }
-.ticker-change.up { color: #28a745; }
-.ticker-change.down { color: #dc3545; }
-#app { display: flex; flex-direction: column; min-height: 100vh; background-color: #f8f9fa; }
-.navbar { position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; padding: 10px 20px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(0, 0, 0, 0.1); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); }
-.navbar-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-.navbar-brand { display: flex; align-items: center; text-decoration: none; color: #333; font-size: 1.5em; font-weight: bold; }
-.navbar-brand img { height: 40px; margin-right: 10px; }
-.navbar-nav { display: flex; gap: 25px; }
-.nav-link { text-decoration: none; color: #555; font-weight: 500; padding: 5px 0; position: relative; transition: color 0.3s; }
-.nav-link::after { content: ""; position: absolute; bottom: 0; left: 0; width: 0; height: 2px; background-color: #007bff; transition: width 0.3s; }
-.nav-link:hover, .nav-link.router-link-exact-active { color: #007bff; }
-.nav-link:hover::after, .nav-link.router-link-exact-active::after { width: 100%; }
-.navbar-actions { display: flex; align-items: center; gap: 15px; }
-.user-actions { display: flex; align-items: center; gap: 15px; }
-.user-profile-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #333; font-weight: 500; }
-.logout-button, .login-button { padding: 8px 15px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: background-color 0.3s, color 0.3s; }
-.logout-button { background-color: #f8f9fa; color: #dc3545; border: 1px solid #dc3545; }
-.logout-button:hover { background-color: #dc3545; color: white; }
-.login-button { background-color: #007bff; color: white; text-decoration: none; }
-.login-button:hover { background-color: #0056b3; }
-.navbar-toggler { display: none; background: none; border: none; font-size: 1.5em; cursor: pointer; }
-.main-content { flex: 1; margin-top: 70px; }
-.fab-qr-button { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background-color: #007bff; color: white; border: none; display: flex; justify-content: center; align-items: center; font-size: 1.8em; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); cursor: pointer; z-index: 998; transition: all 0.3s ease; }
-.fab-qr-button:hover { background-color: #0056b3; transform: scale(1.1); }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-.modal-header h3 { margin: 0; }
-.close-button { background: none; border: none; font-size: 1.5em; cursor: pointer; }
-.modal-body { text-align: center; }
-.qr-code-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
-.qr-info { font-size: 0.9em; color: #555; }
-.qr-error { color: #dc3545; }
-.loading-spinner { display: inline-block; border: 4px solid rgba(0,0,0,0.1); border-top-color: #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 992px) {
-  .navbar-nav { display: none; position: absolute; top: 70px; left: 0; width: 100%; background-color: white; flex-direction: column; padding: 20px; box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1); }
-  .navbar-nav.is-active { display: flex; }
-  .navbar-toggler { display: block; }
+
+.main-content {
+  flex: 1;
+  margin-top: 56px;
+}
+
+#app.game-mode .navbar {
+  background: rgba(255,255,255,0.7);
+}
+
+@media (max-width: 768px) {
+  .logo-text {
+    display: none; 
+  }
+  .nav-logo img {
+    height: 32px; 
+  }
+  .ticker-name {
+    display: none; 
+  }
+  .nav-ticker {
+    font-size: 0.85rem;
+    padding: 4px 10px;
+  }
+  
+  .mobile-nav-links {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-nav-links {
+    display: block; 
+  }
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.fab-matchmaking-button, .fab-qr-button { /* 기존 스타일 */ }
+.modal-overlay { /* 기존 스타일 */ }
+.login-btn {
+  background-color: #007bff;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 16px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: bold;
 }
 </style>
