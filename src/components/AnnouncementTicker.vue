@@ -1,5 +1,5 @@
 <template>
-  <div v-if="announcement" class="ticker-wrap">
+  <div v-if="announcement" class="ticker-wrap" :class="{ 'ticker-fixed-top': isHeaderHidden }">
     <div class="ticker">
       <div class="ticker-item">
         <i class="fas fa-bullhorn"></i>
@@ -18,7 +18,24 @@ import { db } from '@/firebaseConfig';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 const announcement = ref(null);
+const isHeaderHidden = ref(false);
 let unsubscribe = null;
+let lastScrollY = 0;
+
+// 스크롤 감지 핸들러
+const handleScroll = () => {
+  const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+  
+  // 스크롤을 60px 이상 내렸을 때 헤더가 숨겨진다고 가정하고 공지바를 올림
+  if (currentScrollY > 60 && currentScrollY > lastScrollY) {
+    isHeaderHidden.value = true;
+  } else {
+    // 스크롤을 조금이라도 올리면 헤더가 나오므로 공지바도 내림
+    isHeaderHidden.value = false;
+  }
+  
+  lastScrollY = currentScrollY;
+};
 
 onMounted(() => {
   const q = query(
@@ -35,12 +52,15 @@ onMounted(() => {
       announcement.value = null;
     }
   });
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
 });
 
 onUnmounted(() => {
   if (unsubscribe) {
     unsubscribe();
   }
+  window.removeEventListener('scroll', handleScroll);
 });
 </script>
 
@@ -52,7 +72,8 @@ onUnmounted(() => {
 
 .ticker-wrap {
   position: fixed;
-  top: 56px; /* Navbar height */
+  /* 기본 위치: 헤더(56px) 아래 */
+  top: 56px; 
   left: 0;
   width: 100%;
   overflow: hidden;
@@ -61,6 +82,20 @@ onUnmounted(() => {
   padding: 10px 0;
   z-index: 999;
   box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  transition: top 0.3s ease-in-out; /* 부드러운 이동 효과 */
+}
+
+/* 모바일 화면 (768px 이하) */
+@media (max-width: 768px) {
+  .ticker-wrap {
+    /* 모바일 헤더 높이(46px)에 맞춤 */
+    top: 46px; 
+  }
+}
+
+/* 헤더가 숨겨졌을 때 (상단 고정) */
+.ticker-fixed-top {
+  top: 0 !important;
 }
 
 .ticker {
