@@ -2,7 +2,6 @@
   <div class="treasure-box-page" :class="{ 'fever-mode': isFeverTime }">
     <div class="game-container card glassmorphism">
       
-      <!-- 피버 타임 배지 -->
       <div v-if="isFeverTime" class="fever-badge">
         <i class="fas fa-fire"></i> FEVER TIME (20:00 ~ 22:00) <i class="fas fa-fire"></i>
         <span class="fever-desc">보상 확률 대폭 상승!</span>
@@ -14,7 +13,6 @@
       </header>
 
       <main class="game-content">
-        <!-- 상자 스테이지 -->
         <div class="chest-stage">
           <div
             class="chest-container"
@@ -27,11 +25,9 @@
             }"
             @click="handleChestClick"
           >
-            <!-- 상자 이미지 -->
             <img v-show="!isOpened" src="@/assets/chest_closed.png" class="chest-image closed" />
             <img v-show="isOpened" src="@/assets/chest_open.png" class="chest-image open" />
             
-            <!-- 이펙트 -->
             <div class="glow-effect"></div>
             <div v-if="isOpened" class="particles-container">
               <div v-for="n in 50" :key="n" class="particle"></div>
@@ -39,13 +35,11 @@
           </div>
         </div>
 
-        <!-- 결과 메시지 -->
         <div v-if="message" class="result-message" :class="{ success: reward > 0 }">
           <i v-if="reward > 0" class="fas fa-coins"></i>
           <span>{{ message }}</span>
         </div>
 
-        <!-- [신규] 등급 선택 UI -->
         <div class="tier-selector" v-if="!isOpened && !isOpening">
           <div 
             class="tier-card normal" 
@@ -59,7 +53,7 @@
 
           <div 
             class="tier-card premium" 
-            :class="{ active: selectedTier === 'premium' }"
+            :class="{ active: selectedTier === 'premium', disabled: !canOpenPremium }"
             @click="selectTier('premium')"
           >
             <div class="tier-name">프리미엄</div>
@@ -69,7 +63,7 @@
 
           <div 
             class="tier-card legendary" 
-            :class="{ active: selectedTier === 'legendary' }"
+            :class="{ active: selectedTier === 'legendary', disabled: !canOpenLegendary }"
             @click="selectTier('legendary')"
           >
             <div class="tier-name">전설 상자</div>
@@ -79,10 +73,10 @@
         </div>
 
         <div class="action-area" v-if="!isOpened && !isOpening">
-          <button class="btn-open" :class="selectedTier" @click="handleChestClick" :disabled="selectedTier === 'normal' && !canOpenNormal">
-            <span v-if="selectedTier === 'normal'">{{ canOpenNormal ? '무료로 열기' : '내일 다시 오세요' }}</span>
+          <button class="btn-open" :class="selectedTier" @click="handleChestClick" :disabled="isButtonDisabled">
+            <span v-if="isButtonDisabled">내일 다시 오세요</span>
             <span v-else>
-              {{ selectedTier === 'premium' ? '500' : '2,000' }} SaltMate로 열기
+              {{ selectedTier === 'normal' ? '무료로 열기' : (selectedTier === 'premium' ? '500' : '2,000') + ' SaltMate로 열기' }}
             </span>
           </button>
         </div>
@@ -107,17 +101,21 @@ import { functions, auth, db } from '@/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-// [신규] 효과음 로드
 const openSound = new Audio(require('@/assets/sounds/door-opening.mp3'));
 
 const user = ref(null);
 const userPoints = ref(0);
+
+// [수정] 티어별 오픈 가능 여부 상태 변수
 const canOpenNormal = ref(false);
+const canOpenPremium = ref(false);
+const canOpenLegendary = ref(false);
+
 const isOpening = ref(false);
 const isOpened = ref(false);
 const reward = ref(0);
 const message = ref('');
-const selectedTier = ref('normal'); // 'normal', 'premium', 'legendary'
+const selectedTier = ref('normal'); 
 const isFeverTime = ref(false);
 
 let unsubscribeUser = null;
@@ -130,7 +128,6 @@ const todayStr = computed(() => {
   return kstDate.toISOString().slice(0, 10);
 });
 
-// 피버 타임 체크 (20:00 ~ 22:00)
 const checkFeverTime = () => {
   const now = new Date();
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -138,36 +135,48 @@ const checkFeverTime = () => {
   isFeverTime.value = hour >= 20 && hour < 22;
 };
 
+// [핵심 수정] 모든 티어의 일일 참여 상태를 체크하는 함수
 const checkDailyStatus = () => {
-  // 1. 로컬 스토리지 확인 (빠른 UI 응답용)
-  const localLastOpened = localStorage.getItem(`lastTreasureOpen_Normal_${user.value?.uid}`);
-  let isOpenedLocally = localLastOpened === todayStr.value;
+  if (!user.value) return;
 
-  // 2. 서버 데이터 확인 (신뢰성 확보)
-  // user.value는 onSnapshot으로 실시간 업데이트되므로 최신 lastTreasureBoxPlay 정보를 가짐
-  if (user.value?.lastTreasureBoxPlay) {
-    const serverLastDate = user.value.lastTreasureBoxPlay.toDate();
-    const kstOffset = 9 * 60 * 60 * 1000;
-    const serverLastDateStr = new Date(serverLastDate.getTime() + kstOffset).toISOString().slice(0, 10);
-    
-    if (serverLastDateStr === todayStr.value) {
-      isOpenedLocally = true;
-      // 로컬 스토리지도 동기화 (혹시 비었을 경우)
-      localStorage.setItem(`lastTreasureOpen_Normal_${user.value.uid}`, todayStr.value);
+  const checkTierStatus = (storageKey, serverField) => {
+    const localLastOpened = localStorage.getItem(storageKey);
+    let isOpenedLocally = localLastOpened === todayStr.value;
+
+    if (user.value[serverField]) {
+      const serverLastDate = user.value[serverField].toDate();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const serverLastDateStr = new Date(serverLastDate.getTime() + kstOffset).toISOString().slice(0, 10);
+      
+      if (serverLastDateStr === todayStr.value) {
+        isOpenedLocally = true;
+        localStorage.setItem(storageKey, todayStr.value);
+      }
     }
-  }
+    return !isOpenedLocally; // 오늘 안 열었으면 true
+  };
 
-  // 오늘 이미 열었다면(isOpenedLocally === true) -> canOpenNormal은 false
-  canOpenNormal.value = !isOpenedLocally;
+  canOpenNormal.value = checkTierStatus(`lastTreasureOpen_Normal_${user.value.uid}`, 'lastTreasureBoxPlay');
+  canOpenPremium.value = checkTierStatus(`lastTreasureOpen_Premium_${user.value.uid}`, 'lastTreasureBoxPlay_Premium');
+  canOpenLegendary.value = checkTierStatus(`lastTreasureOpen_Legendary_${user.value.uid}`, 'lastTreasureBoxPlay_Legendary');
 
-  // 일반 상자를 이미 열었으면 자동으로 프리미엄 선택
-  if (!canOpenNormal.value && selectedTier.value === 'normal') {
-    selectedTier.value = 'premium';
+  // 현재 선택된 티어가 불가능하면 가능한 다른 티어로 자동 변경 (선택 사항)
+  if (selectedTier.value === 'normal' && !canOpenNormal.value) {
+      if (canOpenPremium.value) selectedTier.value = 'premium';
+      else if (canOpenLegendary.value) selectedTier.value = 'legendary';
   }
 };
 
+// 현재 선택된 티어의 버튼 비활성화 여부 계산
+const isButtonDisabled = computed(() => {
+  if (selectedTier.value === 'normal') return !canOpenNormal.value;
+  if (selectedTier.value === 'premium') return !canOpenPremium.value;
+  if (selectedTier.value === 'legendary') return !canOpenLegendary.value;
+  return true;
+});
+
 const selectTier = (tier) => {
-  if (tier === 'normal' && !canOpenNormal.value) return;
+  // 비활성화된 티어도 선택은 가능하게 하여 상태를 보여줌 (UX 선택)
   selectedTier.value = tier;
 };
 
@@ -182,9 +191,8 @@ const resetGame = () => {
 const handleChestClick = async () => {
   if (!user.value) { alert('로그인이 필요합니다.'); return; }
   if (isOpening.value || isOpened.value) return;
-  if (selectedTier.value === 'normal' && !canOpenNormal.value) return;
+  if (isButtonDisabled.value) return; // 이미 열었으면 중단
 
-  // 포인트 확인 (프론트엔드 1차 검증)
   const cost = selectedTier.value === 'premium' ? 500 : selectedTier.value === 'legendary' ? 2000 : 0;
   if (userPoints.value < cost) {
     alert('SaltMate 포인트가 부족합니다.');
@@ -194,21 +202,17 @@ const handleChestClick = async () => {
   isOpening.value = true;
   message.value = '전설의 보물을 확인하는 중...';
 
-  // [신규] 햅틱 피드백 (진동) - 덜컹거림
   if (navigator.vibrate) navigator.vibrate([50, 30, 50, 30, 50]);
 
   try {
     const openTreasureBox = httpsCallable(functions, 'openTreasureBox');
     
-    // 1. 덜컹거리는 애니메이션 시간 (1.5초)
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 2. 효과음 재생 및 강한 진동
     openSound.currentTime = 0;
-    openSound.play().catch(() => {}); // 자동재생 정책 방어
-    if (navigator.vibrate) navigator.vibrate(200); // 쾅!
+    openSound.play().catch(() => {});
+    if (navigator.vibrate) navigator.vibrate(200);
 
-    // 3. 서버 요청
     const result = await openTreasureBox({ tier: selectedTier.value });
     
     isOpening.value = false;
@@ -216,9 +220,19 @@ const handleChestClick = async () => {
     reward.value = result.data.reward;
     message.value = result.data.message;
 
-    if (result.data.success && selectedTier.value === 'normal') {
-      localStorage.setItem(`lastTreasureOpen_Normal_${user.value.uid}`, todayStr.value);
-      canOpenNormal.value = false;
+    if (result.data.success) {
+      // 로컬 스토리지 즉시 업데이트 (UI 반응성 향상)
+      const storageKeyMap = {
+        'normal': `lastTreasureOpen_Normal_${user.value.uid}`,
+        'premium': `lastTreasureOpen_Premium_${user.value.uid}`,
+        'legendary': `lastTreasureOpen_Legendary_${user.value.uid}`
+      };
+      localStorage.setItem(storageKeyMap[selectedTier.value], todayStr.value);
+      
+      // 상태 변수 즉시 업데이트
+      if (selectedTier.value === 'normal') canOpenNormal.value = false;
+      if (selectedTier.value === 'premium') canOpenPremium.value = false;
+      if (selectedTier.value === 'legendary') canOpenLegendary.value = false;
     }
   } catch (error) {
     console.error('보물상자 오류:', error);
@@ -229,28 +243,24 @@ const handleChestClick = async () => {
 
 onMounted(() => {
   checkFeverTime();
-  feverInterval = setInterval(checkFeverTime, 60000); // 1분마다 체크
+  feverInterval = setInterval(checkFeverTime, 60000);
 
   onAuthStateChanged(auth, (currentUser) => {
     if (unsubscribeUser) unsubscribeUser();
     if (currentUser) {
       user.value = currentUser;
       
-      // 1. 초기 상태 체크
+      // 1. 초기 상태 체크 (user 객체만 있어도 로컬 스토리지 기반으로 체크 가능)
       checkDailyStatus();
       
-      // 2. 실시간 데이터 구독 (포인트 및 상자 오픈 기록 동기화)
       unsubscribeUser = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
         if (docSnap.exists()) {
           const userData = docSnap.data();
           userPoints.value = userData.saltmatePoints || 0;
           
-          // ▼▼▼ [핵심 추가] 사용자 정보에 최신 DB 데이터 병합 (lastTreasureBoxPlay 확인용) ▼▼▼
+          // [핵심] 사용자 정보 업데이트 (lastTreasureBoxPlay_Premium 등 포함)
           user.value = { ...user.value, ...userData }; 
-          
-          // 데이터가 갱신될 때마다(상자 오픈 직후 등) 버튼 상태를 다시 체크
           checkDailyStatus(); 
-          // ▲▲▲
         }
       });
     } else {
@@ -267,6 +277,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* (스타일은 이전과 동일) */
 .treasure-box-page {
   padding: 20px;
   min-height: 100vh;
@@ -278,7 +289,7 @@ onUnmounted(() => {
 }
 
 .treasure-box-page.fever-mode {
-  background: radial-gradient(circle at center, #3a0000 0%, #1a0000 100%); /* 피버 타임 배경 */
+  background: radial-gradient(circle at center, #3a0000 0%, #1a0000 100%);
 }
 
 .game-container {
@@ -315,7 +326,6 @@ onUnmounted(() => {
 }
 .game-header p { color: #bdc3c7; font-size: 0.9rem; margin: 0; }
 
-/* 상자 스테이지 */
 .chest-stage {
   min-height: 220px;
   display: flex;
@@ -333,7 +343,6 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
-/* 등급별 상자 효과 (글로우 색상 변경) */
 .chest-container.tier-premium .glow-effect { background: radial-gradient(circle, rgba(0, 191, 255, 0.4) 0%, transparent 70%); }
 .chest-container.tier-legendary .glow-effect { background: radial-gradient(circle, rgba(255, 0, 0, 0.4) 0%, transparent 70%); }
 
@@ -344,7 +353,6 @@ onUnmounted(() => {
   filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
 }
 
-/* 등급 선택 UI */
 .tier-selector {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -414,7 +422,6 @@ onUnmounted(() => {
 .game-footer { margin-top: 20px; color: #888; font-size: 0.9rem; }
 .game-footer strong { color: #fff; }
 
-/* 애니메이션 */
 .glow-effect {
   position: absolute; top: 50%; left: 50%; width: 120%; height: 120%;
   background: radial-gradient(circle, rgba(255,215,0,0.4) 0%, transparent 70%);
@@ -433,7 +440,6 @@ onUnmounted(() => {
 @keyframes pulse-fever { 0% { transform: scale(1); } 50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 78, 80, 0.5); } 100% { transform: scale(1); } }
 @keyframes pop-text { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
-/* 파티클 */
 .particles-container { position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
 .particle {
   position: absolute; width: 6px; height: 6px; background: #FFD700; border-radius: 50%;
@@ -447,7 +453,6 @@ onUnmounted(() => {
     transform: rotate(var(--angle)) translateY(var(--dist));
   }
 }
-/* 단순화된 파티클 애니메이션 (SCSS 대신 CSS 변수 활용 불가시 랜덤 효과 제한적임) */
 @keyframes explode {
   0% { opacity: 1; transform: translate(0, 0) scale(1); }
   100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
