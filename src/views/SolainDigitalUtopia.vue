@@ -113,7 +113,7 @@ const isVideoPlaying = ref(false);
 const isMuted = ref(true); 
 const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
-let authUnsubscribe = null; // [수정] 전역 변수로 선언
+let authUnsubscribe = null; 
 
 // Agora 변수
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -160,10 +160,42 @@ let joystickManager = null;
 
 // --- 함수 정의 시작 ---
 
+// [수정] 행동 트리거 (1회 재생 후 복귀)
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
-  specialAction.value = actionName;
-  updatePlayerMovement(0.016);
+  
+  const mixer = myAvatar.userData.mixer;
+  const actions = myAvatar.userData.actions;
+  const action = actions[actionName];
+  
+  if (action) {
+    // 1. 모든 동작 멈추고 해당 동작 실행 설정
+    mixer.stopAllAction();
+    
+    // 2. 1회만 재생 설정
+    action.reset();
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.play();
+    
+    specialAction.value = actionName;
+
+    // 3. 종료 감지 이벤트 리스너
+    const onFinished = (e) => {
+        if (e.action === action) {
+            mixer.removeEventListener('finished', onFinished);
+            specialAction.value = null; // 특수 행동 해제
+            
+            // 대기 상태로 부드럽게 전환
+            const idleAction = actions[currentIdle.value];
+            if (idleAction) {
+                idleAction.reset().play();
+                action.crossFadeTo(idleAction, 0.3);
+            }
+        }
+    };
+    mixer.addEventListener('finished', onFinished);
+  }
 };
 
 const resumeAudioContext = () => {
@@ -175,43 +207,59 @@ const resumeAudioContext = () => {
 
 const initAgora = async (uid) => {
   if (!uid) return;
-  const numericUid = uidToNum(uid);
+  // [중요] Firebase UID 문자열 그대로 사용
+  const stringUid = uid; 
+
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     AgoraRTC.onAutoplayFailed = () => {
         console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
+    
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
-        const isTalking = level > 50; 
-        if (speakerUid === 0 || speakerUid === numericUid) {
-            updateSpeakingIndicator(uid, isTalking, false); 
+        const isTalking = level > 40; 
+        // 문자열 ID 비교
+        if (speakerUid === 0 || speakerUid === stringUid) {
+            updateSpeakingIndicator(stringUid, isTalking, false); 
         } else {
-            updateSpeakingIndicator(speakerUid, isTalking, true); 
+            updateSpeakingIndicator(speakerUid, isTalking, true); // 상대방도 문자열 ID
         }
       });
     });
+
+    // [수정] 오디오 구독 강화
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
+      console.log(`[Agora] Subscribed to ${user.uid} (${mediaType})`);
+      
       if (mediaType === "audio") {
         try {
-            user.audioTrack.play();
-            user.audioTrack.setVolume(100); 
+            // 약간의 지연 후 재생 (안정성 확보)
+            setTimeout(() => {
+                user.audioTrack.play();
+                user.audioTrack.setVolume(100);
+            }, 200);
         } catch (e) {
             console.error("[Agora] Play failed:", e);
             audioBlocked.value = true;
         }
       }
     });
+
     agoraClient.value.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "audio") {
         if (user.audioTrack) user.audioTrack.stop();
       }
     });
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, numericUid);
+
+    // 문자열 ID로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
+    console.log(`[Agora] Joined with String UID: ${stringUid}`);
+
   } catch (error) {
     console.error("[Agora] Init Error:", error);
   }
@@ -220,16 +268,14 @@ const initAgora = async (uid) => {
 const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
-  if (!isNumericId) {
-      if (targetId === currentUid) targetMesh = myAvatar;
-  } else {
-      for (const key in otherPlayers) {
-          if (uidToNum(key) === targetId) {
-              targetMesh = otherPlayers[key].mesh;
-              break;
-          }
-      }
+
+  // 문자열 ID 비교
+  if (targetId === currentUid) {
+      targetMesh = myAvatar;
+  } else if (otherPlayers[targetId]) {
+      targetMesh = otherPlayers[targetId].mesh;
   }
+
   if (!targetMesh) return;
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
   if (isSpeaking) {
@@ -668,96 +714,14 @@ const forceInitialMove = () => {
     }, 200);
 };
 
-const initThree = () => {
-  try {
-      scene = new THREE.Scene();
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load('/my_background.jpg', (texture) => {
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          scene.background = texture;
-          scene.environment = texture;
-      }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
-      scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
-      const startX = 37.16; const startY = 5.49; const startZ = 7.85;
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(startX, startY + 5, startZ + 10);
-      if (!canvasRef.value) return false;
-      renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.1;
-      controls.minDistance = 2;
-      controls.maxDistance = 40;
-      controls.maxPolarAngle = Math.PI / 2 - 0.05;
-      controls.target.set(startX, startY + 1.0, startZ);
-      controls.update();
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-      scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      dirLight.position.set(50, 80, 40);
-      dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 2048;
-      dirLight.shadow.mapSize.height = 2048;
-      scene.add(dirLight);
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
-      scene.add(hemiLight);
-      loader.load('/models/low_poly_city_pack.glb', (gltf) => {
-          const city = gltf.scene;
-          city.name = "cityMap";
-          const box = new THREE.Box3().setFromObject(city);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
-          const scaleFactor = 150 / Math.max(size.x, size.z);
-          city.scale.set(scaleFactor, scaleFactor, scaleFactor);
-          const scaledBox = new THREE.Box3().setFromObject(city);
-          const groundLevelY = -scaledBox.min.y;
-          city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
-          city.traverse(child => { 
-            if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } 
-          });
-          scene.add(city);
-          if (myAvatar) { 
-             myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
-             myAvatar.updateMatrixWorld(true);
-          }
-          const video = cinemaVideoRef.value;
-          if (video) {
-            const videoTexture = new THREE.VideoTexture(video);
-            videoTexture.minFilter = THREE.LinearFilter;
-            videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.colorSpace = THREE.SRGBColorSpace; 
-            const screenGeo = new THREE.PlaneGeometry(16, 9);
-            const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
-            const screen = new THREE.Mesh(screenGeo, screenMat);
-            screen.position.set(startX, groundLevelY + 7, startZ - 15); 
-            screen.name = "cinemaScreen";
-            scene.add(screen);
-          }
-      }, undefined, (e) => console.error('맵 로드 실패', e));
-      clock = new THREE.Clock();
-      return true;
-  } catch (e) { console.error(e); return false; }
-};
-
-const handleKeyDown = (event) => { if(chatInputRef.value !== document.activeElement) keysPressed[event.code] = true; };
-const handleKeyUp = (event) => { keysPressed[event.code] = false; };
-const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
-const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
-const handleResize = () => {
-    if (!camera || !renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-};
-
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
+  
+  // [수정] 특수 행동 중이거나 이동이 없을 땐 대기 동작
   let currentAnimation = specialAction.value || currentIdle.value;
+  
   let currentSpeedFactor = 1.0;
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
@@ -787,15 +751,18 @@ const updatePlayerMovement = (deltaTime) => {
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
         moveDirection.z = 1; 
-        if(currentAnimation === 'idle' || currentAnimation.startsWith('idle')) currentAnimation = 'walk'; 
+        // [수정] 특수 행동 중이 아닐 때만 걷기로 변경
+        if (!specialAction.value) currentAnimation = 'walk'; 
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
         moveDirection.z = -1; 
-        if(currentAnimation === 'idle' || currentAnimation.startsWith('idle')) currentAnimation = 'walkBackward'; 
+        if (!specialAction.value) currentAnimation = 'walkBackward'; 
     }
   }
   if (moved) {
+    // 움직이면 특수 행동 즉시 취소
     specialAction.value = null;
+    
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
@@ -860,7 +827,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
   }
 };
 
-// --- [중요] animate 함수를 호출 가능한 위치(위쪽)에 정의 ---
+// --- [중요] animate 함수 정의 ---
 const animate = () => {
   if (!renderer || !scene || !camera || !clock) return;
   requestAnimationFrame(animate);
@@ -898,7 +865,6 @@ onMounted(() => {
       window.addEventListener('click', handleUserInteraction);
       window.addEventListener('mousemove', handleUserInteraction); 
 
-      // 애니메이션 시작
       animate();
 
       try {
@@ -950,7 +916,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // [수정] 리스너 해제 추가
+  // [수정] 스크롤 복구
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+  
   if (authUnsubscribe) authUnsubscribe();
   
   window.removeEventListener('resize', handleResize);
@@ -977,6 +946,7 @@ onUnmounted(() => {
 :global(body), :global(html) {
   margin: 0;
   padding: 0;
+  /* [중요] 스크롤 방지 */
   overflow: hidden; 
   height: 100%;
 }
