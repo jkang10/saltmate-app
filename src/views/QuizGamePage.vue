@@ -5,11 +5,11 @@
       <p>게임 정보를 불러오는 중...</p>
     </div>
 
-    <div v-else-if="shouldShowWaitingScreen" class="state-screen">
+<div v-else-if="shouldShowWaitingScreen" class="state-screen">
       <i class="fas fa-trophy title-icon"></i>
       <h2 class="game-title">솔트 스칼라 퀴즈</h2>
-      <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       
+      <p class="game-description">3시간에 한번씩 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       <div class="countdown">
         {{ displayTimeToStart > 0 ? `게임 시작까지 ${formattedTime}` : '잠시 후 시작됩니다!' }}
       </div>
@@ -163,9 +163,11 @@ const nextGameTime = computed(() => {
   const now = new Date();
   const allowedHours = [0, 9, 12, 15, 18, 21];
   const currentHour = now.getHours();
+  
   let nextHour = allowedHours.find(hour => hour > currentHour);
+  
   if (nextHour === undefined) {
-    nextHour = 0;
+    return "내일 0시 정각"; // 21시 이후에는 내일 0시
   }
   return `${nextHour}시 정각`;
 });
@@ -242,23 +244,34 @@ const updateCountdown = () => {
       const localNow = Date.now() + serverTimeOffset.value;
       let targetTime = game.value.startTime;
       
+      // 게임 시작 시간이 이미 지났다면, 다음 예정된 게임 시간을 계산해서 보여줌
       if (targetTime < localNow) {
          const now = new Date();
          const allowedHours = [0, 9, 12, 15, 18, 21];
-         let nextHour = allowedHours.find(h => h > now.getHours());
-         if(nextHour === undefined) nextHour = 24; 
+         const currentHour = now.getHours();
+         
+         // 현재 시간보다 큰(미래의) 게임 시간을 찾음
+         let nextHour = allowedHours.find(h => h > currentHour);
          
          const nextDate = new Date(now);
-         nextDate.setHours(nextHour, 0, 0, 0);
-         if(nextHour === 24) nextDate.setDate(nextDate.getDate() + 1);
          
+         if(nextHour === undefined) {
+             // 오늘 남은 게임이 없으면(21시 이후), 내일 0시가 다음 게임
+             nextHour = 0;
+             nextDate.setDate(nextDate.getDate() + 1);
+         }
+         
+         // 다음 게임 시간 설정 (분, 초, 밀리초는 0으로 초기화)
+         nextDate.setHours(nextHour, 0, 0, 0);
          targetTime = nextDate.getTime();
       }
 
+      // 남은 시간 계산 (음수 방지)
       displayTimeToStart.value = Math.max(0, Math.round((targetTime - localNow) / 1000));
     };
-    update();
-    countdownInterval = setInterval(update, 1000);
+    
+    update(); // 즉시 1회 실행
+    countdownInterval = setInterval(update, 1000); // 1초마다 갱신
   }
 };
 
