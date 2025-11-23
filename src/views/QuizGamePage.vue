@@ -9,13 +9,24 @@
       <i class="fas fa-trophy title-icon"></i>
       <h2 class="game-title">솔트 스칼라 퀴즈</h2>
       <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
+      
       <div class="countdown">
-        {{ displayTimeToStart > 0 ? `게임 시작까지 약 ${displayTimeToStart}초` : '잠시 후 시작됩니다!' }}
+        {{ displayTimeToStart > 0 ? `게임 시작까지 ${formattedTime}` : '잠시 후 시작됩니다!' }}
       </div>
-      <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
-        <span v-if="isJoined">참가 완료!</span>
-        <span v-else>참가하기 (100 포인트 즉시 지급)</span>
-      </button>
+
+      <div v-if="displayTimeToStart <= 60">
+        <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
+          <span v-if="isJoined">참가 완료! (대기 중)</span>
+          <span v-else>참가하기 (100 포인트 즉시 지급)</span>
+        </button>
+      </div>
+
+      <div v-else>
+        <router-link to="/dashboard" class="action-button dashboard-button">
+          대시보드로 이동
+        </router-link>
+        <p class="info-text">※ 게임 시작 1분 전부터 입장 가능합니다.</p>
+      </div>
     </div>
 
     <div v-else-if="game.status === 'playing' && isGameValid && currentQuestion" class="playing-screen">
@@ -90,32 +101,35 @@ const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 const rtdb = getDatabase();
 const gameRef = dbRef(rtdb, 'quizGame/currentGame');
 
-// [신규] 현재 게임 상태가 유효한지(시간이 지나지 않았는지) 확인하는 computed 속성
+// [신규] 초 단위 시간을 '시 분 초'로 변환하는 computed 속성
+const formattedTime = computed(() => {
+  const totalSeconds = displayTimeToStart.value;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  let result = '';
+  if (hours > 0) result += `${hours}시간 `;
+  if (minutes > 0 || hours > 0) result += `${minutes}분 `;
+  result += `${seconds}초`;
+
+  return result;
+});
+
 const isGameValid = computed(() => {
   if (!game.value || game.value.status !== 'playing') return false;
   
   const localNow = Date.now() + serverTimeOffset.value;
-  // 라운드 종료 시간에서 5초 이상 지났다면 '죽은 게임'으로 간주 (DB가 업데이트 안 된 상태)
-  // 이렇게 하면 퀴즈 시간이 아닐 때 들어와도 문제 화면이 안 뜨고 대기 화면으로 넘어감
   if (localNow > (game.value.roundEndTime + 5000)) {
       return false;
   }
   return true;
 });
 
-// [신규] 대기 화면을 보여줄지 결정하는 통합 computed 속성
 const shouldShowWaitingScreen = computed(() => {
     if (!game.value) return false;
-    
-    // 1. DB 상태가 대기 중일 때
     if (game.value.status === 'waiting') return true;
-    
-    // 2. DB 상태가 게임 중이지만, 시간이 만료되어 유효하지 않을 때 (오류 상황 방지)
     if (game.value.status === 'playing' && !isGameValid.value) return true;
-
-    // 3. 게임 종료 상태지만, 다음 게임 시간이 더 가까워졌을 때 (여기선 간단히 처리)
-    // (필요 시 추가 로직 가능)
-    
     return false;
 });
 
@@ -223,19 +237,16 @@ const updateTimer = () => {
 const updateCountdown = () => {
   if (countdownInterval) clearInterval(countdownInterval);
 
-  // 'waiting' 상태이거나, 'playing' 상태지만 유효하지 않은(시간 지난) 경우 카운트다운 계산
   if (game.value?.status === 'waiting' || (game.value?.status === 'playing' && !isGameValid.value)) {
     const update = () => {
       const localNow = Date.now() + serverTimeOffset.value;
-      // 다음 게임 시작 시간 계산 (DB에 있는 startTime이 미래라면 그것 사용, 아니면 다음 정각 계산)
       let targetTime = game.value.startTime;
       
-      // DB의 startTime이 이미 지났다면(오류 상황), 다음 정각을 계산해서 보여줌
       if (targetTime < localNow) {
          const now = new Date();
          const allowedHours = [0, 9, 12, 15, 18, 21];
          let nextHour = allowedHours.find(h => h > now.getHours());
-         if(nextHour === undefined) nextHour = 24; // 자정(내일 0시)
+         if(nextHour === undefined) nextHour = 24; 
          
          const nextDate = new Date(now);
          nextDate.setHours(nextHour, 0, 0, 0);
@@ -312,19 +323,32 @@ onUnmounted(() => {
   padding: 10px;
   border-radius: 8px;
 }
+.info-text {
+  margin-top: 10px;
+  color: #bdc3c7;
+  font-size: 0.9em;
+}
+
 .action-button {
+  display: inline-block;
   padding: 15px 30px;
   font-size: 1.2em;
   font-weight: bold;
   cursor: pointer;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(145deg, #f1c40f, #e67e22);
   color: white;
   text-decoration: none;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
+.join-button {
+  background: linear-gradient(145deg, #f1c40f, #e67e22);
+}
+.dashboard-button {
+  background: linear-gradient(145deg, #3498db, #2980b9);
+}
+
 .action-button:hover:not(:disabled) {
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.3);
@@ -333,6 +357,7 @@ onUnmounted(() => {
   background: #7f8c8d;
   cursor: not-allowed;
 }
+
 .playing-screen {
   padding: 25px 40px;
 }
