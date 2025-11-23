@@ -81,7 +81,7 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 유틸리티: 문자열 ID를 고유한 숫자 ID로 변환 (통신 오류 해결의 핵심) ---
+// --- 유틸리티: 문자열 ID를 고유한 숫자 ID로 변환 ---
 const uidToNum = (uid) => {
   let hash = 0;
   if (!uid) return 0;
@@ -90,7 +90,7 @@ const uidToNum = (uid) => {
     hash = ((hash << 5) - hash) + char;
     hash |= 0; 
   }
-  return Math.abs(hash); // 음수가 나오지 않도록 절대값 사용
+  return Math.abs(hash); 
 };
 
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
@@ -110,7 +110,7 @@ const audioBlocked = ref(false);
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
-const agoraToken = null; // App ID Only 모드
+const agoraToken = null; 
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
@@ -148,58 +148,52 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [수정] 오디오 컨텍스트 강제 재개 (브라우저 정책 대응) ---
+// --- 오디오 컨텍스트 강제 재개 ---
 const resumeAudioContext = () => {
     audioBlocked.value = false;
-    // Three.js 오디오 컨텍스트 깨우기
     if (THREE.AudioContext.getContext().state === 'suspended') {
         THREE.AudioContext.getContext().resume();
     }
 };
 
-// --- [핵심 수정] Agora 초기화 (숫자 ID 사용) ---
+// --- [수정] Agora 초기화 (숫자 ID 사용) ---
 const initAgora = async (uid) => {
   if (!uid) return;
   
-  // Firebase의 문자열 UID를 Agora가 좋아하는 숫자로 변환
+  // Firebase UID -> 숫자 ID 변환
   const numericUid = uidToNum(uid);
   console.log(`[Agora] Init with UID: ${uid} -> ${numericUid}`);
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-    // 자동 재생 차단 감지
     AgoraRTC.onAutoplayFailed = () => {
         console.warn("[Agora] Autoplay blocked by browser");
         audioBlocked.value = true;
     };
 
-    // 말하는 사람 감지
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
-        const { uid, level } = volumeInfo;
-        // [수정] 감도 50으로 높임 (작은 소음 무시)
+        // [수정] 변수명 충돌 해결 (uid -> speakerUid)
+        const { uid: speakerUid, level } = volumeInfo;
         const isTalking = level > 50; 
         
-        // uid가 0이면 '나', 아니면 다른 사람(숫자 ID)
-        if (uid === 0 || uid === numericUid) {
-            updateSpeakingIndicator(uid, isTalking, false); // 나
+        // speakerUid가 0(나 자신)이거나, 내 숫자ID와 같으면 '나'
+        if (speakerUid === 0 || speakerUid === numericUid) {
+            updateSpeakingIndicator(uid, isTalking, false); // 나 (문자열 ID 전달)
         } else {
-            updateSpeakingIndicator(uid, isTalking, true); // 상대방 (숫자 ID로 검색)
+            updateSpeakingIndicator(speakerUid, isTalking, true); // 상대방 (숫자 ID 전달)
         }
       });
     });
 
-    // 상대방 소리 구독 (여기가 소리가 들리게 하는 핵심)
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
-      console.log(`[Agora] Subscribed to ${user.uid}`);
       
       if (mediaType === "audio") {
         try {
             user.audioTrack.play();
-            // 볼륨 100으로 확실하게 설정
             user.audioTrack.setVolume(100); 
         } catch (e) {
             console.error("[Agora] Play failed:", e);
@@ -214,7 +208,6 @@ const initAgora = async (uid) => {
       }
     });
 
-    // [중요] 변환된 숫자 ID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, numericUid);
     console.log(`[Agora] Channel Joined Success!`);
 
@@ -223,17 +216,16 @@ const initAgora = async (uid) => {
   }
 };
 
-// --- [수정] 말하는 아이콘 표시 (숫자 ID 역추적) ---
+// --- 말하는 아이콘 표시 ---
 const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
   if (!isNumericId) {
-      // 내 아이콘 표시 (문자열 ID 또는 0일 때)
-      targetMesh = myAvatar;
+      // 내 아이콘 (문자열 ID로 호출됨)
+      if (targetId === currentUid) targetMesh = myAvatar;
   } else {
-      // 상대방 아이콘 표시 (숫자 ID -> 문자열 ID 찾기)
-      // otherPlayers의 키(문자열UID)를 하나씩 숫자로 변환해 비교
+      // 상대방 아이콘 (숫자 ID로 호출됨 -> 문자열 ID 찾기)
       for (const key in otherPlayers) {
           if (uidToNum(key) === targetId) {
               targetMesh = otherPlayers[key].mesh;
@@ -281,21 +273,20 @@ const toggleMic = async () => {
   if (!agoraClient.value) return;
   try {
     if (!localAudioTrack.value) {
-      // [설정] 노이즈 캔슬링 활성화하여 마이크 생성
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
           encoderConfig: "high_quality_stereo",
-          AEC: true, // 에코 캔슬링
-          ANS: true  // 잡음 제거
+          AEC: true, 
+          ANS: true 
       });
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
       console.log("[Agora] Mic Published");
     } else {
       if (isMicOn.value) {
-        await localAudioTrack.value.setEnabled(false); // Mute
+        await localAudioTrack.value.setEnabled(false); 
         isMicOn.value = false;
       } else {
-        await localAudioTrack.value.setEnabled(true); // Unmute
+        await localAudioTrack.value.setEnabled(true); 
         isMicOn.value = true;
       }
     }
@@ -626,7 +617,6 @@ const listenToChat = () => {
   });
 };
 
-// [핵심 수정] 아바타가 로드되자마자 땅속(0)이 아닌 지면 위(0.5)로 강제 보정
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   
@@ -656,7 +646,6 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
       }
 
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
-      // [중요] 땅 밑으로 가는 것 방지 (최소 0.5 높이)
       const safeY = Math.max(currentTarget.y, 0.5); 
 
       model.position.set(currentTarget.x, safeY, currentTarget.z);
@@ -664,7 +653,6 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
       model.visible = true;
       
       scene.add(model);
-      // 강제 업데이트로 깜빡임/숨김 방지
       model.updateMatrixWorld(true); 
       
       otherPlayers[snapshot.key].mesh = model;
@@ -692,7 +680,6 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   });
 };
 
-// 접속 시 아바타 '점프' 효과로 위치 강제 동기화
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
@@ -947,7 +934,6 @@ onMounted(() => {
         if (token.claims.role === 'superAdmin') isAdmin.value = true;
       } catch(e) { console.log("권한 확인 실패"); }
 
-      // [핵심] Agora 초기화에 UID 전달
       await initAgora(currentUid);
       if (!initThree()) return;
 
