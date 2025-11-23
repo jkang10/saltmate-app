@@ -1,9 +1,7 @@
 <template>
-  <!-- 화면 클릭 시 오디오 권한 강제 획득 -->
   <div class="utopia-container" @click="resumeAudioContext">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-    <!-- 배경 시네마 비디오 -->
     <video
       ref="cinemaVideoRef"
       id="cinema-video"
@@ -29,7 +27,6 @@
     <div id="joystick-zone" class="joystick-zone"></div>
 
     <div class="chat-ui">
-      <!-- [신규] 행동 아이콘 바 (채팅창 상단) -->
       <div class="action-bar">
         <button @click="triggerAction('dance')" title="댄스">💃</button>
         <button @click="triggerAction('backflip')" title="백덤블링">🤸</button>
@@ -92,7 +89,7 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 유틸리티 ---
+// 유틸리티
 const uidToNum = (uid) => {
   let hash = 0;
   if (!uid) return 0;
@@ -105,7 +102,7 @@ const uidToNum = (uid) => {
 };
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// --- 상태 변수 ---
+// 상태 변수
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
@@ -116,8 +113,9 @@ const isVideoPlaying = ref(false);
 const isMuted = ref(true); 
 const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
+let authUnsubscribe = null; // [수정] 전역 변수로 선언
 
-// --- Agora 변수 ---
+// Agora 변수
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
@@ -125,29 +123,27 @@ const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
 
-// --- 아바타 관련 ---
+// 아바타 관련
 let myAvatar = null;
 let otherPlayers = {};
 let myAvatarUrl = '';
 let myUserName = '';
+const currentIdle = ref('idle'); 
+const specialAction = ref(null); 
 
-// [신규] 애니메이션 상태 관리
-const currentIdle = ref('idle'); // 랜덤으로 결정될 기본 자세
-const specialAction = ref(null); // 현재 실행 중인 특수 동작 (댄스 등)
-
-// --- 채팅 관련 ---
+// 채팅 관련
 const chatInput = ref('');
 const chatMessages = ref([]);
 const messageListRef = ref(null);
 const chatInputRef = ref(null);
 const MAX_CHAT_MESSAGES = 50;
 
-// --- Three.js 관련 ---
+// Three.js 관련
 let scene, camera, renderer, clock;
 let controls; 
 const loader = new GLTFLoader();
 
-// --- Firebase 경로 ---
+// Firebase 경로
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
 const plazaVideoPath = 'plaza/videoState';
@@ -156,20 +152,17 @@ let playersListenerRef = null;
 let chatListenerRef = null;
 let videoListenerRef = null;
 
-// --- 이동 관련 ---
+// 이동 관련
 const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [신규] 행동 트리거 함수 ---
+// --- 함수 정의 시작 ---
+
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
-  // 이동 중이면 행동 불가 (또는 멈추고 행동)
-  // 여기서는 강제로 행동을 실행하고 이동 입력을 덮어씁니다.
   specialAction.value = actionName;
-  
-  // 즉시 애니메이션 업데이트를 위해 호출
   updatePlayerMovement(0.016);
 };
 
@@ -183,11 +176,10 @@ const resumeAudioContext = () => {
 const initAgora = async (uid) => {
   if (!uid) return;
   const numericUid = uidToNum(uid);
-
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     AgoraRTC.onAutoplayFailed = () => {
-        console.warn("[Agora] Autoplay blocked by browser");
+        console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
     agoraClient.value.enableAudioVolumeIndicator();
@@ -289,7 +281,7 @@ const toggleMic = async () => {
         isMicOn.value = true;
       }
     }
-  } catch (error) { console.error("[Agora] Mic Toggle Error:", error); }
+  } catch (error) { console.error("[Agora] Mic Error:", error); }
 };
 
 const leaveAgora = async () => {
@@ -387,29 +379,22 @@ const handleUserInteraction = () => {
   }
 };
 
-// --- [수정] 애니메이션 파일 로드 (추가된 파일 포함) ---
 const loadAnimations = async () => {
   const animationPaths = {
-    // 기본 이동
     walk: '/animations/F_Walk_003.glb',
     walkBackward: '/animations/M_Walk_Backwards_001.glb',
     strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb',
     strafeRight: '/animations/M_Walk_Strafe_Right_002.glb',
-    
-    // [신규] 랜덤 대기 자세 후보
-    idle: '/animations/M_Standing_Idle_Variations_008.glb', // 기본
+    idle: '/animations/M_Standing_Idle_Variations_008.glb', 
     idle2: '/animations/M_Standing_Idle_Variations_007.glb',
     idle3: '/animations/M_Standing_Idle_Variations_005.glb',
     idle4: '/animations/M_Standing_Idle_Variations_006.glb',
-
-    // [신규] 행동 아이콘용
-    dance: '/animations/F_Dances_006.glb',     // 댄스
-    backflip: '/animations/F_Dances_007.glb',  // 백덤블링
-    psy: '/animations/M_Dances_001.glb',       // 싸이춤
-    footwork: '/animations/M_Dances_009.glb',  // 발재간
-    jump: '/animations/M_Walk_Jump_003.glb'    // 점프
+    dance: '/animations/F_Dances_006.glb',     
+    backflip: '/animations/F_Dances_007.glb',  
+    psy: '/animations/M_Dances_001.glb',       
+    footwork: '/animations/M_Dances_009.glb',  
+    jump: '/animations/M_Walk_Jump_003.glb'    
   };
-  
   const loadedAnimations = { 
       idle: null, idle2: null, idle3: null, idle4: null,
       walk: null, walkBackward: null, strafeLeft: null, strafeRight: null,
@@ -472,7 +457,7 @@ const loadAvatar = (url, animations) => {
             if (animations[key]) {
               const action = mixer.clipAction(animations[key]);
               model.userData.actions[key] = action;
-              if (key === 'idle') action.play(); // 기본값으로 일단 idle 재생
+              if (key === 'idle') action.play();
             }
           }
           mixer.update(0.01);
@@ -692,7 +677,6 @@ const initThree = () => {
           scene.background = texture;
           scene.environment = texture;
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
-
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -769,16 +753,12 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
-// [수정] updatePlayerMovement: 행동 트리거 로직 추가 및 랜덤 대기 적용
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
-
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
-  // [핵심] 현재 재생할 애니메이션 결정 (특수 행동 > 이동 > 대기)
   let currentAnimation = specialAction.value || currentIdle.value;
   let currentSpeedFactor = 1.0;
-
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; 
@@ -789,24 +769,20 @@ const updatePlayerMovement = (deltaTime) => {
       let diff = targetY - currentY; 
       if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
-
       moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
-
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || 
                              keysPressed['KeyS'] || keysPressed['ArrowDown'] || 
                              keysPressed['KeyA'] || keysPressed['ArrowLeft'] || 
                              keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    
     if (isKeyboardMoving) {
       myAvatar.rotation.y = cameraEuler.y;
       moved = true;
     }
-
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
@@ -818,11 +794,8 @@ const updatePlayerMovement = (deltaTime) => {
         if(currentAnimation === 'idle' || currentAnimation.startsWith('idle')) currentAnimation = 'walkBackward'; 
     }
   }
-
   if (moved) {
-    // 움직이면 특수 행동 취소
     specialAction.value = null;
-
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
@@ -832,11 +805,9 @@ const updatePlayerMovement = (deltaTime) => {
     myAvatar.position.add(velocity);
     throttledUpdate();
   }
-
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  
   const cityMap = scene.getObjectByName("cityMap");
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
@@ -844,11 +815,9 @@ const updatePlayerMovement = (deltaTime) => {
       const intersects = raycaster.intersectObject(cityMap, true);
       if (intersects.length > 0) myAvatar.position.y = intersects[0].point.y;
   }
-
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
-    // [수정] currentAnimation이 실제로 로드된 액션인지 확인 (없으면 기본 idle)
     const targetAction = actions[currentAnimation] || actions['idle'];
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
     if (targetAction && !targetAction.isRunning()) {
@@ -863,13 +832,10 @@ const updateOtherPlayersMovement = (deltaTime) => {
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
-    
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    
     let currentY = player.mesh.rotation.y; 
     let targetY = player.targetRotationY; 
     const PI2 = Math.PI * 2;
@@ -879,7 +845,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
     player.mesh.updateMatrixWorld(true);
-
     const mixer = player.mixer;
     const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
@@ -895,8 +860,23 @@ const updateOtherPlayersMovement = (deltaTime) => {
   }
 };
 
+// --- [중요] animate 함수를 호출 가능한 위치(위쪽)에 정의 ---
+const animate = () => {
+  if (!renderer || !scene || !camera || !clock) return;
+  requestAnimationFrame(animate);
+  const deltaTime = clock.getDelta();
+
+  if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
+  for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
+
+  updatePlayerMovement(deltaTime);
+  updateOtherPlayersMovement(deltaTime);
+  if (controls) controls.update();
+  renderer.render(scene, camera);
+};
+
 onMounted(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+  authUnsubscribe = onAuthStateChanged(auth, async (user) => {
     if (user) {
       const currentUid = user.uid;
       try {
@@ -908,8 +888,6 @@ onMounted(() => {
       if (!initThree()) return;
 
       const preloadedAnimations = await loadAnimations();
-      
-      // [신규] 접속 시 랜덤 대기 모션 선택 (idle, idle2, idle3, idle4 중 하나)
       const idleKeys = ['idle', 'idle2', 'idle3', 'idle4'];
       currentIdle.value = idleKeys[Math.floor(Math.random() * idleKeys.length)];
 
@@ -920,6 +898,7 @@ onMounted(() => {
       window.addEventListener('click', handleUserInteraction);
       window.addEventListener('mousemove', handleUserInteraction); 
 
+      // 애니메이션 시작
       animate();
 
       try {
@@ -968,27 +947,29 @@ onMounted(() => {
       isLoading.value = false;
     }
   });
+});
 
-  onUnmounted(() => {
-    // ... 기존 해제 로직 ...
-    window.removeEventListener('resize', handleResize);
-    window.removeEventListener('keydown', handleKeyDown);
-    window.removeEventListener('keyup', handleKeyUp);
-    window.removeEventListener('touchstart', handleUserInteraction);
-    window.removeEventListener('click', handleUserInteraction);
-    window.removeEventListener('mousemove', handleUserInteraction);
-    
-    leaveAgora(); 
+onUnmounted(() => {
+  // [수정] 리스너 해제 추가
+  if (authUnsubscribe) authUnsubscribe();
+  
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
+  window.removeEventListener('touchstart', handleUserInteraction);
+  window.removeEventListener('click', handleUserInteraction);
+  window.removeEventListener('mousemove', handleUserInteraction);
+  
+  leaveAgora(); 
 
-    if (playersListenerRef) off(playersListenerRef);
-    if (chatListenerRef) off(chatListenerRef);
-    if (videoListenerRef) off(videoListenerRef);
-    if (playerRef) remove(playerRef);
-    
-    if (joystickManager) joystickManager.destroy();
-    if (controls) controls.dispose();
-    if (renderer) renderer.dispose();
-  });
+  if (playersListenerRef) off(playersListenerRef);
+  if (chatListenerRef) off(chatListenerRef);
+  if (videoListenerRef) off(videoListenerRef);
+  if (playerRef) remove(playerRef);
+  
+  if (joystickManager) joystickManager.destroy();
+  if (controls) controls.dispose();
+  if (renderer) renderer.dispose();
 });
 </script>
 
@@ -1024,7 +1005,6 @@ onMounted(() => {
   flex-direction: column; 
   z-index: 5; 
 }
-/* [신규] 행동 아이콘 바 스타일 */
 .action-bar {
   display: flex;
   gap: 5px;
