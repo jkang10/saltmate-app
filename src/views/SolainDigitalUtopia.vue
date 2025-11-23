@@ -26,18 +26,16 @@
 
     <div id="joystick-zone" class="joystick-zone"></div>
 
-    <div class="voice-status">
-      <p>🟢 음성 채널 접속자: {{ remoteUsers.length + 1 }}명</p>
-      <p v-if="audioBlocked" class="warning">🔊 소리가 안 들리면 화면을 터치하세요!</p>
-    </div>
-
     <div class="chat-ui">
       <div class="action-bar">
-        <button @click="triggerAction('dance')" title="댄스">💃</button>
-        <button @click="triggerAction('backflip')" title="백덤블링">🤸</button>
-        <button @click="triggerAction('psy')" title="싸이춤">🕶️</button>
-        <button @click="triggerAction('footwork')" title="발재간">🦶</button>
-        <button @click="triggerAction('jump')" title="점프">⏫</button>
+        <div v-for="(action, key) in actionList" :key="key" class="action-btn-wrapper">
+          <button 
+            @click="handleActionClick(key)" 
+            :title="action.name + (hasPurchased(key) ? '' : ` (${action.price.toLocaleString()} P)`)">
+            {{ action.icon }}
+            <span v-if="!hasPurchased(key)" class="lock-icon">🔒</span>
+          </button>
+        </div>
       </div>
 
       <div class="message-list" ref="messageListRef">
@@ -59,8 +57,12 @@
         {{ isMuted ? '🔇 소리 켜기' : '🔊 소리 끄기' }}
       </button>
       <button @click.stop="toggleMic" :class="{ 'active': isMicOn }">
-        {{ isMicOn ? '🎤 마이크 끄기 (ON)' : '🎙️ 마이크 켜기 (OFF)' }}
+        {{ isMicOn ? '🎤 마이크 끄기' : '🎙️ 마이크 켜기' }}
       </button>
+    </div>
+
+    <div v-if="audioBlocked" class="audio-blocked-msg">
+      🔊 소리가 안 들리면 화면을 한번 터치해주세요!
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
@@ -127,7 +129,6 @@ const agoraToken = null;
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
-const remoteUsers = ref([]); // [신규] 접속자 목록 확인용
 
 // 아바타 관련
 let myAvatar = null;
@@ -137,7 +138,7 @@ let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// 행동 목록
+// 행동 목록 및 가격 정의
 const actionList = {
   dance: { name: '댄스', price: 2000, icon: '💃' },
   backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
@@ -146,8 +147,10 @@ const actionList = {
   jump: { name: '점프', price: 2000, icon: '⏫' }
 };
 
+// 구매한 행동 목록
 const purchasedActions = ref([]);
 
+// 구매 모달 상태
 const purchaseModal = reactive({
   visible: false,
   actionKey: null,
@@ -177,18 +180,20 @@ let playersListenerRef = null;
 let chatListenerRef = null;
 let videoListenerRef = null;
 
-// [수정] 이동 속도 3.0 (적절한 속도)
-const moveSpeed = 3.0; 
+// 이동 관련
+const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 함수 정의 ---
+// --- 함수 정의 시작 ---
 
+// 구매 여부 확인
 const hasPurchased = (actionKey) => {
   return purchasedActions.value.includes(actionKey);
 };
 
+// 행동 아이콘 클릭 핸들러
 const handleActionClick = (actionKey) => {
   if (hasPurchased(actionKey)) {
     triggerAction(actionKey);
@@ -197,6 +202,7 @@ const handleActionClick = (actionKey) => {
   }
 };
 
+// 구매 모달 열기
 const openPurchaseModal = (actionKey) => {
   const action = actionList[actionKey];
   purchaseModal.actionKey = actionKey;
@@ -210,6 +216,7 @@ const closePurchaseModal = () => {
   isPurchasing.value = false;
 };
 
+// 구매 확정 및 서버 통신
 const confirmPurchase = async () => {
   if (isPurchasing.value) return;
   isPurchasing.value = true;
@@ -228,22 +235,27 @@ const confirmPurchase = async () => {
   }
 };
 
+// 행동 트리거 (1회 재생 후 복귀)
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   const action = actions[actionName];
+  
   if (action) {
     mixer.stopAllAction();
     action.reset();
     action.setLoop(THREE.LoopOnce);
     action.clampWhenFinished = true;
     action.play();
+    
     specialAction.value = actionName;
+
     const onFinished = (e) => {
         if (e.action === action) {
             mixer.removeEventListener('finished', onFinished);
             specialAction.value = null; 
+            
             const idleAction = actions[currentIdle.value];
             if (idleAction) {
                 idleAction.reset().play();
@@ -262,51 +274,22 @@ const resumeAudioContext = () => {
     }
 };
 
-// --- [수정] Agora 초기화 (리스너 먼저 등록 후 Join) ---
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
     AgoraRTC.onAutoplayFailed = () => {
-        console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
     
-    // 사용자 접속 이벤트
-    agoraClient.value.on("user-joined", (user) => {
-        console.log("[Agora] User joined:", user.uid);
-        remoteUsers.value.push(user.uid);
-    });
-
-    agoraClient.value.on("user-left", (user) => {
-        console.log("[Agora] User left:", user.uid);
-        remoteUsers.value = remoteUsers.value.filter(id => id !== user.uid);
-    });
-
-    // 오디오 구독
-    agoraClient.value.on("user-published", async (user, mediaType) => {
-      await agoraClient.value.subscribe(user, mediaType);
-      if (mediaType === "audio") {
-        try {
-            user.audioTrack.play();
-            console.log(`[Agora] Playing audio for ${user.uid}`);
-        } catch (e) {
-            audioBlocked.value = true;
-        }
-      }
-    });
-
-    // 말하는 사람 감지 (민감도 40)
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
-        const isTalking = level > 40; 
+        const isTalking = level > 50; 
         
-        // 나(0) 또는 내 UID
         if (speakerUid === 0 || speakerUid === stringUid) {
             updateSpeakingIndicator(stringUid, isTalking); 
         } else {
@@ -315,43 +298,30 @@ const initAgora = async (uid) => {
       });
     });
 
-    // 입장
+    agoraClient.value.on("user-published", async (user, mediaType) => {
+      await agoraClient.value.subscribe(user, mediaType);
+      if (mediaType === "audio") {
+        try {
+            setTimeout(() => {
+                user.audioTrack.play();
+                user.audioTrack.setVolume(100);
+            }, 200);
+        } catch (e) {
+            audioBlocked.value = true;
+        }
+      }
+    });
+
+    agoraClient.value.on("user-unpublished", (user, mediaType) => {
+      if (mediaType === "audio") {
+        if (user.audioTrack) user.audioTrack.stop();
+      }
+    });
+
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
-    console.log(`[Agora] Joined as ${stringUid}`);
 
   } catch (error) {
     console.error("[Agora] Init Error:", error);
-  }
-};
-
-// --- [수정] 마이크 토글 (켜기/끄기 시 Publish/Unpublish) ---
-const toggleMic = async () => {
-  if (!agoraClient.value) return;
-  
-  try {
-    if (!isMicOn.value) {
-      // 켜기: 트랙 생성 후 Publish
-      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
-          encoderConfig: "high_quality_stereo",
-          AEC: true, ANS: true, AGC: true
-      });
-      await agoraClient.value.publish([localAudioTrack.value]);
-      isMicOn.value = true;
-      console.log("[Agora] Mic Published");
-    } else {
-      // 끄기: Unpublish 후 트랙 닫기
-      if (localAudioTrack.value) {
-          await agoraClient.value.unpublish([localAudioTrack.value]);
-          localAudioTrack.value.close();
-          localAudioTrack.value = null;
-      }
-      isMicOn.value = false;
-      console.log("[Agora] Mic Unpublished");
-    }
-  } catch (error) {
-    console.error("[Agora] Mic Error:", error);
-    alert("마이크 접근 권한을 확인해주세요.");
-    isMicOn.value = false;
   }
 };
 
@@ -367,7 +337,6 @@ const updateSpeakingIndicator = (targetId, isSpeaking) => {
 
   if (!targetMesh) return;
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
-
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
@@ -396,6 +365,28 @@ const updateSpeakingIndicator = (targetId, isSpeaking) => {
       existingIcon.material.dispose();
     }
   }
+};
+
+const toggleMic = async () => {
+  if (!agoraClient.value) return;
+  try {
+    if (!localAudioTrack.value) {
+      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
+          encoderConfig: "high_quality_stereo",
+          AEC: true, ANS: true, AGC: true
+      });
+      await agoraClient.value.publish([localAudioTrack.value]);
+      isMicOn.value = true;
+    } else {
+      if (isMicOn.value) {
+        await localAudioTrack.value.setEnabled(false); 
+        isMicOn.value = false;
+      } else {
+        await localAudioTrack.value.setEnabled(true); 
+        isMicOn.value = true;
+      }
+    }
+  } catch (error) { console.error("[Agora] Mic Error:", error); }
 };
 
 const leaveAgora = async () => {
@@ -1118,20 +1109,6 @@ onUnmounted(() => {
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-.voice-status {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  z-index: 99;
-}
-.voice-status p { margin: 0; }
-.voice-status .warning { color: #ffcc00; font-weight: bold; margin-top: 4px; animation: pulse 1s infinite; }
 
 .chat-ui { 
   position: absolute; 
