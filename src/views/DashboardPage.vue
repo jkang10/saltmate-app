@@ -256,7 +256,7 @@
 
 	  <div class="card-content-wrapper">
 	    <div class="chest-icon-container">
-	      <img src="@/assets/chest_closed.png" alt="황금 상자" class="chest-icon-img">
+	      <img src="@/assets/chest_closed01.png" alt="황금 상자" class="chest-icon-img">
 	      <div class="glow-effect-mini"></div>
 	    </div>
 
