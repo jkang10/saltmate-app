@@ -107,20 +107,9 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// 유틸리티
-const uidToNum = (uid) => {
-  let hash = 0;
-  if (!uid) return 0;
-  for (let i = 0; i < uid.length; i++) {
-    const char = uid.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0; 
-  }
-  return Math.abs(hash); 
-};
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// 상태 변수
+// --- 상태 변수 ---
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
@@ -133,7 +122,7 @@ const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
 
-// Agora 변수
+// --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
@@ -149,7 +138,7 @@ let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// [신규] 행동 목록 및 가격 정의
+// 행동 목록 및 가격 정의
 const actionList = {
   dance: { name: '댄스', price: 2000, icon: '💃' },
   backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
@@ -158,10 +147,10 @@ const actionList = {
   jump: { name: '점프', price: 2000, icon: '⏫' }
 };
 
-// [신규] 구매한 행동 목록 (DB에서 로드됨)
+// 구매한 행동 목록
 const purchasedActions = ref([]);
 
-// [신규] 구매 모달 상태
+// 구매 모달 상태
 const purchaseModal = reactive({
   visible: false,
   actionKey: null,
@@ -199,13 +188,12 @@ let joystickManager = null;
 
 // --- 함수 정의 시작 ---
 
-// [신규] 구매 여부 확인
+// 구매 여부 확인
 const hasPurchased = (actionKey) => {
-  // 기본적으로 모든 유저는 구매해야 함 (무료 없음)
   return purchasedActions.value.includes(actionKey);
 };
 
-// [신규] 행동 아이콘 클릭 핸들러
+// 행동 아이콘 클릭 핸들러
 const handleActionClick = (actionKey) => {
   if (hasPurchased(actionKey)) {
     triggerAction(actionKey);
@@ -214,7 +202,7 @@ const handleActionClick = (actionKey) => {
   }
 };
 
-// [신규] 구매 모달 열기
+// 구매 모달 열기
 const openPurchaseModal = (actionKey) => {
   const action = actionList[actionKey];
   purchaseModal.actionKey = actionKey;
@@ -228,7 +216,7 @@ const closePurchaseModal = () => {
   isPurchasing.value = false;
 };
 
-// [신규] 구매 확정 및 서버 통신
+// 구매 확정 및 서버 통신
 const confirmPurchase = async () => {
   if (isPurchasing.value) return;
   isPurchasing.value = true;
@@ -341,7 +329,8 @@ const initAgora = async (uid) => {
   }
 };
 
-const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
+// [수정] isNumericId 삭제
+const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
@@ -1020,16 +1009,15 @@ onMounted(() => {
 
       animate();
 
-      // [신규] 구매한 행동 목록 불러오기
       try {
         const userDoc = await getDoc(doc(db, 'users', currentUid));
         if (userDoc.exists()) {
             const userData = userDoc.data();
             myAvatarUrl = userData.avatarUrl;
             myUserName = userData.name;
-            if (userData.hasReceivedVideoReward) rewardClaimedLocal.value = true;
-            
-            // 구매 내역 로드 (배열이 없으면 빈 배열)
+            if (userData.hasReceivedVideoReward) {
+              rewardClaimedLocal.value = true;
+            }
             if (userData.purchasedActions) {
                 purchasedActions.value = userData.purchasedActions;
             }
@@ -1127,7 +1115,6 @@ onUnmounted(() => {
   z-index: 5; 
 }
 
-/* [수정] 행동 아이콘 바 스타일 */
 .action-bar {
   display: flex;
   gap: 5px;
@@ -1196,7 +1183,7 @@ onUnmounted(() => {
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
 
-/* [신규] 구매 모달 스타일 */
+/* 구매 모달 스타일 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
