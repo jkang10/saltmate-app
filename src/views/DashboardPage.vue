@@ -1734,8 +1734,8 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 /* 1. 카드 기본 배경 및 테두리 (화려한 금장 장식) */
 .treasure-card-enhanced {
   /* 기존 card-glass 스타일 재정의 */
-  background: linear-gradient(135deg, #2c2000 0%, #4a3500 50%, #2c2000 100%); /* 깊이 있는 다크 골드 배경 */
-  border: 2px solid transparent; /* 그라데이션 보더를 위한 투명 설정 */
+  background: linear-gradient(135deg, #2c2000 0%, #4a3500 50%, #2c2000 100%);
+  border: none; /* 테두리 완전 제거 */
   border-image: linear-gradient(to bottom right, #FFD700, #FFA500, #FFD700) 1; /* 황금 그라데이션 테두리 */
   box-shadow: 0 10px 30px -10px rgba(255, 215, 0, 0.5), inset 0 0 20px rgba(255, 215, 0, 0.2); /* 외부/내부 황금빛 광채 */
   position: relative;
@@ -1749,7 +1749,7 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 .treasure-card-enhanced.is-fever {
   transform: translateY(-8px) scale(1.03);
   box-shadow: 0 20px 40px -10px rgba(255, 215, 0, 0.7), inset 0 0 30px rgba(255, 215, 0, 0.4);
-  border-image: linear-gradient(to bottom right, #fff7cc, #FFD700, #FFA500) 1; /* 더 밝게 빛나는 테두리 */
+  /* border-image 관련 속성 없음 */
 }
 .treasure-card-enhanced.is-fever {
     /* 피버타임은 붉은 기운이 도는 더욱 강력한 황금빛 */
