@@ -25,8 +25,8 @@
             }"
             @click="handleChestClick"
           >
-            <img v-show="!isOpened" src="@/assets/chest_closed.png" class="chest-image closed" />
-            <img v-show="isOpened" src="@/assets/chest_open.png" class="chest-image open" />
+		<img v-show="!isOpened" src="@/assets/chest_closed01.png" class="chest-image closed" />
+		<img v-show="isOpened" src="@/assets/chest_open.png" class="chest-image open" />
             
             <div class="glow-effect"></div>
             <div v-if="isOpened" class="particles-container">
