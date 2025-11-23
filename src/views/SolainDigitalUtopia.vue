@@ -109,7 +109,7 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// 상태 변수
+// --- 상태 변수 ---
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
@@ -122,7 +122,7 @@ const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
 
-// Agora 변수
+// --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
@@ -276,6 +276,7 @@ const resumeAudioContext = () => {
     }
 };
 
+// [수정] Agora 초기화 (숫자 변환 없이 문자열 UID 사용)
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
@@ -327,7 +328,8 @@ const initAgora = async (uid) => {
   }
 };
 
-const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
+// [수정] 불필요한 isNumericId 파라미터 제거
+const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
@@ -338,7 +340,9 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
   }
 
   if (!targetMesh) return;
+  
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
+
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
@@ -542,7 +546,6 @@ const loadAvatar = (url, animations) => {
 
     loader.load(url, (gltf) => {
         const visuals = gltf.scene;
-        
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
@@ -551,7 +554,6 @@ const loadAvatar = (url, animations) => {
             child.matrixAutoUpdate = true;
           }
         });
-
         visuals.scale.set(0.7, 0.7, 0.7);
         const box = new THREE.Box3().setFromObject(visuals);
         visuals.position.y = -box.min.y; 
@@ -585,18 +587,15 @@ const createNicknameSprite = (text) => {
   const context = canvas.getContext('2d');
   canvas.width = 300; canvas.height = 100; 
   context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
-  
   const r = 10; const w = 280; const h = 60;
   context.beginPath();
   context.roundRect(10, 20, w, h, r);
   context.fill();
-
   context.fillStyle = 'white';
   context.font = 'bold 40px Arial';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, 150, 50);
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
@@ -612,17 +611,14 @@ const createChatBubbleSprite = (text, textColor = "black") => {
   context.font = 'bold 30px Arial';
   const textWidth = context.measureText(text).width;
   canvas.width = textWidth + 40; canvas.height = 60;
-  
   context.fillStyle = 'rgba(255, 255, 255, 0.9)';
   context.roundRect(0, 0, canvas.width, canvas.height, 10);
   context.fill();
   context.stroke();
-  
   context.fillStyle = textColor;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, canvas.width / 2, canvas.height / 2);
-  
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
@@ -652,19 +648,16 @@ const showChatBubble = (avatar, message, color = "black") => {
   avatar.add(newBubble);
 };
 
-// --- Firebase RTDB ---
 const joinPlaza = async (uid) => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
-  
-  const safeX = myAvatar.position.x || 37.16;
+  const safeX = 37.16;
   const safeY = 1.0; 
-  const safeZ = myAvatar.position.z || 7.85;
-
+  const safeZ = 7.85;
   const playerData = {
     avatarUrl: myAvatarUrl,
     userName: myUserName,
     position: { x: safeX, y: safeY, z: safeZ },
-    rotationY: myAvatar.rotation.y,
+    rotationY: 0,
     timestamp: serverTimestamp(),
   };
   try {
@@ -713,9 +706,7 @@ const listenToChat = () => {
     const msg = { id: snapshot.key, ...snapshot.val() };
     chatMessages.value.push(msg);
     if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
-    
     nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
-    
     const currentUid = auth.currentUser?.uid;
     if (msg.userId === currentUid && myAvatar) {
       showChatBubble(myAvatar, msg.message);
@@ -727,60 +718,47 @@ const listenToChat = () => {
 
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
-    
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
       targetRotationY: rotY,
       userName: val.userName, isMoving: false
     };
-    
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
         nick.position.set(0, 1.8, 0); 
         model.add(nick); 
       }
-
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
-
       model.position.set(currentTarget.x, safeY, currentTarget.z);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
-      
       scene.add(model);
       model.updateMatrixWorld(true); 
-      
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
-      
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
-
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
     if (!val.position) return;
-    
     otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
     otherPlayers[snap.key].targetRotationY = val.rotationY || 0;
   });
-
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -788,7 +766,19 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   });
 };
 
-// --- Three.js Init ---
+const forceInitialMove = () => {
+    if (!myAvatar) return;
+    const startY = myAvatar.position.y;
+    myAvatar.position.y += 0.5;
+    myAvatar.updateMatrixWorld(true);
+    updateMyStateInRTDB(); 
+    setTimeout(() => {
+        myAvatar.position.y = startY;
+        myAvatar.updateMatrixWorld(true);
+        updateMyStateInRTDB();
+    }, 200);
+};
+
 const initThree = () => {
   try {
       scene = new THREE.Scene();
@@ -798,19 +788,15 @@ const initThree = () => {
           scene.background = texture;
           scene.environment = texture;
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
-
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
-
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(startX, startY + 5, startZ + 10);
-
       if (!canvasRef.value) return false;
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -819,7 +805,6 @@ const initThree = () => {
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
-
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -830,7 +815,6 @@ const initThree = () => {
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
-
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
@@ -842,17 +826,14 @@ const initThree = () => {
           const scaledBox = new THREE.Box3().setFromObject(city);
           const groundLevelY = -scaledBox.min.y;
           city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
-          
           city.traverse(child => { 
             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } 
           });
           scene.add(city);
-
           if (myAvatar) { 
              myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
-          
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
@@ -867,7 +848,6 @@ const initThree = () => {
             scene.add(screen);
           }
       }, undefined, (e) => console.error('맵 로드 실패', e));
-
       clock = new THREE.Clock();
       return true;
   } catch (e) { console.error(e); return false; }
@@ -886,12 +866,10 @@ const handleResize = () => {
 
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
-
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = specialAction.value || currentIdle.value;
   let currentSpeedFactor = 1.0;
-
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; 
@@ -902,27 +880,22 @@ const updatePlayerMovement = (deltaTime) => {
       let diff = targetY - currentY; 
       if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8;
-
       moveDirection.z = -1; 
       moved = true;
       currentAnimation = 'walk';
       currentSpeedFactor = joystickData.value.force;
-
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || 
                              keysPressed['KeyS'] || keysPressed['ArrowDown'] || 
                              keysPressed['KeyA'] || keysPressed['ArrowLeft'] || 
                              keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    
     if (isKeyboardMoving) {
       myAvatar.rotation.y = cameraEuler.y;
       moved = true;
     }
-
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
-    
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
         moveDirection.z = 1; 
         if(!specialAction.value) currentAnimation = 'walk'; 
@@ -932,8 +905,8 @@ const updatePlayerMovement = (deltaTime) => {
         if(!specialAction.value) currentAnimation = 'walkBackward'; 
     }
   }
-
   if (moved) {
+    specialAction.value = null;
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
@@ -943,11 +916,9 @@ const updatePlayerMovement = (deltaTime) => {
     myAvatar.position.add(velocity);
     throttledUpdate();
   }
-
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  
   const cityMap = scene.getObjectByName("cityMap");
   if (cityMap) {
       const raycaster = new THREE.Raycaster();
@@ -955,7 +926,6 @@ const updatePlayerMovement = (deltaTime) => {
       const intersects = raycaster.intersectObject(cityMap, true);
       if (intersects.length > 0) myAvatar.position.y = intersects[0].point.y;
   }
-
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
@@ -970,17 +940,13 @@ const updatePlayerMovement = (deltaTime) => {
 
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 15; 
-
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
-    
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    
     let currentY = player.mesh.rotation.y; 
     let targetY = player.targetRotationY; 
     const PI2 = Math.PI * 2;
@@ -989,9 +955,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
     let diff = targetY - currentY; 
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
-
     player.mesh.updateMatrixWorld(true);
-
     const mixer = player.mixer;
     const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
@@ -1025,7 +989,6 @@ onMounted(() => {
   authUnsubscribe = onAuthStateChanged(auth, async (user) => {
     if (user) {
       const currentUid = user.uid;
-      
       try {
         const token = await user.getIdTokenResult();
         if (token.claims.role === 'superAdmin') isAdmin.value = true;
@@ -1035,8 +998,6 @@ onMounted(() => {
       if (!initThree()) return;
 
       const preloadedAnimations = await loadAnimations();
-      
-      // [신규] 접속 시 랜덤 대기 모션 선택
       const idleKeys = ['idle', 'idle2', 'idle3', 'idle4'];
       currentIdle.value = idleKeys[Math.floor(Math.random() * idleKeys.length)];
 
@@ -1076,7 +1037,6 @@ onMounted(() => {
         myAvatar.add(nick);
       }
       scene.add(myAvatar);
-      
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
@@ -1092,6 +1052,7 @@ onMounted(() => {
       await joinPlaza(currentUid);
       if (isReady.value) {
         updateMyStateInRTDB(); 
+        forceInitialMove(); 
         listenToOtherPlayers(currentUid, preloadedAnimations); 
         listenToVideoState(); 
         listenToChat(); 
@@ -1102,6 +1063,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
   if (authUnsubscribe) authUnsubscribe();
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('keydown', handleKeyDown);
@@ -1109,14 +1072,11 @@ onUnmounted(() => {
   window.removeEventListener('touchstart', handleUserInteraction);
   window.removeEventListener('click', handleUserInteraction);
   window.removeEventListener('mousemove', handleUserInteraction);
-  
   leaveAgora(); 
-
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
   if (videoListenerRef) off(videoListenerRef);
   if (playerRef) remove(playerRef);
-  
   if (joystickManager) joystickManager.destroy();
   if (controls) controls.dispose();
   if (renderer) renderer.dispose();
@@ -1124,18 +1084,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-:global(body) {
+:global(body), :global(html) {
   margin: 0;
   padding: 0;
+  overflow: hidden; 
+  height: 100%;
 }
-
-* {
-  box-sizing: border-box; 
-}
-
 .utopia-container { 
   width: 100%; 
-  height: 100vh; 
+  height: 100dvh; 
   margin: 0; 
   padding: 0; 
   overflow: hidden; 
@@ -1149,7 +1106,7 @@ onUnmounted(() => {
 
 .chat-ui { 
   position: absolute; 
-  bottom: 20px; 
+  bottom: 120px; 
   left: 20px; 
   width: 300px; 
   max-width: 80%; 
@@ -1159,7 +1116,6 @@ onUnmounted(() => {
   z-index: 5; 
 }
 
-/* [수정] 행동 아이콘 바 스타일 */
 .action-bar {
   display: flex;
   gap: 5px;
@@ -1228,7 +1184,7 @@ onUnmounted(() => {
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
 
-/* [신규] 구매 모달 스타일 */
+/* 구매 모달 스타일 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
