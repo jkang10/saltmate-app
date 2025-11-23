@@ -181,7 +181,7 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // 이동 관련
-const moveSpeed = 1.0; 
+const moveSpeed = 3.0; // [확인] 아바타 속도
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
@@ -274,6 +274,7 @@ const resumeAudioContext = () => {
     }
 };
 
+// [핵심 수정] 문자열 UID 사용 & 오디오 트랙 구독 강화
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
@@ -288,7 +289,7 @@ const initAgora = async (uid) => {
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
-        const isTalking = level > 50; 
+        const isTalking = level > 30; // 민감도 약간 낮춤
         
         if (speakerUid === 0 || speakerUid === stringUid) {
             updateSpeakingIndicator(stringUid, isTalking); 
@@ -302,6 +303,7 @@ const initAgora = async (uid) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
         try {
+            // 약간의 지연 후 재생
             setTimeout(() => {
                 user.audioTrack.play();
                 user.audioTrack.setVolume(100);
@@ -760,12 +762,16 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   });
 };
 
+// [핵심] 강제 점프 효과로 위치 동기화
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
+    // 1. 위로 점프
     myAvatar.position.y += 0.5;
     myAvatar.updateMatrixWorld(true);
     updateMyStateInRTDB(); 
+    
+    // 2. 0.2초 후 착지
     setTimeout(() => {
         myAvatar.position.y = startY;
         myAvatar.updateMatrixWorld(true);
@@ -911,7 +917,7 @@ const updatePlayerMovement = (deltaTime) => {
     throttledUpdate();
   }
   
-  // [핵심 수정] 아바타가 이름표(그룹)와 분리되지 않도록 내부 메시 위치 강제 고정 (루트 모션 방지)
+  // [핵심] 내 아바타 루트 모션 방지 (이름표 분리 해결)
   if (myAvatar.userData.visuals) {
       myAvatar.userData.visuals.position.set(0, 0, 0);
   }
@@ -939,7 +945,9 @@ const updatePlayerMovement = (deltaTime) => {
 };
 
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 15; 
+  // [수정] 보간 속도 증가 (이름표 빠르게 따라잡기)
+  const lerpFactor = deltaTime * 25; 
+
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
@@ -957,7 +965,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
     player.mesh.rotation.y += diff * lerpFactor;
     player.mesh.updateMatrixWorld(true);
     
-    // [핵심 수정] 다른 유저 아바타도 메시 위치 강제 고정
+    // [핵심] 다른 플레이어도 루트 모션 방지
     if (player.mesh.userData.visuals) {
         player.mesh.userData.visuals.position.set(0, 0, 0);
     }
@@ -1109,6 +1117,20 @@ onUnmounted(() => {
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.voice-status {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  z-index: 99;
+}
+.voice-status p { margin: 0; }
+.voice-status .warning { color: #ffcc00; font-weight: bold; margin-top: 4px; animation: pulse 1s infinite; }
 
 .chat-ui { 
   position: absolute; 
