@@ -28,11 +28,14 @@
 
     <div class="chat-ui">
       <div class="action-bar">
-        <button @click="triggerAction('dance')" title="댄스">💃</button>
-        <button @click="triggerAction('backflip')" title="백덤블링">🤸</button>
-        <button @click="triggerAction('psy')" title="싸이춤">🕶️</button>
-        <button @click="triggerAction('footwork')" title="발재간">🦶</button>
-        <button @click="triggerAction('jump')" title="점프">⏫</button>
+        <div v-for="(action, key) in actionList" :key="key" class="action-btn-wrapper">
+          <button 
+            @click="handleActionClick(key)" 
+            :title="action.name + (hasPurchased(key) ? '' : ` (${action.price.toLocaleString()} P)`)">
+            {{ action.icon }}
+            <span v-if="!hasPurchased(key)" class="lock-icon">🔒</span>
+          </button>
+        </div>
       </div>
 
       <div class="message-list" ref="messageListRef">
@@ -59,7 +62,7 @@
     </div>
 
     <div v-if="audioBlocked" class="audio-blocked-msg">
-      🔊 소리가 안 들리면 화면을 터치해주세요!
+      🔊 소리가 안 들리면 화면을 한번 터치해주세요!
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
@@ -69,6 +72,21 @@
         <button @click.stop="syncVideoTime">동기화</button>
       </div>
     </div>
+
+    <div v-if="purchaseModal.visible" class="modal-overlay">
+      <div class="modal-content">
+        <h3>{{ purchaseModal.actionName }} 구매</h3>
+        <p>이 행동을 영구적으로 사용하시겠습니까?</p>
+        <p class="price-tag">{{ purchaseModal.price.toLocaleString() }} SaltMate</p>
+        <div class="modal-actions">
+          <button @click="confirmPurchase" :disabled="isPurchasing">
+            {{ isPurchasing ? '처리 중...' : '구매하기' }}
+          </button>
+          <button @click="closePurchaseModal" class="cancel-btn">취소</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -89,9 +107,20 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
+// 유틸리티
+const uidToNum = (uid) => {
+  let hash = 0;
+  if (!uid) return 0;
+  for (let i = 0; i < uid.length; i++) {
+    const char = uid.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; 
+  }
+  return Math.abs(hash); 
+};
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// --- 상태 변수 ---
+// 상태 변수
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
@@ -104,7 +133,7 @@ const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
 
-// --- Agora 변수 ---
+// Agora 변수
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
@@ -112,7 +141,7 @@ const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
 
-// --- 아바타 관련 ---
+// 아바타 관련
 let myAvatar = null;
 let otherPlayers = {};
 let myAvatarUrl = '';
@@ -120,19 +149,40 @@ let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// --- 채팅 관련 ---
+// [신규] 행동 목록 및 가격 정의
+const actionList = {
+  dance: { name: '댄스', price: 2000, icon: '💃' },
+  backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
+  psy: { name: '싸이춤', price: 3000, icon: '🕶️' },
+  footwork: { name: '발재간', price: 4000, icon: '🦶' },
+  jump: { name: '점프', price: 2000, icon: '⏫' }
+};
+
+// [신규] 구매한 행동 목록 (DB에서 로드됨)
+const purchasedActions = ref([]);
+
+// [신규] 구매 모달 상태
+const purchaseModal = reactive({
+  visible: false,
+  actionKey: null,
+  actionName: '',
+  price: 0
+});
+const isPurchasing = ref(false);
+
+// 채팅 관련
 const chatInput = ref('');
 const chatMessages = ref([]);
 const messageListRef = ref(null);
 const chatInputRef = ref(null);
 const MAX_CHAT_MESSAGES = 50;
 
-// --- Three.js 관련 ---
+// Three.js 관련
 let scene, camera, renderer, clock;
 let controls; 
 const loader = new GLTFLoader();
 
-// --- Firebase 경로 ---
+// Firebase 경로
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
 const plazaVideoPath = 'plaza/videoState';
@@ -141,34 +191,87 @@ let playersListenerRef = null;
 let chatListenerRef = null;
 let videoListenerRef = null;
 
-// --- 이동 관련 ---
-// [수정] 보폭에 맞춰 속도 증가 (1.0 -> 3.5)
-// 이제 아바타가 걷는 만큼 이름표도 같이 이동하여 따로 노는 현상이 사라집니다.
-const moveSpeed = 3.5; 
+// 이동 관련
+const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 함수 정의 ---
+// --- 함수 정의 시작 ---
 
+// [신규] 구매 여부 확인
+const hasPurchased = (actionKey) => {
+  // 기본적으로 모든 유저는 구매해야 함 (무료 없음)
+  return purchasedActions.value.includes(actionKey);
+};
+
+// [신규] 행동 아이콘 클릭 핸들러
+const handleActionClick = (actionKey) => {
+  if (hasPurchased(actionKey)) {
+    triggerAction(actionKey);
+  } else {
+    openPurchaseModal(actionKey);
+  }
+};
+
+// [신규] 구매 모달 열기
+const openPurchaseModal = (actionKey) => {
+  const action = actionList[actionKey];
+  purchaseModal.actionKey = actionKey;
+  purchaseModal.actionName = action.name;
+  purchaseModal.price = action.price;
+  purchaseModal.visible = true;
+};
+
+const closePurchaseModal = () => {
+  purchaseModal.visible = false;
+  isPurchasing.value = false;
+};
+
+// [신규] 구매 확정 및 서버 통신
+const confirmPurchase = async () => {
+  if (isPurchasing.value) return;
+  isPurchasing.value = true;
+  
+  try {
+    const purchaseFunc = httpsCallable(functions, 'purchaseAction');
+    const result = await purchaseFunc({ actionKey: purchaseModal.actionKey });
+    
+    if (result.data.success) {
+      purchasedActions.value.push(purchaseModal.actionKey);
+      alert(`${purchaseModal.actionName} 구매 완료!`);
+      closePurchaseModal();
+    }
+  } catch (error) {
+    console.error("구매 실패:", error);
+    alert(error.message);
+    isPurchasing.value = false;
+  }
+};
+
+// 행동 트리거 (1회 재생 후 복귀)
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
+  
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   const action = actions[actionName];
   
   if (action) {
     mixer.stopAllAction();
+    
     action.reset();
-    action.setLoop(THREE.LoopOnce);
+    action.setLoop(THREE.LoopOnce); // 1회만 재생
     action.clampWhenFinished = true;
     action.play();
+    
     specialAction.value = actionName;
 
     const onFinished = (e) => {
         if (e.action === action) {
             mixer.removeEventListener('finished', onFinished);
             specialAction.value = null; 
+            
             const idleAction = actions[currentIdle.value];
             if (idleAction) {
                 idleAction.reset().play();
@@ -187,16 +290,13 @@ const resumeAudioContext = () => {
     }
 };
 
-// [수정] Agora 초기화 (String UID 사용)
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-    
     AgoraRTC.onAutoplayFailed = () => {
-        console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
     
@@ -206,7 +306,6 @@ const initAgora = async (uid) => {
         const { uid: speakerUid, level } = volumeInfo;
         const isTalking = level > 40; 
         
-        // 본인이거나, 문자열 ID가 일치하면
         if (speakerUid === 0 || speakerUid === stringUid) {
             updateSpeakingIndicator(stringUid, isTalking); 
         } else {
@@ -217,14 +316,13 @@ const initAgora = async (uid) => {
 
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
-      console.log(`[Agora] Subscribed: ${user.uid} (${mediaType})`);
-      
       if (mediaType === "audio") {
         try {
-            user.audioTrack.play();
-            user.audioTrack.setVolume(100); // 볼륨 최대
+            setTimeout(() => {
+                user.audioTrack.play();
+                user.audioTrack.setVolume(100);
+            }, 200);
         } catch (e) {
-            console.error("[Agora] Play failed:", e);
             audioBlocked.value = true;
         }
       }
@@ -236,16 +334,14 @@ const initAgora = async (uid) => {
       }
     });
 
-    // 문자열 UID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
-    console.log(`[Agora] Joined as ${stringUid}`);
 
   } catch (error) {
     console.error("[Agora] Init Error:", error);
   }
 };
 
-const updateSpeakingIndicator = (targetId, isSpeaking) => {
+const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
@@ -256,9 +352,7 @@ const updateSpeakingIndicator = (targetId, isSpeaking) => {
   }
 
   if (!targetMesh) return;
-  
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
-
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
@@ -293,14 +387,12 @@ const toggleMic = async () => {
   if (!agoraClient.value) return;
   try {
     if (!localAudioTrack.value) {
-      // [설정] 마이크 트랙 생성 및 게시
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
           encoderConfig: "high_quality_stereo",
           AEC: true, ANS: true, AGC: true
       });
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
-      console.log("[Agora] Mic Published");
     } else {
       if (isMicOn.value) {
         await localAudioTrack.value.setEnabled(false); 
@@ -893,8 +985,10 @@ const animate = () => {
   if (!renderer || !scene || !camera || !clock) return;
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
+
   if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
+
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
   if (controls) controls.update();
@@ -909,33 +1003,45 @@ onMounted(() => {
         const token = await user.getIdTokenResult();
         if (token.claims.role === 'superAdmin') isAdmin.value = true;
       } catch(e) { console.log("권한 확인 실패"); }
+
       await initAgora(currentUid);
       if (!initThree()) return;
+
       const preloadedAnimations = await loadAnimations();
       const idleKeys = ['idle', 'idle2', 'idle3', 'idle4'];
       currentIdle.value = idleKeys[Math.floor(Math.random() * idleKeys.length)];
+
       window.addEventListener('resize', handleResize);
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
       window.addEventListener('touchstart', handleUserInteraction); 
       window.addEventListener('click', handleUserInteraction);
       window.addEventListener('mousemove', handleUserInteraction); 
+
       animate();
+
+      // [신규] 구매한 행동 목록 불러오기
       try {
         const userDoc = await getDoc(doc(db, 'users', currentUid));
         if (userDoc.exists()) {
-            myAvatarUrl = userDoc.data().avatarUrl;
-            myUserName = userDoc.data().name;
-            if (userDoc.data().hasReceivedVideoReward) {
-              rewardClaimedLocal.value = true;
+            const userData = userDoc.data();
+            myAvatarUrl = userData.avatarUrl;
+            myUserName = userData.name;
+            if (userData.hasReceivedVideoReward) rewardClaimedLocal.value = true;
+            
+            // 구매 내역 로드 (배열이 없으면 빈 배열)
+            if (userData.purchasedActions) {
+                purchasedActions.value = userData.purchasedActions;
             }
         }
       } catch (error) {
         console.error("Firestore 정보 가져오기 실패:", error);
       }
+
       myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
       const startX = 37.16; const startY = 0.5; const startZ = 7.85;
       myAvatar.position.set(startX, startY, startZ); 
+      
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
         nick.position.set(0, 1.8, 0); 
@@ -945,6 +1051,7 @@ onMounted(() => {
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
+
       await nextTick();
       const joystickZone = document.getElementById('joystick-zone');
       if (joystickZone) {
@@ -952,6 +1059,7 @@ onMounted(() => {
           joystickManager.on('move', handleJoystickMove);
           joystickManager.on('end', handleJoystickEnd);
       }
+
       await joinPlaza(currentUid);
       if (isReady.value) {
         updateMyStateInRTDB(); 
@@ -1018,13 +1126,18 @@ onUnmounted(() => {
   flex-direction: column; 
   z-index: 5; 
 }
+
+/* [수정] 행동 아이콘 바 스타일 */
 .action-bar {
   display: flex;
   gap: 5px;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
-.action-bar button {
+.action-btn-wrapper {
+  position: relative;
+}
+.action-btn-wrapper button {
   background: rgba(0,0,0,0.6);
   border: 1px solid rgba(255,255,255,0.3);
   color: white;
@@ -1033,10 +1146,19 @@ onUnmounted(() => {
   border-radius: 5px;
   cursor: pointer;
   transition: transform 0.1s;
+  position: relative;
 }
-.action-bar button:active {
+.action-btn-wrapper button:active {
   transform: scale(0.9);
-  background: rgba(255,255,255,0.2);
+}
+.lock-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 0.8rem;
+  background: rgba(0,0,0,0.8);
+  border-radius: 50%;
+  padding: 2px;
 }
 
 .message-list { 
@@ -1073,6 +1195,31 @@ onUnmounted(() => {
 .admin-buttons { display: flex; gap: 5px; }
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
+
+/* [신규] 구매 모달 스타일 */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
+}
+.modal-content {
+  background: white; width: 90%; max-width: 320px; padding: 20px; border-radius: 12px; text-align: center;
+}
+.price-tag {
+  font-size: 1.2rem; font-weight: bold; color: #007bff; margin: 15px 0;
+}
+.modal-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.modal-actions button {
+  padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+  background-color: #007bff; color: white;
+}
+.modal-actions button.cancel-btn {
+  background-color: #6c757d;
+}
+.modal-actions button:disabled {
+  background-color: #ccc;
+}
 
 @media (max-width: 768px) {
   .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }

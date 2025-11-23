@@ -5,12 +5,12 @@
       <p>게임 정보를 불러오는 중...</p>
     </div>
 
-    <div v-else-if="game.status === 'waiting'" class="state-screen">
+    <div v-else-if="shouldShowWaitingScreen" class="state-screen">
       <i class="fas fa-trophy title-icon"></i>
       <h2 class="game-title">솔트 스칼라 퀴즈</h2>
       <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       <div class="countdown">
-        {{ displayTimeToStart > 0 ? `게임 시작까지 약 ${displayTimeToStart}초` : '곧 시작합니다!' }}
+        {{ displayTimeToStart > 0 ? `게임 시작까지 약 ${displayTimeToStart}초` : '잠시 후 시작됩니다!' }}
       </div>
       <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
         <span v-if="isJoined">참가 완료!</span>
@@ -18,7 +18,7 @@
       </button>
     </div>
 
-    <div v-else-if="game.status === 'playing' && currentQuestion" class="playing-screen">
+    <div v-else-if="game.status === 'playing' && isGameValid && currentQuestion" class="playing-screen">
       <div class="quiz-header">
         <span class="question-counter">{{ game.currentQuestionIndex + 1 }} / {{ game.questions.length }}</span>
         <div class="timer-container">
@@ -90,6 +90,35 @@ const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 const rtdb = getDatabase();
 const gameRef = dbRef(rtdb, 'quizGame/currentGame');
 
+// [신규] 현재 게임 상태가 유효한지(시간이 지나지 않았는지) 확인하는 computed 속성
+const isGameValid = computed(() => {
+  if (!game.value || game.value.status !== 'playing') return false;
+  
+  const localNow = Date.now() + serverTimeOffset.value;
+  // 라운드 종료 시간에서 5초 이상 지났다면 '죽은 게임'으로 간주 (DB가 업데이트 안 된 상태)
+  // 이렇게 하면 퀴즈 시간이 아닐 때 들어와도 문제 화면이 안 뜨고 대기 화면으로 넘어감
+  if (localNow > (game.value.roundEndTime + 5000)) {
+      return false;
+  }
+  return true;
+});
+
+// [신규] 대기 화면을 보여줄지 결정하는 통합 computed 속성
+const shouldShowWaitingScreen = computed(() => {
+    if (!game.value) return false;
+    
+    // 1. DB 상태가 대기 중일 때
+    if (game.value.status === 'waiting') return true;
+    
+    // 2. DB 상태가 게임 중이지만, 시간이 만료되어 유효하지 않을 때 (오류 상황 방지)
+    if (game.value.status === 'playing' && !isGameValid.value) return true;
+
+    // 3. 게임 종료 상태지만, 다음 게임 시간이 더 가까워졌을 때 (여기선 간단히 처리)
+    // (필요 시 추가 로직 가능)
+    
+    return false;
+});
+
 const currentQuestion = computed(() => {
     if (!game.value || game.value.currentQuestionIndex < 0) return null;
     return game.value.questions[game.value.currentQuestionIndex];
@@ -113,27 +142,19 @@ const hasAnswered = computed(() => {
 
 const winnerName = computed(() => {
     if(!game.value || !game.value.winner) return '알 수 없음';
-    // [★수정★] game.winner 자체가 이미 이름 문자열이므로 그대로 반환합니다.
     return game.value.winner;
 });
 
-// ▼▼▼ [핵심 추가] 다음 게임 시간을 계산하는 computed 속성 ▼▼▼
 const nextGameTime = computed(() => {
   const now = new Date();
   const allowedHours = [0, 9, 12, 15, 18, 21];
   const currentHour = now.getHours();
-
-  // 현재 시간보다 늦은 다음 게임 시간을 찾습니다.
   let nextHour = allowedHours.find(hour => hour > currentHour);
-
-  // 만약 없다면 (즉, 21시 이후라면), 다음 날 0시(자정)가 다음 게임 시간입니다.
   if (nextHour === undefined) {
     nextHour = 0;
   }
-  
   return `${nextHour}시 정각`;
 });
-// ▲▲▲
 
 const joinGame = async () => {
   isLoading.value = true;
@@ -202,10 +223,28 @@ const updateTimer = () => {
 const updateCountdown = () => {
   if (countdownInterval) clearInterval(countdownInterval);
 
-  if (game.value?.status === 'waiting') {
+  // 'waiting' 상태이거나, 'playing' 상태지만 유효하지 않은(시간 지난) 경우 카운트다운 계산
+  if (game.value?.status === 'waiting' || (game.value?.status === 'playing' && !isGameValid.value)) {
     const update = () => {
       const localNow = Date.now() + serverTimeOffset.value;
-      displayTimeToStart.value = Math.max(0, Math.round((game.value.startTime - localNow) / 1000));
+      // 다음 게임 시작 시간 계산 (DB에 있는 startTime이 미래라면 그것 사용, 아니면 다음 정각 계산)
+      let targetTime = game.value.startTime;
+      
+      // DB의 startTime이 이미 지났다면(오류 상황), 다음 정각을 계산해서 보여줌
+      if (targetTime < localNow) {
+         const now = new Date();
+         const allowedHours = [0, 9, 12, 15, 18, 21];
+         let nextHour = allowedHours.find(h => h > now.getHours());
+         if(nextHour === undefined) nextHour = 24; // 자정(내일 0시)
+         
+         const nextDate = new Date(now);
+         nextDate.setHours(nextHour, 0, 0, 0);
+         if(nextHour === 24) nextDate.setDate(nextDate.getDate() + 1);
+         
+         targetTime = nextDate.getTime();
+      }
+
+      displayTimeToStart.value = Math.max(0, Math.round((targetTime - localNow) / 1000));
     };
     update();
     countdownInterval = setInterval(update, 1000);
