@@ -62,7 +62,7 @@
     </div>
 
     <div v-if="audioBlocked" class="audio-blocked-msg">
-      🔊 소리가 안 들리면 화면을 한번 터치해주세요!
+      🔊 대화가 안 들리면 화면을 터치하세요!
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
@@ -107,9 +107,23 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
+// --- 유틸리티: 문자열 ID -> 숫자 ID 변환 ---
+// Agora 통신 안정성을 위해 필수입니다.
+const uidToNum = (uid) => {
+  let hash = 0;
+  if (!uid) return 0;
+  for (let i = 0; i < uid.length; i++) {
+    const char = uid.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; 
+  }
+  // Agora UID는 양수여야 하므로 절대값 사용, 최대값 제한
+  return Math.abs(hash) % 2147483647; 
+};
+
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
-// 상태 변수
+// --- 상태 변수 ---
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
@@ -122,10 +136,10 @@ const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
 
-// Agora 변수
+// --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
-const agoraToken = null; 
+const agoraToken = null; // Unsecure 모드
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
@@ -138,7 +152,7 @@ let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// 행동 목록 및 가격 정의
+// 행동 목록
 const actionList = {
   dance: { name: '댄스', price: 2000, icon: '💃' },
   backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
@@ -147,10 +161,8 @@ const actionList = {
   jump: { name: '점프', price: 2000, icon: '⏫' }
 };
 
-// 구매한 행동 목록
 const purchasedActions = ref([]);
 
-// 구매 모달 상태
 const purchaseModal = reactive({
   visible: false,
   actionKey: null,
@@ -188,10 +200,12 @@ let joystickManager = null;
 
 // --- 함수 정의 시작 ---
 
+// 구매 여부 확인
 const hasPurchased = (actionKey) => {
   return purchasedActions.value.includes(actionKey);
 };
 
+// 행동 아이콘 클릭
 const handleActionClick = (actionKey) => {
   if (hasPurchased(actionKey)) {
     triggerAction(actionKey);
@@ -231,6 +245,7 @@ const confirmPurchase = async () => {
   }
 };
 
+// 행동 트리거
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
   const mixer = myAvatar.userData.mixer;
@@ -250,7 +265,6 @@ const triggerAction = (actionName) => {
         if (e.action === action) {
             mixer.removeEventListener('finished', onFinished);
             specialAction.value = null; 
-            
             const idleAction = actions[currentIdle.value];
             if (idleAction) {
                 idleAction.reset().play();
@@ -262,50 +276,61 @@ const triggerAction = (actionName) => {
   }
 };
 
+// [수정] 오디오 컨텍스트 재개 (터치 시 호출)
 const resumeAudioContext = () => {
     audioBlocked.value = false;
+    // Three.js 오디오 컨텍스트 재개
     if (THREE.AudioContext.getContext().state === 'suspended') {
         THREE.AudioContext.getContext().resume();
     }
 };
 
-// [핵심] Agora 초기화 (문자열 UID 그대로 사용)
+// [핵심 수정] Agora 초기화 (숫자 UID 사용)
 const initAgora = async (uid) => {
   if (!uid) return;
-  const stringUid = uid; 
+  
+  // 1. Firebase UID(문자열) -> Agora용 숫자 ID 변환
+  const numericUid = uidToNum(uid);
+  console.log(`[Agora] Init: ${uid} -> ${numericUid}`);
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
     AgoraRTC.onAutoplayFailed = () => {
         console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
     
+    // 2. 볼륨 감지 (말하는 사람 찾기)
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
-        const isTalking = level > 40; 
+        const isTalking = level > 40; // 민감도 조절
         
-        // 문자열 UID 비교
-        if (speakerUid === 0 || speakerUid === stringUid) {
-            updateSpeakingIndicator(stringUid, isTalking); 
+        // speakerUid는 숫자입니다.
+        if (speakerUid === 0 || speakerUid === numericUid) {
+            // 나 (내 Firebase ID 전달)
+            updateSpeakingIndicator(uid, isTalking); 
         } else {
-            updateSpeakingIndicator(speakerUid, isTalking); 
+            // 상대방 (숫자 ID 전달 -> 내부에서 역추적)
+            updateSpeakingIndicator(speakerUid, isTalking, true); 
         }
       });
     });
 
+    // 3. 상대방 오디오 구독
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
+      console.log(`[Agora] Subscribed: ${user.uid}`);
+      
       if (mediaType === "audio") {
         try {
-            // 약간의 지연 후 재생
-            setTimeout(() => {
-                user.audioTrack.play();
-                user.audioTrack.setVolume(100);
-            }, 200);
+            user.audioTrack.play();
+            // 볼륨 최대 설정
+            if (user.audioTrack.setVolume) user.audioTrack.setVolume(100);
         } catch (e) {
+            console.error("[Agora] Audio play failed:", e);
             audioBlocked.value = true;
         }
       }
@@ -317,27 +342,37 @@ const initAgora = async (uid) => {
       }
     });
 
-    // [중요] 문자열 UID로 입장
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
-    console.log(`[Agora] Joined as ${stringUid}`);
+    // 4. 숫자 ID로 입장
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, numericUid);
+    console.log(`[Agora] Joined channel as ${numericUid}`);
 
   } catch (error) {
     console.error("[Agora] Init Error:", error);
   }
 };
 
-const updateSpeakingIndicator = (targetId, isSpeaking) => {
+// [핵심 수정] 아이콘 표시 로직 (역추적 기능 포함)
+const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId = false) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
 
-  if (targetId === currentUid) {
-      targetMesh = myAvatar;
-  } else if (otherPlayers[targetId]) {
-      targetMesh = otherPlayers[targetId].mesh;
+  if (!isNumericId) {
+      // 내 아이콘 (Firebase 문자열 ID로 호출됨)
+      if (targetId === currentUid) targetMesh = myAvatar;
+  } else {
+      // 상대방 아이콘 (Agora 숫자 ID로 호출됨 -> Firebase 문자열 ID 역추적)
+      for (const key in otherPlayers) {
+          if (uidToNum(key) === targetId) {
+              targetMesh = otherPlayers[key].mesh;
+              break;
+          }
+      }
   }
 
   if (!targetMesh) return;
+  
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
+
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
@@ -372,22 +407,30 @@ const toggleMic = async () => {
   if (!agoraClient.value) return;
   try {
     if (!localAudioTrack.value) {
+      // [설정] 마이크 트랙 생성
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
           encoderConfig: "high_quality_stereo",
           AEC: true, ANS: true, AGC: true
       });
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
+      console.log("[Agora] Mic ON");
     } else {
       if (isMicOn.value) {
+        // Mute (트랙은 유지하되 소리만 끔 - 재연결 속도 위해)
         await localAudioTrack.value.setEnabled(false); 
         isMicOn.value = false;
+        console.log("[Agora] Mic Muted");
       } else {
+        // Unmute
         await localAudioTrack.value.setEnabled(true); 
         isMicOn.value = true;
+        console.log("[Agora] Mic Unmuted");
       }
     }
-  } catch (error) { console.error("[Agora] Mic Error:", error); }
+  } catch (error) {
+    console.error("[Agora] Mic Error:", error);
+  }
 };
 
 const leaveAgora = async () => {
@@ -645,12 +688,9 @@ const showChatBubble = (avatar, message, color = "black") => {
 
 const joinPlaza = async (uid) => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
-  
-  // [핵심] 접속 시 공중(Y=1.0)에서 시작 (땅속 방지)
   const safeX = 37.16;
   const safeY = 1.0; 
   const safeZ = 7.85;
-
   const playerData = {
     avatarUrl: myAvatarUrl,
     userName: myUserName,
@@ -714,53 +754,45 @@ const listenToChat = () => {
   });
 };
 
-// [핵심 수정] 다른 플레이어 로드 시 좌표 보정
+// [수정] listenToOtherPlayers: 접속 시 땅속 방지
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
-    
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
       targetRotationY: rotY,
       userName: val.userName, isMoving: false
     };
-    
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
         nick.position.set(0, 1.8, 0); 
         model.add(nick); 
       }
-
-      // [중요] 로드 직후에는 지면 위(0.5)로 강제 보정
-      const safeY = Math.max(otherPlayers[snapshot.key].targetPosition.y, 0.5); 
-      model.position.set(posX, safeY, posZ);
       
+      // [핵심] 로드 시점에 강제로 지면 위로 위치 보정
+      const safeY = Math.max(posY, 0.5); 
+      
+      model.position.set(posX, safeY, posZ);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
-      
       scene.add(model);
       model.updateMatrixWorld(true); 
-      
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
-      
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
-
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
@@ -768,7 +800,6 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
     otherPlayers[snap.key].targetRotationY = val.rotationY || 0;
   });
-
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -776,7 +807,6 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   });
 };
 
-// [핵심] 접속 시 자동 점프
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
@@ -799,19 +829,15 @@ const initThree = () => {
           scene.background = texture;
           scene.environment = texture;
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
-
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
-
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(startX, startY + 5, startZ + 10);
-
       if (!canvasRef.value) return false;
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -820,7 +846,6 @@ const initThree = () => {
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
-
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -831,7 +856,6 @@ const initThree = () => {
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
-
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
