@@ -1727,139 +1727,141 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   /* 최소 높이 설정 (선택 사항) */
   min-height: 250px; 
 }
-/* ▼▼▼ [★신규 추가★] 전설의 황금 상자 카드 전용 스타일 ▼▼▼ */
+/* =========================================
+   [★신규 디자인★] 전설의 황금 상자 VIP 스타일
+   ========================================= */
 
-/* 카드 기본 레이아웃 */
+/* 1. 카드 기본 배경 및 테두리 (화려한 금장 장식) */
 .treasure-card-enhanced {
+  /* 기존 card-glass 스타일 재정의 */
+  background: linear-gradient(135deg, #2c2000 0%, #4a3500 50%, #2c2000 100%); /* 깊이 있는 다크 골드 배경 */
+  border: 2px solid transparent; /* 그라데이션 보더를 위한 투명 설정 */
+  border-image: linear-gradient(to bottom right, #FFD700, #FFA500, #FFD700) 1; /* 황금 그라데이션 테두리 */
+  box-shadow: 0 10px 30px -10px rgba(255, 215, 0, 0.5), inset 0 0 20px rgba(255, 215, 0, 0.2); /* 외부/내부 황금빛 광채 */
   position: relative;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-/* 내부 콘텐츠 가로 정렬 (모바일은 세로) */
-.treasure-card-enhanced .card-content-wrapper {
-  display: flex;
-  align-items: center;
-  text-align: left;
-  gap: 20px;
-  height: 100%;
-  width: 100%;
-}
-
-/* 피버 타임일 때 배경색 강조 */
-.treasure-card-enhanced.is-fever {
-  background: linear-gradient(145deg, rgba(255, 78, 80, 0.15), rgba(249, 212, 35, 0.15));
-  border-color: rgba(255, 215, 0, 0.5);
-  box-shadow: 0 0 20px rgba(255, 78, 80, 0.2);
-}
-
-/* 피버 배지 스타일 */
-.fever-badge-mini {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: linear-gradient(90deg, #ff4e50, #f9d423);
-  color: #fff;
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4);
-  animation: pulse-fever-mini 1.5s infinite;
-  z-index: 2;
-}
-
-/* 상자 아이콘 컨테이너 */
-.chest-icon-container {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  flex-shrink: 0;
-  animation: breathe-mini 3s infinite ease-in-out; /* 숨쉬는 효과 */
-}
-
-.chest-icon-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5));
-  position: relative;
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); /* 더 부드럽고 고급스러운 움직임 */
   z-index: 1;
 }
 
-/* 아이콘 뒤 후광 효과 */
-.glow-effect-mini {
+/* 호버 및 피버 타임 효과 강화 */
+.treasure-card-enhanced:hover,
+.treasure-card-enhanced.is-fever {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 20px 40px -10px rgba(255, 215, 0, 0.7), inset 0 0 30px rgba(255, 215, 0, 0.4);
+  border-image: linear-gradient(to bottom right, #fff7cc, #FFD700, #FFA500) 1; /* 더 밝게 빛나는 테두리 */
+}
+.treasure-card-enhanced.is-fever {
+    /* 피버타임은 붉은 기운이 도는 더욱 강력한 황금빛 */
+    background: linear-gradient(135deg, #4a0000 0%, #6d4c00 50%, #4a0000 100%);
+    box-shadow: 0 20px 50px -10px rgba(255, 78, 80, 0.6), inset 0 0 30px rgba(255, 215, 0, 0.3);
+    border-image: linear-gradient(to bottom right, #FF4E50, #FFD700, #FF4E50) 1;
+}
+
+
+/* 2. 배경 파티클 효과 (금가루 흩날림) - 가상 요소 활용 */
+.treasure-card-enhanced::before {
+  content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 120%;
-  height: 120%;
-  background: radial-gradient(circle, rgba(255,215,0,0.4) 0%, transparent 70%);
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  z-index: 0;
-  opacity: 0.6;
-  transition: background 0.3s ease;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255, 215, 0, 0.4) 1px, transparent 2px),
+    radial-gradient(circle at 80% 10%, rgba(255, 223, 0, 0.3) 1px, transparent 2px),
+    radial-gradient(circle at 40% 80%, rgba(255, 215, 0, 0.5) 2px, transparent 3px),
+    radial-gradient(circle at 90% 90%, rgba(255, 239, 0, 0.4) 1px, transparent 2px);
+  background-size: 120% 120%;
+  opacity: 0; /* 기본은 숨김 */
+  transition: opacity 0.5s ease;
+  mix-blend-mode: screen; /* 배경과 밝게 합성 */
+  pointer-events: none;
+  z-index: -1;
+}
+.treasure-card-enhanced:hover::before,
+.treasure-card-enhanced.is-fever::before {
+  opacity: 1; /* 호버/피버 시 금가루 나타남 */
+  animation: gold-dust-move 15s linear infinite;
+}
+
+@keyframes gold-dust-move {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 50% 20%; }
+  100% { background-position: 0% 0%; }
+}
+
+
+/* 3. 아이콘 및 광원 효과 (더욱 강력하게) */
+.chest-icon-container {
+  width: 85px; height: 85px; /* 아이콘 크기 약간 확대 */
+  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6)); /* 깊이감 있는 그림자 */
+  animation: breathe-luxury 3s ease-in-out infinite; /* 고급스러운 숨쉬기 효과 */
+}
+@keyframes breathe-luxury {
+  0%, 100% { transform: scale(1) translateY(0); filter: brightness(1); }
+  50% { transform: scale(1.05) translateY(-5px); filter: brightness(1.15); } /* 위로 살짝 뜨면서 밝아짐 */
+}
+
+.glow-effect-mini {
+  width: 160%; height: 160%; /* 광원 범위 대폭 확대 */
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.7) 0%, rgba(255, 140, 0, 0.3) 40%, transparent 70%); /* 더 진하고 넓은 황금빛 */
+  opacity: 0.7;
+  mix-blend-mode: screen;
+  animation: rotate-glow 10s linear infinite; /* 광원이 천천히 회전 */
+}
+@keyframes rotate-glow {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 .is-fever .glow-effect-mini {
-  background: radial-gradient(circle, rgba(255, 78, 80, 0.5) 0%, transparent 70%);
-  opacity: 0.8;
+  background: radial-gradient(circle, rgba(255, 78, 80, 0.8) 0%, rgba(255, 215, 0, 0.4) 50%, transparent 70%); /* 피버 시 붉은 황금빛 */
+  animation: rotate-glow 5s linear infinite, pulse-fever-glow 1s ease-in-out infinite alternate; /* 더 빠르게 회전하며 고동침 */
+  opacity: 0.9;
+}
+@keyframes pulse-fever-glow {
+    from { opacity: 0.7; scale: 1; }
+    to { opacity: 1; scale: 1.1; }
 }
 
-/* 텍스트 스타일 */
+
+/* 4. 텍스트 스타일 (금속 질감 타이포그래피) */
 .treasure-card-enhanced .card-text h3 {
-  margin: 0 0 8px 0;
-  font-size: 1.3rem;
-  color: #FFED00F; /* <-- 이 부분을 수정하세요 #FFD700 2025-11-23*/
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+  /* 황금색 금속 그라데이션 텍스트 */
+  background: linear-gradient(to bottom, #fff7cc, #FFD700, #FFA500);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* 금속 입체감을 위한 그림자 */
+  text-shadow: 0 2px 2px rgba(0,0,0,0.5), 0 0 20px rgba(255,215,0,0.5);
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
 .treasure-card-enhanced .card-text p {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  color: #000000; /* <-- 이 부분을 수정하세요 #e0e0e0 */
+  font-size: 1rem;
+  color: #eee; /* 밝은 은색 텍스트 */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
 }
 
-/* 피버 타임 안내 텍스트 */
+/* 5. 피버 배지 및 알림 (보석 같은 느낌) */
+.fever-badge-mini {
+  background: linear-gradient(135deg, #ff3336, #ff8c00); /* 더 강렬한 루비/골드 그라데이션 */
+  border: 1px solid #FFD700;
+  box-shadow: 0 4px 15px rgba(255, 50, 50, 0.6), inset 0 0 10px rgba(255, 215, 0, 0.5); /* 내부 광채 추가 */
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
 .fever-alert {
-  color: #FFFF00 !important; /* <-- 이 부분을 수정하세요 #FFD700 */
-  font-weight: bold;
-  font-size: 0.85rem !important;
-  margin-top: 8px !important;
-  text-shadow: 0 0 8px rgba(255, 78, 80, 0.6);
-  animation: pulse-text 1.5s infinite;
+  color: #FFD700 !important;
+  text-shadow: 0 0 5px #FFD700, 0 0 15px #ff4e50 !important; /* 강렬한 발광 효과 */
+  font-size: 0.95rem !important;
+  letter-spacing: 0.5px;
 }
 
-/* 애니메이션 키프레임 */
-@keyframes breathe-mini {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
-
-@keyframes pulse-fever-mini {
-  0% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4); }
-  50% { transform: scale(1.1); box-shadow: 0 4px 15px rgba(255, 78, 80, 0.7); }
-  100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 78, 80, 0.4); }
-}
-
-@keyframes pulse-text {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-/* 모바일 반응형 (화면이 좁을 때 세로 배치) */
-@media (max-width: 600px) {
-  .treasure-card-enhanced .card-content-wrapper {
-    flex-direction: column;
-    text-align: center;
-    justify-content: center;
-    gap: 15px;
-  }
-  .fever-badge-mini {
-    top: 10px;
-    right: 10px;
-  }
-}
+/* =========================================
+   [★종료★] 전설의 황금 상자 VIP 스타일
+   ========================================= */
 </style>
