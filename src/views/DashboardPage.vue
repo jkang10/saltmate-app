@@ -1791,22 +1791,36 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 
 /* 3. 아이콘 및 광원 효과 (더욱 강력하게) */
 .chest-icon-container {
-  width: 85px; height: 85px; /* 아이콘 크기 약간 확대 */
-  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6)); /* 깊이감 있는 그림자 */
-  animation: breathe-luxury 3s ease-in-out infinite; /* 고급스러운 숨쉬기 효과 */
+  position: relative; /* [중요] 자식 요소(이미지, 광원)의 기준점이 됩니다. */
+  width: 85px; height: 85px;
+  flex-shrink: 0; /* 컨테이너가 줄어들지 않도록 설정 */
+  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6));
+  animation: breathe-luxury 3s ease-in-out infinite;
 }
+
+/* [★추가된 부분★] 이미지 스타일 */
+.chest-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 비율을 유지하며 컨테이너 안에 딱 맞게 들어갑니다. */
+  position: relative;
+  z-index: 1; /* 광원 효과보다 위에 오도록 합니다. */
+}
+
 @keyframes breathe-luxury {
-  0%, 100% { transform: scale(1) translateY(0); filter: brightness(1); }
-  50% { transform: scale(1.05) translateY(-5px); filter: brightness(1.15); } /* 위로 살짝 뜨면서 밝아짐 */
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.05) translateY(-5px); }
 }
 
 .glow-effect-mini {
-  width: 160%; height: 160%; /* 광원 범위 대폭 확대 */
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.7) 0%, rgba(255, 140, 0, 0.3) 40%, transparent 70%); /* 더 진하고 넓은 황금빛 */
+  /* (기존 코드와 동일) */
+  width: 160%; height: 160%;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.7) 0%, rgba(255, 140, 0, 0.3) 40%, transparent 70%);
   opacity: 0.7;
   mix-blend-mode: screen;
-  animation: rotate-glow 10s linear infinite; /* 광원이 천천히 회전 */
+  animation: rotate-glow 10s linear infinite;
 }
+
 @keyframes rotate-glow {
     from { transform: translate(-50%, -50%) rotate(0deg); }
     to { transform: translate(-50%, -50%) rotate(360deg); }
