@@ -1,7 +1,9 @@
 <template>
+  <!-- 화면 클릭 시 오디오 권한 강제 획득 -->
   <div class="utopia-container" @click="resumeAudioContext">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
+    <!-- 배경 시네마 비디오 -->
     <video
       ref="cinemaVideoRef"
       id="cinema-video"
@@ -27,6 +29,15 @@
     <div id="joystick-zone" class="joystick-zone"></div>
 
     <div class="chat-ui">
+      <!-- [신규] 행동 아이콘 바 (채팅창 상단) -->
+      <div class="action-bar">
+        <button @click="triggerAction('dance')" title="댄스">💃</button>
+        <button @click="triggerAction('backflip')" title="백덤블링">🤸</button>
+        <button @click="triggerAction('psy')" title="싸이춤">🕶️</button>
+        <button @click="triggerAction('footwork')" title="발재간">🦶</button>
+        <button @click="triggerAction('jump')" title="점프">⏫</button>
+      </div>
+
       <div class="message-list" ref="messageListRef">
         <div v-for="msg in chatMessages" :key="msg.id" class="chat-message">
           <strong>{{ msg.userName }}:</strong> {{ msg.message }}
@@ -81,7 +92,7 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 유틸리티: 문자열 ID를 고유한 숫자 ID로 변환 ---
+// --- 유틸리티 ---
 const uidToNum = (uid) => {
   let hash = 0;
   if (!uid) return 0;
@@ -92,7 +103,6 @@ const uidToNum = (uid) => {
   }
   return Math.abs(hash); 
 };
-
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
@@ -121,6 +131,10 @@ let otherPlayers = {};
 let myAvatarUrl = '';
 let myUserName = '';
 
+// [신규] 애니메이션 상태 관리
+const currentIdle = ref('idle'); // 랜덤으로 결정될 기본 자세
+const specialAction = ref(null); // 현재 실행 중인 특수 동작 (댄스 등)
+
 // --- 채팅 관련 ---
 const chatInput = ref('');
 const chatMessages = ref([]);
@@ -148,7 +162,17 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- 오디오 컨텍스트 강제 재개 ---
+// --- [신규] 행동 트리거 함수 ---
+const triggerAction = (actionName) => {
+  if (!myAvatar) return;
+  // 이동 중이면 행동 불가 (또는 멈추고 행동)
+  // 여기서는 강제로 행동을 실행하고 이동 입력을 덮어씁니다.
+  specialAction.value = actionName;
+  
+  // 즉시 애니메이션 업데이트를 위해 호출
+  updatePlayerMovement(0.016);
+};
+
 const resumeAudioContext = () => {
     audioBlocked.value = false;
     if (THREE.AudioContext.getContext().state === 'suspended') {
@@ -156,41 +180,30 @@ const resumeAudioContext = () => {
     }
 };
 
-// --- [수정] Agora 초기화 (숫자 ID 사용) ---
 const initAgora = async (uid) => {
   if (!uid) return;
-  
-  // Firebase UID -> 숫자 ID 변환
   const numericUid = uidToNum(uid);
-  console.log(`[Agora] Init with UID: ${uid} -> ${numericUid}`);
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
     AgoraRTC.onAutoplayFailed = () => {
         console.warn("[Agora] Autoplay blocked by browser");
         audioBlocked.value = true;
     };
-
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
-        // [수정] 변수명 충돌 해결 (uid -> speakerUid)
         const { uid: speakerUid, level } = volumeInfo;
         const isTalking = level > 50; 
-        
-        // speakerUid가 0(나 자신)이거나, 내 숫자ID와 같으면 '나'
         if (speakerUid === 0 || speakerUid === numericUid) {
-            updateSpeakingIndicator(uid, isTalking, false); // 나 (문자열 ID 전달)
+            updateSpeakingIndicator(uid, isTalking, false); 
         } else {
-            updateSpeakingIndicator(speakerUid, isTalking, true); // 상대방 (숫자 ID 전달)
+            updateSpeakingIndicator(speakerUid, isTalking, true); 
         }
       });
     });
-
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
-      
       if (mediaType === "audio") {
         try {
             user.audioTrack.play();
@@ -201,31 +214,23 @@ const initAgora = async (uid) => {
         }
       }
     });
-
     agoraClient.value.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "audio") {
         if (user.audioTrack) user.audioTrack.stop();
       }
     });
-
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, numericUid);
-    console.log(`[Agora] Channel Joined Success!`);
-
   } catch (error) {
     console.error("[Agora] Init Error:", error);
   }
 };
 
-// --- 말하는 아이콘 표시 ---
 const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
-
   if (!isNumericId) {
-      // 내 아이콘 (문자열 ID로 호출됨)
       if (targetId === currentUid) targetMesh = myAvatar;
   } else {
-      // 상대방 아이콘 (숫자 ID로 호출됨 -> 문자열 ID 찾기)
       for (const key in otherPlayers) {
           if (uidToNum(key) === targetId) {
               targetMesh = otherPlayers[key].mesh;
@@ -233,11 +238,8 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
           }
       }
   }
-
   if (!targetMesh) return;
-
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
-
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
@@ -251,7 +253,6 @@ const updateSpeakingIndicator = (targetId, isSpeaking, isNumericId) => {
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.fillText('🔊', 32, 32); 
-
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
       const sprite = new THREE.Sprite(material);
@@ -275,12 +276,10 @@ const toggleMic = async () => {
     if (!localAudioTrack.value) {
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
           encoderConfig: "high_quality_stereo",
-          AEC: true, 
-          ANS: true 
+          AEC: true, ANS: true 
       });
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
-      console.log("[Agora] Mic Published");
     } else {
       if (isMicOn.value) {
         await localAudioTrack.value.setEnabled(false); 
@@ -290,9 +289,7 @@ const toggleMic = async () => {
         isMicOn.value = true;
       }
     }
-  } catch (error) {
-    console.error("[Agora] Mic Toggle Error:", error);
-  }
+  } catch (error) { console.error("[Agora] Mic Toggle Error:", error); }
 };
 
 const leaveAgora = async () => {
@@ -340,7 +337,6 @@ const toggleVideoPlay = () => {
   const newStatus = !isVideoPlaying.value;
   if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e));
   else cinemaVideoRef.value.pause();
-
   update(dbRef(rtdb, plazaVideoPath), {
     isPlaying: newStatus,
     timestamp: Date.now(),
@@ -391,15 +387,34 @@ const handleUserInteraction = () => {
   }
 };
 
+// --- [수정] 애니메이션 파일 로드 (추가된 파일 포함) ---
 const loadAnimations = async () => {
   const animationPaths = {
-    idle: '/animations/M_Standing_Idle_Variations_008.glb',
+    // 기본 이동
     walk: '/animations/F_Walk_003.glb',
     walkBackward: '/animations/M_Walk_Backwards_001.glb',
     strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb',
-    strafeRight: '/animations/M_Walk_Strafe_Right_002.glb'
+    strafeRight: '/animations/M_Walk_Strafe_Right_002.glb',
+    
+    // [신규] 랜덤 대기 자세 후보
+    idle: '/animations/M_Standing_Idle_Variations_008.glb', // 기본
+    idle2: '/animations/M_Standing_Idle_Variations_007.glb',
+    idle3: '/animations/M_Standing_Idle_Variations_005.glb',
+    idle4: '/animations/M_Standing_Idle_Variations_006.glb',
+
+    // [신규] 행동 아이콘용
+    dance: '/animations/F_Dances_006.glb',     // 댄스
+    backflip: '/animations/F_Dances_007.glb',  // 백덤블링
+    psy: '/animations/M_Dances_001.glb',       // 싸이춤
+    footwork: '/animations/M_Dances_009.glb',  // 발재간
+    jump: '/animations/M_Walk_Jump_003.glb'    // 점프
   };
-  const loadedAnimations = { idle: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null };
+  
+  const loadedAnimations = { 
+      idle: null, idle2: null, idle3: null, idle4: null,
+      walk: null, walkBackward: null, strafeLeft: null, strafeRight: null,
+      dance: null, backflip: null, psy: null, footwork: null, jump: null
+  };
   const keys = Object.keys(animationPaths);
 
   try {
@@ -435,7 +450,6 @@ const loadAvatar = (url, animations) => {
 
     loader.load(url, (gltf) => {
         const visuals = gltf.scene;
-        
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
@@ -444,7 +458,6 @@ const loadAvatar = (url, animations) => {
             child.matrixAutoUpdate = true;
           }
         });
-
         visuals.scale.set(0.7, 0.7, 0.7);
         const box = new THREE.Box3().setFromObject(visuals);
         visuals.position.y = -box.min.y; 
@@ -459,7 +472,7 @@ const loadAvatar = (url, animations) => {
             if (animations[key]) {
               const action = mixer.clipAction(animations[key]);
               model.userData.actions[key] = action;
-              if (key === 'idle') action.play();
+              if (key === 'idle') action.play(); // 기본값으로 일단 idle 재생
             }
           }
           mixer.update(0.01);
@@ -478,18 +491,15 @@ const createNicknameSprite = (text) => {
   const context = canvas.getContext('2d');
   canvas.width = 300; canvas.height = 100; 
   context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
-  
   const r = 10; const w = 280; const h = 60;
   context.beginPath();
   context.roundRect(10, 20, w, h, r);
   context.fill();
-
   context.fillStyle = 'white';
   context.font = 'bold 40px Arial';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, 150, 50);
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
@@ -505,17 +515,14 @@ const createChatBubbleSprite = (text, textColor = "black") => {
   context.font = 'bold 30px Arial';
   const textWidth = context.measureText(text).width;
   canvas.width = textWidth + 40; canvas.height = 60;
-  
   context.fillStyle = 'rgba(255, 255, 255, 0.9)';
   context.roundRect(0, 0, canvas.width, canvas.height, 10);
   context.fill();
   context.stroke();
-  
   context.fillStyle = textColor;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, canvas.width / 2, canvas.height / 2);
-  
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
@@ -547,11 +554,9 @@ const showChatBubble = (avatar, message, color = "black") => {
 
 const joinPlaza = async (uid) => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
-  
   const safeX = 37.16;
   const safeY = 1.0; 
   const safeZ = 7.85;
-
   const playerData = {
     avatarUrl: myAvatarUrl,
     userName: myUserName,
@@ -605,9 +610,7 @@ const listenToChat = () => {
     const msg = { id: snapshot.key, ...snapshot.val() };
     chatMessages.value.push(msg);
     if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
-    
     nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
-    
     const currentUid = auth.currentUser?.uid;
     if (msg.userId === currentUid && myAvatar) {
       showChatBubble(myAvatar, msg.message);
@@ -619,60 +622,47 @@ const listenToChat = () => {
 
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
-    
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
       targetRotationY: rotY,
       userName: val.userName, isMoving: false
     };
-    
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
         nick.position.set(0, 1.8, 0); 
         model.add(nick); 
       }
-
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
-
       model.position.set(currentTarget.x, safeY, currentTarget.z);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
-      
       scene.add(model);
       model.updateMatrixWorld(true); 
-      
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
-      
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
-
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
     if (!val.position) return;
-    
     otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
     otherPlayers[snap.key].targetRotationY = val.rotationY || 0;
   });
-
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -704,17 +694,14 @@ const initThree = () => {
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
 
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
-
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(startX, startY + 5, startZ + 10);
-
       if (!canvasRef.value) return false;
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -723,7 +710,6 @@ const initThree = () => {
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
-
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -734,7 +720,6 @@ const initThree = () => {
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
-
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
@@ -746,17 +731,14 @@ const initThree = () => {
           const scaledBox = new THREE.Box3().setFromObject(city);
           const groundLevelY = -scaledBox.min.y;
           city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
-          
           city.traverse(child => { 
             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } 
           });
           scene.add(city);
-
           if (myAvatar) { 
              myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
              myAvatar.updateMatrixWorld(true);
           }
-          
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video);
@@ -771,7 +753,6 @@ const initThree = () => {
             scene.add(screen);
           }
       }, undefined, (e) => console.error('맵 로드 실패', e));
-
       clock = new THREE.Clock();
       return true;
   } catch (e) { console.error(e); return false; }
@@ -788,12 +769,14 @@ const handleResize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
+// [수정] updatePlayerMovement: 행동 트리거 로직 추가 및 랜덤 대기 적용
 const updatePlayerMovement = (deltaTime) => {
   if (!myAvatar || !isReady.value || !scene) return;
 
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
-  let currentAnimation = 'idle';
+  // [핵심] 현재 재생할 애니메이션 결정 (특수 행동 > 이동 > 대기)
+  let currentAnimation = specialAction.value || currentIdle.value;
   let currentSpeedFactor = 1.0;
 
   if (joystickData.value.active && joystickData.value.distance > 10) {
@@ -826,18 +809,20 @@ const updatePlayerMovement = (deltaTime) => {
 
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
-    
     if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
         moveDirection.z = 1; 
-        if(currentAnimation === 'idle') currentAnimation = 'walk'; 
+        if(currentAnimation === 'idle' || currentAnimation.startsWith('idle')) currentAnimation = 'walk'; 
     }
     if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
         moveDirection.z = -1; 
-        if(currentAnimation === 'idle') currentAnimation = 'walkBackward'; 
+        if(currentAnimation === 'idle' || currentAnimation.startsWith('idle')) currentAnimation = 'walkBackward'; 
     }
   }
 
   if (moved) {
+    // 움직이면 특수 행동 취소
+    specialAction.value = null;
+
     const velocity = new THREE.Vector3(
         moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
         0, 
@@ -863,7 +848,8 @@ const updatePlayerMovement = (deltaTime) => {
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   if (mixer) {
-    const targetAction = actions[currentAnimation] || actions.idle;
+    // [수정] currentAnimation이 실제로 로드된 액션인지 확인 (없으면 기본 idle)
+    const targetAction = actions[currentAnimation] || actions['idle'];
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
     if (targetAction && !targetAction.isRunning()) {
       targetAction.reset().play();
@@ -874,7 +860,6 @@ const updatePlayerMovement = (deltaTime) => {
 
 const updateOtherPlayersMovement = (deltaTime) => {
   const lerpFactor = deltaTime * 15; 
-
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
@@ -893,7 +878,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
     let diff = targetY - currentY; 
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
-
     player.mesh.updateMatrixWorld(true);
 
     const mixer = player.mixer;
@@ -911,20 +895,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
   }
 };
 
-const animate = () => {
-  if (!renderer || !scene || !camera || !clock) return;
-  requestAnimationFrame(animate);
-  const deltaTime = clock.getDelta();
-
-  if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
-  for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
-
-  updatePlayerMovement(deltaTime);
-  updateOtherPlayersMovement(deltaTime);
-  if (controls) controls.update();
-  renderer.render(scene, camera);
-};
-
 onMounted(() => {
   const unsubscribe = onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -939,6 +909,10 @@ onMounted(() => {
 
       const preloadedAnimations = await loadAnimations();
       
+      // [신규] 접속 시 랜덤 대기 모션 선택 (idle, idle2, idle3, idle4 중 하나)
+      const idleKeys = ['idle', 'idle2', 'idle3', 'idle4'];
+      currentIdle.value = idleKeys[Math.floor(Math.random() * idleKeys.length)];
+
       window.addEventListener('resize', handleResize);
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
@@ -971,7 +945,6 @@ onMounted(() => {
         myAvatar.add(nick);
       }
       scene.add(myAvatar);
-      
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
@@ -997,7 +970,7 @@ onMounted(() => {
   });
 
   onUnmounted(() => {
-    unsubscribe();
+    // ... 기존 해제 로직 ...
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);
@@ -1026,7 +999,6 @@ onMounted(() => {
   overflow: hidden; 
   height: 100%;
 }
-
 .utopia-container { 
   width: 100%; 
   height: 100dvh; 
@@ -1048,19 +1020,41 @@ onMounted(() => {
   width: 300px; 
   max-width: 80%; 
   max-height: 20vh; 
-  background-color: rgba(0, 0, 0, 0.7); 
-  border-radius: 8px; 
-  padding: 10px; 
   display: flex; 
   flex-direction: column; 
   z-index: 5; 
 }
+/* [신규] 행동 아이콘 바 스타일 */
+.action-bar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+.action-bar button {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  font-size: 1.2rem;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.action-bar button:active {
+  transform: scale(0.9);
+  background: rgba(255,255,255,0.2);
+}
+
 .message-list { 
   flex-grow: 1; 
   overflow-y: auto; 
-  margin-bottom: 10px; 
+  margin-bottom: 5px; 
   color: white; 
   font-size: 0.9em; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  border-radius: 8px; 
+  padding: 10px;
   scrollbar-width: none; 
 }
 .message-list::-webkit-scrollbar { display: none; }
