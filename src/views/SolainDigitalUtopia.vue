@@ -181,19 +181,17 @@ let chatListenerRef = null;
 let videoListenerRef = null;
 
 // 이동 관련
-const moveSpeed = 3.0; // [확인] 아바타 속도
+const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
 // --- 함수 정의 시작 ---
 
-// 구매 여부 확인
 const hasPurchased = (actionKey) => {
   return purchasedActions.value.includes(actionKey);
 };
 
-// 행동 아이콘 클릭 핸들러
 const handleActionClick = (actionKey) => {
   if (hasPurchased(actionKey)) {
     triggerAction(actionKey);
@@ -202,7 +200,6 @@ const handleActionClick = (actionKey) => {
   }
 };
 
-// 구매 모달 열기
 const openPurchaseModal = (actionKey) => {
   const action = actionList[actionKey];
   purchaseModal.actionKey = actionKey;
@@ -216,7 +213,6 @@ const closePurchaseModal = () => {
   isPurchasing.value = false;
 };
 
-// 구매 확정 및 서버 통신
 const confirmPurchase = async () => {
   if (isPurchasing.value) return;
   isPurchasing.value = true;
@@ -235,7 +231,6 @@ const confirmPurchase = async () => {
   }
 };
 
-// 행동 트리거 (1회 재생 후 복귀)
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
   const mixer = myAvatar.userData.mixer;
@@ -274,7 +269,7 @@ const resumeAudioContext = () => {
     }
 };
 
-// [핵심 수정] 문자열 UID 사용 & 오디오 트랙 구독 강화
+// [핵심] Agora 초기화 (문자열 UID 그대로 사용)
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
@@ -282,6 +277,7 @@ const initAgora = async (uid) => {
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     AgoraRTC.onAutoplayFailed = () => {
+        console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
     
@@ -289,8 +285,9 @@ const initAgora = async (uid) => {
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
-        const isTalking = level > 30; // 민감도 약간 낮춤
+        const isTalking = level > 40; 
         
+        // 문자열 UID 비교
         if (speakerUid === 0 || speakerUid === stringUid) {
             updateSpeakingIndicator(stringUid, isTalking); 
         } else {
@@ -320,7 +317,9 @@ const initAgora = async (uid) => {
       }
     });
 
+    // [중요] 문자열 UID로 입장
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
+    console.log(`[Agora] Joined as ${stringUid}`);
 
   } catch (error) {
     console.error("[Agora] Init Error:", error);
@@ -646,9 +645,12 @@ const showChatBubble = (avatar, message, color = "black") => {
 
 const joinPlaza = async (uid) => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
+  
+  // [핵심] 접속 시 공중(Y=1.0)에서 시작 (땅속 방지)
   const safeX = 37.16;
   const safeY = 1.0; 
   const safeZ = 7.85;
+
   const playerData = {
     avatarUrl: myAvatarUrl,
     userName: myUserName,
@@ -712,42 +714,53 @@ const listenToChat = () => {
   });
 };
 
+// [핵심 수정] 다른 플레이어 로드 시 좌표 보정
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
+    
     const posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
+
     otherPlayers[snapshot.key] = {
       mesh: null, mixer: null, actions: {},
       targetPosition: new THREE.Vector3(posX, posY, posZ),
       targetRotationY: rotY,
       userName: val.userName, isMoving: false
     };
+    
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
+    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') {
         const nick = createNicknameSprite(val.userName);
         nick.position.set(0, 1.8, 0); 
         model.add(nick); 
       }
-      const currentTarget = otherPlayers[snapshot.key].targetPosition;
-      const safeY = Math.max(currentTarget.y, 0.5); 
-      model.position.set(currentTarget.x, safeY, currentTarget.z);
+
+      // [중요] 로드 직후에는 지면 위(0.5)로 강제 보정
+      const safeY = Math.max(otherPlayers[snapshot.key].targetPosition.y, 0.5); 
+      model.position.set(posX, safeY, posZ);
+      
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
+      
       scene.add(model);
       model.updateMatrixWorld(true); 
+      
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
       otherPlayers[snapshot.key].actions = model.userData.actions;
+      
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
+
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
@@ -755,6 +768,7 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
     otherPlayers[snap.key].targetRotationY = val.rotationY || 0;
   });
+
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -762,16 +776,13 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   });
 };
 
-// [핵심] 강제 점프 효과로 위치 동기화
+// [핵심] 접속 시 자동 점프
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
-    // 1. 위로 점프
     myAvatar.position.y += 0.5;
     myAvatar.updateMatrixWorld(true);
     updateMyStateInRTDB(); 
-    
-    // 2. 0.2초 후 착지
     setTimeout(() => {
         myAvatar.position.y = startY;
         myAvatar.updateMatrixWorld(true);
@@ -788,15 +799,19 @@ const initThree = () => {
           scene.background = texture;
           scene.environment = texture;
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
+
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
+
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(startX, startY + 5, startZ + 10);
+
       if (!canvasRef.value) return false;
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -805,6 +820,7 @@ const initThree = () => {
       controls.maxPolarAngle = Math.PI / 2 - 0.05;
       controls.target.set(startX, startY + 1.0, startZ);
       controls.update();
+
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -815,6 +831,7 @@ const initThree = () => {
       scene.add(dirLight);
       const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
       scene.add(hemiLight);
+
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
           const city = gltf.scene;
           city.name = "cityMap";
@@ -916,12 +933,6 @@ const updatePlayerMovement = (deltaTime) => {
     myAvatar.position.add(velocity);
     throttledUpdate();
   }
-  
-  // [핵심] 내 아바타 루트 모션 방지 (이름표 분리 해결)
-  if (myAvatar.userData.visuals) {
-      myAvatar.userData.visuals.position.set(0, 0, 0);
-  }
-
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
@@ -945,9 +956,7 @@ const updatePlayerMovement = (deltaTime) => {
 };
 
 const updateOtherPlayersMovement = (deltaTime) => {
-  // [수정] 보간 속도 증가 (이름표 빠르게 따라잡기)
-  const lerpFactor = deltaTime * 25; 
-
+  const lerpFactor = deltaTime * 15; 
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
@@ -964,12 +973,6 @@ const updateOtherPlayersMovement = (deltaTime) => {
     if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor;
     player.mesh.updateMatrixWorld(true);
-    
-    // [핵심] 다른 플레이어도 루트 모션 방지
-    if (player.mesh.userData.visuals) {
-        player.mesh.userData.visuals.position.set(0, 0, 0);
-    }
-
     const mixer = player.mixer;
     const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
@@ -1117,20 +1120,6 @@ onUnmounted(() => {
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-.voice-status {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  z-index: 99;
-}
-.voice-status p { margin: 0; }
-.voice-status .warning { color: #ffcc00; font-weight: bold; margin-top: 4px; animation: pulse 1s infinite; }
 
 .chat-ui { 
   position: absolute; 
