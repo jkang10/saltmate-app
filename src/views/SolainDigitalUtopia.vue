@@ -51,7 +51,7 @@
     </div>
 
     <div v-if="audioBlocked" class="audio-blocked-msg">
-      🔊 대화를 듣기 위해 화면을 한 번 터치해주세요.
+      🔊 소리를 들으려면 화면을 터치하세요!
     </div>
 
     <div v-if="isAdmin" class="admin-video-controls">
@@ -70,6 +70,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { auth, db, rtdb, functions } from '@/firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth'; // [추가] 인증 상태 감지
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import {
@@ -86,7 +87,7 @@ const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 const canvasRef = ref(null);
 const cinemaVideoRef = ref(null);
 const isLoading = ref(true);
-const loadingMessage = ref('유토피아 입장 준비 중...');
+const loadingMessage = ref('유토피아 로딩 중...');
 const isReady = ref(false);
 const isAdmin = ref(false);
 const isVideoPlaying = ref(false);
@@ -96,8 +97,8 @@ const audioBlocked = ref(false);
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
-const agoraChannel = "plaza_voice_chat";
-const agoraToken = null; // App ID Only 모드이므로 null 유지
+const agoraChannel = "plaza_voice_chat"; // [확인] 이 채널명으로 자동 입장합니다.
+const agoraToken = null; 
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
@@ -135,16 +136,25 @@ const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
-// --- [핵심 수정] Agora 초기화 (String UID 사용 & 자동재생 정책 대응) ---
-const initAgora = async () => {
-  if (!auth.currentUser) return;
-  const currentUid = auth.currentUser.uid; // [중요] 변환 없이 문자열 그대로 사용
+// --- [수정] 오디오 컨텍스트 강제 재개 ---
+const resumeAudioContext = () => {
+    audioBlocked.value = false;
+    if (THREE.AudioContext.getContext().state === 'suspended') {
+        THREE.AudioContext.getContext().resume();
+    }
+};
+
+// --- [수정] Agora 초기화 (String UID 사용) ---
+const initAgora = async (uid) => {
+  if (!uid) return;
+  console.log("[Agora] 초기화 시작...", uid);
 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
     // 자동 재생 차단 감지
     AgoraRTC.onAutoplayFailed = () => {
+        console.warn("[Agora] Autoplay blocked");
         audioBlocked.value = true;
     };
 
@@ -153,27 +163,26 @@ const initAgora = async () => {
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid, level } = volumeInfo;
-        const isTalking = level > 40; 
+        const isTalking = level > 40; // 민감도 40
         
-        // uid가 0(나)이거나, 내 문자열 ID와 같으면 '나'
-        if (uid === 0 || uid === currentUid) {
-            updateSpeakingIndicator(currentUid, isTalking);
-        } else {
-            // 상대방 문자열 UID 그대로 사용
+        if (uid === 0 || uid === uid) { // 나
+            updateSpeakingIndicator(uid, isTalking);
+        } else { // 상대방
             updateSpeakingIndicator(uid, isTalking);
         }
       });
     });
 
-    // 상대방 소리 구독
+    // [중요] 상대방 소리 구독
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
+      console.log(`[Agora] User published: ${user.uid}, ${mediaType}`);
+      
       if (mediaType === "audio") {
         try {
             user.audioTrack.play();
-            console.log(`[Audio] Playing: ${user.uid}`);
         } catch (e) {
-            console.error("Audio Play Failed:", e);
+            console.error("[Agora] Play failed:", e);
             audioBlocked.value = true;
         }
       }
@@ -185,21 +194,13 @@ const initAgora = async () => {
       }
     });
 
-    // [중요] 문자열 UID로 입장
-    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, currentUid);
-    console.log(`Agora Joined (String UID): ${currentUid}`);
+    // 채널 입장 (문자열 UID 사용)
+    await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, uid);
+    console.log(`[Agora] 채널 입장 성공! Channel: ${agoraChannel}, UID: ${uid}`);
 
   } catch (error) {
-    console.error("Agora Init Error:", error);
+    console.error("[Agora] 초기화 실패:", error);
   }
-};
-
-const resumeAudioContext = () => {
-    audioBlocked.value = false;
-    // 브라우저 오디오 컨텍스트 재개를 위한 더미 로직 (Three.js AudioListener가 있다면 resume)
-    if (THREE.AudioContext.getContext().state === 'suspended') {
-        THREE.AudioContext.getContext().resume();
-    }
 };
 
 const updateSpeakingIndicator = (targetUid, isSpeaking) => {
@@ -248,22 +249,24 @@ const updateSpeakingIndicator = (targetUid, isSpeaking) => {
 };
 
 const toggleMic = async () => {
+  if (!agoraClient.value) return;
   try {
     if (!localAudioTrack.value) {
       localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack();
       await agoraClient.value.publish([localAudioTrack.value]);
       isMicOn.value = true;
+      console.log("[Agora] 마이크 켜짐 (Publishing)");
     } else {
       if (isMicOn.value) {
-        await localAudioTrack.value.setEnabled(false);
+        await localAudioTrack.value.setEnabled(false); // Mute
         isMicOn.value = false;
       } else {
-        await localAudioTrack.value.setEnabled(true);
+        await localAudioTrack.value.setEnabled(true); // Unmute
         isMicOn.value = true;
       }
     }
   } catch (error) {
-    console.error("Mic Error:", error);
+    console.error("[Agora] 마이크 토글 실패:", error);
   }
 };
 
@@ -517,20 +520,18 @@ const showChatBubble = (avatar, message, color = "black") => {
   avatar.add(newBubble);
 };
 
-const joinPlaza = async () => {
-  if (!auth.currentUser || !myAvatar) return;
-  const currentUid = auth.currentUser.uid;
-  playerRef = dbRef(rtdb, `${plazaPlayersPath}/${currentUid}`);
+const joinPlaza = async (uid) => {
+  playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
   
-  const safeX = myAvatar.position.x || 37.16;
+  const safeX = 37.16;
   const safeY = 1.0; 
-  const safeZ = myAvatar.position.z || 7.85;
+  const safeZ = 7.85;
 
   const playerData = {
     avatarUrl: myAvatarUrl,
     userName: myUserName,
     position: { x: safeX, y: safeY, z: safeZ },
-    rotationY: myAvatar.rotation.y,
+    rotationY: 0,
     timestamp: serverTimestamp(),
   };
   try {
@@ -591,9 +592,8 @@ const listenToChat = () => {
   });
 };
 
-const listenToOtherPlayers = (preloadedAnimations) => {
+const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  const currentUid = auth.currentUser.uid;
   
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
@@ -623,21 +623,12 @@ const listenToOtherPlayers = (preloadedAnimations) => {
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
 
-      // [중요] 접속 시 즉시 위치 이동
       model.position.set(currentTarget.x, safeY, currentTarget.z);
       model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
       model.visible = true;
       
       scene.add(model);
-      
-      // [핵심 요청] 접속 시 '자동 한걸음' 효과 (강제 업데이트)
-      // 살짝 위로 띄웠다가 내려서 물리/렌더링 엔진 깨우기
-      model.position.y += 0.1;
-      model.updateMatrixWorld(true);
-      setTimeout(() => {
-          model.position.y -= 0.1;
-          model.updateMatrixWorld(true);
-      }, 100);
+      model.updateMatrixWorld(true); 
       
       otherPlayers[snapshot.key].mesh = model;
       otherPlayers[snapshot.key].mixer = model.userData.mixer;
@@ -664,25 +655,19 @@ const listenToOtherPlayers = (preloadedAnimations) => {
   });
 };
 
-// [핵심 수정] 접속 시 내 아바타 '자동 한걸음'
 const forceInitialMove = () => {
     if (!myAvatar) return;
-    
-    // 1. 약간 위로 점프
     const startY = myAvatar.position.y;
     myAvatar.position.y += 0.5;
     myAvatar.updateMatrixWorld(true);
-    updateMyStateInRTDB(); // 위치 전송
-
-    // 2. 0.2초 뒤 착지
+    updateMyStateInRTDB(); 
     setTimeout(() => {
         myAvatar.position.y = startY;
         myAvatar.updateMatrixWorld(true);
-        updateMyStateInRTDB(); // 위치 전송
+        updateMyStateInRTDB();
     }, 200);
 };
 
-// ... (initThree, handleKey..., updatePlayerMovement, updateOtherPlayersMovement, animate 함수는 기존과 동일)
 const initThree = () => {
   try {
       scene = new THREE.Scene();
@@ -915,109 +900,121 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
-onMounted(async () => {
-  if (!auth.currentUser) return;
-  const currentUid = auth.currentUser.uid;
-  
-  try {
-    const token = await auth.currentUser.getIdTokenResult();
-    if (token.claims.role === 'superAdmin') isAdmin.value = true;
-  } catch(e) { console.log("권한 확인 실패"); }
+// --- [핵심 수정] onMounted를 onAuthStateChanged로 감싸서 로그인 후 실행 보장 ---
+onMounted(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const currentUid = user.uid;
 
-  await initAgora();
-  if (!initThree()) return;
+      // 1. 권한 확인
+      try {
+        const token = await user.getIdTokenResult();
+        if (token.claims.role === 'superAdmin') isAdmin.value = true;
+      } catch(e) { console.log("권한 확인 실패"); }
 
-  const preloadedAnimations = await loadAnimations();
-  
-  window.addEventListener('resize', handleResize);
-  window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('keyup', handleKeyUp);
-  window.addEventListener('touchstart', handleUserInteraction); 
-  window.addEventListener('click', handleUserInteraction);
-  window.addEventListener('mousemove', handleUserInteraction); 
+      // 2. Agora 및 Three.js 초기화 (이제 uid가 확실히 있음)
+      await initAgora(currentUid);
+      if (!initThree()) return;
 
-  animate();
+      const preloadedAnimations = await loadAnimations();
+      
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('touchstart', handleUserInteraction); 
+      window.addEventListener('click', handleUserInteraction);
+      window.addEventListener('mousemove', handleUserInteraction); 
 
-  try {
-    const userDoc = await getDoc(doc(db, 'users', currentUid));
-    if (userDoc.exists()) {
-        myAvatarUrl = userDoc.data().avatarUrl;
-        myUserName = userDoc.data().name;
-        if (userDoc.data().hasReceivedVideoReward) {
-          rewardClaimedLocal.value = true;
+      animate();
+
+      // 3. 유저 정보 가져오기
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUid));
+        if (userDoc.exists()) {
+            myAvatarUrl = userDoc.data().avatarUrl;
+            myUserName = userDoc.data().name;
+            if (userDoc.data().hasReceivedVideoReward) {
+              rewardClaimedLocal.value = true;
+            }
         }
+      } catch (error) {
+        console.error("Firestore 정보 가져오기 실패:", error);
+      }
+
+      // 4. 아바타 로드
+      myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
+      const startX = 37.16; const startY = 0.5; const startZ = 7.85;
+      myAvatar.position.set(startX, startY, startZ); 
+      
+      if (myUserName) {
+        const nick = createNicknameSprite(myUserName);
+        nick.position.set(0, 1.8, 0); 
+        myAvatar.add(nick);
+      }
+      scene.add(myAvatar);
+      
+      myAvatar.visible = true; 
+      myAvatar.updateMatrixWorld(true);
+      if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
+
+      await nextTick();
+      const joystickZone = document.getElementById('joystick-zone');
+      if (joystickZone) {
+          joystickManager = nipplejs.create({ zone: joystickZone, mode: 'static', position: { right: '80px', bottom: '80px' }, color: 'rgba(255, 255, 255, 0.5)', size: 100 });
+          joystickManager.on('move', handleJoystickMove);
+          joystickManager.on('end', handleJoystickEnd);
+      }
+
+      // 5. 접속 완료 처리
+      await joinPlaza(currentUid);
+      if (isReady.value) {
+        updateMyStateInRTDB(); 
+        forceInitialMove(); 
+        listenToOtherPlayers(currentUid, preloadedAnimations); 
+        listenToVideoState(); 
+        listenToChat(); 
+      }
+      isLoading.value = false;
+    } else {
+      // 로그아웃 상태 처리 (필요시 리다이렉트 등)
     }
-  } catch (error) {
-    console.error("Firestore 정보 가져오기 실패:", error);
-  }
+  });
 
-  myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
-  const startX = 37.16; const startY = 0.5; const startZ = 7.85;
-  myAvatar.position.set(startX, startY, startZ); 
-  
-  if (myUserName) {
-    const nick = createNicknameSprite(myUserName);
-    nick.position.set(0, 1.8, 0); 
-    myAvatar.add(nick);
-  }
-  scene.add(myAvatar);
-  
-  myAvatar.visible = true; 
-  myAvatar.updateMatrixWorld(true);
-  if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
+  // 언마운트 시 리스너 해제
+  onUnmounted(() => {
+    unsubscribe();
+    window.removeEventListener('resize', handleResize);
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keyup', handleKeyUp);
+    window.removeEventListener('touchstart', handleUserInteraction);
+    window.removeEventListener('click', handleUserInteraction);
+    window.removeEventListener('mousemove', handleUserInteraction);
+    
+    leaveAgora(); 
 
-  await nextTick();
-  const joystickZone = document.getElementById('joystick-zone');
-  if (joystickZone) {
-      joystickManager = nipplejs.create({ zone: joystickZone, mode: 'static', position: { right: '80px', bottom: '80px' }, color: 'rgba(255, 255, 255, 0.5)', size: 100 });
-      joystickManager.on('move', handleJoystickMove);
-      joystickManager.on('end', handleJoystickEnd);
-  }
-
-  await joinPlaza();
-  if (isReady.value) {
-    updateMyStateInRTDB(); 
-    forceInitialMove(); // [핵심] 접속 시 자동 이동
-    listenToOtherPlayers(preloadedAnimations); 
-    listenToVideoState(); 
-    listenToChat(); 
-  }
-  isLoading.value = false;
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
-  window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('keyup', handleKeyUp);
-  window.removeEventListener('touchstart', handleUserInteraction);
-  window.removeEventListener('click', handleUserInteraction);
-  window.removeEventListener('mousemove', handleUserInteraction);
-  
-  leaveAgora(); 
-
-  if (playersListenerRef) off(playersListenerRef);
-  if (chatListenerRef) off(chatListenerRef);
-  if (videoListenerRef) off(videoListenerRef);
-  if (playerRef) remove(playerRef);
-  
-  if (joystickManager) joystickManager.destroy();
-  if (controls) controls.dispose();
-  if (renderer) renderer.dispose();
+    if (playersListenerRef) off(playersListenerRef);
+    if (chatListenerRef) off(chatListenerRef);
+    if (videoListenerRef) off(videoListenerRef);
+    if (playerRef) remove(playerRef);
+    
+    if (joystickManager) joystickManager.destroy();
+    if (controls) controls.dispose();
+    if (renderer) renderer.dispose();
+  });
 });
 </script>
 
 <style scoped>
-/* [수정] 스크롤 방지 스타일 강화 */
 :global(body), :global(html) {
   margin: 0;
   padding: 0;
-  overflow: hidden; /* 세로 스크롤 제거 */
+  overflow: hidden; 
   height: 100%;
 }
 
 .utopia-container { 
   width: 100%; 
-  height: 100dvh; /* 모바일 뷰포트 대응 */
+  height: 100dvh; 
   margin: 0; 
   padding: 0; 
   overflow: hidden; 
