@@ -14,12 +14,12 @@
         {{ displayTimeToStart > 0 ? `게임 시작까지 ${formattedTime}` : '잠시 후 시작됩니다!' }}
       </div>
 
-      <div v-if="displayTimeToStart <= 60 && displayTimeToStart > 0">
-        <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
-          <span v-if="isJoined">참가 완료! (대기 중)</span>
-          <span v-else>참가하기 (100 포인트 즉시 지급)</span>
-        </button>
-      </div>
+	<div v-if="displayTimeToStart <= 60 && displayTimeToStart > 0">
+	  <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
+	    <span v-if="isJoined">참가 완료! (대기 중)</span>
+	    <span v-else>참가하기 (100 포인트 즉시 지급)</span>
+	  </button>
+	</div>
       <div v-else-if="displayTimeToStart <= 0 && isJoined">
           <p class="info-text">게임 시작 대기 중...</p>
       </div>
@@ -258,31 +258,25 @@ const updateCountdown = () => {
     const localNow = Date.now() + serverTimeOffset.value;
     let targetTime = 0;
 
+    // [수정] 현재 상태에 따라 목표 시간 설정
     if (game.value?.status === 'waiting') {
-        // 대기 중일 때는 게임 시작 시간이 목표
         targetTime = game.value.startTime;
     } else {
-        // 게임이 없거나 끝났으면 다음 정각 시간이 목표
          const now = new Date();
          const allowedHours = [0, 9, 12, 15, 18, 21];
          const currentHour = now.getHours();
-         
          let nextHour = allowedHours.find(h => h > currentHour);
-         
          const nextDate = new Date(now);
-         
-         if(nextHour === undefined) {
-             nextHour = 0;
-             nextDate.setDate(nextDate.getDate() + 1);
-         }
-         
+         if(nextHour === undefined) { nextHour = 0; nextDate.setDate(nextDate.getDate() + 1); }
          nextDate.setHours(nextHour, 0, 0, 0);
          targetTime = nextDate.getTime();
     }
 
-    // [수정] 시작 시간이 지났는데 아직 waiting 상태라면 0초로 고정 (서버 처리 대기)
     let diff = Math.floor((targetTime - localNow) / 1000);
-    if (game.value?.status === 'waiting' && diff < 0) {
+
+    // [핵심 수정] waiting 상태에서 시간이 다 되면 0으로 고정하고, 절대 음수로 내려가지 않게 함.
+    // 이렇게 하면 화면에는 '게임 시작 대기 중...' 문구만 뜨고 버튼은 사라짐.
+    if (game.value?.status === 'waiting' && diff <= 0) {
         diff = 0;
     }
 

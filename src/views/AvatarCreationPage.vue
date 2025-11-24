@@ -53,24 +53,22 @@ export default {
     };
 
     // [★수정★] Firestore 직접 저장 대신, 백엔드 함수를 호출하는 로직으로 변경
-    const saveAvatarData = async (glbUrl, renderUrl) => {
-      try {
-        const user = auth.currentUser;
-        if (user) {
-          // 백엔드 saveAvatarCustomization 함수는 'avatarData'라는 객체를 인자로 받습니다.
-          //
-          const avatarDataPayload = {
-            glbUrl: glbUrl, // 3D 모델 URL
-            renderUrl: renderUrl // 쇼케이스용 2D 이미지 URL
-          };
+const saveAvatarData = async (glbUrl, renderUrl) => {
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      // [확인] glbUrl이 avatarUrl로 저장될 핵심 데이터입니다.
+      const avatarDataPayload = {
+        glbUrl: glbUrl, 
+        renderUrl: renderUrl
+      };
 
-          // 백엔드 함수를 호출합니다.
-          await saveAvatarFunc({ avatarData: avatarDataPayload });
+      await saveAvatarFunc({ avatarData: avatarDataPayload });
 
-          console.log('Firestore에 avatar 객체 및 타임스탬프 저장 완료!');
-          alert('아바타가 성공적으로 저장되었습니다!');
-          
-          router.push({ name: 'DashboardPage' });
+      console.log('Firestore에 avatarUrl 저장 완료!');
+      alert('아바타가 성공적으로 저장되었습니다!');
+      
+      router.push({ name: 'DashboardPage' });
         } else {
            console.error('사용자 인증 정보를 찾을 수 없습니다.');
            alert('로그인 상태를 확인해주세요.');
@@ -87,6 +85,7 @@ export default {
     return { rpmFrame, iframeSrc };
   },
 };
+
 </script>
 
 <style scoped>
