@@ -47,6 +47,16 @@
       </div>
     </div>
 
+    <div class="purchase-fab" @click="buyPlayTicket" :class="{ 'is-loading': isBuying }">
+      <div class="fab-icon">
+        <i class="fas fa-ticket-alt"></i>
+        <span class="plus-badge">+</span>
+      </div>
+      <div class="fab-text">
+        <span class="label">추가 10회</span>
+        <span class="cost">1,000 P</span>
+      </div>
+    </div>
     <div v-if="gameStatus !== 'playing'" class="modal-overlay">
       <div class="modal-content">
         <h2 v-if="gameStatus === 'loading'">게임 준비 중...</h2>
@@ -54,6 +64,7 @@
         <p v-if="gameStatus === 'lost'">
           최종 점수: {{ score }}<br />
           획득한 가루: {{ alchemyDust }} 💎<br />
+          <small v-if="isPurchasedSession" style="color: #ff6b6b;">(추가 플레이: 보상 50% 적용)</small><br/>
           <strong>획득한 SaltMate: {{ finalPointsAwarded }} P</strong>
         </p>
         <div v-if="gameStatus === 'loading'" class="loading-spinner"></div>
@@ -74,15 +85,15 @@ import { useRouter } from 'vue-router';
 import { functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 
-// --- Firebase ---
+// --- Firebase Functions ---
 const startGameFunc = httpsCallable(functions, 'startBubbleGame');
 const endGameFunc = httpsCallable(functions, 'endBubbleGame');
+const purchasePlaysFunc = httpsCallable(functions, 'purchaseBubblePlays'); // [신규] 구매 함수
 const router = useRouter();
 
-// --- [★핵심 3★] BGM 제어 변수 추가 ---
+// --- BGM 제어 ---
 const bgmPlayer = ref(null);
 const isSoundPlaying = ref(false);
-// --- (추가 완료) ---
 
 // --- 게임 상태 ---
 const gameStatus = ref('loading');
@@ -93,6 +104,10 @@ const highScore = ref(localStorage.getItem('bubbleShooterHighScore') || 0);
 const alchemyDust = ref(0);
 const finalPointsAwarded = ref(0);
 const comboMessage = ref('');
+
+// --- [신규] 구매 관련 상태 ---
+const isBuying = ref(false);
+const isPurchasedSession = ref(false); // 현재 게임이 유료 플레이인지 여부
 
 // --- Canvas 및 게임 로직 ---
 const gameWrapperRef = ref(null);
@@ -123,17 +138,17 @@ let shooterPos = reactive({ x: canvasWidth / 2, y: canvasHeight - 30 });
 
 const getBubbleColor = (colorId) => {
   const colorMap = { 
-    1: '#e74c3c', // 빨강 (Gem 1)
-    2: '#2ecc71', // 초록 (Gem 2)
-    3: '#3498db', // 파랑 (Gem 3)
-    4: '#f1c40f', // 노랑 (Gem 4)
-    5: '#9b59b6', // 보라 (Gem 5)
-    6: '#e67e22'  // 주황 (Gem 6)
+    1: '#e74c3c', // 빨강
+    2: '#2ecc71', // 초록
+    3: '#3498db', // 파랑
+    4: '#f1c40f', // 노랑
+    5: '#9b59b6', // 보라
+    6: '#e67e22'  // 주황
   };
-  return colorMap[colorId] || '#bdc3c7'; // (회색)
+  return colorMap[colorId] || '#bdc3c7';
 };
 
-// --- [★핵심 4★] BGM 토글 함수 추가 ---
+// --- BGM 토글 ---
 const toggleSound = () => {
   if (!bgmPlayer.value) return;
   if (isSoundPlaying.value) {
@@ -148,7 +163,23 @@ const toggleSound = () => {
     });
   }
 };
-// --- (추가 완료) ---
+
+// --- [신규] 플레이권 구매 함수 ---
+const buyPlayTicket = async () => {
+    if (isBuying.value) return;
+    if (!confirm("1,000 SaltMate로 '추가 플레이 10회'를 구매하시겠습니까?\n(주의: 추가 플레이 시 보상은 50%만 지급됩니다)")) return;
+
+    isBuying.value = true;
+    try {
+        const result = await purchasePlaysFunc();
+        alert(result.data.message);
+    } catch (error) {
+        console.error("구매 실패:", error);
+        alert(error.message);
+    } finally {
+        isBuying.value = false;
+    }
+};
 
 // --- 1. 게임 초기화/시작/재시작 ---
 onMounted(() => {
@@ -169,41 +200,52 @@ onMounted(() => {
     observer.observe(gameWrapperRef.value);
   }
 
-  // --- [★핵심 5★] BGM 자동재생 시도 (onMounted) ---
+  // BGM 자동재생 시도
   if (bgmPlayer.value) {
     bgmPlayer.value.volume = 0.3; 
     bgmPlayer.value.play().then(() => {
       isSoundPlaying.value = true;
     }).catch(error => {
-      console.warn("BGM 자동재생이 차단되었습니다. 음소거 버튼을 눌러주세요.", error);
+      console.warn("BGM 자동재생이 차단되었습니다.", error);
       isSoundPlaying.value = false;
     });
   }
-  // --- (추가 완료) ---
 
   onUnmounted(() => {
     observer.disconnect();
-    // --- [★핵심 6★] BGM 정지 (onUnmounted) ---
     if (bgmPlayer.value) {
       bgmPlayer.value.pause();
     }
-    // --- (추가 완료) ---
   });
 });
 
 const startGameLogic = async () => {
   gameStatus.value = 'loading';
   try {
-    await startGameFunc(); //
+    // [수정] 서버 응답에서 구매권 사용 여부 확인
+    const result = await startGameFunc(); 
+    isPurchasedSession.value = result.data.isPurchasedPlay || false;
+
+    if (isPurchasedSession.value) {
+        console.log("유료 플레이권 사용: 보상 50% 적용됨");
+    }
+
     initGame();
     gameStatus.value = 'playing';
     gameLoopId = requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error("게임 시작 오류:", error);
-    alert(`게임 시작 실패: ${error.message}`);
+    
+    // [신규] 리소스 부족 에러 메시지 처리
+    let msg = error.message;
+    if (msg.includes("resource-exhausted")) {
+        msg = "무료 횟수와 플레이권을 모두 소진했습니다.\n오른쪽 하단 버튼을 눌러 충전해주세요!";
+    }
+    alert(msg);
     gameStatus.value = 'lost';
   }
 };
+
 const initGame = () => {
   if (!gameCanvasRef.value) return; 
   ctx = gameCanvasRef.value.getContext('2d');
@@ -217,13 +259,14 @@ const initGame = () => {
   // 5줄 미리 채우기
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < COLS; c++) {
-      if ((r % 2 === 1) && (c === COLS - 1)) continue; // 홀수 줄 마지막 칸 비우기
+      if ((r % 2 === 1) && (c === COLS - 1)) continue; 
       board[r][c] = COLORS[Math.floor(Math.random() * COLORS.length)];
     }
   }
   spawnBubble();
   spawnBubble();
 };
+
 const restartGame = () => {
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
   startGameLogic();
@@ -335,7 +378,7 @@ const fireBubble = () => {
     color: currentBubble.color
   };
   
-  spawnBubble(); // 새 버블 스폰
+  spawnBubble(); 
   canDropItem.value = false;
   shotsLeft.value--;
 };
@@ -482,7 +525,7 @@ const dropCeiling = () => {
 // --- 6. 게임 오버 ---
 const checkGameOver = () => {
   for (let c = 0; c < COLS; c++) {
-    if (board[ROWS - 2][c]) { // 데드라인 바로 윗줄
+    if (board[ROWS - 2][c]) { 
       return true;
     }
   }
@@ -499,9 +542,11 @@ const handleGameOver = async () => {
     localStorage.setItem('bubbleShooterHighScore', score.value);
   }
   try {
+    // [수정] 종료 시 isPurchasedPlay 플래그를 함께 전송
     const result = await endGameFunc({ 
       score: score.value,
-      alchemyDust: alchemyDust.value 
+      alchemyDust: alchemyDust.value,
+      isPurchasedPlay: isPurchasedSession.value // <-- 추가됨
     });
     finalPointsAwarded.value = result.data.awardedPoints || 0;
   } catch (error) {
@@ -516,13 +561,11 @@ const getBubbleCoords = (r, c) => {
   return { x, y };
 };
 const drawBubble = (x, y, colorId) => {
-  // 1. 메인 색상
   ctx.fillStyle = getBubbleColor(colorId);
   ctx.beginPath();
   ctx.arc(x, y, BUBBLE_RADIUS, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. 입체감을 위한 간단한 하이라이트 추가
   ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
   ctx.beginPath();
   ctx.arc(x - BUBBLE_RADIUS * 0.3, y - BUBBLE_RADIUS * 0.3, BUBBLE_RADIUS * 0.4, 0, Math.PI * 2);
@@ -574,7 +617,6 @@ const drawAimingLine = () => {
   box-sizing: border-box;
 }
 .game-stats-glass {
-  /* [★수정★] BGM 버튼 공간 확보 */
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -588,7 +630,6 @@ const drawAimingLine = () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   margin-bottom: 10px;
 }
-/* ▼▼▼ [★핵심 6★] BGM 버튼 스타일 추가 ▼▼▼ */
 .sound-toggle-btn {
   position: absolute;
   top: 10px;
@@ -607,7 +648,6 @@ const drawAimingLine = () => {
 .sound-toggle-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-/* ▲▲▲ (추가 완료) ▲▲▲ */
 .stat-item { text-align: center; }
 .stat-item span { font-size: 0.8rem; color: #bdc3c7; }
 .stat-item strong { font-size: 1.2rem; color: #ffffff; }
@@ -615,13 +655,13 @@ const drawAimingLine = () => {
 .game-canvas-wrapper {
   width: 100%;
   max-width: 360px;
-  aspect-ratio: 10 / 15; /* 10열 15행 비율 */
+  aspect-ratio: 10 / 15; 
   background-color: #2c3e50;
   border: 3px solid #78553a;
   border-radius: 8px;
   position: relative;
   overflow: hidden;
-  touch-action: none; /* 모바일 스크롤 방지 */
+  touch-action: none; 
 }
 canvas {
   width: 100%;
@@ -650,7 +690,6 @@ canvas {
   border-radius: 50%;
   border: 2px solid white;
 }
-/* (이미지 태그 관련 스타일은 제거됨) */
 .combo-popup {
   position: absolute;
   top: 50%;
@@ -671,7 +710,74 @@ canvas {
   100% { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
 }
 
-/* ( ... 모달 스타일 ... ) */
+/* ▼▼▼ [신규] 구매 버튼 스타일 ▼▼▼ */
+.purchase-fab {
+  position: fixed;
+  bottom: 80px; /* 하단 바 위에 위치 */
+  right: 20px;
+  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+  color: white;
+  border-radius: 30px;
+  padding: 8px 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  z-index: 50;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.purchase-fab:active {
+  transform: scale(0.95);
+}
+
+.purchase-fab.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
+.fab-icon {
+  position: relative;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.plus-badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  background: #ff4757;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 50%;
+  border: 1px solid white;
+}
+
+.fab-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+
+.fab-text .label {
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+.fab-text .cost {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #FFD700;
+}
+/* ▲▲▲ */
+
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.7);
