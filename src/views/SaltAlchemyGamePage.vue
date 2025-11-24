@@ -175,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import Matter from 'matter-js';
 import { functions, auth, db } from '@/firebaseConfig';
