@@ -69,7 +69,7 @@ const saveAvatarData = async (glbUrl, renderUrl) => {
       alert('아바타가 성공적으로 저장되었습니다!');
       
       router.push({ name: 'DashboardPage' });
-        } else {
+    } else {	
            console.error('사용자 인증 정보를 찾을 수 없습니다.');
            alert('로그인 상태를 확인해주세요.');
         }
