@@ -5,24 +5,38 @@
       <p>게임 정보를 불러오는 중...</p>
     </div>
 
-    <div v-else-if="game.status === 'waiting'" class="state-screen">
+    <div v-else-if="shouldShowWaitingScreen" class="state-screen">
       <i class="fas fa-trophy title-icon"></i>
       <h2 class="game-title">솔트 스칼라 퀴즈</h2>
-      <p class="game-description">매시간 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
+      
+      <p class="game-description">3시간에 한번씩 정각에 시작되는 서바이벌 퀴즈쇼!<br>최후의 1인이 되어 특별한 보상을 획득하세요.</p>
       <div class="countdown">
-        {{ displayTimeToStart > 0 ? `게임 시작까지 약 ${displayTimeToStart}초` : '곧 시작합니다!' }}
+        {{ displayTimeToStart > 0 ? `게임 시작까지 ${formattedTime}` : '잠시 후 시작됩니다!' }}
       </div>
-      <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
-        <span v-if="isJoined">참가 완료!</span>
-        <span v-else>참가하기 (100 포인트 즉시 지급)</span>
-      </button>
+
+	<div v-if="displayTimeToStart <= 60 && displayTimeToStart > 0">
+	  <button @click="joinGame" class="action-button join-button" :disabled="isJoined || isLoading">
+	    <span v-if="isJoined">참가 완료! (대기 중)</span>
+	    <span v-else>참가하기 (100 포인트 즉시 지급)</span>
+	  </button>
+	</div>
+      <div v-else-if="displayTimeToStart <= 0 && isJoined">
+          <p class="info-text">게임 시작 대기 중...</p>
+      </div>
+
+      <div v-else>
+        <router-link to="/dashboard" class="action-button dashboard-button">
+          대시보드로 이동
+        </router-link>
+        <p class="info-text">※ 게임 시작 1분 전부터 입장 가능합니다.</p>
+      </div>
     </div>
 
-    <div v-else-if="game.status === 'playing' && currentQuestion" class="playing-screen">
+    <div v-else-if="game.status === 'playing' && isGameValid && currentQuestion" class="playing-screen">
       <div class="quiz-header">
         <span class="question-counter">{{ game.currentQuestionIndex + 1 }} / {{ game.questions.length }}</span>
         <div class="timer-container">
-          <div class="timer-bar" :style="{ width: `${(timer/10) * 100}%` }"></div>
+          <div class="timer-bar" :style="{ width: `${(timer/15) * 100}%` }"></div>
         </div>
       </div>
       <div class="question-area">
@@ -70,14 +84,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { getDatabase, ref as dbRef, onValue, off } from "firebase/database";
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { app, auth } from '@/firebaseConfig';
 
 const game = ref(null);
 const serverTimeOffset = ref(0);
-const timer = ref(10);
+const timer = ref(15); // [수정] 문제당 15초 기준
 const goldenBellAnswer = ref('');
 let timerInterval = null;
 const isLoading = ref(false);
@@ -89,6 +103,46 @@ const functionsInSeoul = getFunctions(app, 'asia-northeast3');
 
 const rtdb = getDatabase();
 const gameRef = dbRef(rtdb, 'quizGame/currentGame');
+
+// 서버 시간 오차 계산 (간이)
+const calculateTimeOffset = () => {
+    // 필요 시 서버 시간을 가져와 로컬 시간과의 차이를 계산
+    // 현재는 로컬 시간을 기준으로 함
+    serverTimeOffset.value = 0; 
+};
+
+const formattedTime = computed(() => {
+  const totalSeconds = displayTimeToStart.value;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  let result = '';
+  if (hours > 0) result += `${hours}시간 `;
+  if (minutes > 0 || hours > 0) result += `${minutes}분 `;
+  result += `${seconds}초`;
+  return result;
+});
+
+const isGameValid = computed(() => {
+  if (!game.value || game.value.status !== 'playing') return false;
+  
+  // [수정] 라운드 종료 시간이 지났더라도, 다음 문제로 넘어가기 전까지는 유효한 것으로 처리 (잠시 대기)
+  // 단, 너무 오래 지났으면(예: 10초 이상) 무효 처리
+  const localNow = Date.now() + serverTimeOffset.value;
+  if (localNow > (game.value.roundEndTime + 10000)) {
+      return false;
+  }
+  return true;
+});
+
+const shouldShowWaitingScreen = computed(() => {
+    if (!game.value) return false;
+    if (game.value.status === 'waiting') return true;
+    // 게임 중이지만 유효하지 않은 상태(라운드 전환 중 등)이거나 참가자가 아닐 때
+    if (game.value.status === 'playing' && (!isGameValid.value || !isJoined.value)) return true;
+    return false;
+});
 
 const currentQuestion = computed(() => {
     if (!game.value || game.value.currentQuestionIndex < 0) return null;
@@ -102,7 +156,8 @@ const myStatus = computed(() => {
 
 const isJoined = computed(() => {
     if (!game.value || !auth.currentUser) return false;
-    return !!game.value.participants?.[auth.currentUser.uid];
+    // participants가 없을 수도 있음
+    return !!(game.value.participants && game.value.participants[auth.currentUser.uid]);
 });
 
 const hasAnswered = computed(() => {
@@ -113,33 +168,28 @@ const hasAnswered = computed(() => {
 
 const winnerName = computed(() => {
     if(!game.value || !game.value.winner) return '알 수 없음';
-    // [★수정★] game.winner 자체가 이미 이름 문자열이므로 그대로 반환합니다.
     return game.value.winner;
 });
 
-// ▼▼▼ [핵심 추가] 다음 게임 시간을 계산하는 computed 속성 ▼▼▼
 const nextGameTime = computed(() => {
   const now = new Date();
   const allowedHours = [0, 9, 12, 15, 18, 21];
   const currentHour = now.getHours();
-
-  // 현재 시간보다 늦은 다음 게임 시간을 찾습니다.
-  let nextHour = allowedHours.find(hour => hour > currentHour);
-
-  // 만약 없다면 (즉, 21시 이후라면), 다음 날 0시(자정)가 다음 게임 시간입니다.
-  if (nextHour === undefined) {
-    nextHour = 0;
-  }
   
+  let nextHour = allowedHours.find(hour => hour > currentHour);
+  
+  if (nextHour === undefined) {
+    return "내일 0시 정각"; 
+  }
   return `${nextHour}시 정각`;
 });
-// ▲▲▲
 
 const joinGame = async () => {
   isLoading.value = true;
   try {
     const joinFunc = httpsCallable(functionsInSeoul, 'joinQuizGame');
     await joinFunc();
+    // 참가 성공 시 UI는 Firebase 실시간 데이터 업데이트로 자동 변경됨
   } catch (error) {
     alert(`참가 실패: ${error.message}`);
   } finally {
@@ -154,7 +204,6 @@ const selectAnswer = async (index) => {
         await submitFunc({ questionIndex: game.value.currentQuestionIndex, answerIndex: index });
     } catch (error) {
         console.error("정답 제출 오류:", error);
-        alert(`정답 제출 오류: ${error.message}`);
     }
 };
 
@@ -163,10 +212,9 @@ const submitGoldenBell = async () => {
      try {
         const submitFunc = httpsCallable(functionsInSeoul, 'submitQuizAnswer');
         await submitFunc({ questionIndex: game.value.currentQuestionIndex, answerText: goldenBellAnswer.value });
-        goldenBellAnswer.value = '';
+        goldenBellAnswer.value = ''; // 입력창 초기화
     } catch (error) {
         console.error("골든벨 정답 제출 오류:", error);
-        alert(`골든벨 정답 제출 오류: ${error.message}`);
     }
 };
 
@@ -175,13 +223,14 @@ const getChoiceClass = (index) => {
     const myAnswer = game.value.participants?.[auth.currentUser.uid]?.answers?.[game.value.currentQuestionIndex]?.answerIndex;
     const correctAnswer = currentQuestion.value.answer;
     const roundEndTime = game.value.roundEndTime || 0;
-    const isRoundOver = (Date.now() + serverTimeOffset.value) > roundEndTime - 4500;
+    const isRoundOver = (Date.now() + serverTimeOffset.value) > roundEndTime - 2000; // 2초 전부터 결과 공개
 
     if (!isRoundOver) {
       if (index === myAnswer) return 'selected';
       return '';
     }
     
+    // 결과 공개
     if (index === correctAnswer) return 'correct';
     if (index === myAnswer) return 'incorrect';
 
@@ -190,33 +239,84 @@ const getChoiceClass = (index) => {
 
 const updateTimer = () => {
     if(timerInterval) clearInterval(timerInterval);
-    if(game.value?.status === 'playing') {
+    
+    // [수정] 게임 중일 때만 타이머 작동
+    if(game.value?.status === 'playing' && game.value.roundEndTime) {
         timerInterval = setInterval(() => {
             const localNow = Date.now() + serverTimeOffset.value;
-            const newTimer = Math.max(0, Math.round((game.value.roundEndTime - 5000 - localNow) / 1000));
+            // [수정] 5초 대기 시간을 고려하여 남은 시간 계산 (총 15초)
+            const newTimer = Math.max(0, Math.round((game.value.roundEndTime - localNow) / 1000));
             timer.value = newTimer;
-        }, 200);
+        }, 500);
     }
 };
 
 const updateCountdown = () => {
   if (countdownInterval) clearInterval(countdownInterval);
 
-  if (game.value?.status === 'waiting') {
-    const update = () => {
-      const localNow = Date.now() + serverTimeOffset.value;
-      displayTimeToStart.value = Math.max(0, Math.round((game.value.startTime - localNow) / 1000));
-    };
-    update();
-    countdownInterval = setInterval(update, 1000);
-  }
+  const update = () => {
+    const localNow = Date.now() + serverTimeOffset.value;
+    let targetTime = 0;
+
+    // [수정] 현재 상태에 따라 목표 시간 설정
+    if (game.value?.status === 'waiting') {
+        targetTime = game.value.startTime;
+    } else {
+         const now = new Date();
+         const allowedHours = [0, 9, 12, 15, 18, 21];
+         const currentHour = now.getHours();
+         let nextHour = allowedHours.find(h => h > currentHour);
+         const nextDate = new Date(now);
+         if(nextHour === undefined) { nextHour = 0; nextDate.setDate(nextDate.getDate() + 1); }
+         nextDate.setHours(nextHour, 0, 0, 0);
+         targetTime = nextDate.getTime();
+    }
+
+    let diff = Math.floor((targetTime - localNow) / 1000);
+
+    // [핵심 수정] waiting 상태에서 시간이 다 되면 0으로 고정하고, 절대 음수로 내려가지 않게 함.
+    // 이렇게 하면 화면에는 '게임 시작 대기 중...' 문구만 뜨고 버튼은 사라짐.
+    if (game.value?.status === 'waiting' && diff <= 0) {
+        diff = 0;
+    }
+
+    displayTimeToStart.value = Math.max(0, diff);
+  };
+  
+  update();
+  countdownInterval = setInterval(update, 1000);
 };
 
+// [신규] 게임 상태 변경 감지
+watch(() => game.value?.status, (newStatus, oldStatus) => {
+    if (newStatus === 'playing' && oldStatus === 'waiting') {
+        // 게임 시작 시 타이머 재설정
+        updateTimer();
+    }
+});
+
+// [신규] 문제 번호 변경 감지 (다음 라운드)
+watch(() => game.value?.currentQuestionIndex, () => {
+    if (game.value?.status === 'playing') {
+        updateTimer();
+    }
+});
+
+
 onMounted(() => {
+  calculateTimeOffset();
   onValue(gameRef, (snapshot) => {
-    game.value = snapshot.val();
-    updateTimer();
+    const val = snapshot.val();
+    // 데이터가 없으면 초기화
+    game.value = val || { status: 'finished', questions: [] };
+    
+    // 상태 변경 시 UI 업데이트
     updateCountdown();
+    
+    // 이미 진행 중인 게임에 들어왔을 때 타이머 시작
+    if (val?.status === 'playing') {
+        updateTimer();
+    }
   });
 });
 
@@ -228,6 +328,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ... (스타일은 기존 코드 유지) ... */
 .quiz-page-container {
   display: flex;
   justify-content: center;
@@ -273,19 +374,32 @@ onUnmounted(() => {
   padding: 10px;
   border-radius: 8px;
 }
+.info-text {
+  margin-top: 10px;
+  color: #bdc3c7;
+  font-size: 0.9em;
+}
+
 .action-button {
+  display: inline-block;
   padding: 15px 30px;
   font-size: 1.2em;
   font-weight: bold;
   cursor: pointer;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(145deg, #f1c40f, #e67e22);
   color: white;
   text-decoration: none;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
+.join-button {
+  background: linear-gradient(145deg, #f1c40f, #e67e22);
+}
+.dashboard-button {
+  background: linear-gradient(145deg, #3498db, #2980b9);
+}
+
 .action-button:hover:not(:disabled) {
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.3);
@@ -294,6 +408,7 @@ onUnmounted(() => {
   background: #7f8c8d;
   cursor: not-allowed;
 }
+
 .playing-screen {
   padding: 25px 40px;
 }
