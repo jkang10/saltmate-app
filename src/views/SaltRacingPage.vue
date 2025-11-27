@@ -1,70 +1,124 @@
 <template>
   <div class="racing-page">
+    <div class="game-stats-glass">
+      <div class="stat-item">
+        <span>보유 포인트</span>
+        <strong>{{ (userPoints || 0).toLocaleString() }} P</strong>
+      </div>
+      <div class="stat-item">
+        <span>남은 횟수</span>
+        <strong>{{ 20 - todayPlayCount }} / 20</strong>
+      </div>
+    </div>
+
     <div class="game-container card glassmorphism">
       <header class="game-header">
         <h2><i class="fas fa-flag-checkered"></i> 솔트 레이싱</h2>
-        <p>가장 컨디션이 좋아 보이는 선수에게 응원을 보내세요!</p>
+        <p class="sub-text">가장 컨디션이 좋아 보이는 선수에게 응원을 보내세요!</p>
       </header>
 
-      <div class="track-display">
-        <canvas ref="canvasRef"></canvas>
-        
-        <div v-if="showResult" class="result-overlay" :class="{ 'win': gameResult?.isWin }">
-          <h3>{{ resultMessage }}</h3>
-          <div class="winner-announce">
-            🏆 1등: <strong>{{ runners[gameResult?.winnerIndex]?.name }}</strong>
+      <div class="track-scroll-wrapper">
+        <div class="track-container">
+          <div class="finish-line">
+            <div class="finish-flag"><i class="fas fa-flag-checkered"></i></div>
+            <div class="finish-line-bar"></div>
           </div>
-          <p v-if="gameResult?.isWin" class="prize-text">
-            +{{ gameResult.winnings.toLocaleString() }} SaltMate 획득!
-          </p>
-          <button @click="resetGame" class="btn-retry">다음 경기 준비</button>
-        </div>
 
-        <div class="commentary-box" v-if="isPlaying">
-          <p>{{ currentCommentary }}</p>
-        </div>
-      </div>
-
-      <div class="controls-area" :class="{ 'disabled': isPlaying }">
-        <div class="runner-selection">
-          <h4>우승 후보 선택 (배당 4.5배)</h4>
-          <div class="runners-grid">
-            <div 
-              v-for="(runner, index) in runners" 
-              :key="index"
-              class="runner-card"
-              :class="{ 'selected': selectedRunner === index }"
-              @click="selectRunner(index)"
-            >
-              <div class="runner-img-box" :style="{ backgroundColor: runner.color }">
-                <img v-if="runnerImages[index].complete" :src="runnerImages[index].src" alt="runner" class="runner-preview-img" />
-                <span v-else class="runner-number">{{ index + 1 }}</span>
-              </div>
-              <div class="runner-info">
-                <span class="name">{{ runner.name }}</span>
-                <span class="trait">{{ runner.trait }}</span>
-              </div>
-              <div class="check-mark" v-if="selectedRunner === index">
-                <i class="fas fa-check-circle"></i>
+          <div v-for="(runner, index) in runners" :key="index" class="lane">
+            <div class="lane-number">{{ index + 1 }}</div>
+            <div class="runner-track">
+              <div 
+                class="runner" 
+                :style="{ left: runner.progress + '%' }"
+                :class="{ 'is-winner': gameStatus === 'finished' && resultData?.winnerIndex === index }"
+              >
+                <div class="runner-body" :class="'color-' + index">
+                  <i class="fas fa-horse-head"></i>
+                  <span class="runner-label">{{ index + 1 }}번</span>
+                </div>
+                <div v-if="runner.rank" class="rank-badge">
+                  {{ runner.rank }}등
+                </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="bet-action">
-          <div class="amount-selector">
-            <button @click="betAmount = 100" :class="{ active: betAmount === 100 }">100</button>
-            <button @click="betAmount = 300" :class="{ active: betAmount === 300 }">300</button>
-            <button @click="betAmount = 500" :class="{ active: betAmount === 500 }">500</button>
-            <button @click="betAmount = 800" :class="{ active: betAmount === 800 }">800</button>
+      <div v-if="gameStatus === 'racing'" class="racing-message-box">
+        <h3><i class="fas fa-running"></i> 경기 진행 중...</h3>
+        <p>달려라! {{ selectedRunner + 1 }}번마!</p>
+      </div>
+
+      <div class="control-panel" v-if="gameStatus === 'idle'">
+        
+        <div class="panel-section">
+          <h4>우승 후보 선택 <small>(배당 4.5배)</small></h4>
+          <div class="runner-buttons">
+            <button 
+              v-for="(n, i) in 5" 
+              :key="i"
+              @click="selectedRunner = i"
+              :class="['runner-btn', 'color-' + i, { active: selectedRunner === i }]"
+            >
+              <i class="fas fa-horse-head"></i> {{ n }}번
+            </button>
           </div>
-          <button @click="startGame" class="btn-start" :disabled="isPlaying || selectedRunner === null">
-            <span v-if="isPlaying">경기 진행 중...</span>
-            <span v-else>
-              {{ selectedRunner !== null ? `${runners[selectedRunner].name}에게` : '' }} 
-              {{ betAmount }} P 걸기
-            </span>
-          </button>
+        </div>
+
+        <div class="panel-section">
+          <h4>베팅 금액</h4>
+          <div class="amount-buttons">
+            <button 
+              v-for="amount in allowedBets" 
+              :key="amount"
+              @click="selectedBet = amount"
+              :class="{ active: selectedBet === amount }"
+              :disabled="userPoints < amount"
+            >
+              {{ amount }} P
+            </button>
+          </div>
+        </div>
+
+        <button 
+          class="btn-start" 
+          @click="startGame" 
+          :disabled="selectedRunner === null || !selectedBet || isProcessing"
+        >
+          <span v-if="isProcessing" class="spinner-small"></span>
+          <span v-else>경기 시작하기</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="gameStatus === 'finished' && resultData" class="modal-overlay">
+      <div class="modal-content">
+        <div class="result-header">
+          <i v-if="resultData.isWin" class="fas fa-trophy win-icon"></i>
+          <i v-else class="fas fa-sad-tear lose-icon"></i>
+        </div>
+        
+        <h2 v-if="resultData.isWin" class="win-title">축하합니다!</h2>
+        <h2 v-else class="lose-title">아쉬운 패배...</h2>
+        
+        <div class="result-details">
+          <div class="detail-row">
+            <span>우승 선수</span>
+            <strong :class="'text-runner-' + resultData.winnerIndex">{{ resultData.winnerIndex + 1 }}번마</strong>
+          </div>
+          <div class="detail-row" v-if="resultData.isWin">
+            <span>획득 상금</span>
+            <strong class="win-amount">+{{ resultData.winnings.toLocaleString() }} P</strong>
+          </div>
+          <p v-else class="lose-desc">
+            다음 경기에는 행운이 따를 거예요!
+          </p>
+        </div>
+
+        <div class="modal-actions">
+          <button @click="resetGame" class="btn-retry">한 번 더 도전!</button>
+          <button @click="router.push('/dashboard')" class="btn-exit">나가기</button>
         </div>
       </div>
     </div>
@@ -72,415 +126,502 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/firebaseConfig';
+import { doc, onSnapshot } from 'firebase/firestore';
 
-import runner1Src from '@/assets/racing/runner1.png';
-import runner2Src from '@/assets/racing/runner2.png';
-import runner3Src from '@/assets/racing/runner3.png';
-import runner4Src from '@/assets/racing/runner4.png';
-import runner5Src from '@/assets/racing/runner5.png';
+const router = useRouter();
 
-const runnerImages = [new Image(), new Image(), new Image(), new Image(), new Image()];
-runnerImages[0].src = runner1Src;
-runnerImages[1].src = runner2Src;
-runnerImages[2].src = runner3Src;
-runnerImages[3].src = runner4Src;
-runnerImages[4].src = runner5Src;
+// --- 상태 변수 ---
+const userPoints = ref(0);
+const todayPlayCount = ref(0);
+const gameStatus = ref('idle'); // idle, racing, finished
+const isProcessing = ref(false);
 
-const runners = [
-  { name: '소금 요정', trait: '막판 스퍼트', color: '#FF9AA2' },
-  { name: '황금 광부', trait: '꾸준한 속도', color: '#FFB7B2' },
-  { name: '심해 거북', trait: '안정적인 주행', color: '#FFDAC1' },
-  { name: '크리스탈', trait: '변칙적인 움직임', color: '#E2F0CB' },
-  { name: '메테오', trait: '폭발적인 스타트', color: '#B5EAD7' },
-];
+// 5명의 선수 상태 (진행도 0~100)
+const runners = reactive(Array.from({ length: 5 }, () => ({ progress: 0, rank: null })));
 
-const canvasRef = ref(null);
-const selectedRunner = ref(null);
-const betAmount = ref(100);
-const isPlaying = ref(false);
-const showResult = ref(false);
-const gameResult = ref(null);
-const currentCommentary = ref("선수들이 출발선에 정렬했습니다.");
+const selectedRunner = ref(null); // 0~4
+const selectedBet = ref(100);
+const allowedBets = [100, 300, 500, 800];
 
-let ctx = null;
-let animationId = null;
-const racerPositions = ref([0, 0, 0, 0, 0]);
+const resultData = ref(null);
+let animationFrameId = null;
 
-const selectRunner = (index) => {
-  selectedRunner.value = index;
-};
-
-const startGame = async () => {
-  if (selectedRunner.value === null) return alert("응원할 선수를 선택해주세요!");
-  if (!confirm(`${betAmount.value} SaltMate를 걸고 경기를 시작하시겠습니까?`)) return;
-
-  isPlaying.value = true;
-  showResult.value = false;
-  racerPositions.value = [0, 0, 0, 0, 0];
-  currentCommentary.value = "3... 2... 1... 출발!!";
-
-  try {
-    const playFunc = httpsCallable(functions, 'playSaltRacing');
-    const result = await playFunc({ 
-      betAmount: betAmount.value,
-      selectedRunner: selectedRunner.value 
-    });
-    gameResult.value = result.data;
-    animateRace(result.data.winnerIndex);
-
-  } catch (error) {
-    console.error(error);
-    alert(error.message);
-    isPlaying.value = false;
-  }
-};
-
-const animateRace = (winnerIndex) => {
-  let frameCount = 0;
-  const finishLine = 800;
-  
-  const loop = () => {
-    frameCount++;
-    if (!canvasRef.value) return;
-
-    ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-    drawTrack();
-
-    let allFinished = true;
-
-    racerPositions.value = racerPositions.value.map((pos, index) => {
-      if (pos >= finishLine) return pos;
-      allFinished = false;
-      
-      let speed = Math.random() * 3 + 2; 
-      if (index === winnerIndex && pos > finishLine * 0.6) speed += 1.5; 
-      if (index !== winnerIndex && pos > finishLine * 0.8 && pos > racerPositions.value[winnerIndex]) speed *= 0.5;
-
-      return pos + speed;
-    });
-
-    drawRunners(frameCount);
-
-    if (frameCount % 60 === 0 && !allFinished) updateCommentary();
-
-    if (!allFinished) {
-      animationId = requestAnimationFrame(loop);
-    } else {
-      setTimeout(() => { showResult.value = true; }, 1000);
-    }
-  };
-  loop();
-};
-
-const updateCommentary = () => {
-    const maxPos = Math.max(...racerPositions.value);
-    const leaderIdx = racerPositions.value.indexOf(maxPos);
-    const leaderName = runners[leaderIdx].name;
-    
-    const comments = [
-        `${leaderName} 선수가 치고 나갑니다!`,
-        `치열한 순위 다툼이 벌어지고 있습니다!`,
-        `아직 승부는 알 수 없습니다!`,
-        `${leaderName}, 엄청난 속도입니다!`,
-        `막판 스퍼트가 시작됩니다! 과연 우승은?`
-    ];
-    currentCommentary.value = comments[Math.floor(Math.random() * comments.length)];
-};
-
-const drawTrack = () => {
-    const w = canvasRef.value.width;
-    const h = canvasRef.value.height;
-    const laneHeight = h / 5;
-
-    ctx.fillStyle = '#2c3e50';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([20, 15]);
-    
-    for(let i=1; i<5; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, i * laneHeight);
-        ctx.lineTo(w, i * laneHeight);
-        ctx.stroke();
-    }
-    ctx.setLineDash([]);
-
-    const finishX = w - 50;
-    ctx.fillStyle = '#ecf0f1';
-    for(let i=0; i<h; i+=20) {
-        if ((i/20)%2 === 0) ctx.fillRect(finishX, i, 10, 10);
-        else ctx.fillRect(finishX + 10, i, 10, 10);
-    }
-};
-
-const drawRunners = (frameCount) => {
-    const w = canvasRef.value.width;
-    const h = canvasRef.value.height;
-    const laneHeight = h / 5;
-    const finishLine = 800;
-
-    racerPositions.value.forEach((pos, index) => {
-        const screenX = (pos / finishLine) * (w - 100) + 20; 
-        const screenY = index * laneHeight + (laneHeight / 2);
-        
-        const bobbing = Math.sin(frameCount * 0.5) * 3; 
-
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath();
-        ctx.ellipse(screenX + 15, screenY + 20, 15, 5, 0, 0, Math.PI*2);
-        ctx.fill();
-
-        if (runnerImages[index].complete) {
-            ctx.drawImage(runnerImages[index], screenX - 25, screenY - 25 + bobbing, 50, 50);
-        } else {
-            // 이미지 로드 전 대체 원형
-            ctx.fillStyle = runners[index].color;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY + bobbing, 25, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(index + 1, screenX, screenY - 35 + bobbing);
-    });
-};
-
-const resetGame = () => {
-    showResult.value = false;
-    isPlaying.value = false;
-    currentCommentary.value = "다음 경기를 준비 중입니다...";
-    drawTrack();
-    racerPositions.value = [0,0,0,0,0];
-    drawRunners(0);
-};
-
-const resultMessage = computed(() => {
-    if (!gameResult.value) return '';
-    return gameResult.value.isWin ? '🎉 승리했습니다! 🎉' : '아쉽게 패배했습니다...';
-});
+// --- Firebase 연결 ---
+const playRacingFunc = httpsCallable(functions, 'playSaltRacing');
+let unsubscribeUser = null;
+let unsubscribeDaily = null;
 
 onMounted(() => {
-    const canvas = canvasRef.value;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = 800 * dpr;
-    canvas.height = 400 * dpr;
-    ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    
-    setTimeout(() => {
-        drawTrack();
-        drawRunners(0);
-    }, 100);
+  const user = auth.currentUser;
+  if (!user) {
+    alert("로그인이 필요합니다.");
+    router.push('/login');
+    return;
+  }
+
+  // 유저 포인트 실시간 감지
+  unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+    if (docSnap.exists()) {
+      userPoints.value = docSnap.data().saltmatePoints || 0;
+    }
+  });
+
+  // 일일 플레이 횟수 감지
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const todayStr = new Date(now.getTime() + kstOffset).toISOString().slice(0, 10);
+  
+  unsubscribeDaily = onSnapshot(doc(db, 'users', user.uid, 'daily_play_counts', todayStr), (docSnap) => {
+    if (docSnap.exists()) {
+      todayPlayCount.value = docSnap.data().saltRacing || 0;
+    }
+  });
 });
 
 onUnmounted(() => {
-    cancelAnimationFrame(animationId);
+  if (unsubscribeUser) unsubscribeUser();
+  if (unsubscribeDaily) unsubscribeDaily();
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
 });
+
+// --- 게임 로직 ---
+const startGame = async () => {
+  if (selectedRunner.value === null) return;
+  
+  if (todayPlayCount.value >= 20) {
+    alert("오늘은 더 이상 경기에 참여할 수 없습니다. (일일 20회 제한)");
+    return;
+  }
+  if (userPoints.value < selectedBet.value) {
+    alert("포인트가 부족합니다.");
+    return;
+  }
+
+  isProcessing.value = true;
+
+  try {
+    // 1. 서버에 게임 요청 (결과 미리 받기)
+    const result = await playRacingFunc({
+      betAmount: selectedBet.value,
+      selectedRunner: selectedRunner.value
+    });
+    
+    resultData.value = result.data; 
+    
+    // 2. 애니메이션 시작
+    gameStatus.value = 'racing';
+    isProcessing.value = false;
+    startRaceAnimation(result.data.winnerIndex);
+
+  } catch (error) {
+    console.error("게임 시작 오류:", error);
+    let msg = error.message;
+    if(msg.includes("resource-exhausted")) msg = "일일 참여 횟수를 초과했습니다.";
+    alert(msg);
+    isProcessing.value = false;
+  }
+};
+
+const startRaceAnimation = (winnerIndex) => {
+  // 초기화
+  runners.forEach(r => {
+    r.progress = 0;
+    r.rank = null;
+  });
+
+  let finishedCount = 0;
+  // 각 선수의 기본 속도 (랜덤성 부여)
+  const speeds = runners.map(() => 0.3 + Math.random() * 0.2); 
+
+  const animate = () => {
+    let allFinished = true;
+
+    runners.forEach((runner, index) => {
+      // 아직 골인하지 않은 선수만 이동
+      if (runner.progress < 100) {
+        allFinished = false;
+        
+        // 랜덤 속도 변동 (역전의 묘미)
+        if (Math.random() < 0.05) speeds[index] = 0.2 + Math.random() * 0.5;
+        
+        // 80% 지점부터 승부 조작 (서버 결과에 맞추기)
+        if (runner.progress > 80) {
+           if (index === winnerIndex) {
+               speeds[index] += 0.05; // 우승자는 가속
+           } else if (runners[winnerIndex].progress < 100) {
+               speeds[index] *= 0.9; // 우승자가 아직 안 들어왔으면 나머지는 감속
+           }
+        }
+
+        runner.progress += speeds[index];
+
+        // 결승선 통과 체크
+        if (runner.progress >= 100) {
+          runner.progress = 100;
+          if (!runner.rank) {
+            finishedCount++;
+            runner.rank = finishedCount;
+          }
+        }
+      }
+    });
+
+    if (finishedCount < 5) {
+      animationFrameId = requestAnimationFrame(animate);
+    } else {
+      // 경기 종료 후 잠시 대기하다가 결과창 표시
+      setTimeout(() => {
+        gameStatus.value = 'finished';
+      }, 800);
+    }
+  };
+
+  animationFrameId = requestAnimationFrame(animate);
+};
+
+const resetGame = () => {
+  gameStatus.value = 'idle';
+  selectedRunner.value = null; // 선택 초기화 (선택사항)
+  runners.forEach(r => {
+    r.progress = 0;
+    r.rank = null;
+  });
+  resultData.value = null;
+};
 </script>
 
 <style scoped>
+/* 전체 페이지 */
 .racing-page {
-  padding: 20px;
-  min-height: 100vh;
-  background-color: #1a1a2e;
+  min-height: 100dvh; /* 모바일 높이 대응 */
+  padding: 15px;
+  background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%);
+  color: #fff;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  font-family: 'Noto Sans KR', sans-serif;
+  box-sizing: border-box;
 }
+
+/* 상단 스탯 바 */
+.game-stats-glass {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 10px 15px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.stat-item { text-align: center; }
+.stat-item span { display: block; font-size: 0.8rem; color: #ccc; margin-bottom: 2px; }
+.stat-item strong { font-size: 1.1rem; color: #FFD700; }
+
+/* 게임 컨테이너 */
 .game-container {
   width: 100%;
-  max-width: 800px;
-  background: rgba(255, 255, 255, 0.05);
+  max-width: 600px;
+  background: rgba(30, 30, 30, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 20px;
-  color: #fff;
+  border-radius: 15px;
+  padding: 20px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
-.game-header { text-align: center; margin-bottom: 20px; }
-.game-header h2 { color: #FFD700; margin-bottom: 5px; }
-.game-header p { color: #bdc3c7; font-size: 0.9rem; }
 
-.track-display {
-  position: relative;
+.game-header { text-align: center; }
+.game-header h2 { color: #FFD700; margin: 0 0 5px; font-size: 1.5rem; }
+.sub-text { color: #bdc3c7; font-size: 0.9rem; margin: 0; }
+
+/* [핵심] 트랙 스크롤 래퍼 (모바일 대응) */
+.track-scroll-wrapper {
   width: 100%;
-  background: #2c3e50;
+  overflow-x: auto; /* 가로 스크롤 허용 */
   border-radius: 10px;
-  overflow: hidden;
-  border: 2px solid #4a69bd;
-  margin-bottom: 20px;
-}
-canvas {
-  width: 100%;
-  height: auto;
-  display: block;
+  background: #333;
+  border: 2px solid #555;
+  /* 스크롤바 숨김 (선택사항) */
+  scrollbar-width: thin;
+  scrollbar-color: #555 #222;
 }
 
-.commentary-box {
+/* 실제 트랙 컨테이너 (최소 너비 보장) */
+.track-container {
+  min-width: 500px; /* 모바일에서도 트랙이 찌그러지지 않도록 최소 너비 설정 */
+  padding: 15px 40px 15px 10px; /* 오른쪽 여백은 결승선 공간 */
+  position: relative;
+  background: repeating-linear-gradient(
+    90deg,
+    #2c3e50,
+    #2c3e50 50px,
+    #34495e 50px,
+    #34495e 100px
+  );
+}
+
+.finish-line {
   position: absolute;
-  bottom: 10px;
+  top: 0; bottom: 0; right: 25px;
+  width: 8px;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.finish-line-bar {
+  width: 100%; height: 100%;
+  background: repeating-linear-gradient(0deg, #fff, #fff 10px, #000 10px, #000 20px);
+  border: 1px solid #fff;
+}
+.finish-flag { position: absolute; top: -20px; font-size: 1.2rem; color: #fff; }
+
+/* 레인 (높이 축소) */
+.lane {
+  display: flex;
+  align-items: center;
+  height: 40px; /* 높이 줄임 */
+  border-bottom: 1px dashed rgba(255,255,255,0.2);
+  position: relative;
+}
+.lane:last-child { border-bottom: none; }
+
+.lane-number {
+  width: 20px;
+  font-weight: bold;
+  color: #aaa;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.runner-track {
+  flex-grow: 1;
+  position: relative;
+  height: 100%;
+}
+
+/* 달리는 말 (크기 축소) */
+.runner {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: left 0.1s linear;
+  z-index: 1;
+  /* 말 아이콘 위치 보정 (중앙) */
+  margin-left: -15px; 
+}
+
+.runner-body {
+  font-size: 1.8rem; /* 아이콘 크기 */
+  position: relative;
+  transition: transform 0.2s;
+}
+.runner.is-winner .runner-body {
+  transform: scale(1.2);
+  text-shadow: 0 0 15px gold;
+  z-index: 10;
+}
+
+/* 말 색상 */
+.color-0 { color: #ff6b6b; }
+.color-1 { color: #48dbfb; }
+.color-2 { color: #1dd1a1; }
+.color-3 { color: #feca57; }
+.color-4 { color: #ff9ff3; }
+
+.runner-label {
+  position: absolute;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0,0,0,0.7);
-  padding: 8px 20px;
-  border-radius: 20px;
-  border: 1px solid #f1c40f;
-}
-.commentary-box p {
-  margin: 0;
-  color: #f1c40f;
-  font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 0.6rem;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  padding: 1px 4px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
-.result-overlay {
+.rank-badge {
   position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.85);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  animation: fadeIn 0.3s;
-  z-index: 10;
-}
-.result-overlay.win h3 { color: #2ecc71; }
-.winner-announce { font-size: 1.5rem; margin: 15px 0; }
-.winner-announce strong { color: #FFD700; }
-.prize-text { color: #FFD700; font-size: 1.2rem; font-weight: bold; margin-bottom: 20px; }
-.btn-retry {
-  padding: 10px 25px;
-  background: #3498db;
-  border: none;
-  color: white;
-  border-radius: 8px;
+  top: -5px;
+  right: -15px;
+  background: #fff;
+  color: #000;
   font-weight: bold;
-  cursor: pointer;
-}
-
-.controls-area { transition: opacity 0.3s; }
-.controls-area.disabled { opacity: 0.5; pointer-events: none; }
-
-.runner-selection h4 { margin-bottom: 15px; color: #bdc3c7; font-size: 1rem; }
-.runners-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.runner-card {
-  background: rgba(255,255,255,0.1);
+  font-size: 0.7rem;
+  padding: 1px 5px;
   border-radius: 8px;
-  padding: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  animation: pop 0.3s;
+}
+
+/* 경기 중 메시지 */
+.racing-message-box {
+  text-align: center;
+  background: rgba(0,0,0,0.3);
+  padding: 15px;
+  border-radius: 10px;
+  animation: pulse 1.5s infinite;
+}
+.racing-message-box h3 { margin: 0 0 5px; color: #2ecc71; font-size: 1.2rem; }
+.racing-message-box p { margin: 0; color: #fff; }
+
+/* 컨트롤 패널 */
+.control-panel {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 15px;
+}
+.panel-section { margin-bottom: 20px; }
+.panel-section h4 { 
+  margin: 0 0 10px 0; 
+  color: #ddd; 
+  font-size: 1rem; 
+  text-align: center;
+}
+.panel-section h4 small { color: #888; font-weight: normal; }
+
+.runner-buttons, .amount-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.runner-btn, .amount-buttons button {
+  flex: 1 1 18%; /* 한 줄에 5개 */
+  min-width: 50px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ccc;
+  padding: 10px 5px;
+  border-radius: 8px;
   cursor: pointer;
-  border: 2px solid transparent;
+  font-size: 0.9rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  position: relative;
-}
-.runner-card.selected {
-  border-color: #FFD700;
-  background: rgba(255, 215, 0, 0.1);
-}
-.runner-img-box {
-  width: 60px; height: 60px; 
-  display: flex; justify-content: center; align-items: center;
-  margin-bottom: 5px;
-  border-radius: 50%;
-  overflow: hidden; /* 이미지가 둥글게 잘리도록 */
-}
-.runner-preview-img {
-  width: 100%; height: 100%; object-fit: cover;
-}
-.runner-number {
-  font-size: 1.5rem; font-weight: bold; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  gap: 5px;
+  transition: all 0.2s;
 }
 
-.runner-info { text-align: center; }
-.runner-info .name { display: block; font-weight: bold; font-size: 0.9rem; }
-.runner-info .trait { display: block; font-size: 0.7rem; color: #aaa; }
-.check-mark {
-  position: absolute; top: 5px; right: 5px; color: #2ecc71;
+/* 선택된 버튼 스타일 */
+.runner-btn.active, .amount-buttons button.active {
+  background: #fff;
+  color: #333;
+  font-weight: bold;
+  border-color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(255,255,255,0.3);
 }
+.runner-btn.active i { color: inherit; }
 
-.bet-action {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.amount-selector {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-.amount-selector button {
-  background: transparent;
-  border: 1px solid #666;
-  color: #ccc;
-  padding: 5px 15px;
-  border-radius: 20px;
-  cursor: pointer;
-}
-.amount-selector button.active {
-  border-color: #FFD700;
-  color: #FFD700;
-  background: rgba(255, 215, 0, 0.1);
-}
+/* 버튼 내부 아이콘 색상 */
+.runner-btn.color-0 i { color: #ff6b6b; }
+.runner-btn.color-1 i { color: #48dbfb; }
+.runner-btn.color-2 i { color: #1dd1a1; }
+.runner-btn.color-3 i { color: #feca57; }
+.runner-btn.color-4 i { color: #ff9ff3; }
+
 .btn-start {
   width: 100%;
   padding: 15px;
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  background: linear-gradient(135deg, #ff512f, #dd2476);
+  color: white;
   border: none;
   border-radius: 10px;
-  color: white;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: bold;
   cursor: pointer;
+  box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
+  transition: transform 0.2s;
 }
-.btn-start:disabled { background: #555; cursor: not-allowed; }
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-/* ▼▼▼ [★추가★] 모바일 반응형 스타일 ▼▼▼ */
-@media (max-width: 768px) {
-  .track-container {
-    /* 트랙 컨테이너의 좌우 패딩을 줄입니다. */
-    padding: 10px 30px 10px 5px; 
-    /* 가로 스크롤을 허용하여 잘린 부분을 볼 수 있게 합니다. */
-    overflow-x: auto; 
-  }
-
-  .runner-track {
-    /* 트랙의 최소 너비를 지정하여 비율이 깨지지 않게 합니다. */
-    min-width: 300px; 
-  }
-
-  .runner-body {
-    /* 모바일에서는 말 아이콘 크기를 줄입니다. */
-    font-size: 1.5rem; 
-  }
-
-  .finish-line {
-    right: 10px; /* 결승선 위치 조정 */
-  }
-
-  /* 컨트롤 패널 버튼 크기 조정 */
-  .runner-btn, .amount-buttons button {
-    padding: 8px 10px;
-    font-size: 0.9rem;
-  }
-  
-  .btn-start {
-    font-size: 1rem;
-    padding: 12px;
-  }
+.btn-start:disabled {
+  background: #555;
+  box-shadow: none;
+  cursor: not-allowed;
 }
-/* ▲▲▲ */
+.btn-start:active:not(:disabled) { transform: scale(0.98); }
+
+.spinner-small {
+  display: inline-block;
+  width: 20px; height: 20px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 결과 모달 */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal-content {
+  background: white;
+  color: #333;
+  padding: 30px 20px;
+  border-radius: 15px;
+  text-align: center;
+  width: 100%;
+  max-width: 350px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.result-header i { font-size: 4rem; margin-bottom: 15px; display: block; }
+.win-icon { color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
+.lose-icon { color: #95a5a6; }
+
+.win-title { color: #2ecc71; margin: 0 0 20px; }
+.lose-title { color: #7f8c8d; margin: 0 0 20px; }
+
+.result-details {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+.detail-row:last-child { margin-bottom: 0; }
+.text-runner-0 { color: #ff6b6b; }
+.text-runner-1 { color: #48dbfb; }
+.text-runner-2 { color: #1dd1a1; }
+.text-runner-3 { color: #feca57; }
+.text-runner-4 { color: #ff9ff3; }
+.win-amount { color: #f1c40f; font-size: 1.2rem; }
+.lose-desc { color: #7f8c8d; margin: 0; }
+
+.modal-actions { display: flex; gap: 10px; }
+.btn-retry, .btn-exit {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.btn-retry { background: #3498db; color: white; }
+.btn-exit { background: #ecf0f1; color: #333; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
 </style>
