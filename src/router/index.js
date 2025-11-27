@@ -154,6 +154,12 @@ const routes = [
     component: () => import("@/views/QuizGamePage.vue"),
     meta: { requiresAuth: true }
   },
+{
+  path: '/salt-racing',
+  name: 'SaltRacingPage',
+  component: () => import('@/views/SaltRacingPage.vue'),
+  meta: { requiresAuth: true }
+},
   {
     path: "/my-assets",
     name: "MyAssets",

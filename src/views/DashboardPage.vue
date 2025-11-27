@@ -431,6 +431,12 @@
 	  <p>구슬이 떨어지며 운명을 결정합니다. 최대 100배 대박의 기회!</p>
 	  <span class="card-enter">도전하기 &rarr;</span>
 	</router-link>
+	<router-link to="/salt-racing" class="feature-card racing-card">
+	  <div class="card-icon"><i class="fas fa-flag-checkered"></i></div>
+	  <h3>솔트 레이싱</h3>
+	  <p>가슴 뛰는 스피드! 우승 선수를 맞춰 4.5배의 상금을 획득하세요!</p>
+	  <span class="card-enter">경기장 입장 &rarr;</span>
+	</router-link>
 	<router-link to="/quiz-game" class="feature-card game">
         <div class="card-icon"><i class="fas fa-question-circle"></i></div>
         <h3>솔트 스칼라 퀴즈</h3>
@@ -1878,4 +1884,22 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
 /* =========================================
    [★종료★] 전설의 황금 상자 VIP 스타일
    ========================================= */
+/* 솔트 레이싱 카드 */
+.feature-card.racing-card {
+  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); /* 강렬한 레드/오렌지 */
+  border: 1px solid #fff;
+  color: #fff;
+}
+.feature-card.racing-card .card-icon {
+  color: #fff;
+  animation: shake-icon 0.5s infinite alternate;
+}
+.feature-card.racing-card .card-enter {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+@keyframes shake-icon {
+  0% { transform: rotate(-10deg); }
+  100% { transform: rotate(10deg); }
+}
 </style>
