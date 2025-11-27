@@ -138,37 +138,71 @@ const formatDate = (isoString) => {
   opacity: 0.6;
 }
 
-/* --- 2. 헤더: 가독성 및 화려함 강화 --- */
+/* --- 2. 헤더: 가독성 및 화려함 강화 (수정됨) --- */
 .widget-header {
   text-align: center;
-  padding: 20px 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 25px 15px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   z-index: 2;
   position: relative;
-  /* 헤더 배경에 살짝 빛 추가 */
-  background: radial-gradient(ellipse at top, rgba(138, 43, 226, 0.2) 0%, transparent 70%);
+  /* 배경을 조금 더 어둡게 눌러줘서 글씨를 강조 */
+  background: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent);
 }
+
 .widget-header h3 {
-  margin: 0;
-  font-size: 1.8rem; /* 크기 확대 */
-  font-weight: 800;
-  letter-spacing: 1px;
-  /* 화려한 금속성 텍스트 그라데이션 */
-  background: linear-gradient(to bottom, #ffffff, #e2e2e2, #a8c0ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  /* 텍스트 그림자로 가독성 및 입체감 확보 */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 20px rgba(138, 43, 226, 0.4);
+  margin: 0 0 8px 0;
+  font-size: 2rem; /* 크기 더 확대 */
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  
+  /* [핵심] 선명하고 화려한 글로우 효과 */
+  text-shadow: 
+    0 0 5px #fff,
+    0 0 10px #fff,
+    0 0 20px #a8c0ff,
+    0 0 30px #a8c0ff,
+    0 0 40px #a8c0ff;
+  
+  animation: text-flicker 3s infinite alternate;
 }
+
 .widget-header h3 i {
-    color: #a8c0ff; /* 아이콘 색상 별도 지정 */
-    margin-right: 8px;
+    color: #fff;
+    margin-right: 10px;
+    filter: drop-shadow(0 0 5px #a8c0ff);
 }
+
 .widget-header p {
-  margin: 8px 0 0;
-  font-size: 1rem;
-  color: #d1d1e9; /* 더 밝은 회색으로 가독성 향상 */
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  
+  /* [핵심] 흰색 글씨에 검은색 외곽선 효과를 주어 선명하게 만듦 */
+  color: #ffffff;
+  text-shadow: 
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0 2px 5px rgba(0,0,0,0.8);
+     
+  opacity: 0.9;
+}
+
+/* 텍스트 깜빡임 애니메이션 */
+@keyframes text-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: 
+      0 0 5px #fff,
+      0 0 10px #fff,
+      0 0 20px #a8c0ff,
+      0 0 30px #a8c0ff,
+      0 0 40px #a8c0ff;
+  }
+  20%, 24%, 55% {       
+    text-shadow: none;
+  }
 }
 
 /* --- 3. 콘텐츠 영역 --- */
