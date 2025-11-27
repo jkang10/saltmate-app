@@ -36,8 +36,9 @@
               :class="{ 'selected': selectedRunner === index }"
               @click="selectRunner(index)"
             >
-              <div class="runner-img-box">
-                <img :src="runnerImages[index].src" alt="runner" class="runner-preview-img" />
+              <div class="runner-img-box" :style="{ backgroundColor: runner.color }">
+                <img v-if="runnerImages[index].complete" :src="runnerImages[index].src" alt="runner" class="runner-preview-img" />
+                <span v-else class="runner-number">{{ index + 1 }}</span>
               </div>
               <div class="runner-info">
                 <span class="name">{{ runner.name }}</span>
@@ -75,14 +76,12 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/firebaseConfig';
 
-// [핵심] 이미지 임포트 (파일명 주의: jpg/png 섞여있음)
-import runner1Src from '@/assets/racing/runner1.png';
-import runner2Src from '@/assets/racing/runner2.png';
-import runner3Src from '@/assets/racing/runner3.png';
-import runner4Src from '@/assets/racing/runner4.png';
+import runner1Src from '@/assets/racing/runner1.jpg';
+import runner2Src from '@/assets/racing/runner2.jpg';
+import runner3Src from '@/assets/racing/runner3.jpg';
+import runner4Src from '@/assets/racing/runner4.jpg';
 import runner5Src from '@/assets/racing/runner5.png';
 
-// 이미지 객체 미리 생성
 const runnerImages = [new Image(), new Image(), new Image(), new Image(), new Image()];
 runnerImages[0].src = runner1Src;
 runnerImages[1].src = runner2Src;
@@ -91,11 +90,11 @@ runnerImages[3].src = runner4Src;
 runnerImages[4].src = runner5Src;
 
 const runners = [
-  { name: '소금 요정', trait: '막판 스퍼트' },
-  { name: '황금 광부', trait: '꾸준한 속도' },
-  { name: '심해 거북', trait: '안정적인 주행' },
-  { name: '크리스탈', trait: '변칙적인 움직임' },
-  { name: '메테오', trait: '폭발적인 스타트' },
+  { name: '소금 요정', trait: '막판 스퍼트', color: '#FF9AA2' },
+  { name: '황금 광부', trait: '꾸준한 속도', color: '#FFB7B2' },
+  { name: '심해 거북', trait: '안정적인 주행', color: '#FFDAC1' },
+  { name: '크리스탈', trait: '변칙적인 움직임', color: '#E2F0CB' },
+  { name: '메테오', trait: '폭발적인 스타트', color: '#B5EAD7' },
 ];
 
 const canvasRef = ref(null);
@@ -145,7 +144,7 @@ const animateRace = (winnerIndex) => {
   
   const loop = () => {
     frameCount++;
-    if (!canvasRef.value) return; // 방어 코드
+    if (!canvasRef.value) return;
 
     ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
     drawTrack();
@@ -219,7 +218,6 @@ const drawTrack = () => {
     }
 };
 
-// [핵심 수정] 이미지 그리기
 const drawRunners = (frameCount) => {
     const w = canvasRef.value.width;
     const h = canvasRef.value.height;
@@ -230,22 +228,23 @@ const drawRunners = (frameCount) => {
         const screenX = (pos / finishLine) * (w - 100) + 20; 
         const screenY = index * laneHeight + (laneHeight / 2);
         
-        // [연출] 달릴 때 위아래로 흔들리는 효과 (Bobbing)
         const bobbing = Math.sin(frameCount * 0.5) * 3; 
 
-        // 그림자 (타원)
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.ellipse(screenX + 15, screenY + 20, 15, 5, 0, 0, Math.PI*2);
         ctx.fill();
 
-        // 캐릭터 이미지 그리기 (크기 50x50)
-        // 이미지가 로드되었는지 확인
         if (runnerImages[index].complete) {
             ctx.drawImage(runnerImages[index], screenX - 25, screenY - 25 + bobbing, 50, 50);
+        } else {
+            // 이미지 로드 전 대체 원형
+            ctx.fillStyle = runners[index].color;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY + bobbing, 25, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        // 등번호 (머리 위)
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
@@ -259,7 +258,6 @@ const resetGame = () => {
     currentCommentary.value = "다음 경기를 준비 중입니다...";
     drawTrack();
     racerPositions.value = [0,0,0,0,0];
-    // 초기 위치에 캐릭터 그리기 (frameCount = 0)
     drawRunners(0);
 };
 
@@ -271,13 +269,11 @@ const resultMessage = computed(() => {
 onMounted(() => {
     const canvas = canvasRef.value;
     const dpr = window.devicePixelRatio || 1;
-    // 캔버스 크기 고정 (CSS 반응형과 별개)
     canvas.width = 800 * dpr;
     canvas.height = 400 * dpr;
     ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
     
-    // 이미지 로드 완료 대기 후 초기화 (간단히 처리)
     setTimeout(() => {
         drawTrack();
         drawRunners(0);
@@ -398,9 +394,14 @@ canvas {
   width: 60px; height: 60px; 
   display: flex; justify-content: center; align-items: center;
   margin-bottom: 5px;
+  border-radius: 50%;
+  overflow: hidden; /* 이미지가 둥글게 잘리도록 */
 }
 .runner-preview-img {
-  width: 100%; height: 100%; object-fit: contain;
+  width: 100%; height: 100%; object-fit: cover;
+}
+.runner-number {
+  font-size: 1.5rem; font-weight: bold; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .runner-info { text-align: center; }

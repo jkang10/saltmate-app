@@ -1890,6 +1890,13 @@ padding: 20px; /* 기존 padding-top: 0; gap: 0; 스타일은 인라인으로 �
   border: 1px solid #fff;
   color: #fff;
 }
+/* ▼▼▼ [추가] 설명 텍스트 색상 흰색으로 강제 지정 ▼▼▼ */
+.feature-card.racing-card p {
+  color: #ffffff !important; /* 흰색 */
+  opacity: 0.8; /* 약간의 투명도로 세련됨 추가 (선택사항) */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2); /* 가독성을 위한 그림자 (선택사항) */
+}
+/* ▲▲▲ */
 .feature-card.racing-card .card-icon {
   color: #fff;
   animation: shake-icon 0.5s infinite alternate;
