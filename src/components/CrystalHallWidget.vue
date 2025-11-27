@@ -11,12 +11,12 @@
 
     <div v-else-if="heirlooms.length > 0" class="showcase-container">
       <div class="crystal-track">
-        <div 
-          v-for="(item, index) in heirlooms" 
-          :key="item.id" 
-          class="crystal-card"
-          :class="getTierClass(item.tier)"
-        >
+	<div 
+	  v-for="item in heirlooms" 
+	  :key="item.id" 
+	  class="crystal-card"
+	  :class="getTierClass(item.tier)"
+	>
           <div class="glow-bg"></div>
           <div class="crystal-visual">
             <img :src="getCrystalImage(item.tier)" alt="Crystal" class="crystal-img" />
