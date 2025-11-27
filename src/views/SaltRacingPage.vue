@@ -238,12 +238,11 @@ const startRaceAnimation = (winnerIndex) => {
   const speeds = runners.map(() => 0.3 + Math.random() * 0.2); 
 
   const animate = () => {
-    let allFinished = true;
+    // [수정] 불필요한 'let allFinished = true;' 변수 삭제함
 
     runners.forEach((runner, index) => {
       // 아직 골인하지 않은 선수만 이동
       if (runner.progress < 100) {
-        allFinished = false;
         
         // 랜덤 속도 변동 (역전의 묘미)
         if (Math.random() < 0.05) speeds[index] = 0.2 + Math.random() * 0.5;
