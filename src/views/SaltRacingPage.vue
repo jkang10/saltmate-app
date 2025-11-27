@@ -448,4 +448,39 @@ canvas {
 .btn-start:disabled { background: #555; cursor: not-allowed; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* ▼▼▼ [★추가★] 모바일 반응형 스타일 ▼▼▼ */
+@media (max-width: 768px) {
+  .track-container {
+    /* 트랙 컨테이너의 좌우 패딩을 줄입니다. */
+    padding: 10px 30px 10px 5px; 
+    /* 가로 스크롤을 허용하여 잘린 부분을 볼 수 있게 합니다. */
+    overflow-x: auto; 
+  }
+
+  .runner-track {
+    /* 트랙의 최소 너비를 지정하여 비율이 깨지지 않게 합니다. */
+    min-width: 300px; 
+  }
+
+  .runner-body {
+    /* 모바일에서는 말 아이콘 크기를 줄입니다. */
+    font-size: 1.5rem; 
+  }
+
+  .finish-line {
+    right: 10px; /* 결승선 위치 조정 */
+  }
+
+  /* 컨트롤 패널 버튼 크기 조정 */
+  .runner-btn, .amount-buttons button {
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+  
+  .btn-start {
+    font-size: 1rem;
+    padding: 12px;
+  }
+}
+/* ▲▲▲ */
 </style>

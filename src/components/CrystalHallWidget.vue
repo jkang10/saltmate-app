@@ -93,116 +93,74 @@ const formatDate = (isoString) => {
 </script>
 
 <style scoped>
-/* --- 1. 위젯 컨테이너: 깊이감 있는 배경과 반딧불이 효과 --- */
+/* --- 1. 위젯 컨테이너 --- */
 .crystal-hall-widget {
-  /* 깊고 신비로운 밤하늘/동굴 느낌의 그라데이션 배경 */
-  background: radial-gradient(circle at 50% 0%, #2a2356 0%, #120f24 60%, #080613 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15); /* 더 선명한 테두리 */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 60px rgba(138, 43, 226, 0.2); /* 내/외부 광채 */
+  /* (배경은 기존 설정 유지하거나, 이미지처럼 밝게 하셨다면 그에 맞춤) */
+  /* 이 코드는 다크 테마 기준이지만, 글씨 테두리를 추가하여 밝은 배경에서도 잘 보이게 합니다 */
+  background: radial-gradient(circle at 50% 0%, #ffffff 0%, #f0f0f0 60%, #e0e0e0 100%); /* (참고) 밝은 배경 예시 */
+  /* 만약 기존 어두운 배경을 원하시면 위 background 줄을 지우고 이전 배경을 쓰세요. */
+  
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   color: white;
   overflow: hidden;
   position: relative;
-  min-height: 340px; /* 높이 약간 증가 */
+  min-height: 340px;
   display: flex;
   flex-direction: column;
-  border-radius: 20px; /* 더 둥근 모서리 */
+  border-radius: 20px;
 }
 
-/* 반딧불이/펄 파티클 효과 (가상 요소 활용) */
-.crystal-hall-widget::before,
-.crystal-hall-widget::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none; /* 클릭 방지 */
-  z-index: 1;
-}
-
-/* 첫 번째 레이어: 은은하게 떠다니는 큰 빛무리 */
-.crystal-hall-widget::before {
-  background-image: 
-    radial-gradient(circle at 20% 30%, rgba(138, 43, 226, 0.2) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(41, 128, 185, 0.2) 0%, transparent 50%);
-  animation: pulse-glow 15s ease-in-out infinite alternate;
-}
-
-/* 두 번째 레이어: 반짝이며 날아다니는 작은 펄(반딧불이) */
-.crystal-hall-widget::after {
-  background-image: 
-    radial-gradient(circle, rgba(255, 255, 255, 0.8) 1px, transparent 2px),
-    radial-gradient(circle, rgba(255, 215, 0, 0.6) 1px, transparent 2px),
-    radial-gradient(circle, rgba(138, 43, 226, 0.7) 2px, transparent 3px);
-  background-size: 60px 60px, 90px 90px, 120px 120px;
-  background-position: 0 0, 30px 30px, 60px 0;
-  animation: particle-move 20s linear infinite;
-  opacity: 0.6;
-}
-
-/* --- 2. 헤더: 가독성 및 화려함 강화 (수정됨) --- */
+/* --- 2. 헤더: 검은 테두리로 시인성 극대화 --- */
 .widget-header {
   text-align: center;
-  padding: 25px 15px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 25px 15px 10px;
   z-index: 2;
   position: relative;
-  /* 배경을 조금 더 어둡게 눌러줘서 글씨를 강조 */
-  background: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent);
 }
 
 .widget-header h3 {
-  margin: 0 0 8px 0;
-  font-size: 2rem; /* 크기 더 확대 */
+  margin: 0 0 5px 0;
+  font-size: 1.8rem;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   color: #fff;
-  
-  /* [핵심] 선명하고 화려한 글로우 효과 */
-  text-shadow: 
-    0 0 5px #fff,
-    0 0 10px #fff,
-    0 0 20px #a8c0ff,
-    0 0 30px #a8c0ff,
-    0 0 40px #a8c0ff;
-  
-  animation: text-flicker 3s infinite alternate;
-}
-
-.widget-header h3 i {
-    color: #fff;
-    margin-right: 10px;
-    filter: drop-shadow(0 0 5px #a8c0ff);
-}
-
-.widget-header p {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  
-  /* [핵심] 흰색 글씨에 검은색 외곽선 효과를 주어 선명하게 만듦 */
-  color: #ffffff;
+  /* ▼▼▼ [핵심] 선명한 검은색 테두리 효과 ▼▼▼ */
   text-shadow: 
     -1px -1px 0 #000,  
      1px -1px 0 #000,
     -1px  1px 0 #000,
      1px  1px 0 #000,
-     0 2px 5px rgba(0,0,0,0.8);
-     
-  opacity: 0.9;
+     0 2px 5px rgba(0,0,0,0.5); /* 그림자 추가 */
+  /* ▲▲▲ */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-/* 텍스트 깜빡임 애니메이션 */
-@keyframes text-flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+.widget-header h3 i {
+    color: #fff;
+    /* 아이콘에도 테두리 적용 */
     text-shadow: 
-      0 0 5px #fff,
-      0 0 10px #fff,
-      0 0 20px #a8c0ff,
-      0 0 30px #a8c0ff,
-      0 0 40px #a8c0ff;
-  }
-  20%, 24%, 55% {       
-    text-shadow: none;
-  }
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000;
+}
+
+.widget-header p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  /* 본문에도 검은색 테두리 적용 */
+  text-shadow: 
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000;
+  opacity: 0.9;
 }
 
 /* --- 3. 콘텐츠 영역 --- */
@@ -211,197 +169,147 @@ const formatDate = (isoString) => {
   display: flex;
   align-items: center;
   overflow-x: auto;
-  padding: 30px 20px; /* 상하 패딩 증가로 여유 공간 확보 */
+  padding: 10px 20px;
   scrollbar-width: none; 
   -ms-overflow-style: none;
-  z-index: 2; /* 배경 효과 위로 */
+  z-index: 2;
 }
 .showcase-container::-webkit-scrollbar { display: none; }
 
 .crystal-track {
   display: flex;
-  gap: 25px; /* 카드 간격 증가 */
+  gap: 20px;
   padding: 0 10px;
 }
 
-/* --- 4. 결정 카드: 고급스러운 유리(Glassmorphism) 효과 --- */
+/* --- 4. 결정 카드 --- */
 .crystal-card {
   flex-shrink: 0;
-  width: 180px; /* 카드 크기 확대 */
-  /* 더 투명하고 반짝이는 유리 질감 */
-  background: rgba(255, 255, 255, 0.07);
+  width: 160px;
+  background: rgba(255, 255, 255, 0.8); /* 카드 배경을 좀 더 불투명하게 */
   border-radius: 20px;
-  padding: 20px 15px;
+  padding: 15px;
   text-align: center;
   position: relative;
-  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); /* 부드러운 전환 */
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px); /* 블러 효과 강화 */
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.1);
-  overflow: hidden; /* 내부 광원 효과가 밖으로 나가지 않게 */
+  transition: all 0.3s ease;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-/* 호버 시 효과 강화 */
 .crystal-card:hover {
-  transform: translateY(-15px) scale(1.03);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255,255,255,0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-10px) scale(1.03);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
   z-index: 10;
 }
-/* 호버 시 내부에 빛이 지나가는 효과 */
-.crystal-card:hover::after {
-    content: '';
-    position: absolute;
-    top: -50%; left: -50%; width: 200%; height: 200%;
-    background: linear-gradient(to bottom right, transparent, rgba(255,255,255,0.3), transparent);
-    transform: rotate(45deg);
-    animation: shine-pass 1s forwards;
-}
 
-/* --- 5. 등급별 스타일 (더 강력한 광채) --- */
-.crystal-card.style-vip {
-  box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3), inset 0 0 10px rgba(255, 215, 0, 0.1);
-  border-color: rgba(255, 215, 0, 0.5);
-}
-.crystal-card.style-vip .tier-badge {
-  background: linear-gradient(135deg, #FFD700, #FFA500);
-  color: #333;
-  box-shadow: 0 2px 5px rgba(255, 215, 0, 0.4);
-}
+/* 등급별 스타일 */
+.crystal-card.style-vip { border: 2px solid #FFD700; }
+.crystal-card.style-vip .tier-badge { background: linear-gradient(45deg, #FFD700, #FFA500); color: #000; }
 
-.crystal-card.style-infinite {
-  box-shadow: 0 5px 20px rgba(138, 43, 226, 0.4), inset 0 0 10px rgba(138, 43, 226, 0.2);
-  border-color: rgba(138, 43, 226, 0.6);
-}
-.crystal-card.style-infinite .tier-badge {
-  background: linear-gradient(135deg, #8A2BE2, #4B0082);
-  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.5);
-}
+.crystal-card.style-infinite { border: 2px solid #8A2BE2; }
+.crystal-card.style-infinite .tier-badge { background: linear-gradient(45deg, #8A2BE2, #4B0082); color: #fff; }
 
-/* --- 6. 결정 비주얼 및 정보 --- */
 .crystal-visual {
   position: relative;
-  height: 120px; /* 높이 증가 */
+  height: 100px;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 .crystal-img {
-  width: 100px; /* 이미지 크기 확대 */
-  height: 100px;
+  width: 90px;
+  height: 90px;
   object-fit: contain;
-  /* 더 강한 발광 효과 및 그림자 */
-  filter: drop-shadow(0 5px 15px rgba(138, 43, 226, 0.6));
-  animation: float 4s ease-in-out infinite; /* 부유 애니메이션 속도 조절 */
-}
-/* 결정 뒤의 후광 효과 */
-.shine-effect {
-  position: absolute;
-  top: 50%; left: 50%; width: 140%; height: 140%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(138,43,226,0.2) 40%, transparent 70%);
-  animation: pulse-shine 3s infinite alternate; /* 맥박처럼 빛남 */
-  pointer-events: none;
+  filter: drop-shadow(0 5px 10px rgba(0,0,0,0.2));
+  animation: float 3s ease-in-out infinite;
 }
 
 .owner-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .tier-badge {
-  font-size: 0.8rem;
-  padding: 4px 12px;
-  border-radius: 20px;
-  background: #444;
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 15px;
+  background: #666;
+  color: white;
   align-self: center;
   font-weight: 800;
-  letter-spacing: 0.5px;
   text-transform: uppercase;
+  margin-bottom: 4px;
 }
 .owner-name {
-  font-size: 1.1rem; /* 폰트 크기 확대 */
-  font-weight: 700;
-  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #333; /* 카드 내부는 밝은 배경이므로 검은 글씨 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.6); /* 텍스트 그림자로 가독성 확보 */
 }
 .date {
-  font-size: 0.85rem;
-  color: #b0b0c0; /* 더 밝은 회색 */
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
 }
 
-/* --- 7. 기타 요소 (로딩, 데이터 없음, 하단) --- */
+/* --- 5. 하단 버튼 및 기타 (수정됨) --- */
+.action-area {
+    text-align: right;
+    padding: 15px 20px;
+    /* ▼▼▼ 회색 배경 제거 ▼▼▼ */
+    background: transparent; 
+    border-top: none;
+    /* ▲▲▲ */
+    z-index: 2;
+}
+
+.enter-btn {
+    /* ▼▼▼ 버튼 자체를 선명하게 디자인 ▼▼▼ */
+    display: inline-flex; 
+    align-items: center; 
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); /* 파란/보라 그라데이션 */
+    color: #fff;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+.enter-btn:hover {
+    transform: translateX(5px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+    filter: brightness(1.1);
+}
+.enter-btn i { font-size: 0.9rem; }
+
 .no-data {
   flex-grow: 1;
   display: flex; flex-direction: column; justify-content: center; align-items: center;
-  color: #a8a8b3; gap: 15px; z-index: 2;
+  color: #555; gap: 10px; z-index: 2; text-align: center;
 }
-.no-data i { font-size: 3rem; color: #6c5ce7; opacity: 0.8; }
-.no-data p { font-size: 1.1rem; line-height: 1.6; }
-
-.action-area {
-    text-align: right;
-    padding: 15px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    z-index: 2;
-    background: rgba(0,0,0,0.1);
-}
-.enter-btn {
-    color: #a8c0ff;
-    text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: bold;
-    transition: all 0.3s;
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 15px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.05);
-}
-.enter-btn:hover {
-    color: #fff;
-    background: rgba(168, 192, 255, 0.2);
-    box-shadow: 0 0 15px rgba(168, 192, 255, 0.4);
-}
+.no-data i { font-size: 3rem; color: #ccc; }
+.no-data p { font-size: 1rem; font-weight: 500; }
 
 .loading-container {
     display: flex; justify-content: center; align-items: center; height: 250px; z-index: 2;
 }
 .spinner {
-  border: 4px solid rgba(168, 192, 255, 0.2);
+  border: 3px solid rgba(0, 0, 0, 0.1);
   border-radius: 50%;
-  border-top: 4px solid #a8c0ff;
-  width: 40px; height: 40px;
+  border-top: 3px solid #007bff;
+  width: 30px; height: 30px;
   animation: spin 1s linear infinite;
-  box-shadow: 0 0 15px rgba(168, 192, 255, 0.4);
 }
 
-/* --- 8. 애니메이션 정의 --- */
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-12px) rotate(2deg); }
-}
-@keyframes pulse-shine {
-  0% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.9); }
-  100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-/* 배경 파티클/광원 애니메이션 */
-@keyframes pulse-glow {
-  0% { opacity: 0.4; } 100% { opacity: 0.8; }
-}
-@keyframes particle-move {
-  0% { background-position: 0 0, 30px 30px, 60px 0; }
-  100% { background-position: 100px -100px, 130px -70px, 160px -100px; }
-}
-@keyframes shine-pass {
-    0% { left: -50%; opacity: 0; }
-    50% { opacity: 1; }
-    100% { left: 150%; opacity: 0; }
-}
 </style>
