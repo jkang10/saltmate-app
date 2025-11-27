@@ -137,6 +137,7 @@
 	  <SaltGuardiansRankingsWidget />
 	  <SaltBubbleRankingsWidget />
 	  <SaltStepRankingsWidget />
+	  <CrystalHallWidget />
           <router-link to="/mall" class="feature-card mall">
             <div class="card-icon"><i class="fas fa-store"></i></div>
             <h3>솔트메이트 몰</h3>
@@ -517,6 +518,7 @@ import SaltAlchemyWeeklyRankingsWidget from "@/components/SaltAlchemyWeeklyRanki
 import SaltBlockPuzzleRankingsWidget from "@/components/SaltBlockPuzzleRankingsWidget.vue";
 import SaltBubbleRankingsWidget from "@/components/SaltBubbleRankingsWidget.vue";
 import SaltStepRankingsWidget from "@/components/SaltStepRankingsWidget.vue";
+import CrystalHallWidget from "@/components/CrystalHallWidget.vue";
 
 export default {
   name: "DashboardPage",
@@ -548,6 +550,7 @@ TransactionHistoryModal,
     SaltBlockPuzzleRankingsWidget,
     SaltBubbleRankingsWidget,
     SaltStepRankingsWidget,
+    CrystalHallWidget,
   },
   // [핵심] 기존의 data(), computed, methods, created(), unmounted()를 모두 setup() 함수 안으로 통합합니다.
   setup() {
