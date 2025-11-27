@@ -53,9 +53,9 @@
         <div class="bet-action">
           <div class="amount-selector">
             <button @click="betAmount = 100" :class="{ active: betAmount === 100 }">100</button>
+            <button @click="betAmount = 300" :class="{ active: betAmount === 300 }">300</button>
             <button @click="betAmount = 500" :class="{ active: betAmount === 500 }">500</button>
-            <button @click="betAmount = 1000" :class="{ active: betAmount === 1000 }">1K</button>
-            <button @click="betAmount = 5000" :class="{ active: betAmount === 5000 }">5K</button>
+            <button @click="betAmount = 800" :class="{ active: betAmount === 800 }">800</button>
           </div>
           <button @click="startGame" class="btn-start" :disabled="isPlaying || selectedRunner === null">
             <span v-if="isPlaying">경기 진행 중...</span>
