@@ -76,10 +76,10 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/firebaseConfig';
 
 // [핵심] 이미지 임포트 (파일명 주의: jpg/png 섞여있음)
-import runner1Src from '@/assets/racing/runner1.jpg';
-import runner2Src from '@/assets/racing/runner2.jpg';
-import runner3Src from '@/assets/racing/runner3.jpg';
-import runner4Src from '@/assets/racing/runner4.jpg';
+import runner1Src from '@/assets/racing/runner1.png';
+import runner2Src from '@/assets/racing/runner2.png';
+import runner3Src from '@/assets/racing/runner3.png';
+import runner4Src from '@/assets/racing/runner4.png';
 import runner5Src from '@/assets/racing/runner5.png';
 
 // 이미지 객체 미리 생성
