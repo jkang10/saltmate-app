@@ -76,10 +76,10 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/firebaseConfig';
 
-import runner1Src from '@/assets/racing/runner1.jpg';
-import runner2Src from '@/assets/racing/runner2.jpg';
-import runner3Src from '@/assets/racing/runner3.jpg';
-import runner4Src from '@/assets/racing/runner4.jpg';
+import runner1Src from '@/assets/racing/runner1.png';
+import runner2Src from '@/assets/racing/runner2.png';
+import runner3Src from '@/assets/racing/runner3.png';
+import runner4Src from '@/assets/racing/runner4.png';
 import runner5Src from '@/assets/racing/runner5.png';
 
 const runnerImages = [new Image(), new Image(), new Image(), new Image(), new Image()];
