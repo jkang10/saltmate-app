@@ -1,5 +1,5 @@
 <template>
-  <div class="utopia-container" @click="resumeAudioContext">
+  <div class="utopia-container" @click="handleGlobalClick">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
     <video
@@ -25,6 +25,14 @@
     </div>
 
     <div id="joystick-zone" class="joystick-zone"></div>
+
+    <div v-if="dailyQuest && !dailyQuest.rewardClaimed" class="quest-widget fade-in">
+      <div class="quest-title">📜 {{ dailyQuest.title }}</div>
+      <div class="quest-info">
+        {{ dailyQuest.currentCount }} / {{ dailyQuest.target }}
+        <span v-if="dailyQuest.currentCount >= dailyQuest.target" class="quest-complete"> (완료!)</span>
+      </div>
+    </div>
 
     <div v-if="nearNpc && !isNpcModalOpen" class="interaction-prompt fade-in">
       <button class="interact-btn" @click="openNpcDialog">
@@ -154,10 +162,8 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// 이미지 Import
 import heliaImgSrc from '@/assets/hellia_img.png';
 
-// 유틸리티
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
@@ -180,24 +186,26 @@ const isNpcModalOpen = ref(false);
 const dailyQuest = ref(null); 
 const chests = reactive({}); 
 const nearChestId = ref(null); 
+let questPollingInterval = null; // 퀘스트 상태 주기적 확인용
 
-// --- Agora (Voice Chat) ---
+// --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
 const agoraChannel = "plaza_voice_chat";
 const agoraToken = null; 
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
+// 원격 사용자 오디오 트랙 저장소 (재생 재시도용)
+const remoteAudioTracks = reactive({});
 
 // 아바타 관련
 let myAvatar = null;
-let otherPlayers = {}; // 다른 플레이어 관리 객체
+let otherPlayers = {};
 let myAvatarUrl = '';
 let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// 행동 목록
 const actionList = {
   dance: { name: '댄스', price: 2000, icon: '💃' },
   backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
@@ -205,6 +213,7 @@ const actionList = {
   footwork: { name: '발재간', price: 4000, icon: '🦶' },
   jump: { name: '점프', price: 2000, icon: '⏫' }
 };
+
 const purchasedActions = ref([]);
 const purchaseModal = reactive({ visible: false, actionKey: null, actionName: '', price: 0 });
 const isPurchasing = ref(false);
@@ -221,7 +230,7 @@ let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
-// Firebase Refs
+// Firebase
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
 const plazaVideoPath = 'plaza/videoState';
@@ -237,7 +246,7 @@ const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
 // ---------------------------------------------------
-// [핵심] 지형 높이 구하기 (Raycaster)
+// [핵심] 지형 높이 구하기 유틸리티
 // ---------------------------------------------------
 const getTerrainHeight = (x, z) => {
     if (!scene) return 0.5;
@@ -255,43 +264,35 @@ const getTerrainHeight = (x, z) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (모델 교체 완료)
+// [수정] NPC 초기화 (크기 축소 및 애니메이션 매핑)
 // ----------------------------------------
 const initNPC = async (animations) => {
-  // 1. [요청 반영] 할머니 모델 로드
   const npc = await loadAvatar('/avatars/cartoon_old_woman.glb', animations);
   
-  // 2. 위치 설정 (시네마 스크린 아래)
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // 3. [요청 반영] 크기 조정 (1.5배 정도로 적절히 키움)
-  npc.scale.set(1.5, 1.5, 1.5);
+  // [수정] 크기 0.8로 축소 (너무 크다는 피드백 반영)
+  npc.scale.set(0.8, 0.8, 0.8);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = Math.PI; 
 
-  // 4. [요청 반영] 틴트 제거 (할머니 모델 본연의 색상 유지)
-  // (이전 코드의 traverse tint 로직 제거함)
-
-  // 5. 머리 위 헬리아 상품 (빌보드)
   textureLoader.load(heliaImgSrc, (texture) => {
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(1.2, 1.2, 1);
-    sprite.position.set(0, 2.0, 0); // 머리 위 높이 조정
-    
+    sprite.position.set(0, 2.5, 0); // 높이 조정
     npc.userData.floatingIcon = sprite;
     npc.userData.floatOffset = 0;
     npc.add(sprite);
   });
 
-  // 6. NPC 이름표
   const nameTag = createNicknameSprite("헬리아 (NPC)");
-  nameTag.position.set(0, 1.6, 0);
+  nameTag.position.set(0, 1.9, 0);
   npc.add(nameTag);
 
-  // 7. Idle 애니메이션
+  // [수정] 기본 idle 애니메이션 매핑 및 재생
   if (npc.userData.actions && npc.userData.actions['idle']) {
       npc.userData.actions['idle'].play(); 
   }
@@ -300,11 +301,12 @@ const initNPC = async (animations) => {
   npcModel.value = npc;
 };
 
+// [수정] 퀘스트 확인 함수 (조용히 데이터만 갱신)
 const checkDailyQuest = async () => {
   try {
     const getQuestFunc = httpsCallable(functions, 'getNpcQuest');
     const result = await getQuestFunc();
-    dailyQuest.value = result.data.quest;
+    dailyQuest.value = result.data.quest; // 상태 업데이트 (UI 반영됨)
 
     if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
         spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
@@ -314,23 +316,22 @@ const checkDailyQuest = async () => {
 
 const spawnTreasureChests = async (allItems, foundItems) => {
     const itemsToSpawn = allItems.filter(id => !foundItems.includes(id));
-    
     const positions = [
         { x: 30, z: 5 }, { x: 45, z: 15 }, { x: 35, z: -5 }, 
         { x: 50, z: 0 }, { x: 25, z: 12 }
     ];
-
     for (let i = 0; i < itemsToSpawn.length; i++) {
         const id = itemsToSpawn[i];
+        // 이미 생성된 상자라면 스킵
+        if (chests[id]) continue;
+        
         const pos = positions[i % positions.length];
         const realY = getTerrainHeight(pos.x, pos.z); 
-
         loader.load('/animations/box/treasure_chest.glb', (gltf) => {
             const chest = gltf.scene;
             chest.scale.set(0.5, 0.5, 0.5);
             chest.position.set(pos.x + (Math.random()*2), realY, pos.z + (Math.random()*2));
             chest.userData.chestId = id;
-            
             const light = new THREE.PointLight(0xffff00, 1, 3);
             light.position.set(0, 1, 0);
             chest.add(light);
@@ -353,8 +354,13 @@ const collectChest = async () => {
     } catch (e) { alert("상자를 줍는데 실패했습니다."); }
 };
 
-const openNpcDialog = () => { isNpcModalOpen.value = true; };
+const openNpcDialog = async () => { 
+    // 대화 열 때 최신 상태 한 번 더 확인
+    await checkDailyQuest();
+    isNpcModalOpen.value = true; 
+};
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
+
 const completeQuest = async () => {
     try {
         const completeFunc = httpsCallable(functions, 'completeNpcQuest');
@@ -368,7 +374,6 @@ const completeQuest = async () => {
 // ----------------------------------------
 // 기본 로직 (행동, 채팅, 입장 등)
 // ----------------------------------------
-
 const hasPurchased = (actionKey) => purchasedActions.value.includes(actionKey);
 const handleActionClick = (actionKey) => hasPurchased(actionKey) ? triggerAction(actionKey) : openPurchaseModal(actionKey);
 const openPurchaseModal = (actionKey) => { purchaseModal.actionKey = actionKey; purchaseModal.actionName = actionList[actionKey].name; purchaseModal.price = actionList[actionKey].price; purchaseModal.visible = true; };
@@ -390,7 +395,6 @@ const joinPlaza = async (uid) => {
   try { await set(playerRef, playerData); await onDisconnect(playerRef).remove(); isReady.value = true; } catch (e) { console.error("입장 실패:", e); }
 };
 
-// [핵심] 내 상태 업데이트 (이동 + 행동)
 const updateMyStateInRTDB = (actionName = null) => {
   if (!playerRef || !myAvatar || !isReady.value) return;
   const payload = { position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, rotationY: myAvatar.rotation.y, timestamp: serverTimestamp() };
@@ -409,7 +413,6 @@ const triggerAction = (actionName) => {
   if (action) {
     mixer.stopAllAction(); action.reset(); action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; action.play();
     specialAction.value = actionName;
-    // [핵심] 행동 시작 시 서버에 알림 (동기화)
     updateMyStateInRTDB(actionName); 
     const onFinished = (e) => {
         if (e.action === action) {
@@ -417,7 +420,6 @@ const triggerAction = (actionName) => {
             specialAction.value = null; 
             const idleAction = actions[currentIdle.value];
             if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
-            // [핵심] 행동 종료 시 idle 상태 알림
             updateMyStateInRTDB(null); 
         }
     };
@@ -425,49 +427,52 @@ const triggerAction = (actionName) => {
   }
 };
 
-const resumeAudioContext = () => { audioBlocked.value = false; if (THREE.AudioContext.getContext().state === 'suspended') { THREE.AudioContext.getContext().resume(); } };
+// [신규] 화면 전체 클릭 핸들러 (오디오 컨텍스트 재개 및 Agora 재생 시도)
+const handleGlobalClick = () => {
+    resumeAudioContext();
+    // Agora 오디오 트랙들 강제 재생 시도
+    Object.values(remoteAudioTracks).forEach(track => {
+        try { track.play(); } catch(e) {}
+    });
+};
 
-// -------------------------------------------------------
-// [핵심 수정] Agora 음성 채팅 - 소리 들리게 수정
-// -------------------------------------------------------
+const resumeAudioContext = () => { 
+    audioBlocked.value = false; 
+    if (THREE.AudioContext.getContext().state === 'suspended') { 
+        THREE.AudioContext.getContext().resume(); 
+    } 
+};
+
 const initAgora = async (uid) => { 
   if (!uid) return;
-  const stringUid = String(uid); // Agora UID는 문자열로 통일
+  const stringUid = String(uid); 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
-    // [수정] 자동 재생 실패 시 처리 핸들러 등록
+    
+    // [수정] 자동 재생 실패 시 핸들러
     AgoraRTC.onAutoplayFailed = () => { 
-        console.warn("Agora Autoplay Failed. Interaction required.");
+        console.warn("Agora Autoplay Failed.");
         audioBlocked.value = true; 
     };
 
-    // 볼륨 인디케이터 (말하는 사람 표시)
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
         const isTalking = level > 40; 
-        // 나 자신 또는 상대방의 말하기 아이콘 표시
-        if (speakerUid === stringUid) { 
-            updateSpeakingIndicator(stringUid, isTalking); 
-        } else { 
-            updateSpeakingIndicator(speakerUid, isTalking); 
-        }
+        if (speakerUid === stringUid) { updateSpeakingIndicator(stringUid, isTalking); } 
+        else { updateSpeakingIndicator(speakerUid, isTalking); }
       });
     });
 
-    // [핵심] 사용자가 채널에 들어와서 오디오를 publish 했을 때
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
-        // [중요] 구독 후 반드시 play()를 호출해야 소리가 들립니다.
-        // 브라우저 정책상 사용자 클릭 없이는 재생이 안 될 수 있으므로 try-catch 감쌉니다.
+        remoteAudioTracks[user.uid] = user.audioTrack; // 트랙 저장
         try { 
             user.audioTrack.play(); 
             user.audioTrack.setVolume(100); 
         } catch (e) { 
-            console.warn("Audio play blocked:", e);
             audioBlocked.value = true; 
         }
       }
@@ -475,20 +480,17 @@ const initAgora = async (uid) => {
 
     agoraClient.value.on("user-unpublished", (user, mediaType) => { 
         if (mediaType === "audio") { 
-            if (user.audioTrack) user.audioTrack.stop(); 
+            delete remoteAudioTracks[user.uid];
         } 
     });
 
-    // 채널 입장 (토큰이 없다면 null)
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
-    console.log("Agora Channel Joined:", stringUid);
 
   } catch (error) { console.error("[Agora] Init Error:", error); }
 };
 
 const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null; const currentUid = auth.currentUser?.uid;
-  // targetId가 Agora UID(string)로 들어오므로 비교
   if (targetId === currentUid) { targetMesh = myAvatar; } 
   else if (otherPlayers[targetId]) { targetMesh = otherPlayers[targetId].mesh; }
   
@@ -509,131 +511,74 @@ const updateSpeakingIndicator = (targetId, isSpeaking) => {
 const toggleMic = async () => { 
     if (!agoraClient.value) return; 
     try { 
-        // 마이크 트랙이 없으면 생성 후 publish
         if (!localAudioTrack.value) { 
             localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality_stereo", AEC: true, ANS: true, AGC: true }); 
             await agoraClient.value.publish([localAudioTrack.value]); 
             isMicOn.value = true; 
         } else { 
-            // 이미 있으면 enable/disable 토글
-            if (isMicOn.value) { 
-                await localAudioTrack.value.setEnabled(false); 
-                isMicOn.value = false; 
-            } else { 
-                await localAudioTrack.value.setEnabled(true); 
-                isMicOn.value = true; 
-            } 
+            if (isMicOn.value) { await localAudioTrack.value.setEnabled(false); isMicOn.value = false; } 
+            else { await localAudioTrack.value.setEnabled(true); isMicOn.value = true; } 
         } 
     } catch (error) { console.error("[Agora] Mic Error:", error); } 
 };
 
 const leaveAgora = async () => { 
-    if (localAudioTrack.value) { 
-        localAudioTrack.value.close(); 
-        localAudioTrack.value = null; 
-    } 
-    if (agoraClient.value) { 
-        await agoraClient.value.leave(); 
-        agoraClient.value = null; 
-    } 
+    if (localAudioTrack.value) { localAudioTrack.value.close(); localAudioTrack.value = null; } 
+    if (agoraClient.value) { await agoraClient.value.leave(); agoraClient.value = null; } 
 };
 
-// 비디오 소리 제어
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
-
 const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700"); } } catch (error) { console.error(error); } } };
 const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStatus = !isVideoPlaying.value; if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e)); else cinemaVideoRef.value.pause(); update(dbRef(rtdb, plazaVideoPath), { isPlaying: newStatus, timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime }); };
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
 const listenToVideoState = () => { videoListenerRef = dbRef(rtdb, plazaVideoPath); onValue(videoListenerRef, (snapshot) => { const data = snapshot.val(); if (!data || !cinemaVideoRef.value) return; isVideoPlaying.value = data.isPlaying; const videoEl = cinemaVideoRef.value; if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; } applyVideoState(videoEl, data); }); };
 const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency = (Date.now() - data.timestamp) / 1000; const targetTime = data.videoTime + latency; if (Math.abs(videoEl.currentTime - targetTime) > 1) videoEl.currentTime = targetTime; videoEl.play().catch(() => {}); } else { videoEl.pause(); if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) videoEl.currentTime = data.videoTime; } };
-const handleUserInteraction = () => { const video = cinemaVideoRef.value; if (video && video.paused) { video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); } };
 
 const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
 const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
 
-// -------------------------------------------------------
-// [핵심 수정] 다른 플레이어 동기화 (Jitter Fix)
-// -------------------------------------------------------
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  
   onChildAdded(playersListenerRef, async (snapshot) => {
-    // [중요] 나 자신의 데이터는 절대 처리하지 않음
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
-    
     const val = snapshot.val();
     let posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     let posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     let posY = isFiniteNumber(val.position?.y) ? val.position.y : getTerrainHeight(posX, posZ);
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-    
     otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
           nick.position.set(0, 1.8, 0); 
-          // 이름표를 아바타 Mesh에 자식으로 추가 -> 아바타 이동 시 같이 이동
           model.add(nick); 
       }
-      
-      // 초기 위치 즉시 반영
-      model.position.set(posX, posY, posZ); 
-      model.rotation.y = rotY; 
-      model.visible = true;
-      scene.add(model); 
-      model.updateMatrixWorld(true); 
-      
-      otherPlayers[snapshot.key].mesh = model; 
-      otherPlayers[snapshot.key].mixer = model.userData.mixer; 
-      otherPlayers[snapshot.key].actions = model.userData.actions;
-      
+      model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
+      scene.add(model); model.updateMatrixWorld(true); 
+      otherPlayers[snapshot.key].mesh = model; otherPlayers[snapshot.key].mixer = model.userData.mixer; otherPlayers[snapshot.key].actions = model.userData.actions;
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
-
   onChildChanged(playersListenerRef, (snap) => {
-    // [중요] 내 데이터 변경 이벤트는 무조건 무시
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
-    
     const val = snap.val();
     const player = otherPlayers[snap.key];
-
-    // 이동 동기화
     if (val.position) {
-        // Y축은 항상 지형 높이로 재계산하여 "땅 밑에서 올라오는" 현상 방지
         const safeY = getTerrainHeight(val.position.x, val.position.z);
         player.targetPosition.set(val.position.x, safeY, val.position.z);
         player.targetRotationY = val.rotationY || 0;
     }
-
-    // 행동 동기화
     if (val.action) {
-        const actionName = val.action;
-        const mixer = player.mixer;
-        const actions = player.actions;
-        const action = actions[actionName];
-
+        const actionName = val.action; const mixer = player.mixer; const actions = player.actions; const action = actions[actionName];
         if (mixer && action) {
-            mixer.stopAllAction();
-            action.reset();
-            action.setLoop(THREE.LoopOnce);
-            action.clampWhenFinished = true;
-            action.play();
-            const onFinished = (e) => {
-                if (e.action === action) {
-                    mixer.removeEventListener('finished', onFinished);
-                    const idleAction = actions['idle']; 
-                    if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
-                }
-            };
+            mixer.stopAllAction(); action.reset(); action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; action.play();
+            const onFinished = (e) => { if (e.action === action) { mixer.removeEventListener('finished', onFinished); const idleAction = actions['idle']; if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); } } };
             mixer.addEventListener('finished', onFinished);
         }
     }
   });
-
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -754,50 +699,24 @@ const updatePlayerMovement = (deltaTime) => {
   }
 };
 
-// [핵심 수정] 타 유저 이동 시 Lerp 보간 값을 늘려 부드럽게 처리
 const updateOtherPlayersMovement = (deltaTime) => {
-  // lerpFactor를 조금 더 부드럽게 (기존 15 -> 10 정도로 낮추면 부드럽지만 딜레이 생김, 15 유지하되 로직 안정화)
   const lerpFactor = deltaTime * 15; 
-  
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    
-    // 위치 보간
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    
-    // Y축은 지형 높이에 강제 고정 (땅 속 방지)
-    const safeY = getTerrainHeight(player.mesh.position.x, player.mesh.position.z);
-    player.mesh.position.y = safeY;
-
-    // 이동 중인지 판단
+    player.mesh.position.y = getTerrainHeight(player.mesh.position.x, player.mesh.position.z);
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
-    
-    // 회전 보간
-    let currentY = player.mesh.rotation.y; 
-    let targetY = player.targetRotationY; 
-    const PI2 = Math.PI * 2; 
-    currentY = (currentY % PI2 + PI2) % PI2; 
-    targetY = (targetY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; 
-    if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    player.mesh.rotation.y += diff * lerpFactor; 
-    
-    player.mesh.updateMatrixWorld(true);
-    
-    // 애니메이션 처리
-    const mixer = player.mixer; 
-    const actions = player.actions;
+    let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; 
+    const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+    player.mesh.rotation.y += diff * lerpFactor; player.mesh.updateMatrixWorld(true);
+    const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
-      if (player.isMoving && !wasMoving) { 
-          actions.walk.reset().play(); 
-          actions.idle.crossFadeTo(actions.walk, 0.2); 
-      } else if (!player.isMoving && wasMoving) { 
-          actions.idle.reset().play(); 
-          actions.walk.crossFadeTo(actions.idle, 0.2); 
-      }
+      if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
+      else if (!player.isMoving && wasMoving) { actions.idle.reset().play(); actions.walk.crossFadeTo(actions.idle, 0.2); }
     }
   }
 };
@@ -809,7 +728,7 @@ const updateDistances = () => {
         nearNpc.value = dist < 3.0; 
         if (npcModel.value.userData.floatingIcon) {
             npcModel.value.userData.floatOffset += 0.02;
-            npcModel.value.userData.floatingIcon.position.y = 2.8 + Math.sin(npcModel.value.userData.floatOffset) * 0.2;
+            npcModel.value.userData.floatingIcon.position.y = 2.5 + Math.sin(npcModel.value.userData.floatOffset) * 0.1;
         }
     }
     let closestChest = null;
@@ -856,9 +775,9 @@ onMounted(() => {
       window.addEventListener('resize', handleResize);
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
-      window.addEventListener('touchstart', handleUserInteraction); 
-      window.addEventListener('click', handleUserInteraction);
-      window.addEventListener('mousemove', handleUserInteraction); 
+      
+      // [수정] handleUserInteraction은 필요 없으므로 제거 (전체 클릭 핸들러 사용)
+      // window.addEventListener('touchstart', handleUserInteraction); 
 
       animate();
 
@@ -889,6 +808,9 @@ onMounted(() => {
 
       await initNPC(preloadedAnimations);
       await checkDailyQuest();
+      
+      // [신규] 퀘스트 상태 폴링 시작 (5초마다)
+      questPollingInterval = setInterval(checkDailyQuest, 5000);
 
       await nextTick();
       const joystickZone = document.getElementById('joystick-zone');
@@ -912,15 +834,18 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
+  // [수정] 스크롤 복구 코드
+  document.body.style.overflow = 'auto';
+  document.documentElement.style.overflow = 'auto';
+  
   if (authUnsubscribe) authUnsubscribe();
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
-  window.removeEventListener('touchstart', handleUserInteraction);
-  window.removeEventListener('click', handleUserInteraction);
-  window.removeEventListener('mousemove', handleUserInteraction);
+  
+  // [수정] Polling 제거
+  if (questPollingInterval) clearInterval(questPollingInterval);
+  
   leaveAgora(); 
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
@@ -933,60 +858,241 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 기존 스타일 유지 */
-/* ... */
-:global(body), :global(html) { margin: 0; padding: 0; overflow: hidden; height: 100%; }
-.utopia-container { width: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; position: relative; background-color: #ade6ff; }
+:global(body), :global(html) {
+  margin: 0;
+  padding: 0;
+  /* [수정] overflow: hidden을 유지하되, unmounted에서 풀어줌 */
+  overflow: hidden; 
+  height: 100%;
+}
+.utopia-container { 
+  width: 100%; 
+  height: 100dvh; 
+  margin: 0; 
+  padding: 0; 
+  overflow: hidden; 
+  position: relative; 
+  background-color: #ade6ff; 
+}
+
+/* [신규] 퀘스트 위젯 스타일 */
+.quest-widget {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 15px;
+  border-radius: 10px;
+  color: white;
+  border: 1px solid #FFD700;
+  z-index: 50;
+}
+.quest-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 5px;
+  color: #FFD700;
+}
+.quest-info {
+  font-size: 1rem;
+}
+.quest-complete {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
 .main-canvas { display: block; width: 100%; height: 100%; }
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.chat-ui { position: absolute; bottom: 120px; left: 20px; width: 300px; max-width: 80%; max-height: 20vh; display: flex; flex-direction: column; z-index: 5; }
-.action-bar { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
-.action-btn-wrapper { position: relative; }
-.action-btn-wrapper button { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); color: white; font-size: 1.2rem; padding: 5px 8px; border-radius: 5px; cursor: pointer; transition: transform 0.1s; position: relative; }
-.action-btn-wrapper button:active { transform: scale(0.9); }
-.lock-icon { position: absolute; top: -5px; right: -5px; font-size: 0.8rem; background: rgba(0,0,0,0.8); border-radius: 50%; padding: 2px; }
-.message-list { flex-grow: 1; overflow-y: auto; margin-bottom: 5px; color: white; font-size: 0.9em; background-color: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 10px; scrollbar-width: none; }
+
+.chat-ui { 
+  position: absolute; 
+  bottom: 120px; 
+  left: 20px; 
+  width: 300px; 
+  max-width: 80%; 
+  max-height: 20vh; 
+  display: flex; 
+  flex-direction: column; 
+  z-index: 5; 
+}
+
+.action-bar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.action-btn-wrapper {
+  position: relative;
+}
+.action-btn-wrapper button {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  font-size: 1.2rem;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  position: relative;
+}
+.action-btn-wrapper button:active {
+  transform: scale(0.9);
+}
+.lock-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 0.8rem;
+  background: rgba(0,0,0,0.8);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.message-list { 
+  flex-grow: 1; 
+  overflow-y: auto; 
+  margin-bottom: 5px; 
+  color: white; 
+  font-size: 0.9em; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  border-radius: 8px; 
+  padding: 10px;
+  scrollbar-width: none; 
+}
 .message-list::-webkit-scrollbar { display: none; }
+
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
+
 .joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
+
 .user-controls { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 8px; }
 .user-controls button { padding: 10px 15px; background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; cursor: pointer; font-weight: bold; transition: background 0.3s; white-space: nowrap; }
 .user-controls button:hover { background: rgba(0, 0, 0, 0.8); }
 .user-controls button.active { border-color: #28a745; color: #28a745; }
-.audio-blocked-msg { position: absolute; top: 80px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 8px; z-index: 99; font-size: 0.8rem; animation: pulse 2s infinite; }
+
+.audio-blocked-msg {
+  position: absolute; top: 80px; right: 20px; background: rgba(255,0,0,0.8);
+  color: white; padding: 10px; border-radius: 8px; z-index: 99; font-size: 0.8rem;
+  animation: pulse 2s infinite;
+}
+
 .admin-video-controls { position: absolute; top: 80px; right: 20px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 8px; color: white; z-index: 100; width: 150px; }
 .admin-video-controls h3 { margin: 0 0 8px 0; font-size: 0.9rem; text-align: center; }
 .admin-buttons { display: flex; gap: 5px; }
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
-.modal-content { background: white; width: 90%; max-width: 320px; padding: 20px; border-radius: 12px; text-align: center; }
-.price-tag { font-size: 1.2rem; font-weight: bold; color: #007bff; margin: 15px 0; }
-.modal-actions { display: flex; gap: 10px; justify-content: center; }
-.modal-actions button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background-color: #007bff; color: white; }
-.modal-actions button.cancel-btn { background-color: #6c757d; }
-.modal-actions button:disabled { background-color: #ccc; }
-.interaction-prompt { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); z-index: 20; }
-.interact-btn { background: linear-gradient(135deg, #FFD700, #FFA500); border: 2px solid #fff; color: #333; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5); cursor: pointer; animation: bounce 1s infinite alternate; display: flex; align-items: center; gap: 8px; }
-.chest-btn { background: linear-gradient(135deg, #00C6FF, #0072FF); box-shadow: 0 4px 15px rgba(0, 114, 255, 0.5); color: white; }
+
+/* 구매 모달 스타일 */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
+}
+.modal-content {
+  background: white; width: 90%; max-width: 320px; padding: 20px; border-radius: 12px; text-align: center;
+}
+.price-tag {
+  font-size: 1.2rem; font-weight: bold; color: #007bff; margin: 15px 0;
+}
+.modal-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.modal-actions button {
+  padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+  background-color: #007bff; color: white;
+}
+.modal-actions button.cancel-btn {
+  background-color: #6c757d;
+}
+.modal-actions button:disabled {
+  background-color: #ccc;
+}
+
+/* 상호작용 버튼 스타일 */
+.interaction-prompt {
+  position: absolute;
+  bottom: 180px; /* 채팅창 위 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+.interact-btn {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  border: 2px solid #fff;
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: bold;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5);
+  cursor: pointer;
+  animation: bounce 1s infinite alternate;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chest-btn {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    box-shadow: 0 4px 15px rgba(0, 114, 255, 0.5);
+    color: white;
+}
 @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
-.npc-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 3000; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 50px; }
-.npc-dialog-box { background: rgba(20, 20, 30, 0.95); border: 2px solid #FFD700; border-radius: 15px; width: 90%; max-width: 600px; padding: 20px; display: flex; gap: 20px; color: white; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-.npc-portrait img { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #FFD700; object-fit: cover; background: white; }
+
+/* NPC 대화창 스타일 */
+.npc-dialog-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 3000;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 50px;
+}
+.npc-dialog-box {
+  background: rgba(20, 20, 30, 0.95);
+  border: 2px solid #FFD700;
+  border-radius: 15px;
+  width: 90%; max-width: 600px;
+  padding: 20px;
+  display: flex; gap: 20px;
+  color: white;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+.npc-portrait img {
+  width: 100px; height: 100px; border-radius: 50%;
+  border: 3px solid #FFD700;
+  object-fit: cover;
+  background: white;
+}
 .npc-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .npc-content h3 { margin: 0; color: #FFD700; }
 .quest-desc { font-size: 1.1rem; line-height: 1.4; }
-.quest-progress-bar { background: #333; height: 20px; border-radius: 10px; position: relative; overflow: hidden; }
-.quest-progress-bar .fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-.quest-progress-bar span { position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px; font-size: 0.8rem; text-shadow: 0 0 3px black; }
+.quest-progress-bar {
+  background: #333; height: 20px; border-radius: 10px; position: relative; overflow: hidden;
+}
+.quest-progress-bar .fill {
+  background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s;
+}
+.quest-progress-bar span {
+  position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px;
+  font-size: 0.8rem; text-shadow: 0 0 3px black;
+}
 .dialog-actions { display: flex; gap: 10px; margin-top: 10px; }
-.dialog-actions button { padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
+.dialog-actions button {
+  padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold;
+}
 .btn-complete { background: #28a745; color: white; }
 .btn-disabled { background: #555; color: #ccc; cursor: default; }
 .btn-confirm { background: #007bff; color: white; }
-.close-dialog { position: absolute; top: 10px; right: 15px; background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer; }
-@media (max-width: 768px) { .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; } .user-controls { top: 15px; right: 15px; } .user-controls button { padding: 6px 10px; font-size: 0.75rem; } .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; } }
+.close-dialog {
+  position: absolute; top: 10px; right: 15px; background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }
+  .user-controls { top: 15px; right: 15px; }
+  .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
+  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
+}
 </style>
