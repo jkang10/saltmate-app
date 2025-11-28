@@ -7,13 +7,13 @@
     @mousemove.prevent="handleDragMove"
     @touchmove.prevent="handleDragMove"
   >
-    <div class="game-header">
+    <div class="game-header-area">
       <div class="stat-card">
-        <span class="label">최고 점수</span>
+        <span class="label">최고</span>
         <span class="value gold">{{ highScore.toLocaleString() }}</span>
       </div>
       <div class="stat-card main-score">
-        <span class="label">현재 점수</span>
+        <span class="label">점수</span>
         <span class="value cyan">{{ score.toLocaleString() }}</span>
       </div>
       <div class="stat-card">
@@ -22,8 +22,8 @@
       </div>
     </div>
 
-    <div class="game-area-container">
-      <div class="game-board-wrapper" ref="gameBoardRef">
+    <div class="game-board-container">
+      <div class="board-aspect-ratio-box" ref="gameBoardRef">
         <div class="game-board">
           <div
             v-for="(cell, index) in board.flat()"
@@ -37,31 +37,16 @@
             }"
           ></div>
         </div>
-      </div>
-
-      <transition name="pop">
-        <div v-if="comboMessage" class="combo-popup">
-          {{ comboMessage }}
-        </div>
-      </transition>
-    </div>
-
-    <div 
-      v-if="dragged.block && isDragging" 
-      class="floating-block-container" 
-      :style="floatingBlockStyle"
-    >
-      <div class="block-shape" :style="getBlockGridStyle(dragged.block)">
-        <div
-          v-for="(cell, cIndex) in dragged.block.shape.flat()"
-          :key="cIndex"
-          class="block-cell"
-          :class="{ 'filled': cell === 1, 'invalid': invalidDrop }"
-        ></div>
+        
+        <transition name="pop">
+          <div v-if="comboMessage" class="combo-popup">
+            {{ comboMessage }}
+          </div>
+        </transition>
       </div>
     </div>
 
-    <div class="block-spawner-container">
+    <div class="block-spawner-area">
       <div class="block-spawner">
         <div
           v-for="(block, index) in blocks"
@@ -84,6 +69,21 @@
             ></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div 
+      v-if="dragged.block && isDragging" 
+      class="floating-block-container" 
+      :style="floatingBlockStyle"
+    >
+      <div class="block-shape" :style="getBlockGridStyle(dragged.block)">
+        <div
+          v-for="(cell, cIndex) in dragged.block.shape.flat()"
+          :key="cIndex"
+          class="block-cell"
+          :class="{ 'filled': cell === 1, 'invalid': invalidDrop }"
+        ></div>
       </div>
     </div>
 
@@ -131,10 +131,10 @@ const router = useRouter();
 
 // --- 상수 ---
 const BOARD_SIZE = 10;
-const TOUCH_OFFSET_Y = 80; // [핵심] 손가락보다 80px 위에 블록이 보이도록 설정
+const TOUCH_OFFSET_Y = 80; // 손가락 위에 블록 표시 (시야 확보)
 const COMBO_SCORES = { 1: 100, 2: 300, 3: 600, 4: 1000, 5: 2000, 6: 5000 };
 
-// --- 블록 정의 (1010! 표준) ---
+// --- 블록 정의 ---
 const BLOCK_DEFINITIONS = {
   '1x1': { shape: [[1]] },
   '1x2': { shape: [[1, 1]] },
@@ -147,10 +147,10 @@ const BLOCK_DEFINITIONS = {
   '5x1': { shape: [[1], [1], [1], [1], [1]] },
   '2x2': { shape: [[1, 1], [1, 1]] },
   '3x3': { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]] },
-  'L1': { shape: [[1, 0], [1, 0], [1, 1]] }, // L
-  'L2': { shape: [[1, 1, 1], [1, 0, 0]] },   // J 누운거
-  'L3': { shape: [[1, 1], [0, 1], [0, 1]] }, // ㄱ 반대
-  'L4': { shape: [[0, 0, 1], [1, 1, 1]] },   // J
+  'L1': { shape: [[1, 0], [1, 0], [1, 1]] }, 
+  'L2': { shape: [[1, 1, 1], [1, 0, 0]] },   
+  'L3': { shape: [[1, 1], [0, 1], [0, 1]] }, 
+  'L4': { shape: [[0, 0, 1], [1, 1, 1]] },   
 };
 const blockTypes = Object.keys(BLOCK_DEFINITIONS);
 
@@ -163,23 +163,21 @@ const highScore = ref(Number(localStorage.getItem('blockPuzzleHighScore') || 0))
 const alchemyDust = ref(0);
 const comboMessage = ref('');
 const finalPointsAwarded = ref(0);
-const clearingCells = ref([]); // 애니메이션용
+const clearingCells = ref([]);
 
-// --- 드래그 관련 상태 ---
+// --- 드래그 관련 ---
 const gameBoardRef = ref(null);
 const isDragging = ref(false);
 const dragged = reactive({ block: null, index: -1 });
 const pointerPosition = reactive({ x: 0, y: 0 });
 const previewCells = ref([]);
 const invalidDrop = ref(false);
-
-// [핵심] 보드와 셀 크기를 동적으로 계산하기 위한 변수
 const boardMetrics = reactive({ left: 0, top: 0, width: 0, cellSize: 0 });
 
-// --- 초기화 및 게임 로직 ---
-
+// --- 초기화 ---
 onMounted(() => {
   startGameLogic();
+  // 화면 회전이나 크기 변경 시 보드 위치 재계산
   window.addEventListener('resize', updateBoardMetrics);
 });
 
@@ -189,7 +187,6 @@ const updateBoardMetrics = () => {
     boardMetrics.left = rect.left;
     boardMetrics.top = rect.top;
     boardMetrics.width = rect.width;
-    // 10x10 그리드 + 갭 고려 (약식 계산, 정확한건 CSS Grid가 처리)
     boardMetrics.cellSize = rect.width / BOARD_SIZE; 
   }
 };
@@ -205,11 +202,9 @@ const startGameLogic = async () => {
     await startGameFunc(); 
     initGame();
     gameStatus.value = 'playing';
-    // DOM 렌더링 후 보드 치수 계산
     nextTick(() => updateBoardMetrics());
   } catch (error) {
     console.error(error);
-    // 개발 모드나 에러 시에도 로컬 플레이 가능하게 (선택사항)
     gameStatus.value = 'lost';
   }
 };
@@ -226,16 +221,12 @@ const spawnBlocks = () => {
     const type = blockTypes[Math.floor(Math.random() * blockTypes.length)];
     blocks.value[i] = { ...BLOCK_DEFINITIONS[type], uid: Date.now() + i };
   }
-  // 스폰 직후 게임 오버 체크
   checkGameOver();
 };
 
-// --- 드래그 앤 드롭 핸들러 ---
-
+// --- 드래그 핸들러 ---
 const handleDragStart = (e, block, index) => {
   if (gameStatus.value !== 'playing') return;
-  
-  // 터치/마우스 좌표 통일
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
@@ -245,7 +236,6 @@ const handleDragStart = (e, block, index) => {
   pointerPosition.x = clientX;
   pointerPosition.y = clientY;
 
-  // 드래그 시작 시 보드 위치 정보 최신화
   updateBoardMetrics();
 };
 
@@ -258,31 +248,19 @@ const handleDragMove = (e) => {
   pointerPosition.x = clientX;
   pointerPosition.y = clientY;
 
-  // [핵심] 시각적 오프셋(TOUCH_OFFSET_Y)을 적용한 '가상 블록 위치' 계산
-  // 사용자가 터치한 곳보다 위쪽을 기준으로 판정
   const visualX = clientX;
   const visualY = clientY - TOUCH_OFFSET_Y;
 
-  // 보드 내부 좌표로 변환
   const relX = visualX - boardMetrics.left;
   const relY = visualY - boardMetrics.top;
 
-  // 그리드 인덱스 계산 (보드 크기 기준 비율로 계산하여 정확도 향상)
   const colIndex = Math.floor((relX / boardMetrics.width) * BOARD_SIZE);
-  const rowIndex = Math.floor((relY / boardMetrics.width) * BOARD_SIZE); // 정사각형이므로 width 사용
+  const rowIndex = Math.floor((relY / boardMetrics.width) * BOARD_SIZE);
 
-  // 유효한 범위 내인지 확인
   if (rowIndex >= 0 && rowIndex < BOARD_SIZE && colIndex >= 0 && colIndex < BOARD_SIZE) {
-    // 미리보기 계산 시 블록의 중심을 잡는게 아니라, 
-    // 터치한 위치가 블록의 (0,0)이나 중심이 되도록 보정 로직 추가 가능
-    // 여기서는 단순화를 위해 터치 포인트 바로 위가 블록의 시작점(0,0)이라고 가정
-    // 실제로는 블록의 너비/높이 절반만큼 더 빼주면 "중심 잡기"가 됨.
-    
-    // 블록 중심 보정 (선택 사항, 여기서는 블록의 좌상단을 기준으로 함)
+    // 블록 중심 보정
     const blockRows = dragged.block.shape.length;
     const blockCols = dragged.block.shape[0].length;
-    
-    // 손가락 위치가 블록의 정중앙에 오도록 보정
     const adjustedRow = rowIndex - Math.floor(blockRows / 2);
     const adjustedCol = colIndex - Math.floor(blockCols / 2);
 
@@ -290,7 +268,6 @@ const handleDragMove = (e) => {
       previewCells.value = getPlacementCells(dragged.block, adjustedRow, adjustedCol);
       invalidDrop.value = false;
     } else {
-      // 놓을 수 없는 위치라도 빨간색으로 미리보기 표시 (UX 개선)
       previewCells.value = getPlacementCells(dragged.block, adjustedRow, adjustedCol, true); 
       invalidDrop.value = true;
     }
@@ -304,7 +281,6 @@ const handleDragEnd = () => {
   if (!isDragging.value) return;
 
   if (!invalidDrop.value && previewCells.value.length > 0) {
-    // 배치 확정
     previewCells.value.forEach(idx => {
       if (idx >= 0 && idx < board.length) board[idx] = 1;
     });
@@ -312,10 +288,8 @@ const handleDragEnd = () => {
     const cellsCount = dragged.block.shape.flat().filter(x => x).length;
     score.value += cellsCount;
 
-    // 라인 클리어 체크
     checkLines();
 
-    // 블록 소비 및 재생성 체크
     blocks.value[dragged.index] = { uid: null, shape: null };
     if (blocks.value.every(b => !b.shape)) {
       spawnBlocks();
@@ -324,7 +298,6 @@ const handleDragEnd = () => {
     }
   }
 
-  // 초기화
   isDragging.value = false;
   dragged.block = null;
   dragged.index = -1;
@@ -333,7 +306,6 @@ const handleDragEnd = () => {
 };
 
 // --- 게임 로직 헬퍼 ---
-
 const canPlace = (block, r, c) => {
   const shape = block.shape;
   for (let i = 0; i < shape.length; i++) {
@@ -341,7 +313,6 @@ const canPlace = (block, r, c) => {
       if (shape[i][j] === 1) {
         const nr = r + i;
         const nc = c + j;
-        // 보드 밖이거나 이미 채워진 곳이면 불가
         if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE || board[nr * BOARD_SIZE + nc] === 1) {
           return false;
         }
@@ -351,7 +322,6 @@ const canPlace = (block, r, c) => {
   return true;
 };
 
-// ignoreCollision: 빨간색 미리보기를 위해 충돌 무시하고 좌표만 계산
 const getPlacementCells = (block, r, c, ignoreCollision = false) => {
   const cells = [];
   const shape = block.shape;
@@ -360,11 +330,9 @@ const getPlacementCells = (block, r, c, ignoreCollision = false) => {
       if (shape[i][j] === 1) {
         const nr = r + i;
         const nc = c + j;
-        // 보드 내부인 경우만 추가
         if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
           cells.push(nr * BOARD_SIZE + nc);
         } else if (!ignoreCollision) {
-            // 하나라도 밖으로 나가면 유효한 배치가 아님 (빨간색 표시 때는 무시)
             return []; 
         }
       }
@@ -378,7 +346,6 @@ const checkLines = () => {
   const rowsToClear = [];
   const colsToClear = [];
 
-  // 행 검사
   for (let r = 0; r < BOARD_SIZE; r++) {
     let full = true;
     for (let c = 0; c < BOARD_SIZE; c++) {
@@ -386,8 +353,6 @@ const checkLines = () => {
     }
     if (full) rowsToClear.push(r);
   }
-
-  // 열 검사
   for (let c = 0; c < BOARD_SIZE; c++) {
     let full = true;
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -397,31 +362,23 @@ const checkLines = () => {
   }
 
   const allIndices = new Set();
-  rowsToClear.forEach(r => {
-    for(let c=0; c<BOARD_SIZE; c++) allIndices.add(r*BOARD_SIZE + c);
-  });
-  colsToClear.forEach(c => {
-    for(let r=0; r<BOARD_SIZE; r++) allIndices.add(r*BOARD_SIZE + c);
-  });
+  rowsToClear.forEach(r => { for(let c=0; c<BOARD_SIZE; c++) allIndices.add(r*BOARD_SIZE + c); });
+  colsToClear.forEach(c => { for(let r=0; r<BOARD_SIZE; r++) allIndices.add(r*BOARD_SIZE + c); });
 
   if (allIndices.size > 0) {
     clearingCells.value = Array.from(allIndices);
     lines = rowsToClear.length + colsToClear.length;
-    
-    // 점수 계산
     const points = COMBO_SCORES[lines] || (lines * 100);
     const dust = lines >= 2 ? lines : 0;
     
     score.value += points;
     alchemyDust.value += dust;
     
-    // 콤보 메시지
     if (lines >= 2) {
       comboMessage.value = `${lines} 콤보! +${points}`;
       setTimeout(() => comboMessage.value = '', 1500);
     }
 
-    // 애니메이션 후 데이터 삭제
     setTimeout(() => {
       clearingCells.value.forEach(idx => board[idx] = 0);
       clearingCells.value = [];
@@ -430,7 +387,6 @@ const checkLines = () => {
 };
 
 const checkGameOver = () => {
-  // 남은 블록 중 하나라도 놓을 곳이 있는지 확인
   const availableBlocks = blocks.value.filter(b => b.shape);
   if (availableBlocks.length === 0) return;
 
@@ -448,9 +404,7 @@ const checkGameOver = () => {
     if (canMove) break;
   }
 
-  if (!canMove) {
-    handleGameOverProcess();
-  }
+  if (!canMove) handleGameOverProcess();
 };
 
 const handleGameOverProcess = async () => {
@@ -459,16 +413,13 @@ const handleGameOverProcess = async () => {
     highScore.value = score.value;
     localStorage.setItem('blockPuzzleHighScore', score.value);
   }
-  
   try {
     const res = await endGameFunc({ score: score.value, alchemyDust: alchemyDust.value });
     finalPointsAwarded.value = res.data.awardedPoints;
   } catch (e) { console.error(e); }
 };
 
-const restartGame = () => {
-  startGameLogic();
-};
+const restartGame = () => { startGameLogic(); };
 const goToDashboard = () => router.push('/dashboard');
 
 // --- 스타일 헬퍼 ---
@@ -479,18 +430,18 @@ const getBlockGridStyle = (block) => {
   return {
     gridTemplateRows: `repeat(${rows}, 1fr)`,
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
-    // 블록 자체의 크기를 고정하지 않고, 내부 셀 크기에 맞춤
-    width: `${cols * 20 + (cols-1)*2}px` 
+    // 셀 크기를 고정하는 대신, 모바일에서는 컨테이너에 맞게 자동 조정되도록 유연하게
+    width: `${cols * 22}px`, 
+    gap: '2px'
   };
 };
 
 const floatingBlockStyle = computed(() => {
-  // 블록을 손가락 위로 띄움 (오프셋 적용)
   return {
     position: 'fixed',
     left: `${pointerPosition.x}px`,
-    top: `${pointerPosition.y - TOUCH_OFFSET_Y}px`, // Y축 오프셋 적용
-    transform: 'translate(-50%, -50%) scale(1.2)', // 손가락 중심에 맞추고 약간 확대
+    top: `${pointerPosition.y - TOUCH_OFFSET_Y}px`,
+    transform: 'translate(-50%, -50%) scale(1.2)', 
     pointerEvents: 'none',
     zIndex: 9999
   };
@@ -498,114 +449,121 @@ const floatingBlockStyle = computed(() => {
 </script>
 
 <style scoped>
-/* 전체 페이지 - 다크 테마 */
+/* 페이지 기본 설정: 100dvh로 모바일 브라우저 높이 대응, 스크롤 방지 */
 .block-puzzle-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-  background: radial-gradient(circle at center, #1a2a6c, #b21f1f, #fdbb2d); /* 예비용 */
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); /* Deep Sea 느낌 */
-  padding: 20px 10px;
+  height: 100dvh; /* Dynamic Viewport Height */
+  width: 100vw;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  padding-top: 60px; /* 글로벌 네비게이션 바 공간 확보 (중요) */
+  padding-bottom: env(safe-area-inset-bottom, 20px); /* 아이폰 하단 바 대응 */
   box-sizing: border-box;
+  overflow: hidden; /* 전체 스크롤 방지 */
+  touch-action: none; /* iOS 탭 바운스 방지 */
   font-family: 'Noto Sans KR', sans-serif;
-  overflow: hidden; /* 스크롤 방지 */
-  touch-action: none; /* 모바일에서 드래그 시 화면 밀림 방지 */
+  color: white;
 }
 
-/* 상단 헤더 */
-.game-header {
+/* 1. 상단 스탯 영역 (높이 고정, 공간 최소화) */
+.game-header-area {
+  flex-shrink: 0; /* 절대 줄어들지 않음 */
   display: flex;
-  justify-content: space-between;
-  width: 100%;
+  justify-content: space-around;
+  width: 95%;
   max-width: 450px;
-  margin-bottom: 20px;
-  gap: 10px;
+  margin: 0 auto 10px auto;
+  gap: 8px;
 }
 
 .stat-card {
   flex: 1;
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 10px 5px;
+  backdrop-filter: blur(5px);
+  border-radius: 10px;
+  padding: 8px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 .stat-card.main-score {
-  border-color: rgba(0, 255, 255, 0.5);
   background: rgba(0, 0, 0, 0.3);
-  transform: scale(1.05);
+  border-color: rgba(0, 255, 255, 0.3);
+  transform: scale(1.05); /* 강조 */
 }
 
-.label { font-size: 0.75rem; color: #aaa; margin-bottom: 4px; }
-.value { font-size: 1.1rem; font-weight: bold; }
+.label { font-size: 0.7rem; color: #ccc; margin-bottom: 2px; }
+.value { font-size: 1rem; font-weight: bold; white-space: nowrap; }
 .gold { color: #ffd700; }
-.cyan { color: #00ffff; text-shadow: 0 0 10px rgba(0,255,255,0.5); }
+.cyan { color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5); }
 .white { color: #fff; }
 
-/* 게임 영역 컨테이너 (반응형 유지) */
-.game-area-container {
+/* 2. 게임 보드 컨테이너 (남은 공간 모두 차지, 중앙 정렬) */
+.game-board-container {
+  flex-grow: 1; /* 남은 공간 모두 사용 */
+  display: flex;
+  justify-content: center;
+  align-items: center; /* 수직 중앙 정렬 */
+  width: 100%;
   position: relative;
-  width: 100%;
-  max-width: 450px; /* PC에서는 너무 크지 않게 */
-  aspect-ratio: 1 / 1; /* 정사각형 비율 유지 */
-  margin-bottom: 30px;
-}
-
-.game-board-wrapper {
-  width: 100%;
-  height: 100%;
-  padding: 5px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 15px;
-  border: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+  padding: 0 10px; /* 좌우 여백 */
   box-sizing: border-box;
 }
 
-/* 10x10 그리드 보드 */
+/* 보드 비율 유지 박스 */
+.board-aspect-ratio-box {
+  width: 100%;
+  max-width: 450px; /* PC/태블릿 최대 너비 */
+  aspect-ratio: 1 / 1; /* 정사각형 비율 강제 */
+  
+  /* 화면이 너무 납작할 경우(가로모드 등), 높이에 맞춰 너비 줄임 */
+  max-height: 100%; 
+  
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 6px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* 실제 그리드 */
 .game-board {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   grid-template-rows: repeat(10, 1fr);
-  gap: 2px; /* 셀 간격 */
+  gap: 2px;
   width: 100%;
   height: 100%;
 }
 
 .game-cell {
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  transition: background-color 0.1s, transform 0.2s;
+  border-radius: 3px;
+  transition: background-color 0.1s;
 }
-
-/* 셀 상태 스타일 */
 .game-cell.filled {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  box-shadow: inset 0 0 5px rgba(255,255,255,0.4), 0 0 10px rgba(0, 242, 254, 0.5);
-  border: 1px solid rgba(255,255,255,0.3);
+  box-shadow: inset 0 0 5px rgba(255,255,255,0.4);
+  border: 1px solid rgba(255,255,255,0.2);
 }
-
 .game-cell.preview {
   background: rgba(255, 255, 255, 0.3);
   border: 1px dashed rgba(255,255,255,0.5);
 }
-
 .game-cell.invalid {
-  background: rgba(255, 50, 50, 0.4) !important; /* 놓을 수 없음 (빨강) */
+  background: rgba(255, 80, 80, 0.4) !important;
 }
-
-/* 클리어 애니메이션 */
 .game-cell.clearing {
-  animation: flashAndShrink 0.4s forwards;
+  animation: flash 0.3s forwards;
 }
-@keyframes flashAndShrink {
+@keyframes flash {
   0% { background: #fff; transform: scale(1); }
-  50% { background: #fff; transform: scale(1.1); box-shadow: 0 0 20px #fff; }
-  100% { background: transparent; transform: scale(0); opacity: 0; }
+  100% { background: transparent; transform: scale(0); }
 }
 
 /* 콤보 팝업 */
@@ -613,116 +571,103 @@ const floatingBlockStyle = computed(() => {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.8);
+  background: rgba(0, 0, 0, 0.85);
   color: #ffd700;
   padding: 10px 20px;
   border-radius: 20px;
   font-size: 1.5rem;
   font-weight: bold;
   border: 2px solid #ffd700;
-  z-index: 50;
+  z-index: 20;
   pointer-events: none;
+  white-space: nowrap;
 }
-.pop-enter-active { animation: popup 0.5s ease-out; }
-@keyframes popup {
-  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.pop-enter-active { animation: popAnim 0.4s ease-out; }
+@keyframes popAnim {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 블록 스포너 (하단) */
-.block-spawner-container {
+/* 3. 하단 블록 스포너 (높이 고정) */
+.block-spawner-area {
+  flex-shrink: 0; /* 줄어들지 않음 */
+  height: 120px; /* 블록 들어갈 공간 확보 */
   width: 100%;
-  max-width: 450px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 15px;
-  padding: 10px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  /* 하단 고정 느낌을 주려면 margin-top: auto 사용 가능 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .block-spawner {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: 90px;
+  width: 100%;
+  max-width: 450px;
+  height: 100%;
 }
 
 .spawn-slot {
-  width: 80px;
-  height: 80px;
+  width: 30%; /* 3등분 */
+  height: 80%;
   display: flex;
   justify-content: center;
   align-items: center;
 }
-.spawn-slot.is-dragging {
-  opacity: 0.2; /* 드래그 중일 때 원본 흐리게 */
-}
+.spawn-slot.is-dragging { opacity: 0.3; }
 
-/* 블록 미리보기 스타일 */
+/* 블록 미리보기 공통 */
 .block-preview, .block-shape {
   display: grid;
   gap: 2px;
 }
 .block-cell {
-  width: 18px;
-  height: 18px;
+  width: 20px; /* 스포너에서의 기본 크기 */
+  height: 20px;
   border-radius: 2px;
   background: transparent;
 }
 .block-cell.filled {
-  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); /* 핑크 계열 */
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); /* 민트 계열 */
-  /* 실제 게임에서는 랜덤 컬러나 고정 컬러 사용 가능 */
-  background: #00f2fe; 
-  box-shadow: 0 0 5px rgba(0,242,254,0.6);
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); /* 핑크-레드 */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 .block-cell.filled.invalid {
-  background: #ff4b4b; /* 놓을 수 없을 때 블록 색상 변경 */
+  background: #ff4b4b; 
 }
 
-/* 플로팅 블록 (드래그 중) */
+/* 플로팅 블록 컨테이너 */
 .floating-block-container {
-  pointer-events: none; /* 클릭 통과 */
+  pointer-events: none;
+  z-index: 9999;
 }
 
-/* 결과 모달 */
+/* 모달 */
 .modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.85);
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85); z-index: 1000;
   display: flex; justify-content: center; align-items: center;
-  z-index: 100;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(4px);
 }
 .glass-panel {
-  background: rgba(30, 30, 30, 0.9);
+  background: rgba(30, 30, 30, 0.95);
   border: 1px solid rgba(255,255,255,0.1);
-  padding: 30px;
-  border-radius: 20px;
-  width: 80%;
-  max-width: 350px;
-  text-align: center;
-  color: white;
-  box-shadow: 0 0 30px rgba(0, 255, 255, 0.1);
+  padding: 30px; border-radius: 20px; width: 85%; max-width: 320px;
+  text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
 }
-.game-over-title {
-  font-size: 2rem; margin: 0 0 20px; color: #ff4b4b; text-shadow: 0 0 10px rgba(255,75,75,0.5);
-}
-.result-stats {
-  display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px;
-}
-.result-row {
-  display: flex; justify-content: space-between; font-size: 1.1rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-.result-row.highlight { font-size: 1.2rem; margin-top: 10px; border: none; }
+.game-over-title { color: #ff4b4b; font-size: 2rem; margin: 0 0 20px; text-shadow: 0 0 10px rgba(255,0,0,0.5); }
+.result-stats { display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; }
+.result-row { display: flex; justify-content: space-between; font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
+.result-row.highlight { font-size: 1.3rem; color: #ffd700; border: none; margin-top: 5px; }
 
 .modal-actions { display: flex; gap: 10px; }
 .btn-restart, .btn-exit {
-  flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer;
-  transition: transform 0.1s;
+  flex: 1; padding: 12px; border: none; border-radius: 10px;
+  font-weight: bold; font-size: 1rem; cursor: pointer;
 }
-.btn-restart { background: linear-gradient(90deg, #00c6ff, #0072ff); color: white; }
+.btn-restart { background: linear-gradient(90deg, #00c6ff, #0072ff); color: white; box-shadow: 0 4px 15px rgba(0,114,255,0.4); }
 .btn-exit { background: #444; color: #ccc; }
-.btn-restart:active, .btn-exit:active { transform: scale(0.95); }
 
+.loading-text { color: #00c6ff; font-size: 1.2rem; }
 </style>
