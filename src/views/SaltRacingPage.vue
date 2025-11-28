@@ -216,7 +216,7 @@ let animationFrameId = null;
 const familyRaceState = ref({});
 const familyTimer = ref("00:00");
 const hasBetFamily = ref(false);
-const isBetLoading = ref(false); // 베팅 내역 로딩 상태
+const isBetLoading = ref(false); 
 const myFamilyBet = ref({});
 const cachedFamilyBet = ref(null); 
 const previousRoundId = ref(null); 
@@ -247,11 +247,9 @@ onMounted(() => {
         }
       });
       
-      // URL 파라미터로 모드 진입 시 처리 (인증 후 실행)
       if (route.query.mode === 'family') {
         selectMode('family');
       } else if (selectedMode.value === 'family') {
-        // 새로고침 후 모드 복구 시
         startFamilyListeners();
       }
     } else {
@@ -297,28 +295,29 @@ const startFamilyListeners = () => {
   const user = auth.currentUser;
   if (!user) return;
 
-  // 베팅 내역 로딩 시작
   isBetLoading.value = true;
 
-  // 1. 전체 게임 상태 리스너
   const raceRef = doc(db, 'system', 'saltRacingFamily');
   familyUnsubscribe = onSnapshot(raceRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       
-      // 라운드 변경 감지 (경기 종료 -> 결과 처리)
+      // 라운드가 변경되었을 때 (경기 종료)
       if (previousRoundId.value !== null && data.roundId > previousRoundId.value) {
-          // 타이머 업데이트를 중단하고 결과 처리로 넘어감
-          handleFamilyRaceFinish(data.lastWinner);
+          // [핵심 수정] familyRaceState가 갱신(0원)되기 전에, 현재 가지고 있는 '이전 라운드 데이터'를 캡처해서 넘깁니다.
+          // 여기서 familyRaceState.value는 아직 업데이트 되기 전(Round 31, 상금 가득) 상태입니다.
+          const finishedRoundState = JSON.parse(JSON.stringify(familyRaceState.value));
+          
+          handleFamilyRaceFinish(data.lastWinner, finishedRoundState);
       } else {
+          // 평소에는 상태 업데이트
           familyRaceState.value = data;
-          // 경기 중이 아닐 때만 타이머 업데이트
+          
           if (data.nextRaceTime && gameStatus.value !== 'racing' && gameStatus.value !== 'finished') {
             updateTimer(data.nextRaceTime.toDate());
           }
       }
       
-      // 최초 진입 시 지난 결과 확인
       if (previousRoundId.value === null) {
           checkMissedResult(data);
       }
@@ -327,7 +326,6 @@ const startFamilyListeners = () => {
     }
   });
   
-  // 2. 내 베팅 내역 실시간 리스너
   const myBetRef = doc(db, 'system/saltRacingFamily/currentBets', user.uid);
   myBetUnsubscribe = onSnapshot(myBetRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -337,35 +335,38 @@ const startFamilyListeners = () => {
           selectedRunner.value = data.runner;
           selectedBet.value = data.amount;
           cachedFamilyBet.value = data;
-          // 로컬 스토리지 백업 (화면 꺼짐 대비)
+          
           if(familyRaceState.value.roundId) {
              localStorage.setItem(`familyBet_${familyRaceState.value.roundId}`, JSON.stringify(data));
           }
       } else {
-          // DB에 없으면 베팅 안 한 상태 (단, 게임 결과 처리 중에는 리셋 안 함)
           if (gameStatus.value === 'idle') {
               hasBetFamily.value = false;
               myFamilyBet.value = {};
           }
       }
-      // 데이터 로딩 완료
       isBetLoading.value = false;
   });
 };
 
-// [신규] 배당금 계산 헬퍼 함수
-const calculateWinnings = (winnerIndex) => {
-    const totalPot = familyRaceState.value.totalPot || 0;
-    const winnerBetTotal = familyRaceState.value.bets?.[winnerIndex] || 0;
+// [핵심 수정] 배당금 계산 시, 특정 시점의 데이터(snapshotState)를 받아서 계산하도록 수정
+const calculateWinnings = (winnerIndex, snapshotState) => {
+    // snapshotState가 있으면 그것을 쓰고(우승 직후), 없으면 현재 familyRaceState(실시간)를 씁니다.
+    const state = snapshotState || familyRaceState.value;
+    
+    const totalPot = state.totalPot || 0;
+    const winnerBetTotal = state.bets?.[winnerIndex] || 0;
     
     if (totalPot === 0 || winnerBetTotal === 0) return 0;
     
-    // 내 베팅 정보 가져오기
     let myBetAmount = myFamilyBet.value.amount;
     
     // 만약 myFamilyBet이 비어있다면 캐시나 스토리지에서 확인
     if (!myBetAmount) {
-        const stored = localStorage.getItem(`familyBet_${previousRoundId.value}`);
+        // 캐시 확인 시, state가 넘어왔다면(즉, 종료 처리 중이라면) 해당 라운드 ID 사용
+        // 그렇지 않다면 현재 previousRoundId 사용
+        const targetRoundId = state.roundId || previousRoundId.value;
+        const stored = localStorage.getItem(`familyBet_${targetRoundId}`);
         if (stored) {
             try {
                 myBetAmount = JSON.parse(stored).amount;
@@ -377,13 +378,12 @@ const calculateWinnings = (winnerIndex) => {
     
     if (!myBetAmount) return 0;
 
-    // 공식: (총 상금 * 0.9) * (내 베팅액 / 우승한 말의 총 베팅액)
     const prizePool = totalPot * 0.9;
     const share = myBetAmount / winnerBetTotal;
     return Math.floor(prizePool * share);
 };
 
-// [수정] 지난 결과 확인 로직 (배당금 계산 적용)
+// [수정] 지난 결과 확인 로직
 const checkMissedResult = (currentSystemState) => {
     const lastRoundId = currentSystemState.roundId - 1;
     const storedBet = localStorage.getItem(`familyBet_${lastRoundId}`);
@@ -392,19 +392,14 @@ const checkMissedResult = (currentSystemState) => {
         const betInfo = JSON.parse(storedBet);
         const isWin = (betInfo.runner === currentSystemState.lastWinner);
         
-        // 상태가 초기화되었을 수 있으므로 state에 값이 없다면 0 처리 될 수 있음
-        let winAmount = 0;
-        if (isWin) {
-            // missed result 상황에서는 familyRaceState가 이미 다음 라운드(초기화됨)일 수 있음
-            // 따라서 정확한 배당 계산이 어렵다면 '정산 완료(내역 확인)' 등으로 처리하거나,
-            // calculateWinnings를 호출하되 0이 나오면 텍스트로 처리
-            winAmount = calculateWinnings(currentSystemState.lastWinner);
-        }
-
+        // 이미 지난 결과의 경우 totalPot 정보를 알 수 없어 정확한 계산이 어렵지만,
+        // 사용자 입장에서는 이미 정산이 되었으므로 로그를 확인하라는 메시지나 0을 띄웁니다.
+        // (만약 지난 총 상금도 저장했다면 여기서 계산 가능)
+        
         resultData.value = {
             winnerIndex: currentSystemState.lastWinner,
             isWin: isWin,
-            winnings: isWin ? (winAmount > 0 ? winAmount : '정산 완료(내역 확인)') : 0,
+            winnings: isWin ? '정산 완료(내역 확인)' : 0,
             missed: true
         };
         gameStatus.value = 'finished';
@@ -412,15 +407,14 @@ const checkMissedResult = (currentSystemState) => {
     }
 };
 
-// [수정] 가족 레이스 종료 처리 로직 (배당금 계산 적용)
-const handleFamilyRaceFinish = (winnerIndex) => {
+// [핵심 수정] 가족 레이스 종료 처리 로직 (finishedRoundState 인자 추가)
+const handleFamilyRaceFinish = (winnerIndex, finishedRoundState) => {
     if (timerInterval) clearInterval(timerInterval);
     gameStatus.value = 'racing';
     
     let myBet = cachedFamilyBet.value;
     if (!myBet) {
-        // 캐시가 없으면 스토리지에서 시도
-        const stored = localStorage.getItem(`familyBet_${previousRoundId.value}`);
+        const stored = localStorage.getItem(`familyBet_${finishedRoundState.roundId}`);
         if (stored) myBet = JSON.parse(stored);
     }
 
@@ -428,16 +422,16 @@ const handleFamilyRaceFinish = (winnerIndex) => {
         if (myBet) {
             const isWin = (myBet.runner === winnerIndex);
             
-            // [수정됨] 텍스트 대신 계산된 금액 표시
-            const winAmount = isWin ? calculateWinnings(winnerIndex) : 0;
+            // [수정] 캡처해둔 '종료 시점의 데이터'를 넘겨서 계산
+            const winAmount = isWin ? calculateWinnings(winnerIndex, finishedRoundState) : 0;
 
             resultData.value = {
                 winnerIndex: winnerIndex,
                 isWin: isWin,
                 winnings: isWin ? winAmount : 0
             };
-            // 결과 확인 후 스토리지 정리
-            localStorage.removeItem(`familyBet_${previousRoundId.value}`);
+            
+            localStorage.removeItem(`familyBet_${finishedRoundState.roundId}`);
         } else {
             resultData.value = {
                 winnerIndex: winnerIndex,
@@ -522,13 +516,11 @@ const placeFamilyBet = async () => {
   isProcessing.value = true;
   try {
     await placeFamilyBetFunc({ betAmount: selectedBet.value, selectedRunner: selectedRunner.value });
-    // 성공 시 상태 즉시 반영 (리스너가 곧 덮어쓰겠지만 반응성을 위해)
     hasBetFamily.value = true;
     myFamilyBet.value = { amount: selectedBet.value, runner: selectedRunner.value };
     
     alert("베팅이 완료되었습니다! 경기 시간에 결과를 확인하세요.");
   } catch (e) {
-    // 오류 시 메시지 표시 (중복 베팅 등)
     alert(e.message);
   } finally {
     isProcessing.value = false;
@@ -593,7 +585,7 @@ const resetGame = () => {
   resultData.value = null;
   cachedFamilyBet.value = null; 
   hasBetFamily.value = false;
-  isBetLoading.value = false; // 초기화
+  isBetLoading.value = false; 
   
   if (trackScrollWrapper.value) trackScrollWrapper.value.scrollLeft = 0;
   
