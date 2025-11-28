@@ -531,7 +531,15 @@ const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStat
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
 const listenToVideoState = () => { videoListenerRef = dbRef(rtdb, plazaVideoPath); onValue(videoListenerRef, (snapshot) => { const data = snapshot.val(); if (!data || !cinemaVideoRef.value) return; isVideoPlaying.value = data.isPlaying; const videoEl = cinemaVideoRef.value; if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; } applyVideoState(videoEl, data); }); };
 const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency = (Date.now() - data.timestamp) / 1000; const targetTime = data.videoTime + latency; if (Math.abs(videoEl.currentTime - targetTime) > 1) videoEl.currentTime = targetTime; videoEl.play().catch(() => {}); } else { videoEl.pause(); if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) videoEl.currentTime = data.videoTime; } };
-const handleUserInteraction = () => { const video = cinemaVideoRef.value; if (video && video.paused) { video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); } };
+// [삭제 또는 주석 현재는 사용 안함]
+/*
+const handleUserInteraction = () => { 
+  const video = cinemaVideoRef.value; 
+  if (video && video.paused) { 
+    video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); 
+  } 
+};
+*/
 
 const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
 const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
