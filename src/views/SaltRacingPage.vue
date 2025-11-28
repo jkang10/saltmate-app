@@ -19,8 +19,8 @@
         <p class="sub-text">가장 컨디션이 좋아 보이는 선수에게 응원을 보내세요!</p>
       </header>
 
-      <!-- [핵심] 레이싱 트랙 영역 (가로 스크롤 가능) -->
-      <div class="track-scroll-wrapper">
+      <!-- [핵심] 레이싱 트랙 영역 (스크롤 래퍼 ref 추가) -->
+      <div class="track-scroll-wrapper" ref="trackScrollWrapper">
         <div class="track-container">
           <div class="finish-line">
             <div class="finish-flag"><i class="fas fa-flag-checkered"></i></div>
@@ -36,10 +36,14 @@
                 :style="{ left: runner.progress + '%' }"
                 :class="{ 'is-winner': gameStatus === 'finished' && resultData?.winnerIndex === index }"
               >
-                <!-- ▼▼▼ [이미지 교체] 말 아이콘 대신 이미지 사용 ▼▼▼ -->
+                <!-- ▼▼▼ [수정 1] 원형 배경 제거 및 이미지 스타일 변경 ▼▼▼ -->
                 <div class="runner-body">
                   <div class="runner-img-box" :class="{ 'selected': selectedRunner === index }">
                     <img :src="runnerImages[index]" class="runner-img" alt="runner" />
+                    <!-- 선택된 말 표시 (화살표 등) -->
+                    <div v-if="selectedRunner === index" class="selected-marker">
+                        <i class="fas fa-caret-down"></i>
+                    </div>
                   </div>
                   <span class="runner-label">{{ index + 1 }}번</span>
                 </div>
@@ -72,7 +76,6 @@
               @click="selectedRunner = i"
               :class="['runner-btn', { active: selectedRunner === i }]"
             >
-              <!-- 버튼에도 이미지 적용 -->
               <div class="btn-img-wrapper">
                 <img :src="img" class="btn-runner-img" />
               </div>
@@ -152,7 +155,7 @@ import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-// [★핵심] 이미지 임포트 (경로: src/assets/racing/)
+// 이미지 임포트
 import runner1 from '@/assets/racing/runner1.png';
 import runner2 from '@/assets/racing/runner2.png';
 import runner3 from '@/assets/racing/runner3.png';
@@ -176,6 +179,9 @@ const allowedBets = [100, 300, 500, 800];
 
 const resultData = ref(null);
 let animationFrameId = null;
+
+// --- [수정 2] 스크롤 제어를 위한 ref ---
+const trackScrollWrapper = ref(null);
 
 // --- Firebase 연결 ---
 const playRacingFunc = httpsCallable(functions, 'playSaltRacing');
@@ -237,6 +243,12 @@ const startGame = async () => {
     resultData.value = result.data; 
     gameStatus.value = 'racing';
     isProcessing.value = false;
+    
+    // 스크롤 초기화
+    if (trackScrollWrapper.value) {
+        trackScrollWrapper.value.scrollLeft = 0;
+    }
+
     startRaceAnimation(result.data.winnerIndex);
 
   } catch (error) {
@@ -255,10 +267,14 @@ const startRaceAnimation = (winnerIndex) => {
   const speeds = runners.map(() => 0.3 + Math.random() * 0.2); 
 
   const animate = () => {
+    let maxProgress = 0; // [수정 2] 선두 주자의 위치 추적용
+
     runners.forEach((runner, index) => {
       if (runner.progress < 100) {
+        // 랜덤 속도
         if (Math.random() < 0.05) speeds[index] = 0.2 + Math.random() * 0.5;
         
+        // 승부 조작 (80% 지점부터)
         if (runner.progress > 80) {
            if (index === winnerIndex) {
                speeds[index] += 0.05; 
@@ -277,7 +293,27 @@ const startRaceAnimation = (winnerIndex) => {
           }
         }
       }
+      // 선두 주자 위치 갱신
+      if (runner.progress > maxProgress) maxProgress = runner.progress;
     });
+
+    // ▼▼▼ [수정 2] 모바일에서 1등을 따라가도록 자동 스크롤 ▼▼▼
+    if (trackScrollWrapper.value) {
+        const wrapper = trackScrollWrapper.value;
+        const scrollWidth = wrapper.scrollWidth;
+        const clientWidth = wrapper.clientWidth;
+        
+        // 스크롤이 필요한 경우(모바일 등 화면보다 컨텐츠가 클 때)에만 작동
+        if (scrollWidth > clientWidth) {
+            // 선두 주자의 % 위치를 픽셀로 변환하여 스크롤 위치 계산
+            // (화면의 60% 지점에 선두가 오도록 조정)
+            const targetScroll = (maxProgress / 100) * scrollWidth - (clientWidth * 0.6);
+            
+            // 부드럽게 이동 (기존 위치와 목표 위치 보간)
+            wrapper.scrollLeft += (targetScroll - wrapper.scrollLeft) * 0.1;
+        }
+    }
+    // ▲▲▲
 
     if (finishedCount < 5) {
       animationFrameId = requestAnimationFrame(animate);
@@ -296,6 +332,11 @@ const resetGame = () => {
   selectedRunner.value = null;
   runners.forEach(r => { r.progress = 0; r.rank = null; });
   resultData.value = null;
+  
+  // 스크롤 초기화
+  if (trackScrollWrapper.value) {
+      trackScrollWrapper.value.scrollLeft = 0;
+  }
 };
 </script>
 
@@ -325,7 +366,7 @@ const resetGame = () => {
   border-radius: 12px;
   margin-bottom: 15px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  flex-shrink: 0; /* 크기 축소 방지 */
+  flex-shrink: 0; 
 }
 .stat-item { text-align: center; }
 .stat-item span { display: block; font-size: 0.8rem; color: #ccc; margin-bottom: 2px; }
@@ -334,15 +375,14 @@ const resetGame = () => {
 /* 게임 컨테이너 */
 .game-container {
   width: 100%;
-  max-width: 600px;
+  max-width: 700px; /* [수정] PC에서 넉넉하게 보이도록 너비 증가 */
   background: rgba(30, 30, 30, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 15px;
-  padding: 15px; /* 패딩 축소 */
+  padding: 15px; 
   display: flex;
   flex-direction: column;
   gap: 15px;
-  /* 모바일 화면 높이에 맞추기 위한 설정 */
   max-height: calc(100vh - 120px); 
   overflow-y: auto;
 }
@@ -351,20 +391,32 @@ const resetGame = () => {
 .game-header h2 { color: #FFD700; margin: 0 0 5px; font-size: 1.4rem; }
 .sub-text { color: #bdc3c7; font-size: 0.85rem; margin: 0; }
 
-/* [핵심] 트랙 스크롤 래퍼 (모바일 대응) */
+/* [핵심] 트랙 스크롤 래퍼 */
 .track-scroll-wrapper {
   width: 100%;
-  overflow-x: auto; /* 가로 스크롤 허용 */
+  overflow-x: auto; /* 모바일: 가로 스크롤 허용 */
   border-radius: 10px;
   background: #333;
   border: 2px solid #555;
-  flex-shrink: 0; /* 크기 축소 방지 */
+  flex-shrink: 0;
 }
 
-/* 실제 트랙 컨테이너 (최소 너비 보장) */
+/* ▼▼▼ [수정 3] PC에서는 스크롤 없이 100% 너비 사용 ▼▼▼ */
+@media (min-width: 769px) {
+    .track-scroll-wrapper {
+        overflow-x: hidden; /* PC 스크롤 제거 */
+    }
+    .track-container {
+        min-width: 100% !important; /* PC는 컨테이너에 맞춤 */
+        width: 100%;
+    }
+}
+/* ▲▲▲ */
+
+/* 실제 트랙 컨테이너 */
 .track-container {
-  min-width: 600px; /* [수정] 가로 길이 충분히 확보 */
-  padding: 10px 50px 10px 10px; /* 오른쪽 여백은 결승선 공간 */
+  min-width: 800px; /* [수정] 모바일에서는 길게 (스크롤 발생 유도) */
+  padding: 10px 50px 10px 10px; 
   position: relative;
   background: repeating-linear-gradient(
     90deg,
@@ -391,11 +443,11 @@ const resetGame = () => {
 }
 .finish-flag { position: absolute; top: -20px; font-size: 1.2rem; color: #fff; }
 
-/* 레인 (높이 축소 및 정렬) */
+/* 레인 */
 .lane {
   display: flex;
   align-items: center;
-  height: 55px; /* [수정] 이미지 크기에 맞춰 높이 조정 */
+  height: 60px; /* [수정] 레인 높이 확보 */
   border-bottom: 1px dashed rgba(255,255,255,0.2);
   position: relative;
 }
@@ -423,7 +475,7 @@ const resetGame = () => {
   transform: translateY(-50%);
   transition: left 0.1s linear;
   z-index: 1;
-  margin-left: -20px; /* 위치 보정 */
+  margin-left: -25px; 
 }
 
 .runner-body {
@@ -433,46 +485,57 @@ const resetGame = () => {
   align-items: center;
 }
 
-/* [신규] 이미지 박스 스타일 */
+/* [수정 1] 원형 배경 및 테두리 제거 (투명 처리) */
 .runner-img-box {
-  width: 45px; 
-  height: 45px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.3);
-  overflow: hidden;
+  width: 50px; 
+  height: 50px;
+  /* background: rgba(255,255,255,0.1); <-- 배경 삭제 */
+  /* border: 2px solid rgba(255,255,255,0.3); <-- 테두리 삭제 */
+  /* border-radius: 50%; */
+  overflow: visible; /* 그림자 등이 잘리지 않게 */
   display: flex;
   justify-content: center;
   align-items: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  position: relative;
 }
-.runner-img-box.selected {
-  border-color: #FFD700;
-  box-shadow: 0 0 10px #FFD700;
+
+.selected-marker {
+    position: absolute;
+    top: -15px;
+    color: #FFD700;
+    font-size: 1.2rem;
+    animation: bounce 1s infinite;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
 }
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* 이미지만 렌더링 */
 .runner-img {
   width: 100%; 
   height: 100%; 
-  object-fit: cover;
+  object-fit: contain; /* 비율 유지하며 표시 */
+  filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5)); /* 그림자 추가로 입체감 */
 }
 
-/* 우승 시 효과 */
-.runner.is-winner .runner-img-box {
-  transform: scale(1.2);
-  border-color: #FFD700;
-  box-shadow: 0 0 15px gold;
-  z-index: 10;
+/* 우승 시 효과 (이미지 확대) */
+.runner.is-winner .runner-img {
+  transform: scale(1.3);
+  filter: drop-shadow(0 0 10px gold);
 }
 
 .runner-label {
   position: absolute;
-  bottom: -14px;
+  bottom: -12px;
   font-size: 0.6rem;
   color: #fff;
   background: rgba(0,0,0,0.6);
   padding: 1px 4px;
   border-radius: 4px;
   white-space: nowrap;
+  opacity: 0.8;
 }
 
 .rank-badge {
@@ -513,7 +576,6 @@ const resetGame = () => {
   flex-wrap: wrap;
 }
 
-/* [수정] 선수 선택 버튼 */
 .runner-btn {
   flex: 1 1 18%;
   min-width: 55px;
@@ -532,8 +594,10 @@ const resetGame = () => {
 }
 .btn-img-wrapper {
   width: 35px; height: 35px;
+  /* 버튼 안의 이미지는 원형 유지 (선택용) */
   border-radius: 50%;
   overflow: hidden;
+  background: rgba(0,0,0,0.2);
 }
 .btn-runner-img {
   width: 100%; height: 100%; object-fit: cover;
@@ -618,12 +682,16 @@ const resetGame = () => {
 .result-visual {
   width: 100px; height: 100px;
   margin: 0 auto 15px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 4px solid #FFD700;
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+  /* 결과창에서는 원형 유지 또는 제거 선택 가능 (여기선 유지) */
+  /* border-radius: 50%; */
+  overflow: visible;
+  /* border: 4px solid #FFD700; */
+  /* box-shadow: 0 0 15px rgba(255, 215, 0, 0.5); */
 }
-.winner-img { width: 100%; height: 100%; object-fit: cover; }
+.winner-img { 
+    width: 100%; height: 100%; object-fit: contain; 
+    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+}
 
 .win-title { color: #2ecc71; margin: 0 0 10px; }
 .lose-title { color: #7f8c8d; margin: 0 0 10px; }
