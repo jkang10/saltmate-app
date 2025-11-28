@@ -190,7 +190,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
+// [수정] unused import 제거 (watch 삭제)
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -356,7 +357,7 @@ const checkMissedResult = (currentSystemState) => {
     if (storedBet && currentSystemState.lastWinner !== null) {
         const betInfo = JSON.parse(storedBet);
         const isWin = (betInfo.runner === currentSystemState.lastWinner);
-        const prizePool = currentSystemState.totalPot || 0; // 참고용(정확하진 않음)
+        // [수정] 사용하지 않는 변수 prizePool 제거
         
         // 결과 모달 띄우기
         resultData.value = {
