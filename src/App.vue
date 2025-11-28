@@ -80,10 +80,12 @@
           <router-link v-if="isRaceWidgetVisible" to="/salt-racing?mode=family" class="race-widget">
             <div class="race-badge">NEXT</div>
             <div class="race-timer">{{ raceTimeLeft }}</div>
-            <!-- [신규] 참여자 수 표시 -->
-            <div class="race-participants" v-if="raceParticipantCount > 0">
+            
+            <!-- [수정] v-if 제거하여 항상 표시 (0명이어도 표시됨) -->
+            <div class="race-participants">
                <i class="fas fa-user"></i> {{ raceParticipantCount }}
             </div>
+            
             <i class="fas fa-flag-checkered race-icon"></i>
           </router-link>
         </transition>
@@ -168,7 +170,7 @@ const matchmakingQueueCount = ref(0);
 const isQrVisible = ref(true); 
 const isRaceWidgetVisible = ref(true); // 레이스 위젯 보임 여부
 const raceTimeLeft = ref("00:00");
-const raceParticipantCount = ref(0); // [신규] 참여자 수
+const raceParticipantCount = ref(0); // 참여자 수 상태 변수
 
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
@@ -261,7 +263,7 @@ const listenToRaceTimer = () => {
   raceTimerUnsubscribe = onSnapshot(raceRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
-      // [수정] 참여자 수 업데이트 (DB에 participantCount 필드가 있어야 함)
+      // 참여자 수 필드(participantCount)를 실시간으로 가져옵니다.
       raceParticipantCount.value = data.participantCount || 0;
       
       if (data.nextRaceTime) {
@@ -587,7 +589,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 .race-icon {
   font-size: 1.2rem;
 }
-/* [신규] 참여자 수 스타일 */
+/* 참여자 수 스타일 */
 .race-participants {
   font-size: 0.9rem;
   margin-left: 5px;
