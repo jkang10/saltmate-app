@@ -154,7 +154,6 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// [신규] 이미지 Import (Webpack/Vite 처리용)
 import heliaImgSrc from '@/assets/hellia_img.png';
 
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
@@ -172,13 +171,13 @@ const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
 
-// --- [신규] NPC & Quest State ---
-const npcModel = ref(null); // NPC Three.js 객체
-const nearNpc = ref(false); // NPC 근처 여부
+// --- NPC & Quest State ---
+const npcModel = ref(null); 
+const nearNpc = ref(false); 
 const isNpcModalOpen = ref(false);
-const dailyQuest = ref(null); // 퀘스트 데이터
-const chests = reactive({}); // 보물상자 객체들 { id: mesh }
-const nearChestId = ref(null); // 근처 보물상자 ID
+const dailyQuest = ref(null); 
+const chests = reactive({}); 
+const nearChestId = ref(null); 
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -196,7 +195,6 @@ let myUserName = '';
 const currentIdle = ref('idle'); 
 const specialAction = ref(null); 
 
-// 행동 목록 및 가격 정의
 const actionList = {
   dance: { name: '댄스', price: 2000, icon: '💃' },
   backflip: { name: '백덤블링', price: 1000, icon: '🤸' },
@@ -205,32 +203,23 @@ const actionList = {
   jump: { name: '점프', price: 2000, icon: '⏫' }
 };
 
-// 구매한 행동 목록
 const purchasedActions = ref([]);
-
-// 구매 모달 상태
-const purchaseModal = reactive({
-  visible: false,
-  actionKey: null,
-  actionName: '',
-  price: 0
-});
+const purchaseModal = reactive({ visible: false, actionKey: null, actionName: '', price: 0 });
 const isPurchasing = ref(false);
 
-// 채팅 관련
+// 채팅
 const chatInput = ref('');
 const chatMessages = ref([]);
 const messageListRef = ref(null);
 const chatInputRef = ref(null);
 const MAX_CHAT_MESSAGES = 50;
 
-// Three.js 관련
-let scene, camera, renderer, clock;
-let controls; 
+// Three.js
+let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
-// Firebase 경로
+// Firebase
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
 const plazaVideoPath = 'plaza/videoState';
@@ -239,28 +228,26 @@ let playersListenerRef = null;
 let chatListenerRef = null;
 let videoListenerRef = null;
 
-// 이동 관련
+// 이동
 const moveSpeed = 1.0; 
 const keysPressed = reactive({});
 const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
-
-// --- 함수 정의 시작 ---
 
 // ----------------------------------------
 // [신규] NPC & 퀘스트 로직
 // ----------------------------------------
 
 const initNPC = async (animations) => {
-  // 1. 기존 기사 모델 재활용
   const npc = await loadAvatar('/avatars/fantasy_knight_junho.glb', animations);
   
-  // 2. 외형 변형 (NPC 느낌)
-  npc.scale.set(0.9, 0.9, 0.9); // 플레이어(0.7)보다 큼
-  npc.position.set(40, 0.5, 10); // 광장 특정 위치
-  npc.rotation.y = Math.PI * 1.2; // 유저를 바라보는 각도
+  // [수정] NPC 위치: 시네마 스크린 아래 중앙 (대략적인 좌표)
+  // 기존: (40, 0.5, 10)
+  // 수정: 스크린이 (37.16, 7, -7) 부근에 있으므로 그 아래에 배치
+  npc.scale.set(0.9, 0.9, 0.9);
+  npc.position.set(37.16, 0.5, -5.0); 
+  npc.rotation.y = Math.PI; // 플레이어 쪽(Z축 양의 방향)을 바라보게
 
-  // 3. 재질 틴트 (황금색)
   npc.traverse((child) => {
     if (child.isMesh) {
       if(child.material) {
@@ -271,26 +258,20 @@ const initNPC = async (animations) => {
     }
   });
 
-  // 4. 머리 위 헬리아 상품 이미지 (Billboard)
   textureLoader.load(heliaImgSrc, (texture) => {
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(1.5, 1.5, 1);
-    sprite.position.set(0, 2.8, 0); // 머리 위
-    
-    // 둥둥 떠다니는 애니메이션을 위한 참조 저장
+    sprite.position.set(0, 2.8, 0); 
     npc.userData.floatingIcon = sprite;
     npc.userData.floatOffset = 0;
-    
     npc.add(sprite);
   });
 
-  // 5. NPC 이름표
   const nameTag = createNicknameSprite("헬리아 (NPC)");
   nameTag.position.set(0, 2.0, 0);
   npc.add(nameTag);
 
-  // 6. 애니메이션 재생
   if (npc.userData.actions && npc.userData.actions['idle']) {
       npc.userData.actions['idle'].play(); 
   }
@@ -305,41 +286,29 @@ const checkDailyQuest = async () => {
     const result = await getQuestFunc();
     dailyQuest.value = result.data.quest;
 
-    // 보물찾기 퀘스트라면 상자 생성
     if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
         spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
     }
-  } catch (e) {
-    console.error("퀘스트 로딩 실패:", e);
-  }
+  } catch (e) { console.error("퀘스트 로딩 실패:", e); }
 };
 
 const spawnTreasureChests = async (allItems, foundItems) => {
-    // 찾지 못한 상자만 생성
     const itemsToSpawn = allItems.filter(id => !foundItems.includes(id));
-    
-    // 상자 위치 하드코딩 (광장 곳곳)
     const positions = [
         { x: 30, z: 5 }, { x: 45, z: 15 }, { x: 35, z: -5 }, 
         { x: 50, z: 0 }, { x: 25, z: 12 }
     ];
-
     for (let i = 0; i < itemsToSpawn.length; i++) {
         const id = itemsToSpawn[i];
-        const pos = positions[i % positions.length]; // 위치 순환
-
+        const pos = positions[i % positions.length];
         loader.load('/animations/box/treasure_chest.glb', (gltf) => {
             const chest = gltf.scene;
             chest.scale.set(0.5, 0.5, 0.5);
-            // 약간의 랜덤 오프셋
             chest.position.set(pos.x + (Math.random()*2), 0.5, pos.z + (Math.random()*2));
             chest.userData.chestId = id;
-            
-            // 반짝이는 효과 (PointLight)
             const light = new THREE.PointLight(0xffff00, 1, 3);
             light.position.set(0, 1, 0);
             chest.add(light);
-
             scene.add(chest);
             chests[id] = chest;
         });
@@ -349,29 +318,14 @@ const spawnTreasureChests = async (allItems, foundItems) => {
 const collectChest = async () => {
     if (!nearChestId.value) return;
     const chestId = nearChestId.value;
-    
-    // 1. 화면에서 즉시 제거 (반응성)
     const chestMesh = chests[chestId];
-    if (chestMesh) {
-        scene.remove(chestMesh);
-        delete chests[chestId];
-        nearChestId.value = null;
-    }
-
-    // 2. 서버 통신
+    if (chestMesh) { scene.remove(chestMesh); delete chests[chestId]; nearChestId.value = null; }
     try {
         const collectFunc = httpsCallable(functions, 'collectPlazaItem');
         const result = await collectFunc({ itemId: chestId });
-        
-        // 퀘스트 상태 업데이트
-        if (dailyQuest.value) {
-            dailyQuest.value.currentCount = result.data.newCount;
-        }
+        if (dailyQuest.value) { dailyQuest.value.currentCount = result.data.newCount; }
         showChatBubble(myAvatar, "보물상자 발견! 🎁", "#00ff00");
-    } catch (e) {
-        console.error(e);
-        alert("상자를 줍는데 실패했습니다.");
-    }
+    } catch (e) { alert("상자를 줍는데 실패했습니다."); }
 };
 
 const openNpcDialog = () => { isNpcModalOpen.value = true; };
@@ -382,13 +336,9 @@ const completeQuest = async () => {
         const completeFunc = httpsCallable(functions, 'completeNpcQuest');
         const result = await completeFunc();
         alert(`퀘스트 완료! ${result.data.reward} SaltMate를 획득했습니다.`);
-        
         if (dailyQuest.value) dailyQuest.value.rewardClaimed = true;
         closeNpcDialog();
-    } catch (e) {
-        console.error(e);
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 };
 
 // ----------------------------------------
@@ -427,12 +377,18 @@ const triggerAction = (actionName) => {
     action.clampWhenFinished = true;
     action.play();
     specialAction.value = actionName;
+    
+    // [핵심 수정] 행동 실행 시 DB에 내 상태 업데이트 (행동 동기화)
+    updateMyStateInRTDB(actionName); 
+
     const onFinished = (e) => {
         if (e.action === action) {
             mixer.removeEventListener('finished', onFinished);
             specialAction.value = null; 
             const idleAction = actions[currentIdle.value];
             if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
+            // 행동 종료 후 idle 상태로 업데이트
+            updateMyStateInRTDB(null); 
         }
     };
     mixer.addEventListener('finished', onFinished);
@@ -667,9 +623,22 @@ const joinPlaza = async (uid) => {
   try { await set(playerRef, playerData); await onDisconnect(playerRef).remove(); isReady.value = true; } catch (e) { console.error("입장 실패:", e); }
 };
 
-const updateMyStateInRTDB = () => {
+// [핵심 수정] action(행동) 정보도 함께 업데이트
+const updateMyStateInRTDB = (actionName = null) => {
   if (!playerRef || !myAvatar || !isReady.value) return;
-  update(playerRef, { position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, rotationY: myAvatar.rotation.y, timestamp: serverTimestamp() }).catch(() => {});
+  
+  const payload = { 
+      position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, 
+      rotationY: myAvatar.rotation.y, 
+      timestamp: serverTimestamp() 
+  };
+  
+  // 행동이 있으면 함께 전송
+  if (actionName) {
+      payload.action = actionName;
+  }
+
+  update(playerRef, payload).catch(() => {});
 };
 
 let lastUpdateTime = 0;
@@ -697,8 +666,11 @@ const listenToChat = () => {
   });
 };
 
+// [핵심 수정] 다른 플레이어의 행동(action) 감지 및 재생
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
+  
+  // 1. 플레이어 입장
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
     const val = snapshot.val();
@@ -706,26 +678,66 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
+    
     otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
+    
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') { const nick = createNicknameSprite(val.userName); nick.position.set(0, 1.8, 0); model.add(nick); }
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
       model.position.set(currentTarget.x, safeY, currentTarget.z); model.rotation.y = otherPlayers[snapshot.key].targetRotationY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
-      otherPlayers[snapshot.key].mesh = model; otherPlayers[snapshot.key].mixer = model.userData.mixer; otherPlayers[snapshot.key].actions = model.userData.actions;
+      
+      otherPlayers[snapshot.key].mesh = model; 
+      otherPlayers[snapshot.key].mixer = model.userData.mixer; 
+      otherPlayers[snapshot.key].actions = model.userData.actions;
+      
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
+
+  // 2. 플레이어 상태 변경 (이동 및 행동)
   onChildChanged(playersListenerRef, (snap) => {
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
     const val = snap.val();
-    if (!val.position) return;
-    otherPlayers[snap.key].targetPosition.set(val.position.x, val.position.y, val.position.z);
-    otherPlayers[snap.key].targetRotationY = val.rotationY || 0;
+    const player = otherPlayers[snap.key];
+
+    // 이동 동기화
+    if (val.position) {
+        player.targetPosition.set(val.position.x, val.position.y, val.position.z);
+        player.targetRotationY = val.rotationY || 0;
+    }
+
+    // [핵심] 행동(Action) 동기화
+    if (val.action) {
+        const actionName = val.action;
+        const mixer = player.mixer;
+        const actions = player.actions;
+        const action = actions[actionName];
+
+        if (mixer && action) {
+            mixer.stopAllAction();
+            action.reset();
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.play();
+
+            const onFinished = (e) => {
+                if (e.action === action) {
+                    mixer.removeEventListener('finished', onFinished);
+                    // 행동 끝나면 다시 idle로 복귀
+                    const idleAction = actions['idle']; 
+                    if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
+                }
+            };
+            mixer.addEventListener('finished', onFinished);
+        }
+    }
   });
+
+  // 3. 플레이어 퇴장
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -736,8 +748,16 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
-    myAvatar.position.y += 0.5; myAvatar.updateMatrixWorld(true); updateMyStateInRTDB(); 
-    setTimeout(() => { myAvatar.position.y = startY; myAvatar.updateMatrixWorld(true); updateMyStateInRTDB(); }, 200);
+    // 아주 미세하게 움직여서 강제 업데이트 트리거
+    myAvatar.position.y += 0.01; 
+    myAvatar.updateMatrixWorld(true); 
+    updateMyStateInRTDB(); 
+    
+    setTimeout(() => { 
+        myAvatar.position.y = startY; 
+        myAvatar.updateMatrixWorld(true); 
+        updateMyStateInRTDB(); 
+    }, 100);
 };
 
 const initThree = () => {
@@ -964,6 +984,8 @@ onMounted(() => {
         myAvatar.add(nick);
       }
       scene.add(myAvatar);
+      
+      // [핵심] 아바타 즉시 보이게 설정
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
@@ -983,7 +1005,7 @@ onMounted(() => {
       await joinPlaza(currentUid);
       if (isReady.value) {
         updateMyStateInRTDB(); 
-        forceInitialMove(); 
+        forceInitialMove(); // [핵심] 초기 위치 강제 동기화
         listenToOtherPlayers(currentUid, preloadedAnimations); 
         listenToVideoState(); 
         listenToChat(); 
