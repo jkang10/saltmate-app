@@ -71,7 +71,7 @@
       <router-view />
     </main>
 
-    <!-- ▼▼▼ [수정] 우측 하단 플로팅 컨트롤러 (레이스 위젯 토글 추가) ▼▼▼ -->
+    <!-- 우측 하단 플로팅 컨트롤러 -->
     <div class="floating-controls">
       
       <!-- 1. 가족 레이스 카운트다운 위젯 그룹 -->
@@ -80,6 +80,10 @@
           <router-link v-if="isRaceWidgetVisible" to="/salt-racing?mode=family" class="race-widget">
             <div class="race-badge">NEXT</div>
             <div class="race-timer">{{ raceTimeLeft }}</div>
+            <!-- [신규] 참여자 수 표시 -->
+            <div class="race-participants" v-if="raceParticipantCount > 0">
+               <i class="fas fa-user"></i> {{ raceParticipantCount }}
+            </div>
             <i class="fas fa-flag-checkered race-icon"></i>
           </router-link>
         </transition>
@@ -106,7 +110,6 @@
       </div>
 
     </div>
-    <!-- ▲▲▲ -->
 
     <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
       <div class="modal-content">
@@ -161,10 +164,11 @@ const market = ref({ currentPrice: 0, priceHistory: [] });
 const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
-// [신규] 상태 변수 (토글 상태 관리)
+// 상태 변수
 const isQrVisible = ref(true); 
 const isRaceWidgetVisible = ref(true); // 레이스 위젯 보임 여부
 const raceTimeLeft = ref("00:00");
+const raceParticipantCount = ref(0); // [신규] 참여자 수
 
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
@@ -257,6 +261,9 @@ const listenToRaceTimer = () => {
   raceTimerUnsubscribe = onSnapshot(raceRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
+      // [수정] 참여자 수 업데이트 (DB에 participantCount 필드가 있어야 함)
+      raceParticipantCount.value = data.participantCount || 0;
+      
       if (data.nextRaceTime) {
         startTimer(data.nextRaceTime.toDate());
       }
@@ -531,7 +538,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   background: rgba(255,255,255,0.7);
 }
 
-/* ▼▼▼ [수정] 플로팅 컨트롤러 스타일 ▼▼▼ */
+/* 플로팅 컨트롤러 스타일 */
 .floating-controls {
   position: fixed;
   bottom: 20px;
@@ -579,6 +586,16 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 }
 .race-icon {
   font-size: 1.2rem;
+}
+/* [신규] 참여자 수 스타일 */
+.race-participants {
+  font-size: 0.9rem;
+  margin-left: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffeaa7; /* 부드러운 골드 색상 */
+  font-weight: 600;
 }
 
 /* 레이스 토글 버튼 */
