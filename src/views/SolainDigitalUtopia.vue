@@ -155,7 +155,7 @@ import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 // [신규] 이미지 Import (Webpack/Vite 처리용)
-import heliaImgSrc from '@/assets/helia_img.png';
+import heliaImgSrc from '@/assets/hellia_img.png';
 
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
