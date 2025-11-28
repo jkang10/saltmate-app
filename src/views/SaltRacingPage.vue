@@ -1,6 +1,5 @@
 <template>
   <div class="racing-page">
-    <!-- 상단 스탯 -->
     <div class="game-stats-glass">
       <div class="stat-item">
         <span>보유 포인트</span>
@@ -12,14 +11,12 @@
       </div>
     </div>
 
-    <!-- 게임 컨테이너 -->
     <div class="game-container card glassmorphism">
       <header class="game-header">
         <h2><i class="fas fa-flag-checkered"></i> 솔트 레이싱</h2>
         <p class="sub-text">가장 컨디션이 좋아 보이는 선수에게 응원을 보내세요!</p>
       </header>
 
-      <!-- [핵심] 레이싱 트랙 영역 (스크롤 래퍼 ref 추가) -->
       <div class="track-scroll-wrapper" ref="trackScrollWrapper">
         <div class="track-container">
           <div class="finish-line">
@@ -27,7 +24,6 @@
             <div class="finish-line-bar"></div>
           </div>
 
-          <!-- 5개의 레인 -->
           <div v-for="(runner, index) in runners" :key="index" class="lane">
             <div class="lane-number">{{ index + 1 }}</div>
             <div class="runner-track">
@@ -36,19 +32,15 @@
                 :style="{ left: runner.progress + '%' }"
                 :class="{ 'is-winner': gameStatus === 'finished' && resultData?.winnerIndex === index }"
               >
-                <!-- ▼▼▼ [수정 1] 원형 배경 제거 및 이미지 스타일 변경 ▼▼▼ -->
                 <div class="runner-body">
                   <div class="runner-img-box" :class="{ 'selected': selectedRunner === index }">
                     <img :src="runnerImages[index]" class="runner-img" alt="runner" />
-                    <!-- 선택된 말 표시 (화살표 등) -->
                     <div v-if="selectedRunner === index" class="selected-marker">
                         <i class="fas fa-caret-down"></i>
                     </div>
                   </div>
                   <span class="runner-label">{{ index + 1 }}번</span>
                 </div>
-                <!-- ▲▲▲ -->
-                
                 <div v-if="runner.rank" class="rank-badge">
                   {{ runner.rank }}등
                 </div>
@@ -58,13 +50,11 @@
         </div>
       </div>
 
-      <!-- 경기 진행 중 메시지 -->
       <div v-if="gameStatus === 'racing'" class="racing-message-box">
         <h3><i class="fas fa-running"></i> 경기 진행 중...</h3>
         <p>달려라! {{ selectedRunner + 1 }}번 선수!</p>
       </div>
 
-      <!-- 베팅 컨트롤 패널 (대기 상태일 때만 표시) -->
       <div class="control-panel" v-if="gameStatus === 'idle'">
         
         <div class="panel-section">
@@ -110,7 +100,6 @@
       </div>
     </div>
 
-    <!-- 결과 모달 -->
     <div v-if="gameStatus === 'finished' && resultData" class="modal-overlay">
       <div class="modal-content">
         <div class="result-header">
@@ -297,7 +286,7 @@ const startRaceAnimation = (winnerIndex) => {
       if (runner.progress > maxProgress) maxProgress = runner.progress;
     });
 
-    // ▼▼▼ [수정 2] 모바일에서 1등을 따라가도록 자동 스크롤 ▼▼▼
+    // ▼▼▼ [수정 2] 모바일에서 1등을 따라가도록 자동 스크롤 (PC에서는 CSS로 스크롤 제거됨) ▼▼▼
     if (trackScrollWrapper.value) {
         const wrapper = trackScrollWrapper.value;
         const scrollWidth = wrapper.scrollWidth;
@@ -359,7 +348,7 @@ const resetGame = () => {
   display: flex;
   justify-content: space-around;
   width: 100%;
-  max-width: 500px;
+  max-width: 700px; /* [수정] 게임 컨테이너와 동일한 너비로 변경 (기존 500px -> 700px) */
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   padding: 10px 15px;
@@ -375,7 +364,7 @@ const resetGame = () => {
 /* 게임 컨테이너 */
 .game-container {
   width: 100%;
-  max-width: 700px; /* [수정] PC에서 넉넉하게 보이도록 너비 증가 */
+  max-width: 700px; /* [수정] PC에서 넉넉하게 보이도록 너비 유지 */
   background: rgba(30, 30, 30, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 15px;
@@ -401,13 +390,13 @@ const resetGame = () => {
   flex-shrink: 0;
 }
 
-/* ▼▼▼ [수정 3] PC에서는 스크롤 없이 100% 너비 사용 ▼▼▼ */
+/* ▼▼▼ [수정 3] PC에서는 스크롤 없이 100% 너비 사용 및 스크롤바 제거 ▼▼▼ */
 @media (min-width: 769px) {
     .track-scroll-wrapper {
         overflow-x: hidden; /* PC 스크롤 제거 */
     }
     .track-container {
-        min-width: 100% !important; /* PC는 컨테이너에 맞춤 */
+        min-width: auto !important; /* [수정] 800px 강제 너비 해제 (컨테이너에 맞춤) */
         width: 100%;
     }
 }
