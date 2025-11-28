@@ -186,7 +186,7 @@ const isNpcModalOpen = ref(false);
 const dailyQuest = ref(null); 
 const chests = reactive({}); 
 const nearChestId = ref(null); 
-let questPollingInterval = null; // 퀘스트 상태 주기적 확인용
+let questPollingInterval = null;
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -195,7 +195,6 @@ const agoraToken = null;
 const agoraClient = ref(null);
 const localAudioTrack = ref(null);
 const isMicOn = ref(false);
-// 원격 사용자 오디오 트랙 저장소 (재생 재시도용)
 const remoteAudioTracks = reactive({});
 
 // 아바타 관련
@@ -273,7 +272,7 @@ const initNPC = async (animations) => {
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기 0.8로 축소 (너무 크다는 피드백 반영)
+  // [수정] 크기 0.8로 축소
   npc.scale.set(0.8, 0.8, 0.8);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = Math.PI; 
@@ -292,7 +291,6 @@ const initNPC = async (animations) => {
   nameTag.position.set(0, 1.9, 0);
   npc.add(nameTag);
 
-  // [수정] 기본 idle 애니메이션 매핑 및 재생
   if (npc.userData.actions && npc.userData.actions['idle']) {
       npc.userData.actions['idle'].play(); 
   }
@@ -301,12 +299,11 @@ const initNPC = async (animations) => {
   npcModel.value = npc;
 };
 
-// [수정] 퀘스트 확인 함수 (조용히 데이터만 갱신)
 const checkDailyQuest = async () => {
   try {
     const getQuestFunc = httpsCallable(functions, 'getNpcQuest');
     const result = await getQuestFunc();
-    dailyQuest.value = result.data.quest; // 상태 업데이트 (UI 반영됨)
+    dailyQuest.value = result.data.quest;
 
     if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
         spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
@@ -322,7 +319,6 @@ const spawnTreasureChests = async (allItems, foundItems) => {
     ];
     for (let i = 0; i < itemsToSpawn.length; i++) {
         const id = itemsToSpawn[i];
-        // 이미 생성된 상자라면 스킵
         if (chests[id]) continue;
         
         const pos = positions[i % positions.length];
@@ -355,7 +351,6 @@ const collectChest = async () => {
 };
 
 const openNpcDialog = async () => { 
-    // 대화 열 때 최신 상태 한 번 더 확인
     await checkDailyQuest();
     isNpcModalOpen.value = true; 
 };
@@ -427,12 +422,16 @@ const triggerAction = (actionName) => {
   }
 };
 
-// [신규] 화면 전체 클릭 핸들러 (오디오 컨텍스트 재개 및 Agora 재생 시도)
+// [수정] 화면 전체 클릭 핸들러 (오디오 컨텍스트 재개 및 Agora 재생 시도)
 const handleGlobalClick = () => {
     resumeAudioContext();
-    // Agora 오디오 트랙들 강제 재생 시도
     Object.values(remoteAudioTracks).forEach(track => {
-        try { track.play(); } catch(e) {}
+        // [수정] try-catch 블록 내부에 주석 추가하여 no-empty 에러 방지
+        try { 
+            track.play(); 
+        } catch(e) {
+            // console.warn("오디오 재생 실패 (사용자 제스처 필요):", e);
+        }
     });
 };
 
@@ -449,7 +448,6 @@ const initAgora = async (uid) => {
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     
-    // [수정] 자동 재생 실패 시 핸들러
     AgoraRTC.onAutoplayFailed = () => { 
         console.warn("Agora Autoplay Failed.");
         audioBlocked.value = true; 
@@ -468,7 +466,7 @@ const initAgora = async (uid) => {
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
-        remoteAudioTracks[user.uid] = user.audioTrack; // 트랙 저장
+        remoteAudioTracks[user.uid] = user.audioTrack; 
         try { 
             user.audioTrack.play(); 
             user.audioTrack.setVolume(100); 
@@ -533,6 +531,7 @@ const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStat
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
 const listenToVideoState = () => { videoListenerRef = dbRef(rtdb, plazaVideoPath); onValue(videoListenerRef, (snapshot) => { const data = snapshot.val(); if (!data || !cinemaVideoRef.value) return; isVideoPlaying.value = data.isPlaying; const videoEl = cinemaVideoRef.value; if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; } applyVideoState(videoEl, data); }); };
 const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency = (Date.now() - data.timestamp) / 1000; const targetTime = data.videoTime + latency; if (Math.abs(videoEl.currentTime - targetTime) > 1) videoEl.currentTime = targetTime; videoEl.play().catch(() => {}); } else { videoEl.pause(); if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) videoEl.currentTime = data.videoTime; } };
+const handleUserInteraction = () => { const video = cinemaVideoRef.value; if (video && video.paused) { video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); } };
 
 const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
 const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
