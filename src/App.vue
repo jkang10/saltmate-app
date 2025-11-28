@@ -71,9 +71,33 @@
       <router-view />
     </main>
 
-    <button v-if="userRole === 'centerManager' && !isGamePage" @click="generateQR" class="fab-qr-button">
-      <i class="fas fa-qrcode"></i>
-    </button>
+    <!-- ▼▼▼ [신규] 우측 하단 플로팅 컨트롤러 ▼▼▼ -->
+    <div class="floating-controls">
+      
+      <!-- 1. 가족 레이스 카운트다운 위젯 -->
+      <router-link to="/salt-racing?mode=family" class="race-widget" v-if="!isGamePage">
+        <div class="race-badge">NEXT</div>
+        <div class="race-timer">{{ raceTimeLeft }}</div>
+        <i class="fas fa-flag-checkered race-icon"></i>
+      </router-link>
+
+      <!-- 2. QR 코드 토글 버튼 -->
+      <div v-if="userRole === 'centerManager' && !isGamePage" class="qr-control-group">
+        <!-- QR 버튼 (슬라이드 애니메이션 적용) -->
+        <transition name="slide-fade">
+          <button v-if="isQrVisible" @click="generateQR" class="fab-qr-button">
+            <i class="fas fa-qrcode"></i>
+          </button>
+        </transition>
+        
+        <!-- 숨기기/보이기 토글 -->
+        <button class="qr-toggle-btn" @click="isQrVisible = !isQrVisible">
+          <i :class="isQrVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+        </button>
+      </div>
+
+    </div>
+    <!-- ▲▲▲ -->
 
     <div v-if="qrModal.visible" class="modal-overlay" @click.self="closeQrModal">
       <div class="modal-content">
@@ -128,13 +152,17 @@ const market = ref({ currentPrice: 0, priceHistory: [] });
 const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
+// [신규] 상태 변수
+const isQrVisible = ref(true); // QR 버튼 보임 여부
+const raceTimeLeft = ref("00:00");
+
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
 let presenceRef = null;
 let matchmakingUnsubscribe = null;
+let raceTimerUnsubscribe = null;
+let timerInterval = null;
 
-// [핵심 수정] 현재 페이지가 게임(유토피아/광장) 페이지인지 확인하는 로직 강화
-// 라우터 메타데이터 또는 URL 경로(/plaza)를 직접 확인합니다.
 const isGamePage = computed(() => {
   return route.meta.isGamePage === true || route.path === '/plaza';
 });
@@ -213,6 +241,36 @@ const listenToMatchmakingQueue = () => {
     }
   });
 };
+
+// [신규] 가족 레이스 타이머 리스너
+const listenToRaceTimer = () => {
+  const raceRef = doc(db, "system", "saltRacingFamily");
+  raceTimerUnsubscribe = onSnapshot(raceRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data.nextRaceTime) {
+        startTimer(data.nextRaceTime.toDate());
+      }
+    }
+  });
+};
+
+const startTimer = (targetDate) => {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const now = new Date();
+    const diff = targetDate - now;
+    
+    if (diff <= 0) {
+      raceTimeLeft.value = "LIVE";
+    } else {
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      raceTimeLeft.value = `${m}:${s < 10 ? '0'+s : s}`;
+    }
+  }, 1000);
+};
+
 const checkAuthState = () => {
   authUnsubscribe = onAuthStateChanged(auth, async (user) => {
     managePresence(user);
@@ -220,6 +278,7 @@ const checkAuthState = () => {
       isLoggedIn.value = true;
       listenToSaltPrice(); 
       listenToMatchmakingQueue();
+      listenToRaceTimer(); // [신규] 리스너 시작
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -274,6 +333,8 @@ onUnmounted(() => {
   if (authUnsubscribe) authUnsubscribe();
   if (saltPriceUnsubscribe) saltPriceUnsubscribe();
   if (matchmakingUnsubscribe) matchmakingUnsubscribe();
+  if (raceTimerUnsubscribe) raceTimerUnsubscribe();
+  if (timerInterval) clearInterval(timerInterval);
 });
 watch(() => router.currentRoute.value, () => {
   isProfileMenuOpen.value = false;
@@ -461,13 +522,66 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   background: rgba(255,255,255,0.7);
 }
 
-/* QR 버튼 */
-.fab-qr-button {
+/* ▼▼▼ [신규] 플로팅 컨트롤러 스타일 ▼▼▼ */
+.floating-controls {
   position: fixed;
   bottom: 20px;
-  right: 20px;
-  width: 56px;
-  height: 56px;
+  right: 0; /* 화면 오른쪽 끝에 붙음 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* 오른쪽 정렬 */
+  gap: 15px;
+  z-index: 999;
+  padding-right: 15px; /* 기본 여백 */
+}
+
+/* 1. 레이스 위젯 */
+.race-widget {
+  background: linear-gradient(135deg, #ff512f, #dd2476);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 25px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
+  font-weight: bold;
+  animation: float 3s ease-in-out infinite;
+  margin-right: 5px; /* QR 버튼과 라인 맞춤 */
+}
+.race-badge {
+  font-size: 0.7rem;
+  background: rgba(0,0,0,0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.race-timer {
+  font-size: 1.1rem;
+  font-family: monospace;
+}
+.race-icon {
+  font-size: 1.2rem;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* 2. QR 버튼 그룹 */
+.qr-control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+/* QR 버튼 (기존 스타일 덮어쓰기) */
+.fab-qr-button {
+  position: static; /* fixed 제거 */
+  width: 50px;
+  height: 50px;
   border-radius: 50%; 
   background-color: #2c3e50;
   color: white;
@@ -478,10 +592,33 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   align-items: center;
   font-size: 1.5rem;
   cursor: pointer;
-  z-index: 999;
-  transition: transform 0.2s;
 }
-.fab-qr-button:active { transform: scale(0.95); }
+
+/* 토글 버튼 (작은 화살표) */
+.qr-toggle-btn {
+  width: 24px;
+  height: 50px;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  margin-right: -15px; /* 화면 끝에 딱 붙이기 위해 */
+}
+
+/* 슬라이드 애니메이션 */
+.slide-fade-enter-active, .slide-fade-leave-active {
+  transition: all 0.3s ease;
+}
+.slide-fade-enter-from, .slide-fade-leave-to {
+  transform: translateX(20px);
+  opacity: 0;
+}
 
 /* 모바일 반응형 (768px 이하) */
 @media (max-width: 768px) {
@@ -513,14 +650,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
     padding: 2px 8px;
   }
   .ticker-content { font-size: 0.85rem; }
-
-  .fab-qr-button {
-    width: 45px;
-    height: 45px;
-    font-size: 1.2rem;
-    bottom: 20px;
-    right: 15px;
-  }
   
   .mobile-nav-links { display: block; }
 }
