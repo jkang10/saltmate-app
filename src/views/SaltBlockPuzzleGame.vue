@@ -131,7 +131,7 @@ const router = useRouter();
 
 // --- 상수 ---
 const BOARD_SIZE = 10;
-const TOUCH_OFFSET_Y = 80; // 손가락 위에 블록 표시 (시야 확보)
+const TOUCH_OFFSET_Y = 80; 
 const COMBO_SCORES = { 1: 100, 2: 300, 3: 600, 4: 1000, 5: 2000, 6: 5000 };
 
 // --- 블록 정의 ---
@@ -428,7 +428,6 @@ const getBlockGridStyle = (block) => {
   return {
     gridTemplateRows: `repeat(${rows}, 1fr)`,
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
-    // 셀 크기를 고정하는 대신, 모바일에서는 컨테이너에 맞게 자동 조정되도록 유연하게
     width: `${cols * 22}px`, 
     gap: '2px'
   };
@@ -447,33 +446,37 @@ const floatingBlockStyle = computed(() => {
 </script>
 
 <style scoped>
-/* 페이지 기본 설정: 100dvh로 모바일 브라우저 높이 대응, 스크롤 방지 */
+/* 페이지 기본 설정: 100dvh로 화면 꽉 채움, 스크롤 방지 */
 .block-puzzle-page {
   display: flex;
   flex-direction: column;
   height: 100dvh; /* Dynamic Viewport Height */
   width: 100vw;
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  /* [수정] 상단 여백을 최소화하여 콘텐츠를 위로 끌어올림 */
+  /* [수정] 상단 패딩 최소화 */
   padding-top: env(safe-area-inset-top, 5px); 
   padding-bottom: env(safe-area-inset-bottom, 5px);
   box-sizing: border-box;
   overflow: hidden; /* 전체 스크롤 방지 */
-  touch-action: none; /* iOS 탭 바운스 방지 */
+  touch-action: none;
   font-family: 'Noto Sans KR', sans-serif;
   color: white;
-  justify-content: flex-start; /* [수정] 중앙 정렬 대신 위에서부터 채움 */
+  
+  /* [핵심] 콘텐츠를 수직 중앙 정렬하되, 위아래 여백을 자동으로 배분 */
+  justify-content: center;
+  align-items: center;
+  gap: 15px; /* 요소 사이 간격 */
 }
 
-/* 1. 상단 스탯 영역 (높이 고정) */
+/* 1. 상단 스탯 영역 */
 .game-header-area {
   flex-shrink: 0; 
   display: flex;
   justify-content: space-around;
   width: 95%;
   max-width: 450px;
-  /* [수정] 상단 여백 제거, 하단 여백 축소 */
-  margin: 5px auto 5px auto; 
+  /* 마진 제거 (gap으로 제어) */
+  margin: 0; 
   gap: 8px;
 }
 
@@ -501,21 +504,20 @@ const floatingBlockStyle = computed(() => {
 .cyan { color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5); }
 .white { color: #fff; }
 
-/* 2. 게임 보드 컨테이너 (위로 붙이기) */
+/* 2. 게임 보드 컨테이너 */
 .game-board-container {
-  flex-grow: 1; /* 남은 공간을 차지하되 */
+  /* [핵심] flex-grow를 제거하여 하단 블록을 밀어내지 않게 함 */
+  flex: 0 1 auto; 
+  
   display: flex;
   flex-direction: column;
-  /* [수정] 수직 중앙 정렬(center) 대신 위쪽 정렬(flex-start)로 변경하여 판을 위로 올림 */
-  justify-content: flex-start; 
+  justify-content: center;
   align-items: center;
   width: 100%;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* 그림자 등 잘림 방지 */
   padding: 0 10px;
   box-sizing: border-box;
-  /* [수정] 위쪽 여백을 조금 주어 헤더와 분리 */
-  padding-top: 10px; 
 }
 
 /* 보드 비율 유지 박스 */
@@ -524,9 +526,8 @@ const floatingBlockStyle = computed(() => {
   max-width: 450px;
   aspect-ratio: 1 / 1; 
   
-  /* [핵심 수정] 높이가 너무 커져서 하단 블록을 가리지 않도록 최대 높이 제한 설정 */
-  /* 화면 전체 높이의 55%를 넘지 않도록 하여 하단 공간 강제 확보 */
-  max-height: 55vh; 
+  /* [핵심] 높이를 50vh로 제한하여 PC/모바일 모두 하단 공간 확보 */
+  max-height: 50vh; 
   
   background: rgba(0, 0, 0, 0.3);
   border-radius: 12px;
@@ -593,18 +594,20 @@ const floatingBlockStyle = computed(() => {
   100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 3. 하단 블록 스포너 (하단 공간 확보) */
+/* 3. 하단 블록 스포너 (위로 올림) */
 .block-spawner-area {
   flex-shrink: 0;
-  height: 120px; /* 블록 들어갈 공간 고정 */
+  /* [수정] 높이 축소 (120px -> 100px) */
+  height: 100px;
   width: 100%;
+  max-width: 450px; /* 보드와 너비 맞춤 */
   display: flex;
   justify-content: center;
   align-items: center;
-  background: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  /* [수정] 아이폰 하단바(Safe Area)만큼 패딩 추가 */
-  padding-bottom: env(safe-area-inset-bottom, 20px); 
+  /* [수정] 배경/테두리 제거하여 보드와 일체감 형성 */
+  background: transparent;
+  border: none;
+  padding-bottom: 0;
 }
 
 .block-spawner {
@@ -612,8 +615,10 @@ const floatingBlockStyle = computed(() => {
   justify-content: space-around;
   align-items: center;
   width: 100%;
-  max-width: 450px;
   height: 100%;
+  /* [수정] 살짝 어두운 배경 추가로 영역 구분 */
+  background: rgba(0,0,0,0.2);
+  border-radius: 15px;
 }
 
 .spawn-slot {
