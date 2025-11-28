@@ -178,7 +178,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
+// [수정] unused import 제거 (computed, watch 삭제)
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
@@ -273,7 +274,7 @@ const selectMode = (mode) => {
 
 // --- 가족 레이스 로직 ---
 const startFamilyListeners = () => {
-  const user = auth.currentUser;
+  // [수정] unused variable 'user' 제거
   const raceRef = doc(db, 'system', 'saltRacingFamily');
   
   familyUnsubscribe = onSnapshot(raceRef, (docSnap) => {
