@@ -26,6 +26,53 @@
 
     <div id="joystick-zone" class="joystick-zone"></div>
 
+    <div v-if="nearNpc && !isNpcModalOpen" class="interaction-prompt fade-in">
+      <button class="interact-btn" @click="openNpcDialog">
+        <i class="fas fa-comment-dots"></i> 헬리아와 대화하기 (F)
+      </button>
+    </div>
+
+    <div v-if="nearChestId" class="interaction-prompt fade-in">
+      <button class="interact-btn chest-btn" @click="collectChest">
+        <i class="fas fa-hand-sparkles"></i> 줍기 (F)
+      </button>
+    </div>
+
+    <div v-if="isNpcModalOpen" class="npc-dialog-overlay">
+      <div class="npc-dialog-box">
+        <div class="npc-portrait">
+          <img :src="heliaImgSrc" alt="Helia">
+        </div>
+        <div class="npc-content">
+          <h3>헬리아 (Helia)</h3>
+          <template v-if="dailyQuest">
+            <p class="quest-desc">{{ dailyQuest.desc }}</p>
+            <div class="quest-progress-bar">
+              <div class="fill" :style="{ width: Math.min(100, (dailyQuest.currentCount / dailyQuest.target) * 100) + '%' }"></div>
+              <span>{{ dailyQuest.currentCount }} / {{ dailyQuest.target }}</span>
+            </div>
+            
+            <div class="dialog-actions">
+              <button v-if="!dailyQuest.rewardClaimed && dailyQuest.currentCount >= dailyQuest.target" 
+                      class="btn-complete" @click="completeQuest">
+                보상 받기 (+{{ dailyQuest.reward }} P)
+              </button>
+              <button v-else-if="dailyQuest.rewardClaimed" class="btn-disabled" disabled>
+                오늘의 의뢰 완료!
+              </button>
+              <button v-else class="btn-confirm" @click="closeNpcDialog">
+                다녀오겠습니다!
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <p>잠시만 기다려주세요, 오늘의 일거리를 찾고 있어요...</p>
+          </template>
+        </div>
+        <button class="close-dialog" @click="closeNpcDialog">&times;</button>
+      </div>
+    </div>
+
     <div class="chat-ui">
       <div class="action-bar">
         <div v-for="(action, key) in actionList" :key="key" class="action-btn-wrapper">
@@ -107,6 +154,9 @@ import {
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
 
+// [신규] 이미지 Import (Webpack/Vite 처리용)
+import heliaImgSrc from '@/assets/helia_img.png';
+
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
@@ -121,6 +171,14 @@ const isMuted = ref(true);
 const rewardClaimedLocal = ref(false);
 const audioBlocked = ref(false);
 let authUnsubscribe = null; 
+
+// --- [신규] NPC & Quest State ---
+const npcModel = ref(null); // NPC Three.js 객체
+const nearNpc = ref(false); // NPC 근처 여부
+const isNpcModalOpen = ref(false);
+const dailyQuest = ref(null); // 퀘스트 데이터
+const chests = reactive({}); // 보물상자 객체들 { id: mesh }
+const nearChestId = ref(null); // 근처 보물상자 ID
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -170,6 +228,7 @@ const MAX_CHAT_MESSAGES = 50;
 let scene, camera, renderer, clock;
 let controls; 
 const loader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
 
 // Firebase 경로
 const plazaPlayersPath = 'plazaPlayers';
@@ -188,35 +247,161 @@ let joystickManager = null;
 
 // --- 함수 정의 시작 ---
 
-// 구매 여부 확인
-const hasPurchased = (actionKey) => {
-  return purchasedActions.value.includes(actionKey);
+// ----------------------------------------
+// [신규] NPC & 퀘스트 로직
+// ----------------------------------------
+
+const initNPC = async (animations) => {
+  // 1. 기존 기사 모델 재활용
+  const npc = await loadAvatar('/avatars/fantasy_knight_junho.glb', animations);
+  
+  // 2. 외형 변형 (NPC 느낌)
+  npc.scale.set(0.9, 0.9, 0.9); // 플레이어(0.7)보다 큼
+  npc.position.set(40, 0.5, 10); // 광장 특정 위치
+  npc.rotation.y = Math.PI * 1.2; // 유저를 바라보는 각도
+
+  // 3. 재질 틴트 (황금색)
+  npc.traverse((child) => {
+    if (child.isMesh) {
+      if(child.material) {
+          child.material = child.material.clone();
+          child.material.color.setHex(0xFFD700); 
+          child.material.emissive = new THREE.Color(0x332200);
+      }
+    }
+  });
+
+  // 4. 머리 위 헬리아 상품 이미지 (Billboard)
+  textureLoader.load(heliaImgSrc, (texture) => {
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(1.5, 1.5, 1);
+    sprite.position.set(0, 2.8, 0); // 머리 위
+    
+    // 둥둥 떠다니는 애니메이션을 위한 참조 저장
+    npc.userData.floatingIcon = sprite;
+    npc.userData.floatOffset = 0;
+    
+    npc.add(sprite);
+  });
+
+  // 5. NPC 이름표
+  const nameTag = createNicknameSprite("헬리아 (NPC)");
+  nameTag.position.set(0, 2.0, 0);
+  npc.add(nameTag);
+
+  // 6. 애니메이션 재생
+  if (npc.userData.actions && npc.userData.actions['idle']) {
+      npc.userData.actions['idle'].play(); 
+  }
+
+  scene.add(npc);
+  npcModel.value = npc;
 };
 
-// 행동 아이콘 클릭 핸들러
-const handleActionClick = (actionKey) => {
-  if (hasPurchased(actionKey)) {
-    triggerAction(actionKey);
-  } else {
-    openPurchaseModal(actionKey);
+const checkDailyQuest = async () => {
+  try {
+    const getQuestFunc = httpsCallable(functions, 'getNpcQuest');
+    const result = await getQuestFunc();
+    dailyQuest.value = result.data.quest;
+
+    // 보물찾기 퀘스트라면 상자 생성
+    if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
+        spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
+    }
+  } catch (e) {
+    console.error("퀘스트 로딩 실패:", e);
   }
 };
 
-// 구매 모달 열기
+const spawnTreasureChests = async (allItems, foundItems) => {
+    // 찾지 못한 상자만 생성
+    const itemsToSpawn = allItems.filter(id => !foundItems.includes(id));
+    
+    // 상자 위치 하드코딩 (광장 곳곳)
+    const positions = [
+        { x: 30, z: 5 }, { x: 45, z: 15 }, { x: 35, z: -5 }, 
+        { x: 50, z: 0 }, { x: 25, z: 12 }
+    ];
+
+    for (let i = 0; i < itemsToSpawn.length; i++) {
+        const id = itemsToSpawn[i];
+        const pos = positions[i % positions.length]; // 위치 순환
+
+        loader.load('/animations/box/treasure_chest.glb', (gltf) => {
+            const chest = gltf.scene;
+            chest.scale.set(0.5, 0.5, 0.5);
+            // 약간의 랜덤 오프셋
+            chest.position.set(pos.x + (Math.random()*2), 0.5, pos.z + (Math.random()*2));
+            chest.userData.chestId = id;
+            
+            // 반짝이는 효과 (PointLight)
+            const light = new THREE.PointLight(0xffff00, 1, 3);
+            light.position.set(0, 1, 0);
+            chest.add(light);
+
+            scene.add(chest);
+            chests[id] = chest;
+        });
+    }
+};
+
+const collectChest = async () => {
+    if (!nearChestId.value) return;
+    const chestId = nearChestId.value;
+    
+    // 1. 화면에서 즉시 제거 (반응성)
+    const chestMesh = chests[chestId];
+    if (chestMesh) {
+        scene.remove(chestMesh);
+        delete chests[chestId];
+        nearChestId.value = null;
+    }
+
+    // 2. 서버 통신
+    try {
+        const collectFunc = httpsCallable(functions, 'collectPlazaItem');
+        const result = await collectFunc({ itemId: chestId });
+        
+        // 퀘스트 상태 업데이트
+        if (dailyQuest.value) {
+            dailyQuest.value.currentCount = result.data.newCount;
+        }
+        showChatBubble(myAvatar, "보물상자 발견! 🎁", "#00ff00");
+    } catch (e) {
+        console.error(e);
+        alert("상자를 줍는데 실패했습니다.");
+    }
+};
+
+const openNpcDialog = () => { isNpcModalOpen.value = true; };
+const closeNpcDialog = () => { isNpcModalOpen.value = false; };
+
+const completeQuest = async () => {
+    try {
+        const completeFunc = httpsCallable(functions, 'completeNpcQuest');
+        const result = await completeFunc();
+        alert(`퀘스트 완료! ${result.data.reward} SaltMate를 획득했습니다.`);
+        
+        if (dailyQuest.value) dailyQuest.value.rewardClaimed = true;
+        closeNpcDialog();
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+};
+
+// ----------------------------------------
+// [기존] 기본 로직
+// ----------------------------------------
+
+const hasPurchased = (actionKey) => purchasedActions.value.includes(actionKey);
+const handleActionClick = (actionKey) => hasPurchased(actionKey) ? triggerAction(actionKey) : openPurchaseModal(actionKey);
 const openPurchaseModal = (actionKey) => {
-  const action = actionList[actionKey];
-  purchaseModal.actionKey = actionKey;
-  purchaseModal.actionName = action.name;
-  purchaseModal.price = action.price;
-  purchaseModal.visible = true;
+  purchaseModal.actionKey = actionKey; purchaseModal.actionName = actionList[actionKey].name;
+  purchaseModal.price = actionList[actionKey].price; purchaseModal.visible = true;
 };
-
-const closePurchaseModal = () => {
-  purchaseModal.visible = false;
-  isPurchasing.value = false;
-};
-
-// 구매 확정 및 서버 통신
+const closePurchaseModal = () => { purchaseModal.visible = false; isPurchasing.value = false; };
 const confirmPurchase = async () => {
   if (isPurchasing.value) return;
   isPurchasing.value = true;
@@ -225,44 +410,29 @@ const confirmPurchase = async () => {
     const result = await purchaseFunc({ actionKey: purchaseModal.actionKey });
     if (result.data.success) {
       purchasedActions.value.push(purchaseModal.actionKey);
-      alert(`${purchaseModal.actionName} 구매 완료!`);
-      closePurchaseModal();
+      alert(`${purchaseModal.actionName} 구매 완료!`); closePurchaseModal();
     }
-  } catch (error) {
-    console.error("구매 실패:", error);
-    alert(error.message);
-    isPurchasing.value = false;
-  }
+  } catch (e) { alert(e.message); isPurchasing.value = false; }
 };
 
-// 행동 트리거 (1회 재생 후 복귀)
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
-  
   const mixer = myAvatar.userData.mixer;
   const actions = myAvatar.userData.actions;
   const action = actions[actionName];
-  
   if (action) {
     mixer.stopAllAction();
-    
     action.reset();
-    action.setLoop(THREE.LoopOnce); // 1회만 재생
+    action.setLoop(THREE.LoopOnce); 
     action.clampWhenFinished = true;
     action.play();
-    
     specialAction.value = actionName;
-
     const onFinished = (e) => {
         if (e.action === action) {
             mixer.removeEventListener('finished', onFinished);
             specialAction.value = null; 
-            
             const idleAction = actions[currentIdle.value];
-            if (idleAction) {
-                idleAction.reset().play();
-                action.crossFadeTo(idleAction, 0.3);
-            }
+            if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
         }
     };
     mixer.addEventListener('finished', onFinished);
@@ -276,100 +446,56 @@ const resumeAudioContext = () => {
     }
 };
 
-// [수정] Agora 초기화 (숫자 변환 없이 문자열 UID 사용)
 const initAgora = async (uid) => {
   if (!uid) return;
   const stringUid = uid; 
-
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-    AgoraRTC.onAutoplayFailed = () => {
-        audioBlocked.value = true;
-    };
-    
+    AgoraRTC.onAutoplayFailed = () => { audioBlocked.value = true; };
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
       volumes.forEach((volumeInfo) => {
         const { uid: speakerUid, level } = volumeInfo;
         const isTalking = level > 40; 
-        
-        if (speakerUid === 0 || speakerUid === stringUid) {
-            updateSpeakingIndicator(stringUid, isTalking); 
-        } else {
-            updateSpeakingIndicator(speakerUid, isTalking); 
-        }
+        if (speakerUid === 0 || speakerUid === stringUid) { updateSpeakingIndicator(stringUid, isTalking); } 
+        else { updateSpeakingIndicator(speakerUid, isTalking); }
       });
     });
-
     agoraClient.value.on("user-published", async (user, mediaType) => {
       await agoraClient.value.subscribe(user, mediaType);
       if (mediaType === "audio") {
-        try {
-            setTimeout(() => {
-                user.audioTrack.play();
-                user.audioTrack.setVolume(100);
-            }, 200);
-        } catch (e) {
-            audioBlocked.value = true;
-        }
+        try { setTimeout(() => { user.audioTrack.play(); user.audioTrack.setVolume(100); }, 200); } catch (e) { audioBlocked.value = true; }
       }
     });
-
     agoraClient.value.on("user-unpublished", (user, mediaType) => {
-      if (mediaType === "audio") {
-        if (user.audioTrack) user.audioTrack.stop();
-      }
+      if (mediaType === "audio") { if (user.audioTrack) user.audioTrack.stop(); }
     });
-
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
-
-  } catch (error) {
-    console.error("[Agora] Init Error:", error);
-  }
+  } catch (error) { console.error("[Agora] Init Error:", error); }
 };
 
-// [수정] 불필요한 isNumericId 파라미터 제거
 const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null;
   const currentUid = auth.currentUser?.uid;
-
-  if (targetId === currentUid) {
-      targetMesh = myAvatar;
-  } else if (otherPlayers[targetId]) {
-      targetMesh = otherPlayers[targetId].mesh;
-  }
-
+  if (targetId === currentUid) { targetMesh = myAvatar; } else if (otherPlayers[targetId]) { targetMesh = otherPlayers[targetId].mesh; }
   if (!targetMesh) return;
-  
   const existingIcon = targetMesh.getObjectByName("speakingIcon");
-
   if (isSpeaking) {
     if (!existingIcon) {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = 64; canvas.height = 64;
       context.fillStyle = '#00FF00'; 
-      context.beginPath();
-      context.arc(32, 32, 30, 0, Math.PI * 2);
-      context.fill();
-      context.font = '40px Arial';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
+      context.beginPath(); context.arc(32, 32, 30, 0, Math.PI * 2); context.fill();
+      context.font = '40px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle';
       context.fillText('🔊', 32, 32); 
       const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-      const sprite = new THREE.Sprite(material);
-      sprite.name = "speakingIcon";
-      sprite.scale.set(0.8, 0.8, 1);
-      sprite.position.set(0, 2.5, 0); 
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+      sprite.name = "speakingIcon"; sprite.scale.set(0.8, 0.8, 1); sprite.position.set(0, 2.5, 0); 
       targetMesh.add(sprite);
     }
   } else {
-    if (existingIcon) {
-      targetMesh.remove(existingIcon);
-      existingIcon.material.map.dispose();
-      existingIcon.material.dispose();
-    }
+    if (existingIcon) { targetMesh.remove(existingIcon); existingIcon.material.map.dispose(); existingIcon.material.dispose(); }
   }
 };
 
@@ -377,33 +503,18 @@ const toggleMic = async () => {
   if (!agoraClient.value) return;
   try {
     if (!localAudioTrack.value) {
-      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({
-          encoderConfig: "high_quality_stereo",
-          AEC: true, ANS: true, AGC: true
-      });
-      await agoraClient.value.publish([localAudioTrack.value]);
-      isMicOn.value = true;
+      localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality_stereo", AEC: true, ANS: true, AGC: true });
+      await agoraClient.value.publish([localAudioTrack.value]); isMicOn.value = true;
     } else {
-      if (isMicOn.value) {
-        await localAudioTrack.value.setEnabled(false); 
-        isMicOn.value = false;
-      } else {
-        await localAudioTrack.value.setEnabled(true); 
-        isMicOn.value = true;
-      }
+      if (isMicOn.value) { await localAudioTrack.value.setEnabled(false); isMicOn.value = false; } 
+      else { await localAudioTrack.value.setEnabled(true); isMicOn.value = true; }
     }
   } catch (error) { console.error("[Agora] Mic Error:", error); }
 };
 
 const leaveAgora = async () => {
-  if (localAudioTrack.value) {
-    localAudioTrack.value.close();
-    localAudioTrack.value = null;
-  }
-  if (agoraClient.value) {
-    await agoraClient.value.leave();
-    agoraClient.value = null;
-  }
+  if (localAudioTrack.value) { localAudioTrack.value.close(); localAudioTrack.value = null; }
+  if (agoraClient.value) { await agoraClient.value.leave(); agoraClient.value = null; }
 };
 
 const toggleMute = () => {
@@ -411,12 +522,7 @@ const toggleMute = () => {
   if (video) {
     isMuted.value = !isMuted.value;
     video.muted = isMuted.value;
-    if (!isMuted.value) {
-      video.volume = 1.0;
-      if (isVideoPlaying.value && video.paused) {
-         video.play().catch(e => console.log("Video Play Error:", e));
-      }
-    }
+    if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } }
   }
 };
 
@@ -428,9 +534,7 @@ const checkVideoProgress = async () => {
     try {
       const claimRewardFunc = httpsCallable(functions, 'claimVideoReward');
       const result = await claimRewardFunc();
-      if (result.data.success) {
-        showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700"); 
-      }
+      if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700"); }
     } catch (error) { console.error(error); }
   }
 };
@@ -438,22 +542,13 @@ const checkVideoProgress = async () => {
 const toggleVideoPlay = () => {
   if (!cinemaVideoRef.value) return;
   const newStatus = !isVideoPlaying.value;
-  if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e));
-  else cinemaVideoRef.value.pause();
-  update(dbRef(rtdb, plazaVideoPath), {
-    isPlaying: newStatus,
-    timestamp: Date.now(),
-    videoTime: cinemaVideoRef.value.currentTime
-  });
+  if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e)); else cinemaVideoRef.value.pause();
+  update(dbRef(rtdb, plazaVideoPath), { isPlaying: newStatus, timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime });
 };
 
 const syncVideoTime = () => {
   if (!cinemaVideoRef.value) return;
-  update(dbRef(rtdb, plazaVideoPath), {
-    timestamp: Date.now(),
-    videoTime: cinemaVideoRef.value.currentTime,
-    forceSync: true
-  });
+  update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true });
 };
 
 const listenToVideoState = () => {
@@ -463,10 +558,7 @@ const listenToVideoState = () => {
     if (!data || !cinemaVideoRef.value) return;
     isVideoPlaying.value = data.isPlaying;
     const videoEl = cinemaVideoRef.value;
-    if (videoEl.readyState === 0) {
-      videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true });
-      return;
-    }
+    if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; }
     applyVideoState(videoEl, data);
   });
 };
@@ -485,41 +577,23 @@ const applyVideoState = (videoEl, data) => {
 
 const handleUserInteraction = () => {
   const video = cinemaVideoRef.value;
-  if (video && video.paused) {
-      video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {});
-  }
+  if (video && video.paused) { video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); }
 };
 
 const loadAnimations = async () => {
   const animationPaths = {
-    walk: '/animations/F_Walk_003.glb',
-    walkBackward: '/animations/M_Walk_Backwards_001.glb',
-    strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb',
-    strafeRight: '/animations/M_Walk_Strafe_Right_002.glb',
-    idle: '/animations/M_Standing_Idle_Variations_008.glb', 
-    idle2: '/animations/M_Standing_Idle_Variations_007.glb',
-    idle3: '/animations/M_Standing_Idle_Variations_005.glb',
-    idle4: '/animations/M_Standing_Idle_Variations_006.glb',
-    dance: '/animations/F_Dances_006.glb',     
-    backflip: '/animations/F_Dances_007.glb',  
-    psy: '/animations/M_Dances_001.glb',       
-    footwork: '/animations/M_Dances_009.glb',  
-    jump: '/animations/M_Walk_Jump_003.glb'    
+    walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb',
+    strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb',
+    idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb',
+    idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb',
+    dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb',
+    psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb'    
   };
-  const loadedAnimations = { 
-      idle: null, idle2: null, idle3: null, idle4: null,
-      walk: null, walkBackward: null, strafeLeft: null, strafeRight: null,
-      dance: null, backflip: null, psy: null, footwork: null, jump: null
-  };
+  const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null };
   const keys = Object.keys(animationPaths);
-
   try {
-    const gltfResults = await Promise.all(
-      Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))
-    );
-    gltfResults.forEach((gltf, index) => {
-      if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0];
-    });
+    const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null)));
+    gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; });
     return loadedAnimations;
   } catch (error) { return loadedAnimations; }
 };
@@ -527,176 +601,86 @@ const loadAnimations = async () => {
 const loadAvatar = (url, animations) => {
   return new Promise((resolve) => {
     const model = new THREE.Group();
-    model.matrixAutoUpdate = true;
-    model.position.set(0, 0, 0);
-    model.userData.mixer = null;
-    model.userData.actions = {};
-
+    model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {};
     if (!url || !url.endsWith('.glb')) {
       const visuals = new THREE.Group();
-      const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-      const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5;
-      visuals.add(cube);
-      model.add(visuals);
-      resolve(model);
-      return;
+      const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+      const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return;
     }
-
     loader.load(url, (gltf) => {
         const visuals = gltf.scene;
-        visuals.traverse((child) => {
-          if (child.isMesh || child.isSkinnedMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.frustumCulled = false; 
-            child.matrixAutoUpdate = true;
-          }
-        });
+        visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } });
         visuals.scale.set(0.7, 0.7, 0.7);
-        const box = new THREE.Box3().setFromObject(visuals);
-        visuals.position.y = -box.min.y; 
-
-        model.add(visuals);
-        model.userData.visuals = visuals; 
-
+        const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; 
+        model.add(visuals); model.userData.visuals = visuals; 
         if (animations) {
-          const mixer = new THREE.AnimationMixer(visuals);
-          model.userData.mixer = mixer;
+          const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer;
           for (const key in animations) {
             if (animations[key]) {
-              const action = mixer.clipAction(animations[key]);
-              model.userData.actions[key] = action;
+              const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action;
               if (key === 'idle') action.play();
             }
           }
           mixer.update(0.01);
         }
         resolve(model);
-      }, undefined, (error) => {
-        console.error('아바타 로딩 실패:', error);
-        resolve(model);
-      }
+      }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }
     );
   });
 };
 
 const createNicknameSprite = (text) => {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
+  const canvas = document.createElement('canvas'); const context = canvas.getContext('2d');
   canvas.width = 300; canvas.height = 100; 
   context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
-  const r = 10; const w = 280; const h = 60;
-  context.beginPath();
-  context.roundRect(10, 20, w, h, r);
-  context.fill();
-  context.fillStyle = 'white';
-  context.font = 'bold 40px Arial';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(text, 150, 50);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(1.5, 0.5, 1); 
-  sprite.position.set(0, 0, 0);
-  return sprite;
+  context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill();
+  context.fillStyle = 'white'; context.font = 'bold 40px Arial';
+  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50);
+  const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(1.5, 0.5, 1); sprite.position.set(0, 0, 0); return sprite;
 };
 
 const createChatBubbleSprite = (text, textColor = "black") => {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  context.font = 'bold 30px Arial';
-  const textWidth = context.measureText(text).width;
-  canvas.width = textWidth + 40; canvas.height = 60;
-  context.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  context.roundRect(0, 0, canvas.width, canvas.height, 10);
-  context.fill();
-  context.stroke();
-  context.fillStyle = textColor;
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
+  const canvas = document.createElement('canvas'); const context = canvas.getContext('2d');
+  context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40;
+  canvas.width = w; canvas.height = 60;
+  context.fillStyle = 'rgba(255, 255, 255, 0.9)'; context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke();
+  context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, w / 2, 30);
   const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(canvas.width * 0.005, canvas.height * 0.005, 1);
-  sprite.position.y = 2.2;
-  return sprite;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; return sprite;
 };
 
 const showChatBubble = (avatar, message, color = "black") => {
   if (!avatar) return;
-  if (avatar.activeBubble) {
-    avatar.remove(avatar.activeBubble);
-    if(avatar.activeBubble.material.map) avatar.activeBubble.material.map.dispose();
-    avatar.activeBubble.material.dispose();
-    clearTimeout(avatar.activeBubble.timeoutId);
-  }
+  if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); }
   const newBubble = createChatBubbleSprite(message, color);
-  const timeoutId = setTimeout(() => {
-    if (avatar.activeBubble === newBubble) {
-      avatar.remove(newBubble);
-      newBubble.material.dispose();
-      avatar.activeBubble = null;
-    }
-  }, 5000);
-  newBubble.timeoutId = timeoutId;
-  avatar.activeBubble = newBubble;
-  avatar.add(newBubble);
+  const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000);
+  newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble);
 };
 
 const joinPlaza = async (uid) => {
   playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
-  const safeX = 37.16;
-  const safeY = 1.0; 
-  const safeZ = 7.85;
-  const playerData = {
-    avatarUrl: myAvatarUrl,
-    userName: myUserName,
-    position: { x: safeX, y: safeY, z: safeZ },
-    rotationY: 0,
-    timestamp: serverTimestamp(),
-  };
-  try {
-    await set(playerRef, playerData);
-    await onDisconnect(playerRef).remove();
-    isReady.value = true;
-  } catch (e) { console.error("입장 실패:", e); }
+  const safeX = 37.16; const safeY = 1.0; const safeZ = 7.85;
+  const playerData = { avatarUrl: myAvatarUrl, userName: myUserName, position: { x: safeX, y: safeY, z: safeZ }, rotationY: 0, timestamp: serverTimestamp() };
+  try { await set(playerRef, playerData); await onDisconnect(playerRef).remove(); isReady.value = true; } catch (e) { console.error("입장 실패:", e); }
 };
 
 const updateMyStateInRTDB = () => {
   if (!playerRef || !myAvatar || !isReady.value) return;
-  update(playerRef, {
-    position: {
-      x: myAvatar.position.x,
-      y: myAvatar.position.y,
-      z: myAvatar.position.z,
-    },
-    rotationY: myAvatar.rotation.y,
-    timestamp: serverTimestamp(),
-  }).catch(() => {});
+  update(playerRef, { position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, rotationY: myAvatar.rotation.y, timestamp: serverTimestamp() }).catch(() => {});
 };
 
 let lastUpdateTime = 0;
 const throttledUpdate = () => {
   const now = Date.now();
-  if (now - lastUpdateTime > 50) { 
-    updateMyStateInRTDB();
-    lastUpdateTime = now;
-  }
+  if (now - lastUpdateTime > 50) { updateMyStateInRTDB(); lastUpdateTime = now; }
 };
 
 const sendMessage = () => {
   if (!chatInput.value.trim()) return;
-  push(dbRef(rtdb, plazaChatPath), {
-    userId: auth.currentUser.uid,
-    userName: myUserName || '익명',
-    message: chatInput.value.trim(),
-    timestamp: serverTimestamp()
-  });
+  push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() });
   chatInput.value = '';
 };
 
@@ -708,11 +692,8 @@ const listenToChat = () => {
     if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); }
     nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } });
     const currentUid = auth.currentUser?.uid;
-    if (msg.userId === currentUid && myAvatar) {
-      showChatBubble(myAvatar, msg.message);
-    } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) {
-      showChatBubble(otherPlayers[msg.userId].mesh, msg.message);
-    }
+    if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } 
+    else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); }
   });
 };
 
@@ -725,29 +706,15 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     const posY = isFiniteNumber(val.position?.y) ? val.position.y : 0.5;
     const posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-    otherPlayers[snapshot.key] = {
-      mesh: null, mixer: null, actions: {},
-      targetPosition: new THREE.Vector3(posX, posY, posZ),
-      targetRotationY: rotY,
-      userName: val.userName, isMoving: false
-    };
+    otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     if (scene && otherPlayers[snapshot.key]) {
-      if (val.userName !== '익명') {
-        const nick = createNicknameSprite(val.userName);
-        nick.position.set(0, 1.8, 0); 
-        model.add(nick); 
-      }
+      if (val.userName !== '익명') { const nick = createNicknameSprite(val.userName); nick.position.set(0, 1.8, 0); model.add(nick); }
       const currentTarget = otherPlayers[snapshot.key].targetPosition;
       const safeY = Math.max(currentTarget.y, 0.5); 
-      model.position.set(currentTarget.x, safeY, currentTarget.z);
-      model.rotation.y = otherPlayers[snapshot.key].targetRotationY;
-      model.visible = true;
-      scene.add(model);
-      model.updateMatrixWorld(true); 
-      otherPlayers[snapshot.key].mesh = model;
-      otherPlayers[snapshot.key].mixer = model.userData.mixer;
-      otherPlayers[snapshot.key].actions = model.userData.actions;
+      model.position.set(currentTarget.x, safeY, currentTarget.z); model.rotation.y = otherPlayers[snapshot.key].targetRotationY; model.visible = true;
+      scene.add(model); model.updateMatrixWorld(true); 
+      otherPlayers[snapshot.key].mesh = model; otherPlayers[snapshot.key].mixer = model.userData.mixer; otherPlayers[snapshot.key].actions = model.userData.actions;
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
@@ -769,14 +736,8 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
 const forceInitialMove = () => {
     if (!myAvatar) return;
     const startY = myAvatar.position.y;
-    myAvatar.position.y += 0.5;
-    myAvatar.updateMatrixWorld(true);
-    updateMyStateInRTDB(); 
-    setTimeout(() => {
-        myAvatar.position.y = startY;
-        myAvatar.updateMatrixWorld(true);
-        updateMyStateInRTDB();
-    }, 200);
+    myAvatar.position.y += 0.5; myAvatar.updateMatrixWorld(true); updateMyStateInRTDB(); 
+    setTimeout(() => { myAvatar.position.y = startY; myAvatar.updateMatrixWorld(true); updateMyStateInRTDB(); }, 200);
 };
 
 const initThree = () => {
@@ -784,9 +745,7 @@ const initThree = () => {
       scene = new THREE.Scene();
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load('/my_background.jpg', (texture) => {
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          scene.background = texture;
-          scene.environment = texture;
+          texture.mapping = THREE.EquirectangularReflectionMapping; scene.background = texture; scene.environment = texture;
       }, undefined, () => { scene.background = new THREE.Color(0xade6ff); });
       scene.fog = new THREE.Fog(0xaaaaaa, 70, 200);
       const startX = 37.16; const startY = 5.49; const startZ = 7.85;
@@ -795,57 +754,30 @@ const initThree = () => {
       if (!canvasRef.value) return false;
       renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.1;
-      controls.minDistance = 2;
-      controls.maxDistance = 40;
-      controls.maxPolarAngle = Math.PI / 2 - 0.05;
-      controls.target.set(startX, startY + 1.0, startZ);
-      controls.update();
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-      scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      dirLight.position.set(50, 80, 40);
-      dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 2048;
-      dirLight.shadow.mapSize.height = 2048;
-      scene.add(dirLight);
-      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6);
-      scene.add(hemiLight);
+      controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 2; controls.maxDistance = 40; controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      controls.target.set(startX, startY + 1.0, startZ); controls.update();
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
+      const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
       loader.load('/models/low_poly_city_pack.glb', (gltf) => {
-          const city = gltf.scene;
-          city.name = "cityMap";
+          const city = gltf.scene; city.name = "cityMap";
           const box = new THREE.Box3().setFromObject(city);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
           const scaleFactor = 150 / Math.max(size.x, size.z);
           city.scale.set(scaleFactor, scaleFactor, scaleFactor);
           const scaledBox = new THREE.Box3().setFromObject(city);
           const groundLevelY = -scaledBox.min.y;
           city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
-          city.traverse(child => { 
-            if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } 
-          });
+          city.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
           scene.add(city);
-          if (myAvatar) { 
-             myAvatar.position.set(startX, groundLevelY + 0.5, startZ); 
-             myAvatar.updateMatrixWorld(true);
-          }
+          if (myAvatar) { myAvatar.position.set(startX, groundLevelY + 0.5, startZ); myAvatar.updateMatrixWorld(true); }
           const video = cinemaVideoRef.value;
           if (video) {
-            const videoTexture = new THREE.VideoTexture(video);
-            videoTexture.minFilter = THREE.LinearFilter;
-            videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.colorSpace = THREE.SRGBColorSpace; 
-            const screenGeo = new THREE.PlaneGeometry(16, 9);
-            const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
-            const screen = new THREE.Mesh(screenGeo, screenMat);
-            screen.position.set(startX, groundLevelY + 7, startZ - 15); 
-            screen.name = "cinemaScreen";
-            scene.add(screen);
+            const videoTexture = new THREE.VideoTexture(video); videoTexture.minFilter = THREE.LinearFilter; videoTexture.magFilter = THREE.LinearFilter; videoTexture.colorSpace = THREE.SRGBColorSpace; 
+            const screenGeo = new THREE.PlaneGeometry(16, 9); const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
+            const screen = new THREE.Mesh(screenGeo, screenMat); screen.position.set(startX, groundLevelY + 7, startZ - 15); screen.name = "cinemaScreen"; scene.add(screen);
           }
       }, undefined, (e) => console.error('맵 로드 실패', e));
       clock = new THREE.Clock();
@@ -853,15 +785,19 @@ const initThree = () => {
   } catch (e) { console.error(e); return false; }
 };
 
-const handleKeyDown = (event) => { if(chatInputRef.value !== document.activeElement) keysPressed[event.code] = true; };
+const handleKeyDown = (event) => {
+    if (event.code === 'KeyF') {
+        if (nearNpc.value) openNpcDialog();
+        if (nearChestId.value) collectChest();
+    }
+    if (chatInputRef.value !== document.activeElement) keysPressed[event.code] = true;
+};
 const handleKeyUp = (event) => { keysPressed[event.code] = false; };
 const handleJoystickMove = (evt, data) => { joystickData.value = { active: true, angle: data.angle.radian, distance: data.distance, force: data.force }; };
 const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0, distance: 0, force: 0 }; };
 const handleResize = () => {
     if (!camera || !renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
 const updatePlayerMovement = (deltaTime) => {
@@ -872,69 +808,38 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   if (joystickData.value.active && joystickData.value.distance > 10) {
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
-      let currentY = myAvatar.rotation.y; 
-      const PI2 = Math.PI * 2;
-      let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; 
-      targetY = (targetY % PI2 + PI2) % PI2;
-      let diff = targetY - currentY; 
-      if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      myAvatar.rotation.y += diff * deltaTime * 8;
-      moveDirection.z = -1; 
-      moved = true;
-      currentAnimation = 'walk';
-      currentSpeedFactor = joystickData.value.force;
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+      myAvatar.rotation.y += diff * deltaTime * 8; moveDirection.z = -1; moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
     const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || 
-                             keysPressed['KeyS'] || keysPressed['ArrowDown'] || 
-                             keysPressed['KeyA'] || keysPressed['ArrowLeft'] || 
-                             keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    if (isKeyboardMoving) {
-      myAvatar.rotation.y = cameraEuler.y;
-      moved = true;
-    }
+    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+    if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y; moved = true; }
     if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
     if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
-        moveDirection.z = 1; 
-        if(!specialAction.value) currentAnimation = 'walk'; 
-    }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
-        moveDirection.z = -1; 
-        if(!specialAction.value) currentAnimation = 'walkBackward'; 
-    }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
   }
   if (moved) {
     specialAction.value = null;
-    const velocity = new THREE.Vector3(
-        moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
-        0, 
-        moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime
-    );
-    velocity.applyQuaternion(myAvatar.quaternion);
-    myAvatar.position.add(velocity);
-    throttledUpdate();
+    const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
+    velocity.applyQuaternion(myAvatar.quaternion); myAvatar.position.add(velocity); throttledUpdate();
   }
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   const cityMap = scene.getObjectByName("cityMap");
   if (cityMap) {
-      const raycaster = new THREE.Raycaster();
-      raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0));
+      const raycaster = new THREE.Raycaster(); raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0));
       const intersects = raycaster.intersectObject(cityMap, true);
       if (intersects.length > 0) myAvatar.position.y = intersects[0].point.y;
   }
-  const mixer = myAvatar.userData.mixer;
-  const actions = myAvatar.userData.actions;
+  const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
-    if (targetAction && !targetAction.isRunning()) {
-      targetAction.reset().play();
-      if (activeAction) activeAction.crossFadeTo(targetAction, 0.3);
-    }
+    if (targetAction && !targetAction.isRunning()) { targetAction.reset().play(); if (activeAction) activeAction.crossFadeTo(targetAction, 0.3); }
   }
 };
 
@@ -947,28 +852,47 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    let currentY = player.mesh.rotation.y; 
-    let targetY = player.targetRotationY; 
-    const PI2 = Math.PI * 2;
-    currentY = (currentY % PI2 + PI2) % PI2; 
-    targetY = (targetY % PI2 + PI2) % PI2;
-    let diff = targetY - currentY; 
-    if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    player.mesh.rotation.y += diff * lerpFactor;
-    player.mesh.updateMatrixWorld(true);
-    const mixer = player.mixer;
-    const actions = player.actions;
+    let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; 
+    const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+    let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+    player.mesh.rotation.y += diff * lerpFactor; player.mesh.updateMatrixWorld(true);
+    const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
-      if (player.isMoving && !wasMoving) { 
-          actions.walk.reset().play(); 
-          actions.idle.crossFadeTo(actions.walk, 0.2); 
-      }
-      else if (!player.isMoving && wasMoving) { 
-          actions.idle.reset().play(); 
-          actions.walk.crossFadeTo(actions.idle, 0.2); 
-      }
+      if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
+      else if (!player.isMoving && wasMoving) { actions.idle.reset().play(); actions.walk.crossFadeTo(actions.idle, 0.2); }
     }
   }
+};
+
+const updateDistances = () => {
+    if (!myAvatar) return;
+    
+    // 1. NPC 거리 체크
+    if (npcModel.value) {
+        const dist = myAvatar.position.distanceTo(npcModel.value.position);
+        nearNpc.value = dist < 3.0; // 3미터 이내면 대화 가능
+        
+        // NPC 아이콘 둥둥 애니메이션
+        if (npcModel.value.userData.floatingIcon) {
+            npcModel.value.userData.floatOffset += 0.02;
+            npcModel.value.userData.floatingIcon.position.y = 2.8 + Math.sin(npcModel.value.userData.floatOffset) * 0.2;
+        }
+    }
+
+    // 2. 보물상자 거리 체크
+    let closestChest = null;
+    let minDist = 2.0; // 수집 가능 거리
+
+    for (const [id, mesh] of Object.entries(chests)) {
+        const dist = myAvatar.position.distanceTo(mesh.position);
+        if (dist < minDist) {
+            closestChest = id;
+            minDist = dist;
+        }
+        // 상자 회전 애니메이션
+        mesh.rotation.y += 0.01;
+    }
+    nearChestId.value = closestChest;
 };
 
 const animate = () => {
@@ -976,11 +900,14 @@ const animate = () => {
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
 
-  if (myAvatar && myAvatar.userData.mixer) { myAvatar.userData.mixer.update(deltaTime); }
+  if (myAvatar && myAvatar.userData.mixer) myAvatar.userData.mixer.update(deltaTime);
+  if (npcModel.value && npcModel.value.userData.mixer) npcModel.value.userData.mixer.update(deltaTime);
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
 
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
+  updateDistances(); // 거리 및 상호작용 체크
+
   if (controls) controls.update();
   renderer.render(scene, camera);
 };
@@ -1027,10 +954,10 @@ onMounted(() => {
         console.error("Firestore 정보 가져오기 실패:", error);
       }
 
+      // 내 아바타 로드
       myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
       const startX = 37.16; const startY = 0.5; const startZ = 7.85;
       myAvatar.position.set(startX, startY, startZ); 
-      
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
         nick.position.set(0, 1.8, 0); 
@@ -1040,6 +967,10 @@ onMounted(() => {
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
+
+      // NPC 초기화 및 퀘스트 확인
+      await initNPC(preloadedAnimations);
+      await checkDailyQuest();
 
       await nextTick();
       const joystickZone = document.getElementById('joystick-zone');
@@ -1207,6 +1138,84 @@ onUnmounted(() => {
 }
 .modal-actions button:disabled {
   background-color: #ccc;
+}
+
+/* [신규] 상호작용 버튼 스타일 */
+.interaction-prompt {
+  position: absolute;
+  bottom: 180px; /* 채팅창 위 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+.interact-btn {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  border: 2px solid #fff;
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: bold;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5);
+  cursor: pointer;
+  animation: bounce 1s infinite alternate;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chest-btn {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    box-shadow: 0 4px 15px rgba(0, 114, 255, 0.5);
+    color: white;
+}
+@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+
+/* [신규] NPC 대화창 스타일 */
+.npc-dialog-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 3000;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 50px;
+}
+.npc-dialog-box {
+  background: rgba(20, 20, 30, 0.95);
+  border: 2px solid #FFD700;
+  border-radius: 15px;
+  width: 90%; max-width: 600px;
+  padding: 20px;
+  display: flex; gap: 20px;
+  color: white;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+.npc-portrait img {
+  width: 100px; height: 100px; border-radius: 50%;
+  border: 3px solid #FFD700;
+  object-fit: cover;
+  background: white;
+}
+.npc-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.npc-content h3 { margin: 0; color: #FFD700; }
+.quest-desc { font-size: 1.1rem; line-height: 1.4; }
+.quest-progress-bar {
+  background: #333; height: 20px; border-radius: 10px; position: relative; overflow: hidden;
+}
+.quest-progress-bar .fill {
+  background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s;
+}
+.quest-progress-bar span {
+  position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px;
+  font-size: 0.8rem; text-shadow: 0 0 3px black;
+}
+.dialog-actions { display: flex; gap: 10px; margin-top: 10px; }
+.dialog-actions button {
+  padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold;
+}
+.btn-complete { background: #28a745; color: white; }
+.btn-disabled { background: #555; color: #ccc; cursor: default; }
+.btn-confirm { background: #007bff; color: white; }
+.close-dialog {
+  position: absolute; top: 10px; right: 15px; background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer;
 }
 
 @media (max-width: 768px) {
