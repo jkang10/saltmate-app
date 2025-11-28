@@ -71,15 +71,24 @@
       <router-view />
     </main>
 
-    <!-- ▼▼▼ [신규] 우측 하단 플로팅 컨트롤러 ▼▼▼ -->
+    <!-- ▼▼▼ [수정] 우측 하단 플로팅 컨트롤러 (레이스 위젯 토글 추가) ▼▼▼ -->
     <div class="floating-controls">
       
-      <!-- 1. 가족 레이스 카운트다운 위젯 -->
-      <router-link to="/salt-racing?mode=family" class="race-widget" v-if="!isGamePage">
-        <div class="race-badge">NEXT</div>
-        <div class="race-timer">{{ raceTimeLeft }}</div>
-        <i class="fas fa-flag-checkered race-icon"></i>
-      </router-link>
+      <!-- 1. 가족 레이스 카운트다운 위젯 그룹 -->
+      <div v-if="!isGamePage" class="race-control-group">
+        <transition name="slide-fade">
+          <router-link v-if="isRaceWidgetVisible" to="/salt-racing?mode=family" class="race-widget">
+            <div class="race-badge">NEXT</div>
+            <div class="race-timer">{{ raceTimeLeft }}</div>
+            <i class="fas fa-flag-checkered race-icon"></i>
+          </router-link>
+        </transition>
+
+        <!-- 레이스 위젯 토글 버튼 -->
+        <button class="race-toggle-btn" @click="isRaceWidgetVisible = !isRaceWidgetVisible">
+          <i :class="isRaceWidgetVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+        </button>
+      </div>
 
       <!-- 2. QR 코드 토글 버튼 -->
       <div v-if="userRole === 'centerManager' && !isGamePage" class="qr-control-group">
@@ -90,7 +99,7 @@
           </button>
         </transition>
         
-        <!-- 숨기기/보이기 토글 -->
+        <!-- QR 버튼 토글 -->
         <button class="qr-toggle-btn" @click="isQrVisible = !isQrVisible">
           <i :class="isQrVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
         </button>
@@ -152,8 +161,9 @@ const market = ref({ currentPrice: 0, priceHistory: [] });
 const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
-// [신규] 상태 변수
-const isQrVisible = ref(true); // QR 버튼 보임 여부
+// [신규] 상태 변수 (토글 상태 관리)
+const isQrVisible = ref(true); 
+const isRaceWidgetVisible = ref(true); // 레이스 위젯 보임 여부
 const raceTimeLeft = ref("00:00");
 
 let saltPriceUnsubscribe = null;
@@ -242,7 +252,6 @@ const listenToMatchmakingQueue = () => {
   });
 };
 
-// [신규] 가족 레이스 타이머 리스너
 const listenToRaceTimer = () => {
   const raceRef = doc(db, "system", "saltRacingFamily");
   raceTimerUnsubscribe = onSnapshot(raceRef, (docSnap) => {
@@ -278,7 +287,7 @@ const checkAuthState = () => {
       isLoggedIn.value = true;
       listenToSaltPrice(); 
       listenToMatchmakingQueue();
-      listenToRaceTimer(); // [신규] 리스너 시작
+      listenToRaceTimer();
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -522,7 +531,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   background: rgba(255,255,255,0.7);
 }
 
-/* ▼▼▼ [신규] 플로팅 컨트롤러 스타일 ▼▼▼ */
+/* ▼▼▼ [수정] 플로팅 컨트롤러 스타일 ▼▼▼ */
 .floating-controls {
   position: fixed;
   bottom: 20px;
@@ -535,7 +544,16 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   padding-right: 15px; /* 기본 여백 */
 }
 
-/* 1. 레이스 위젯 */
+/* 1. 레이스 위젯 컨트롤 그룹 */
+.race-control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  justify-content: flex-end;
+}
+
+/* 레이스 위젯 */
 .race-widget {
   background: linear-gradient(135deg, #ff512f, #dd2476);
   color: white;
@@ -548,7 +566,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
   font-weight: bold;
   animation: float 3s ease-in-out infinite;
-  margin-right: 5px; /* QR 버튼과 라인 맞춤 */
 }
 .race-badge {
   font-size: 0.7rem;
@@ -564,6 +581,23 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   font-size: 1.2rem;
 }
 
+/* 레이스 토글 버튼 */
+.race-toggle-btn {
+  width: 24px;
+  height: 42px; /* 위젯 높이와 비슷하게 맞춤 */
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  margin-right: -15px; /* 화면 끝에 딱 붙이기 위해 */
+}
+
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
@@ -577,9 +611,9 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   position: relative;
 }
 
-/* QR 버튼 (기존 스타일 덮어쓰기) */
+/* QR 버튼 */
 .fab-qr-button {
-  position: static; /* fixed 제거 */
+  position: static; 
   width: 50px;
   height: 50px;
   border-radius: 50%; 
@@ -594,7 +628,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   cursor: pointer;
 }
 
-/* 토글 버튼 (작은 화살표) */
+/* QR 토글 버튼 */
 .qr-toggle-btn {
   width: 24px;
   height: 50px;
@@ -623,7 +657,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 /* 모바일 반응형 (768px 이하) */
 @media (max-width: 768px) {
   .navbar {
-    height: 46px; /* 더 얇게 */
+    height: 46px; 
     padding: 0 20px;
   }
   
@@ -632,7 +666,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
     padding-top: 0;
   }
 
-  /* 모바일 Ticker 위치 조정 */
   .ticker-container :deep(.ticker-wrap) {
     top: 46px !important; 
   }
