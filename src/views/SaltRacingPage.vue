@@ -1,7 +1,6 @@
 <template>
   <div class="racing-page">
     
-    <!-- 모드 선택 화면 (초기 진입 시) -->
     <div v-if="!selectedMode" class="mode-selection-overlay">
       <div class="mode-card" @click="selectMode('individual')">
         <i class="fas fa-user"></i>
@@ -16,7 +15,6 @@
       </div>
     </div>
 
-    <!-- 상단 스탯 -->
     <div class="game-stats-glass" v-if="selectedMode">
       <button class="back-btn" @click="goBack"><i class="fas fa-arrow-left"></i></button>
       <div class="stat-item">
@@ -33,20 +31,17 @@
       </div>
     </div>
 
-    <!-- 게임 컨테이너 -->
     <div class="game-container card glassmorphism" v-if="selectedMode">
       <header class="game-header">
         <h2 v-if="selectedMode === 'individual'"><i class="fas fa-flag-checkered"></i> 개인 레이스</h2>
         <h2 v-else class="family-title"><i class="fas fa-globe"></i> 가족 레이스 <small>(수수료 10%)</small></h2>
         
         <p v-if="selectedMode === 'family'" class="timer-text">
-          <!-- 경기 중이거나 결과 확인 중일 때는 타이머 대신 상태 표시 -->
           <span v-if="gameStatus === 'racing' || gameStatus === 'finished'" class="racing-text">RACING NOW!</span>
           <span v-else>다음 경기까지: <span>{{ familyTimer }}</span></span>
         </p>
       </header>
 
-      <!-- 트랙 영역 -->
       <div class="track-scroll-wrapper" ref="trackScrollWrapper">
         <div class="track-container">
           <div class="finish-line">
@@ -69,7 +64,6 @@
                         <i class="fas fa-caret-down"></i>
                     </div>
                   </div>
-                  <!-- 가족 레이스일 때 실시간 배당률 표시 -->
                   <span v-if="selectedMode === 'family'" class="runner-odds">
                     {{ calculateOdds(index) }}배
                   </span>
@@ -84,13 +78,11 @@
         </div>
       </div>
 
-      <!-- 상태 메시지 -->
       <div v-if="gameStatus === 'racing'" class="racing-message-box">
         <h3><i class="fas fa-running"></i> 경기 진행 중...</h3>
         <p>달려라! {{ selectedRunner + 1 }}번 선수!</p>
       </div>
       
-      <!-- [수정] 가족 레이스 베팅 정보 표시 (로딩 완료 후) -->
       <div v-if="selectedMode === 'family' && hasBetFamily && !isBetLoading" class="my-bet-info">
         <p>
           <span class="round-badge">Round {{ familyRaceState.roundId }}</span>
@@ -98,7 +90,6 @@
         </p>
       </div>
 
-      <!-- 컨트롤 패널 -->
       <div class="control-panel" v-if="gameStatus === 'idle'">
         <div class="panel-section">
           <h4>우승 후보 선택 <small v-if="selectedMode === 'individual'">(배당 4.5배)</small></h4>
@@ -139,7 +130,6 @@
           :disabled="selectedRunner === null || !selectedBet || isProcessing || (selectedMode === 'family' && (hasBetFamily || isBetLoading))"
         >
           <span v-if="isProcessing" class="spinner-small"></span>
-          <!-- [핵심] 베팅 정보 로딩 중일 때 상태 표시 -->
           <span v-else-if="selectedMode === 'family' && isBetLoading">정보 확인 중...</span>
           <span v-else-if="selectedMode === 'family' && hasBetFamily">베팅 완료 (경기 대기 중)</span>
           <span v-else>{{ selectedMode === 'individual' ? '경기 시작하기' : '베팅 하기' }}</span>
@@ -147,7 +137,6 @@
       </div>
     </div>
 
-    <!-- 결과 모달 -->
     <div v-if="gameStatus === 'finished' && resultData" class="modal-overlay">
       <div class="modal-content">
         <div class="result-header">
@@ -173,7 +162,7 @@
           </div>
           <div class="detail-row" v-if="resultData.isWin">
             <span>획득 상금</span>
-            <strong class="win-amount">+{{ resultData.winnings.toLocaleString() }} P</strong>
+            <strong class="win-amount">+{{ typeof resultData.winnings === 'number' ? resultData.winnings.toLocaleString() : resultData.winnings }} P</strong>
           </div>
           <p v-else class="lose-desc">
             다음 경기에는 행운이 따를 거예요!
@@ -227,7 +216,7 @@ let animationFrameId = null;
 const familyRaceState = ref({});
 const familyTimer = ref("00:00");
 const hasBetFamily = ref(false);
-const isBetLoading = ref(false); // [신규] 베팅 내역 로딩 상태
+const isBetLoading = ref(false); // 베팅 내역 로딩 상태
 const myFamilyBet = ref({});
 const cachedFamilyBet = ref(null); 
 const previousRoundId = ref(null); 
@@ -319,7 +308,7 @@ const startFamilyListeners = () => {
       
       // 라운드 변경 감지 (경기 종료 -> 결과 처리)
       if (previousRoundId.value !== null && data.roundId > previousRoundId.value) {
-          // [핵심] 타이머 업데이트를 중단하고 결과 처리로 넘어감
+          // 타이머 업데이트를 중단하고 결과 처리로 넘어감
           handleFamilyRaceFinish(data.lastWinner);
       } else {
           familyRaceState.value = data;
@@ -359,11 +348,42 @@ const startFamilyListeners = () => {
               myFamilyBet.value = {};
           }
       }
-      // [핵심] 데이터 로딩 완료
+      // 데이터 로딩 완료
       isBetLoading.value = false;
   });
 };
 
+// [신규] 배당금 계산 헬퍼 함수
+const calculateWinnings = (winnerIndex) => {
+    const totalPot = familyRaceState.value.totalPot || 0;
+    const winnerBetTotal = familyRaceState.value.bets?.[winnerIndex] || 0;
+    
+    if (totalPot === 0 || winnerBetTotal === 0) return 0;
+    
+    // 내 베팅 정보 가져오기
+    let myBetAmount = myFamilyBet.value.amount;
+    
+    // 만약 myFamilyBet이 비어있다면 캐시나 스토리지에서 확인
+    if (!myBetAmount) {
+        const stored = localStorage.getItem(`familyBet_${previousRoundId.value}`);
+        if (stored) {
+            try {
+                myBetAmount = JSON.parse(stored).amount;
+            } catch (e) {
+                console.error("베팅 정보 파싱 오류:", e);
+            }
+        }
+    }
+    
+    if (!myBetAmount) return 0;
+
+    // 공식: (총 상금 * 0.9) * (내 베팅액 / 우승한 말의 총 베팅액)
+    const prizePool = totalPot * 0.9;
+    const share = myBetAmount / winnerBetTotal;
+    return Math.floor(prizePool * share);
+};
+
+// [수정] 지난 결과 확인 로직 (배당금 계산 적용)
 const checkMissedResult = (currentSystemState) => {
     const lastRoundId = currentSystemState.roundId - 1;
     const storedBet = localStorage.getItem(`familyBet_${lastRoundId}`);
@@ -371,10 +391,20 @@ const checkMissedResult = (currentSystemState) => {
     if (storedBet && currentSystemState.lastWinner !== null) {
         const betInfo = JSON.parse(storedBet);
         const isWin = (betInfo.runner === currentSystemState.lastWinner);
+        
+        // 상태가 초기화되었을 수 있으므로 state에 값이 없다면 0 처리 될 수 있음
+        let winAmount = 0;
+        if (isWin) {
+            // missed result 상황에서는 familyRaceState가 이미 다음 라운드(초기화됨)일 수 있음
+            // 따라서 정확한 배당 계산이 어렵다면 '정산 완료(내역 확인)' 등으로 처리하거나,
+            // calculateWinnings를 호출하되 0이 나오면 텍스트로 처리
+            winAmount = calculateWinnings(currentSystemState.lastWinner);
+        }
+
         resultData.value = {
             winnerIndex: currentSystemState.lastWinner,
             isWin: isWin,
-            winnings: isWin ? '정산 완료' : 0,
+            winnings: isWin ? (winAmount > 0 ? winAmount : '정산 완료(내역 확인)') : 0,
             missed: true
         };
         gameStatus.value = 'finished';
@@ -382,6 +412,7 @@ const checkMissedResult = (currentSystemState) => {
     }
 };
 
+// [수정] 가족 레이스 종료 처리 로직 (배당금 계산 적용)
 const handleFamilyRaceFinish = (winnerIndex) => {
     if (timerInterval) clearInterval(timerInterval);
     gameStatus.value = 'racing';
@@ -396,10 +427,14 @@ const handleFamilyRaceFinish = (winnerIndex) => {
     startRaceAnimation(winnerIndex, () => {
         if (myBet) {
             const isWin = (myBet.runner === winnerIndex);
+            
+            // [수정됨] 텍스트 대신 계산된 금액 표시
+            const winAmount = isWin ? calculateWinnings(winnerIndex) : 0;
+
             resultData.value = {
                 winnerIndex: winnerIndex,
                 isWin: isWin,
-                winnings: isWin ? '정산 완료' : 0
+                winnings: isWin ? winAmount : 0
             };
             // 결과 확인 후 스토리지 정리
             localStorage.removeItem(`familyBet_${previousRoundId.value}`);
