@@ -456,13 +456,15 @@ const floatingBlockStyle = computed(() => {
   height: 100dvh; /* Dynamic Viewport Height */
   width: 100vw;
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  padding-top: 60px; /* 글로벌 네비게이션 바 공간 확보 (중요) */
-  padding-bottom: env(safe-area-inset-bottom, 20px); /* 아이폰 하단 바 대응 */
+  /* [수정] 상단 패딩을 최소화 (안전 영역만 확보) */
+  padding-top: env(safe-area-inset-top, 10px); 
+  padding-bottom: env(safe-area-inset-bottom, 10px);
   box-sizing: border-box;
   overflow: hidden; /* 전체 스크롤 방지 */
   touch-action: none; /* iOS 탭 바운스 방지 */
   font-family: 'Noto Sans KR', sans-serif;
   color: white;
+  justify-content: flex-start; /* 위에서부터 정렬 */
 }
 
 /* 1. 상단 스탯 영역 (높이 고정, 공간 최소화) */
@@ -472,7 +474,8 @@ const floatingBlockStyle = computed(() => {
   justify-content: space-around;
   width: 95%;
   max-width: 450px;
-  margin: 0 auto 10px auto;
+  /* [수정] 위아래 여백을 좁게 설정 */
+  margin: 5px auto 10px auto; 
   gap: 8px;
 }
 
@@ -500,7 +503,7 @@ const floatingBlockStyle = computed(() => {
 .cyan { color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5); }
 .white { color: #fff; }
 
-/* 2. 게임 보드 컨테이너 (남은 공간 모두 차지, 중앙 정렬) */
+/* 2. 게임 보드 컨테이너 (남은 공간 차지) */
 .game-board-container {
   flex-grow: 1; /* 남은 공간 모두 사용 */
   display: flex;
@@ -511,6 +514,7 @@ const floatingBlockStyle = computed(() => {
   overflow: hidden;
   padding: 0 10px; /* 좌우 여백 */
   box-sizing: border-box;
+  /* [수정] 최소 높이 제거하여 겹침 방지 */
 }
 
 /* 보드 비율 유지 박스 */
@@ -588,16 +592,17 @@ const floatingBlockStyle = computed(() => {
   100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 3. 하단 블록 스포너 (높이 고정) */
+/* 3. 하단 블록 스포너 (하단 공간 확보) */
 .block-spawner-area {
   flex-shrink: 0; /* 줄어들지 않음 */
-  height: 120px; /* 블록 들어갈 공간 확보 */
+  height: 110px; /* [수정] 높이를 조금 더 컴팩트하게 조정 (120 -> 110) */
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: env(safe-area-inset-bottom, 10px); /* 아이폰 하단바 대응 */
 }
 
 .block-spawner {
