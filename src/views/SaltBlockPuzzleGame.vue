@@ -177,7 +177,6 @@ const boardMetrics = reactive({ left: 0, top: 0, width: 0, cellSize: 0 });
 // --- 초기화 ---
 onMounted(() => {
   startGameLogic();
-  // 화면 회전이나 크기 변경 시 보드 위치 재계산
   window.addEventListener('resize', updateBoardMetrics);
 });
 
@@ -258,7 +257,6 @@ const handleDragMove = (e) => {
   const rowIndex = Math.floor((relY / boardMetrics.width) * BOARD_SIZE);
 
   if (rowIndex >= 0 && rowIndex < BOARD_SIZE && colIndex >= 0 && colIndex < BOARD_SIZE) {
-    // 블록 중심 보정
     const blockRows = dragged.block.shape.length;
     const blockCols = dragged.block.shape[0].length;
     const adjustedRow = rowIndex - Math.floor(blockRows / 2);
@@ -456,26 +454,26 @@ const floatingBlockStyle = computed(() => {
   height: 100dvh; /* Dynamic Viewport Height */
   width: 100vw;
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  /* [수정] 상단 패딩을 최소화 (안전 영역만 확보) */
-  padding-top: env(safe-area-inset-top, 10px); 
-  padding-bottom: env(safe-area-inset-bottom, 10px);
+  /* [수정] 상단 여백을 최소화하여 콘텐츠를 위로 끌어올림 */
+  padding-top: env(safe-area-inset-top, 5px); 
+  padding-bottom: env(safe-area-inset-bottom, 5px);
   box-sizing: border-box;
   overflow: hidden; /* 전체 스크롤 방지 */
   touch-action: none; /* iOS 탭 바운스 방지 */
   font-family: 'Noto Sans KR', sans-serif;
   color: white;
-  justify-content: flex-start; /* 위에서부터 정렬 */
+  justify-content: flex-start; /* [수정] 중앙 정렬 대신 위에서부터 채움 */
 }
 
-/* 1. 상단 스탯 영역 (높이 고정, 공간 최소화) */
+/* 1. 상단 스탯 영역 (높이 고정) */
 .game-header-area {
-  flex-shrink: 0; /* 절대 줄어들지 않음 */
+  flex-shrink: 0; 
   display: flex;
   justify-content: space-around;
   width: 95%;
   max-width: 450px;
-  /* [수정] 위아래 여백을 좁게 설정 */
-  margin: 5px auto 10px auto; 
+  /* [수정] 상단 여백 제거, 하단 여백 축소 */
+  margin: 5px auto 5px auto; 
   gap: 8px;
 }
 
@@ -494,7 +492,7 @@ const floatingBlockStyle = computed(() => {
 .stat-card.main-score {
   background: rgba(0, 0, 0, 0.3);
   border-color: rgba(0, 255, 255, 0.3);
-  transform: scale(1.05); /* 강조 */
+  transform: scale(1.05);
 }
 
 .label { font-size: 0.7rem; color: #ccc; margin-bottom: 2px; }
@@ -503,28 +501,32 @@ const floatingBlockStyle = computed(() => {
 .cyan { color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5); }
 .white { color: #fff; }
 
-/* 2. 게임 보드 컨테이너 (남은 공간 차지) */
+/* 2. 게임 보드 컨테이너 (위로 붙이기) */
 .game-board-container {
-  flex-grow: 1; /* 남은 공간 모두 사용 */
+  flex-grow: 1; /* 남은 공간을 차지하되 */
   display: flex;
-  justify-content: center;
-  align-items: center; /* 수직 중앙 정렬 */
+  flex-direction: column;
+  /* [수정] 수직 중앙 정렬(center) 대신 위쪽 정렬(flex-start)로 변경하여 판을 위로 올림 */
+  justify-content: flex-start; 
+  align-items: center;
   width: 100%;
   position: relative;
   overflow: hidden;
-  padding: 0 10px; /* 좌우 여백 */
+  padding: 0 10px;
   box-sizing: border-box;
-  /* [수정] 최소 높이 제거하여 겹침 방지 */
+  /* [수정] 위쪽 여백을 조금 주어 헤더와 분리 */
+  padding-top: 10px; 
 }
 
 /* 보드 비율 유지 박스 */
 .board-aspect-ratio-box {
   width: 100%;
-  max-width: 450px; /* PC/태블릿 최대 너비 */
-  aspect-ratio: 1 / 1; /* 정사각형 비율 강제 */
+  max-width: 450px;
+  aspect-ratio: 1 / 1; 
   
-  /* 화면이 너무 납작할 경우(가로모드 등), 높이에 맞춰 너비 줄임 */
-  max-height: 100%; 
+  /* [핵심 수정] 높이가 너무 커져서 하단 블록을 가리지 않도록 최대 높이 제한 설정 */
+  /* 화면 전체 높이의 55%를 넘지 않도록 하여 하단 공간 강제 확보 */
+  max-height: 55vh; 
   
   background: rgba(0, 0, 0, 0.3);
   border-radius: 12px;
@@ -570,7 +572,6 @@ const floatingBlockStyle = computed(() => {
   100% { background: transparent; transform: scale(0); }
 }
 
-/* 콤보 팝업 */
 .combo-popup {
   position: absolute;
   top: 50%; left: 50%;
@@ -594,15 +595,16 @@ const floatingBlockStyle = computed(() => {
 
 /* 3. 하단 블록 스포너 (하단 공간 확보) */
 .block-spawner-area {
-  flex-shrink: 0; /* 줄어들지 않음 */
-  height: 110px; /* [수정] 높이를 조금 더 컴팩트하게 조정 (120 -> 110) */
+  flex-shrink: 0;
+  height: 120px; /* 블록 들어갈 공간 고정 */
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: env(safe-area-inset-bottom, 10px); /* 아이폰 하단바 대응 */
+  /* [수정] 아이폰 하단바(Safe Area)만큼 패딩 추가 */
+  padding-bottom: env(safe-area-inset-bottom, 20px); 
 }
 
 .block-spawner {
@@ -615,7 +617,7 @@ const floatingBlockStyle = computed(() => {
 }
 
 .spawn-slot {
-  width: 30%; /* 3등분 */
+  width: 30%;
   height: 80%;
   display: flex;
   justify-content: center;
@@ -623,32 +625,29 @@ const floatingBlockStyle = computed(() => {
 }
 .spawn-slot.is-dragging { opacity: 0.3; }
 
-/* 블록 미리보기 공통 */
 .block-preview, .block-shape {
   display: grid;
   gap: 2px;
 }
 .block-cell {
-  width: 20px; /* 스포너에서의 기본 크기 */
+  width: 20px;
   height: 20px;
   border-radius: 2px;
   background: transparent;
 }
 .block-cell.filled {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); /* 핑크-레드 */
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 .block-cell.filled.invalid {
   background: #ff4b4b; 
 }
 
-/* 플로팅 블록 컨테이너 */
 .floating-block-container {
   pointer-events: none;
   z-index: 9999;
 }
 
-/* 모달 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); z-index: 1000;
