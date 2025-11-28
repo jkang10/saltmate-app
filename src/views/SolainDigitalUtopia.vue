@@ -6,7 +6,13 @@
       ref="cinemaVideoRef"
       id="cinema-video"
       style="position: absolute; top: -9999px; left: -9999px; opacity: 0;"
-      crossorigin="anonymous" playsinline webkit-playsinline loop muted autoplay preload="auto"
+      crossorigin="anonymous"
+      playsinline
+      webkit-playsinline
+      loop
+      muted
+      autoplay
+      preload="auto"
       @timeupdate="checkVideoProgress"
       @error="(e) => console.error('비디오 에러:', e)"
     >
@@ -45,6 +51,7 @@
               <div class="fill" :style="{ width: Math.min(100, (dailyQuest.currentCount / dailyQuest.target) * 100) + '%' }"></div>
               <span>{{ dailyQuest.currentCount }} / {{ dailyQuest.target }}</span>
             </div>
+            
             <div class="dialog-actions">
               <button v-if="!dailyQuest.rewardClaimed && dailyQuest.currentCount >= dailyQuest.target" 
                       class="btn-complete" @click="completeQuest">
@@ -77,12 +84,19 @@
           </button>
         </div>
       </div>
+
       <div class="message-list" ref="messageListRef">
         <div v-for="msg in chatMessages" :key="msg.id" class="chat-message">
           <strong>{{ msg.userName }}:</strong> {{ msg.message }}
         </div>
       </div>
-      <input type="text" v-model="chatInput" @keyup.enter="sendMessage" placeholder="메시지 입력..." :disabled="!isReady" ref="chatInputRef" />
+      <input
+        type="text"
+        v-model="chatInput"
+        @keyup.enter="sendMessage"
+        placeholder="메시지 입력..."
+        :disabled="!isReady"
+        ref="chatInputRef" />
     </div>
 
     <div class="user-controls">
@@ -119,6 +133,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -220,7 +235,7 @@ const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
 // ---------------------------------------------------
-// [핵심] 지형 높이 구하기 유틸리티 (Raycaster 활용)
+// [핵심] 지형 높이 구하기 유틸리티
 // ---------------------------------------------------
 const getTerrainHeight = (x, z) => {
     if (!scene) return 0.5;
@@ -228,32 +243,30 @@ const getTerrainHeight = (x, z) => {
     if (!cityMap) return 0.5;
 
     const raycaster = new THREE.Raycaster();
-    // 하늘 높이에서 아래로 레이저 발사
     raycaster.set(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
     
     const intersects = raycaster.intersectObject(cityMap, true);
     if (intersects.length > 0) {
         return intersects[0].point.y;
     }
-    return 0.5; // 기본 높이
+    return 0.5; 
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (지형 로드 후 호출됨)
+// [수정] NPC 초기화
 // ----------------------------------------
 const initNPC = async (animations) => {
   const npc = await loadAvatar('/avatars/fantasy_knight_junho.glb', animations);
   
-  // [수정] NPC 위치: 시네마 스크린 아래쪽 + 지형 높이 반영
   const npcX = 37.16;
   const npcZ = -5.0;
-  const npcY = getTerrainHeight(npcX, npcZ); // 지형 높이 계산
+  const npcY = getTerrainHeight(npcX, npcZ); 
 
-  npc.scale.set(0.9, 0.9, 0.9);
-  npc.position.set(npcX, npcY, npcZ); // Y축을 계산된 높이로 설정
-  npc.rotation.y = Math.PI; // 플레이어 쪽(Z축 양의 방향)을 바라보게
+  // [수정 2] NPC 크기 확대 (0.9 -> 2.3)
+  npc.scale.set(2.3, 2.3, 2.3);
+  npc.position.set(npcX, npcY, npcZ); 
+  npc.rotation.y = Math.PI; 
 
-  // 재질 틴트
   npc.traverse((child) => {
     if (child.isMesh) {
       if(child.material) {
@@ -264,7 +277,6 @@ const initNPC = async (animations) => {
     }
   });
 
-  // 머리 위 헬리아 상품
   textureLoader.load(heliaImgSrc, (texture) => {
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
@@ -310,7 +322,7 @@ const spawnTreasureChests = async (allItems, foundItems) => {
     for (let i = 0; i < itemsToSpawn.length; i++) {
         const id = itemsToSpawn[i];
         const pos = positions[i % positions.length];
-        const realY = getTerrainHeight(pos.x, pos.z); // 상자도 지형 높이 반영
+        const realY = getTerrainHeight(pos.x, pos.z); 
 
         loader.load('/animations/box/treasure_chest.glb', (gltf) => {
             const chest = gltf.scene;
@@ -327,7 +339,6 @@ const spawnTreasureChests = async (allItems, foundItems) => {
     }
 };
 
-// ... (collectChest, openNpcDialog, completeQuest, hasPurchased 등 기존 로직 동일) ...
 const collectChest = async () => {
     if (!nearChestId.value) return;
     const chestId = nearChestId.value;
@@ -340,6 +351,7 @@ const collectChest = async () => {
         showChatBubble(myAvatar, "보물상자 발견! 🎁", "#00ff00");
     } catch (e) { alert("상자를 줍는데 실패했습니다."); }
 };
+
 const openNpcDialog = () => { isNpcModalOpen.value = true; };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 const completeQuest = async () => {
@@ -351,6 +363,7 @@ const completeQuest = async () => {
         closeNpcDialog();
     } catch (e) { alert(e.message); }
 };
+
 const hasPurchased = (actionKey) => purchasedActions.value.includes(actionKey);
 const handleActionClick = (actionKey) => hasPurchased(actionKey) ? triggerAction(actionKey) : openPurchaseModal(actionKey);
 const openPurchaseModal = (actionKey) => { purchaseModal.actionKey = actionKey; purchaseModal.actionName = actionList[actionKey].name; purchaseModal.price = actionList[actionKey].price; purchaseModal.visible = true; };
@@ -364,6 +377,7 @@ const confirmPurchase = async () => {
     if (result.data.success) { purchasedActions.value.push(purchaseModal.actionKey); alert(`${purchaseModal.actionName} 구매 완료!`); closePurchaseModal(); }
   } catch (e) { alert(e.message); isPurchasing.value = false; }
 };
+
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
   const mixer = myAvatar.userData.mixer;
@@ -385,8 +399,9 @@ const triggerAction = (actionName) => {
     mixer.addEventListener('finished', onFinished);
   }
 };
+
 const resumeAudioContext = () => { audioBlocked.value = false; if (THREE.AudioContext.getContext().state === 'suspended') { THREE.AudioContext.getContext().resume(); } };
-const initAgora = async (uid) => { /* 기존 Agora 로직 유지 */ 
+const initAgora = async (uid) => { 
   if (!uid) return;
   const stringUid = uid; 
   try {
@@ -411,6 +426,7 @@ const initAgora = async (uid) => { /* 기존 Agora 로직 유지 */
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
   } catch (error) { console.error("[Agora] Init Error:", error); }
 };
+
 const updateSpeakingIndicator = (targetId, isSpeaking) => {
   let targetMesh = null; const currentUid = auth.currentUser?.uid;
   if (targetId === currentUid) { targetMesh = myAvatar; } else if (otherPlayers[targetId]) { targetMesh = otherPlayers[targetId].mesh; }
@@ -426,7 +442,8 @@ const updateSpeakingIndicator = (targetId, isSpeaking) => {
     }
   } else { if (existingIcon) { targetMesh.remove(existingIcon); existingIcon.material.map.dispose(); existingIcon.material.dispose(); } }
 };
-const toggleMic = async () => { /* 기존 유지 */ if (!agoraClient.value) return; try { if (!localAudioTrack.value) { localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality_stereo", AEC: true, ANS: true, AGC: true }); await agoraClient.value.publish([localAudioTrack.value]); isMicOn.value = true; } else { if (isMicOn.value) { await localAudioTrack.value.setEnabled(false); isMicOn.value = false; } else { await localAudioTrack.value.setEnabled(true); isMicOn.value = true; } } } catch (error) { console.error("[Agora] Mic Error:", error); } };
+
+const toggleMic = async () => { if (!agoraClient.value) return; try { if (!localAudioTrack.value) { localAudioTrack.value = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality_stereo", AEC: true, ANS: true, AGC: true }); await agoraClient.value.publish([localAudioTrack.value]); isMicOn.value = true; } else { if (isMicOn.value) { await localAudioTrack.value.setEnabled(false); isMicOn.value = false; } else { await localAudioTrack.value.setEnabled(true); isMicOn.value = true; } } } catch (error) { console.error("[Agora] Mic Error:", error); } };
 const leaveAgora = async () => { if (localAudioTrack.value) { localAudioTrack.value.close(); localAudioTrack.value = null; } if (agoraClient.value) { await agoraClient.value.leave(); agoraClient.value = null; } };
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
 const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700"); } } catch (error) { console.error(error); } } };
@@ -440,116 +457,6 @@ const loadAvatar = (url, animations) => { return new Promise((resolve) => { cons
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 40px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.5, 0.5, 1); sprite.position.set(0, 0, 0); return sprite; };
 const createChatBubbleSprite = (text, textColor = "black") => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; canvas.width = w; canvas.height = 60; context.fillStyle = 'rgba(255, 255, 255, 0.9)'; context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, w / 2, 30); const texture = new THREE.CanvasTexture(canvas); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; return sprite; };
 const showChatBubble = (avatar, message, color = "black") => { if (!avatar) return; if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); } const newBubble = createChatBubbleSprite(message, color); const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000); newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble); };
-
-const joinPlaza = async (uid) => {
-  playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
-  // [수정] 초기 위치를 약간 위로 띄움 (바닥에 박히는 것 방지)
-  const safeX = 37.16; const safeY = 5.0; const safeZ = 7.85; 
-  const playerData = { avatarUrl: myAvatarUrl, userName: myUserName, position: { x: safeX, y: safeY, z: safeZ }, rotationY: 0, timestamp: serverTimestamp() };
-  try { await set(playerRef, playerData); await onDisconnect(playerRef).remove(); isReady.value = true; } catch (e) { console.error("입장 실패:", e); }
-};
-
-const updateMyStateInRTDB = (actionName = null) => {
-  if (!playerRef || !myAvatar || !isReady.value) return;
-  const payload = { position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, rotationY: myAvatar.rotation.y, timestamp: serverTimestamp() };
-  if (actionName) { payload.action = actionName; }
-  update(playerRef, payload).catch(() => {});
-};
-
-let lastUpdateTime = 0;
-const throttledUpdate = () => { const now = Date.now(); if (now - lastUpdateTime > 50) { updateMyStateInRTDB(); lastUpdateTime = now; } };
-const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
-const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
-
-const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
-  playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  
-  onChildAdded(playersListenerRef, async (snapshot) => {
-    if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
-    const val = snapshot.val();
-    
-    // [수정] 수신된 위치가 유효하지 않다면 지형 위 안전 좌표로 보정
-    let posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
-    let posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
-    let posY = isFiniteNumber(val.position?.y) ? val.position.y : getTerrainHeight(posX, posZ);
-
-    const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-    
-    otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
-    const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
-    if (scene && otherPlayers[snapshot.key]) {
-      if (val.userName !== '익명') { const nick = createNicknameSprite(val.userName); nick.position.set(0, 1.8, 0); model.add(nick); }
-      
-      // [핵심] 모델 위치 즉시 설정
-      model.position.set(posX, posY, posZ); 
-      model.rotation.y = rotY; 
-      model.visible = true;
-      scene.add(model); 
-      model.updateMatrixWorld(true); 
-      
-      otherPlayers[snapshot.key].mesh = model; 
-      otherPlayers[snapshot.key].mixer = model.userData.mixer; 
-      otherPlayers[snapshot.key].actions = model.userData.actions;
-      
-      if (model.userData.mixer) model.userData.mixer.update(0.01);
-      if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
-    }
-  });
-
-  onChildChanged(playersListenerRef, (snap) => {
-    if (snap.key === currentUid || !otherPlayers[snap.key]) return;
-    const val = snap.val();
-    const player = otherPlayers[snap.key];
-
-    if (val.position) {
-        player.targetPosition.set(val.position.x, val.position.y, val.position.z);
-        player.targetRotationY = val.rotationY || 0;
-    }
-
-    if (val.action) {
-        const actionName = val.action;
-        const mixer = player.mixer;
-        const actions = player.actions;
-        const action = actions[actionName];
-
-        if (mixer && action) {
-            mixer.stopAllAction();
-            action.reset();
-            action.setLoop(THREE.LoopOnce);
-            action.clampWhenFinished = true;
-            action.play();
-            const onFinished = (e) => {
-                if (e.action === action) {
-                    mixer.removeEventListener('finished', onFinished);
-                    const idleAction = actions['idle']; 
-                    if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
-                }
-            };
-            mixer.addEventListener('finished', onFinished);
-        }
-    }
-  });
-
-  onChildRemoved(playersListenerRef, (snap) => {
-    if (!otherPlayers[snap.key]) return;
-    if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
-    delete otherPlayers[snap.key];
-  });
-};
-
-const forceInitialMove = () => {
-    if (!myAvatar) return;
-    // [핵심] 지형 높이에 맞춰 초기 위치 설정
-    const terrainY = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
-    myAvatar.position.y = terrainY;
-    myAvatar.updateMatrixWorld(true); 
-    
-    // [핵심] 강제 동기화 (약간의 딜레이를 줘서 확실하게 전송)
-    updateMyStateInRTDB(); 
-    setTimeout(() => updateMyStateInRTDB(), 500);
-    setTimeout(() => updateMyStateInRTDB(), 1000);
-};
 
 // ---------------------------------------------------
 // [수정] initThree: async 함수로 변경하여 맵 로딩 대기
@@ -589,7 +496,6 @@ const initThree = async () => {
               city.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
               scene.add(city);
 
-              // [핵심] 비디오 스크린 추가
               const video = cinemaVideoRef.value;
               if (video) {
                 const videoTexture = new THREE.VideoTexture(video); videoTexture.minFilter = THREE.LinearFilter; videoTexture.magFilter = THREE.LinearFilter; videoTexture.colorSpace = THREE.SRGBColorSpace; 
@@ -617,30 +523,48 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   
   if (joystickData.value.active && joystickData.value.distance > 10) {
+      // 조이스틱 이동 (기존 유지)
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8; moveDirection.z = -1; moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
-    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y; moved = true; }
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
+      // 키보드 이동
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+      
+      if (isKeyboardMoving) { 
+          // [수정 3] 카메라를 등지고 걷도록 180도(PI) 회전 추가
+          myAvatar.rotation.y = cameraEuler.y + Math.PI; 
+          moved = true; 
+      }
+      // [수정 3] 키 입력에 따른 로컬 이동 방향 설정 (회전했으므로 앞으로 가려면 +Z가 아닌 -Z여야 하는지 확인 필요. 
+      // 보통 GLTF는 +Z가 전방. 180도 돌렸으므로 -Z가 카메라에서 멀어지는 방향.
+      // W를 누르면 '앞으로' 가야 하므로 로컬 좌표계에서 전진(+Z)하면 월드 좌표계에서 카메라 반대편(-Z)으로 감.
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
   }
+  
   if (moved) {
     specialAction.value = null;
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion); myAvatar.position.add(velocity); throttledUpdate();
+    velocity.applyQuaternion(myAvatar.quaternion); 
+    myAvatar.position.add(velocity); 
+    
+    // [수정 1] 카메라가 아바타를 따라다니도록 설정
+    camera.position.add(velocity); 
+    controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
+    
+    throttledUpdate();
   }
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
   
-  // [핵심] 지형 높이 보정 (Raycaster 이용)
+  // 지형 높이 보정
   myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
   
   const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
