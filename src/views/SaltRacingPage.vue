@@ -40,7 +40,7 @@
         <h2 v-else class="family-title"><i class="fas fa-globe"></i> 가족 레이스 <small>(수수료 10%)</small></h2>
         
         <p v-if="selectedMode === 'family'" class="timer-text">
-          <!-- 경기 중일 때는 타이머 대신 상태 표시 -->
+          <!-- 경기 중이거나 결과 확인 중일 때는 타이머 대신 상태 표시 -->
           <span v-if="gameStatus === 'racing' || gameStatus === 'finished'" class="racing-text">RACING NOW!</span>
           <span v-else>다음 경기까지: <span>{{ familyTimer }}</span></span>
         </p>
@@ -90,8 +90,8 @@
         <p>달려라! {{ selectedRunner + 1 }}번 선수!</p>
       </div>
       
-      <!-- 가족 레이스 베팅 정보 표시 -->
-      <div v-if="selectedMode === 'family' && hasBetFamily" class="my-bet-info">
+      <!-- [수정] 가족 레이스 베팅 정보 표시 (로딩 완료 후) -->
+      <div v-if="selectedMode === 'family' && hasBetFamily && !isBetLoading" class="my-bet-info">
         <p>
           <span class="round-badge">Round {{ familyRaceState.roundId }}</span>
           나의 베팅: <strong>{{ myFamilyBet.amount }} P</strong> ({{ myFamilyBet.runner + 1 }}번 선수)
@@ -108,7 +108,7 @@
               :key="i"
               @click="selectedRunner = i"
               :class="['runner-btn', { active: selectedRunner === i }]"
-              :disabled="selectedMode === 'family' && hasBetFamily"
+              :disabled="(selectedMode === 'family' && (hasBetFamily || isBetLoading))"
             >
               <div class="btn-img-wrapper">
                 <img :src="img" class="btn-runner-img" />
@@ -126,7 +126,7 @@
               :key="amount"
               @click="selectedBet = amount"
               :class="{ active: selectedBet === amount }"
-              :disabled="userPoints < amount || (selectedMode === 'family' && hasBetFamily)"
+              :disabled="userPoints < amount || (selectedMode === 'family' && (hasBetFamily || isBetLoading))"
             >
               {{ amount }} P
             </button>
@@ -136,9 +136,11 @@
         <button 
           class="btn-start" 
           @click="handleStart" 
-          :disabled="selectedRunner === null || !selectedBet || isProcessing || (selectedMode === 'family' && hasBetFamily)"
+          :disabled="selectedRunner === null || !selectedBet || isProcessing || (selectedMode === 'family' && (hasBetFamily || isBetLoading))"
         >
           <span v-if="isProcessing" class="spinner-small"></span>
+          <!-- [핵심] 베팅 정보 로딩 중일 때 상태 표시 -->
+          <span v-else-if="selectedMode === 'family' && isBetLoading">정보 확인 중...</span>
           <span v-else-if="selectedMode === 'family' && hasBetFamily">베팅 완료 (경기 대기 중)</span>
           <span v-else>{{ selectedMode === 'individual' ? '경기 시작하기' : '베팅 하기' }}</span>
         </button>
@@ -190,14 +192,13 @@
 </template>
 
 <script setup>
-// [수정] unused import 제거 (watch 삭제)
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { auth, db, functions } from '@/firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
-// 이미지 임포트
 import runner1 from '@/assets/racing/runner1.png';
 import runner2 from '@/assets/racing/runner2.png';
 import runner3 from '@/assets/racing/runner3.png';
@@ -226,46 +227,53 @@ let animationFrameId = null;
 const familyRaceState = ref({});
 const familyTimer = ref("00:00");
 const hasBetFamily = ref(false);
+const isBetLoading = ref(false); // [신규] 베팅 내역 로딩 상태
 const myFamilyBet = ref({});
-const cachedFamilyBet = ref(null); // DB가 초기화되기 전 베팅 정보를 캐싱
-const previousRoundId = ref(null); // 라운드 변경 감지용
+const cachedFamilyBet = ref(null); 
+const previousRoundId = ref(null); 
 
 let familyUnsubscribe = null;
 let myBetUnsubscribe = null;
 let timerInterval = null;
 let unsubscribeUser = null;
 let unsubscribeDaily = null;
+let authUnsubscribe = null;
 
 onMounted(() => {
-  if (route.query.mode === 'family') {
-    selectMode('family');
-  }
+  authUnsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          userPoints.value = docSnap.data().saltmatePoints || 0;
+        }
+      });
 
-  const user = auth.currentUser;
-  if (!user) {
-    alert("로그인이 필요합니다.");
-    router.push('/login');
-    return;
-  }
-
-  unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
-    if (docSnap.exists()) {
-      userPoints.value = docSnap.data().saltmatePoints || 0;
-    }
-  });
-
-  const now = new Date();
-  const kstOffset = 9 * 60 * 60 * 1000;
-  const todayStr = new Date(now.getTime() + kstOffset).toISOString().slice(0, 10);
-  
-  unsubscribeDaily = onSnapshot(doc(db, 'users', user.uid, 'daily_play_counts', todayStr), (docSnap) => {
-    if (docSnap.exists()) {
-      todayPlayCount.value = docSnap.data().saltRacing || 0;
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const todayStr = new Date(now.getTime() + kstOffset).toISOString().slice(0, 10);
+      
+      unsubscribeDaily = onSnapshot(doc(db, 'users', user.uid, 'daily_play_counts', todayStr), (docSnap) => {
+        if (docSnap.exists()) {
+          todayPlayCount.value = docSnap.data().saltRacing || 0;
+        }
+      });
+      
+      // URL 파라미터로 모드 진입 시 처리 (인증 후 실행)
+      if (route.query.mode === 'family') {
+        selectMode('family');
+      } else if (selectedMode.value === 'family') {
+        // 새로고침 후 모드 복구 시
+        startFamilyListeners();
+      }
+    } else {
+      alert("로그인이 필요합니다.");
+      router.push('/login');
     }
   });
 });
 
 onUnmounted(() => {
+  if (authUnsubscribe) authUnsubscribe();
   if (unsubscribeUser) unsubscribeUser();
   if (unsubscribeDaily) unsubscribeDaily();
   if (familyUnsubscribe) familyUnsubscribe();
@@ -283,6 +291,8 @@ const selectMode = (mode) => {
   } else {
     if (familyUnsubscribe) familyUnsubscribe();
     if (myBetUnsubscribe) myBetUnsubscribe();
+    hasBetFamily.value = false;
+    isBetLoading.value = false;
   }
 };
 
@@ -291,31 +301,35 @@ const goBack = () => {
     resetGame();
     if (familyUnsubscribe) familyUnsubscribe();
     if (myBetUnsubscribe) myBetUnsubscribe();
+    router.replace({ query: null });
 };
 
-// --- 가족 레이스 로직 ---
 const startFamilyListeners = () => {
   const user = auth.currentUser;
-  
-  // 1. 전체 게임 상태 리스너 (라운드 변경 감지)
+  if (!user) return;
+
+  // 베팅 내역 로딩 시작
+  isBetLoading.value = true;
+
+  // 1. 전체 게임 상태 리스너
   const raceRef = doc(db, 'system', 'saltRacingFamily');
   familyUnsubscribe = onSnapshot(raceRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       
-      // 라운드가 변경되었는지 확인 (경기 종료 시점)
+      // 라운드 변경 감지 (경기 종료 -> 결과 처리)
       if (previousRoundId.value !== null && data.roundId > previousRoundId.value) {
-          // 경기가 막 끝났음 -> 애니메이션 시작
+          // [핵심] 타이머 업데이트를 중단하고 결과 처리로 넘어감
           handleFamilyRaceFinish(data.lastWinner);
       } else {
-          // 일반적인 상태 업데이트
           familyRaceState.value = data;
-          if (data.nextRaceTime && gameStatus.value !== 'racing') {
+          // 경기 중이 아닐 때만 타이머 업데이트
+          if (data.nextRaceTime && gameStatus.value !== 'racing' && gameStatus.value !== 'finished') {
             updateTimer(data.nextRaceTime.toDate());
           }
       }
       
-      // 혹시 처음 로드했을 때 지난 베팅 결과가 있는지 확인 (5분 지나서 들어온 경우)
+      // 최초 진입 시 지난 결과 확인
       if (previousRoundId.value === null) {
           checkMissedResult(data);
       }
@@ -324,32 +338,32 @@ const startFamilyListeners = () => {
     }
   });
   
-  // 2. 내 베팅 내역 실시간 리스너 (새로고침/나갔다 와도 유지됨)
+  // 2. 내 베팅 내역 실시간 리스너
   const myBetRef = doc(db, 'system/saltRacingFamily/currentBets', user.uid);
   myBetUnsubscribe = onSnapshot(myBetRef, (docSnap) => {
       if (docSnap.exists()) {
-          // 베팅 정보가 있으면 상태 복구
           const data = docSnap.data();
           hasBetFamily.value = true;
           myFamilyBet.value = { amount: data.amount, runner: data.runner };
           selectedRunner.value = data.runner;
           selectedBet.value = data.amount;
-          cachedFamilyBet.value = data; // 결과 처리를 위해 캐싱
-          
-          // 로컬 스토리지에도 백업 (화면 꺼짐 등 대비)
-          localStorage.setItem(`familyBet_${familyRaceState.value.roundId}`, JSON.stringify(data));
+          cachedFamilyBet.value = data;
+          // 로컬 스토리지 백업 (화면 꺼짐 대비)
+          if(familyRaceState.value.roundId) {
+             localStorage.setItem(`familyBet_${familyRaceState.value.roundId}`, JSON.stringify(data));
+          }
       } else {
-          // 베팅 내역이 없으면 (초기화 됨)
-          // 단, 현재 결과 처리 중(racing/finished)이면 상태를 바로 지우지 않음
+          // DB에 없으면 베팅 안 한 상태 (단, 게임 결과 처리 중에는 리셋 안 함)
           if (gameStatus.value === 'idle') {
               hasBetFamily.value = false;
               myFamilyBet.value = {};
           }
       }
+      // [핵심] 데이터 로딩 완료
+      isBetLoading.value = false;
   });
 };
 
-// 놓친 결과 확인 (5분이 지나서 들어왔을 때)
 const checkMissedResult = (currentSystemState) => {
     const lastRoundId = currentSystemState.roundId - 1;
     const storedBet = localStorage.getItem(`familyBet_${lastRoundId}`);
@@ -357,49 +371,39 @@ const checkMissedResult = (currentSystemState) => {
     if (storedBet && currentSystemState.lastWinner !== null) {
         const betInfo = JSON.parse(storedBet);
         const isWin = (betInfo.runner === currentSystemState.lastWinner);
-        // [수정] 사용하지 않는 변수 prizePool 제거
-        
-        // 결과 모달 띄우기
         resultData.value = {
             winnerIndex: currentSystemState.lastWinner,
             isWin: isWin,
             winnings: isWin ? '정산 완료' : 0,
-            missed: true // "지난 경기 결과" 표시용
+            missed: true
         };
         gameStatus.value = 'finished';
-        
-        // 확인 후 스토리지 삭제
         localStorage.removeItem(`familyBet_${lastRoundId}`);
     }
 };
 
-// 라운드 변경 시 실행 (애니메이션 -> 결과)
 const handleFamilyRaceFinish = (winnerIndex) => {
-    // 1. 타이머 멈춤 및 상태 변경
     if (timerInterval) clearInterval(timerInterval);
     gameStatus.value = 'racing';
     
-    // 2. 내 베팅 정보 가져오기 (DB는 이미 지워졌을 수 있으므로 캐시나 스토리지 사용)
     let myBet = cachedFamilyBet.value;
     if (!myBet) {
+        // 캐시가 없으면 스토리지에서 시도
         const stored = localStorage.getItem(`familyBet_${previousRoundId.value}`);
         if (stored) myBet = JSON.parse(stored);
     }
 
-    // 3. 애니메이션 시작
     startRaceAnimation(winnerIndex, () => {
-        // 애니메이션 종료 후 콜백
         if (myBet) {
             const isWin = (myBet.runner === winnerIndex);
             resultData.value = {
                 winnerIndex: winnerIndex,
                 isWin: isWin,
-                winnings: isWin ? '정산 완료' : 0 // 금액은 이미 서버가 지급함
+                winnings: isWin ? '정산 완료' : 0
             };
-            // 스토리지 정리
+            // 결과 확인 후 스토리지 정리
             localStorage.removeItem(`familyBet_${previousRoundId.value}`);
         } else {
-            // 베팅 안 했어도 결과는 보여줌
             resultData.value = {
                 winnerIndex: winnerIndex,
                 isWin: false,
@@ -424,7 +428,7 @@ const updateTimer = (targetDate) => {
     }
   };
   
-  tick(); // 즉시 실행
+  tick();
   timerInterval = setInterval(tick, 1000);
 };
 
@@ -435,7 +439,6 @@ const calculateOdds = (index) => {
   return ((total * 0.9) / runnerBet).toFixed(2);
 };
 
-// --- 게임 실행 로직 ---
 const handleStart = () => {
   if (selectedMode.value === 'individual') {
     startIndividualRace();
@@ -467,15 +470,12 @@ const startIndividualRace = async () => {
     isProcessing.value = false;
     
     if (trackScrollWrapper.value) trackScrollWrapper.value.scrollLeft = 0;
-    
     startRaceAnimation(result.data.winnerIndex, () => {
         gameStatus.value = 'finished';
     });
   } catch (error) {
     console.error("게임 시작 오류:", error);
-    let msg = error.message;
-    if(msg.includes("resource-exhausted")) msg = "일일 참여 횟수를 초과했습니다.";
-    alert(msg);
+    alert(error.message);
     isProcessing.value = false;
   }
 };
@@ -487,21 +487,19 @@ const placeFamilyBet = async () => {
   isProcessing.value = true;
   try {
     await placeFamilyBetFunc({ betAmount: selectedBet.value, selectedRunner: selectedRunner.value });
-    // UI 즉시 반영 (리스너가 덮어쓰겠지만 반응성을 위해)
+    // 성공 시 상태 즉시 반영 (리스너가 곧 덮어쓰겠지만 반응성을 위해)
     hasBetFamily.value = true;
     myFamilyBet.value = { amount: selectedBet.value, runner: selectedRunner.value };
-    // 캐싱 (결과 확인용)
-    cachedFamilyBet.value = { amount: selectedBet.value, runner: selectedRunner.value };
     
     alert("베팅이 완료되었습니다! 경기 시간에 결과를 확인하세요.");
   } catch (e) {
+    // 오류 시 메시지 표시 (중복 베팅 등)
     alert(e.message);
   } finally {
     isProcessing.value = false;
   }
 };
 
-// 애니메이션 (콜백 추가)
 const startRaceAnimation = (winnerIndex, onComplete) => {
   runners.forEach(r => { r.progress = 0; r.rank = null; });
 
@@ -514,15 +512,10 @@ const startRaceAnimation = (winnerIndex, onComplete) => {
     runners.forEach((runner, index) => {
       if (runner.progress < 100) {
         if (Math.random() < 0.05) speeds[index] = 0.2 + Math.random() * 0.5;
-        
         if (runner.progress > 80) {
-           if (index === winnerIndex) {
-               speeds[index] += 0.05; 
-           } else if (runners[winnerIndex].progress < 100) {
-               speeds[index] *= 0.9; 
-           }
+           if (index === winnerIndex) { speeds[index] += 0.05; } 
+           else if (runners[winnerIndex].progress < 100) { speeds[index] *= 0.9; }
         }
-
         runner.progress += speeds[index];
 
         if (runner.progress >= 100) {
@@ -536,7 +529,6 @@ const startRaceAnimation = (winnerIndex, onComplete) => {
       if (runner.progress > maxProgress) maxProgress = runner.progress;
     });
 
-    // PC 스크롤 제거되었으므로 모바일에서만 작동하도록 조건 강화해도 됨
     if (trackScrollWrapper.value) {
         const wrapper = trackScrollWrapper.value;
         const scrollWidth = wrapper.scrollWidth;
@@ -564,12 +556,12 @@ const resetGame = () => {
   selectedRunner.value = null;
   runners.forEach(r => { r.progress = 0; r.rank = null; });
   resultData.value = null;
-  cachedFamilyBet.value = null; // 결과 확인 후 캐시 초기화
+  cachedFamilyBet.value = null; 
   hasBetFamily.value = false;
+  isBetLoading.value = false; // 초기화
   
   if (trackScrollWrapper.value) trackScrollWrapper.value.scrollLeft = 0;
   
-  // 가족 모드라면 최신 타이머 다시 로드
   if (selectedMode.value === 'family' && familyRaceState.value.nextRaceTime) {
       updateTimer(familyRaceState.value.nextRaceTime.toDate());
   }
@@ -638,7 +630,7 @@ const resetGame = () => {
   flex-shrink: 0;
 }
 
-/* [핵심 수정] PC 화면(769px 이상)에서 스크롤 제거 및 너비 100% 강제 */
+/* PC 화면(769px 이상)에서 스크롤 제거 및 너비 100% 강제 */
 @media (min-width: 769px) {
     .track-scroll-wrapper { overflow-x: hidden; }
     .track-container { min-width: 100% !important; width: 100%; }
