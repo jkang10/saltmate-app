@@ -156,6 +156,7 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 
 import heliaImgSrc from '@/assets/hellia_img.png';
 
+// 유틸리티 함수
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
 // --- 상태 변수 ---
@@ -253,7 +254,7 @@ const getTerrainHeight = (x, z) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화
+// NPC & 퀘스트 관련 함수
 // ----------------------------------------
 const initNPC = async (animations) => {
   const npc = await loadAvatar('/avatars/fantasy_knight_junho.glb', animations);
@@ -262,7 +263,6 @@ const initNPC = async (animations) => {
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정 2] NPC 크기 확대 (0.9 -> 2.3)
   npc.scale.set(2.3, 2.3, 2.3);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = Math.PI; 
@@ -364,6 +364,10 @@ const completeQuest = async () => {
     } catch (e) { alert(e.message); }
 };
 
+// ----------------------------------------
+// 기본 로직 (행동, 채팅, 입장 등)
+// ----------------------------------------
+
 const hasPurchased = (actionKey) => purchasedActions.value.includes(actionKey);
 const handleActionClick = (actionKey) => hasPurchased(actionKey) ? triggerAction(actionKey) : openPurchaseModal(actionKey);
 const openPurchaseModal = (actionKey) => { purchaseModal.actionKey = actionKey; purchaseModal.actionName = actionList[actionKey].name; purchaseModal.price = actionList[actionKey].price; purchaseModal.visible = true; };
@@ -377,6 +381,24 @@ const confirmPurchase = async () => {
     if (result.data.success) { purchasedActions.value.push(purchaseModal.actionKey); alert(`${purchaseModal.actionName} 구매 완료!`); closePurchaseModal(); }
   } catch (e) { alert(e.message); isPurchasing.value = false; }
 };
+
+const joinPlaza = async (uid) => {
+  playerRef = dbRef(rtdb, `${plazaPlayersPath}/${uid}`);
+  const safeX = 37.16; const safeY = 5.0; const safeZ = 7.85; 
+  const playerData = { avatarUrl: myAvatarUrl, userName: myUserName, position: { x: safeX, y: safeY, z: safeZ }, rotationY: 0, timestamp: serverTimestamp() };
+  try { await set(playerRef, playerData); await onDisconnect(playerRef).remove(); isReady.value = true; } catch (e) { console.error("입장 실패:", e); }
+};
+
+// [수정] 함수 정의를 상단으로 이동
+const updateMyStateInRTDB = (actionName = null) => {
+  if (!playerRef || !myAvatar || !isReady.value) return;
+  const payload = { position: { x: myAvatar.position.x, y: myAvatar.position.y, z: myAvatar.position.z }, rotationY: myAvatar.rotation.y, timestamp: serverTimestamp() };
+  if (actionName) { payload.action = actionName; }
+  update(playerRef, payload).catch(() => {});
+};
+
+let lastUpdateTime = 0;
+const throttledUpdate = () => { const now = Date.now(); if (now - lastUpdateTime > 50) { updateMyStateInRTDB(); lastUpdateTime = now; } };
 
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
@@ -401,6 +423,7 @@ const triggerAction = (actionName) => {
 };
 
 const resumeAudioContext = () => { audioBlocked.value = false; if (THREE.AudioContext.getContext().state === 'suspended') { THREE.AudioContext.getContext().resume(); } };
+
 const initAgora = async (uid) => { 
   if (!uid) return;
   const stringUid = uid; 
@@ -452,15 +475,66 @@ const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rt
 const listenToVideoState = () => { videoListenerRef = dbRef(rtdb, plazaVideoPath); onValue(videoListenerRef, (snapshot) => { const data = snapshot.val(); if (!data || !cinemaVideoRef.value) return; isVideoPlaying.value = data.isPlaying; const videoEl = cinemaVideoRef.value; if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; } applyVideoState(videoEl, data); }); };
 const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency = (Date.now() - data.timestamp) / 1000; const targetTime = data.videoTime + latency; if (Math.abs(videoEl.currentTime - targetTime) > 1) videoEl.currentTime = targetTime; videoEl.play().catch(() => {}); } else { videoEl.pause(); if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) videoEl.currentTime = data.videoTime; } };
 const handleUserInteraction = () => { const video = cinemaVideoRef.value; if (video && video.paused) { video.play().then(() => { isVideoPlaying.value = true; }).catch(() => {}); } };
+
+const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
+const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
+
+const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
+  playersListenerRef = dbRef(rtdb, plazaPlayersPath);
+  onChildAdded(playersListenerRef, async (snapshot) => {
+    if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
+    const val = snapshot.val();
+    let posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
+    let posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
+    let posY = isFiniteNumber(val.position?.y) ? val.position.y : getTerrainHeight(posX, posZ);
+    const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
+    otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
+    const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
+    if (scene && otherPlayers[snapshot.key]) {
+      if (val.userName !== '익명') { const nick = createNicknameSprite(val.userName); nick.position.set(0, 1.8, 0); model.add(nick); }
+      model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
+      scene.add(model); model.updateMatrixWorld(true); 
+      otherPlayers[snapshot.key].mesh = model; otherPlayers[snapshot.key].mixer = model.userData.mixer; otherPlayers[snapshot.key].actions = model.userData.actions;
+      if (model.userData.mixer) model.userData.mixer.update(0.01);
+      if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
+    }
+  });
+  onChildChanged(playersListenerRef, (snap) => {
+    if (snap.key === currentUid || !otherPlayers[snap.key]) return;
+    const val = snap.val();
+    const player = otherPlayers[snap.key];
+    if (val.position) { player.targetPosition.set(val.position.x, val.position.y, val.position.z); player.targetRotationY = val.rotationY || 0; }
+    if (val.action) {
+        const actionName = val.action; const mixer = player.mixer; const actions = player.actions; const action = actions[actionName];
+        if (mixer && action) {
+            mixer.stopAllAction(); action.reset(); action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; action.play();
+            const onFinished = (e) => { if (e.action === action) { mixer.removeEventListener('finished', onFinished); const idleAction = actions['idle']; if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); } } };
+            mixer.addEventListener('finished', onFinished);
+        }
+    }
+  });
+  onChildRemoved(playersListenerRef, (snap) => {
+    if (!otherPlayers[snap.key]) return;
+    if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
+    delete otherPlayers[snap.key];
+  });
+};
+
+const forceInitialMove = () => {
+    if (!myAvatar) return;
+    const terrainY = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
+    myAvatar.position.y = terrainY; myAvatar.updateMatrixWorld(true); 
+    updateMyStateInRTDB(); 
+    setTimeout(() => updateMyStateInRTDB(), 500);
+    setTimeout(() => updateMyStateInRTDB(), 1000);
+};
+
 const loadAnimations = async () => { const animationPaths = { walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb', strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb', idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb', idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb', dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb', psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb' }; const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null }; const keys = Object.keys(animationPaths); try { const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))); gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; }); return loadedAnimations; } catch (error) { return loadedAnimations; } };
 const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 40px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.5, 0.5, 1); sprite.position.set(0, 0, 0); return sprite; };
 const createChatBubbleSprite = (text, textColor = "black") => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; canvas.width = w; canvas.height = 60; context.fillStyle = 'rgba(255, 255, 255, 0.9)'; context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, w / 2, 30); const texture = new THREE.CanvasTexture(canvas); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; return sprite; };
 const showChatBubble = (avatar, message, color = "black") => { if (!avatar) return; if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); } const newBubble = createChatBubbleSprite(message, color); const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000); newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble); };
 
-// ---------------------------------------------------
-// [수정] initThree: async 함수로 변경하여 맵 로딩 대기
-// ---------------------------------------------------
 const initThree = async () => {
   return new Promise((resolve, reject) => {
       try {
@@ -502,7 +576,7 @@ const initThree = async () => {
                 const screenGeo = new THREE.PlaneGeometry(16, 9); const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
                 const screen = new THREE.Mesh(screenGeo, screenMat); screen.position.set(startX, groundLevelY + 7, startZ - 15); screen.name = "cinemaScreen"; scene.add(screen);
               }
-              resolve(true); // 맵 로딩 완료 시 resolve
+              resolve(true); 
           }, undefined, (e) => { console.error('맵 로드 실패', e); reject(false); });
           clock = new THREE.Clock();
       } catch (e) { console.error(e); reject(false); }
@@ -523,25 +597,15 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      // 조이스틱 이동 (기존 유지)
       const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8; moveDirection.z = -1; moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
-      // 키보드 이동
       const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
       const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      
-      if (isKeyboardMoving) { 
-          // [수정 3] 카메라를 등지고 걷도록 180도(PI) 회전 추가
-          myAvatar.rotation.y = cameraEuler.y + Math.PI; 
-          moved = true; 
-      }
-      // [수정 3] 키 입력에 따른 로컬 이동 방향 설정 (회전했으므로 앞으로 가려면 +Z가 아닌 -Z여야 하는지 확인 필요. 
-      // 보통 GLTF는 +Z가 전방. 180도 돌렸으므로 -Z가 카메라에서 멀어지는 방향.
-      // W를 누르면 '앞으로' 가야 하므로 로컬 좌표계에서 전진(+Z)하면 월드 좌표계에서 카메라 반대편(-Z)으로 감.
+      if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y + Math.PI; moved = true; }
       if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
       if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
       if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
@@ -553,20 +617,14 @@ const updatePlayerMovement = (deltaTime) => {
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
     velocity.applyQuaternion(myAvatar.quaternion); 
     myAvatar.position.add(velocity); 
-    
-    // [수정 1] 카메라가 아바타를 따라다니도록 설정
     camera.position.add(velocity); 
     controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
-    
     throttledUpdate();
   }
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  
-  // 지형 높이 보정
   myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
-  
   const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
@@ -580,15 +638,11 @@ const updateOtherPlayersMovement = (deltaTime) => {
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    
-    // [수정] 목표 위치로 부드럽게 이동하되, Y축은 지형 높이로 강제
     player.mesh.position.lerp(player.targetPosition, lerpFactor);
     player.mesh.position.y = getTerrainHeight(player.mesh.position.x, player.mesh.position.z);
-
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
-    
     let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; 
     const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
@@ -645,8 +699,6 @@ onMounted(() => {
       } catch(e) { console.log("권한 확인 실패"); }
 
       await initAgora(currentUid);
-      
-      // [수정] 지형 로드 완료(await) 후 아바타 로직 실행
       const mapLoaded = await initThree();
       if (!mapLoaded) return;
 
@@ -675,11 +727,8 @@ onMounted(() => {
       } catch (error) { console.error("Firestore 정보 가져오기 실패:", error); }
 
       myAvatar = await loadAvatar(myAvatarUrl, preloadedAnimations);
-      
-      // [핵심] 지형 높이 반영하여 초기 위치 설정
       const startX = 37.16; const startZ = 7.85;
       const startY = getTerrainHeight(startX, startZ);
-      
       myAvatar.position.set(startX, startY, startZ); 
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
@@ -691,7 +740,6 @@ onMounted(() => {
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      // NPC & Quest (지형 로드 후 실행)
       await initNPC(preloadedAnimations);
       await checkDailyQuest();
 
@@ -738,60 +786,213 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 기존 스타일 유지 */
-/* ... */
-:global(body), :global(html) { margin: 0; padding: 0; overflow: hidden; height: 100%; }
-.utopia-container { width: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; position: relative; background-color: #ade6ff; }
+:global(body), :global(html) {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; 
+  height: 100%;
+}
+.utopia-container { 
+  width: 100%; 
+  height: 100dvh; 
+  margin: 0; 
+  padding: 0; 
+  overflow: hidden; 
+  position: relative; 
+  background-color: #ade6ff; 
+}
 .main-canvas { display: block; width: 100%; height: 100%; }
 .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
 .spinner { border: 4px solid rgba(255, 255, 255, 0.3); width: 40px; height: 40px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; margin-bottom: 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.chat-ui { position: absolute; bottom: 120px; left: 20px; width: 300px; max-width: 80%; max-height: 20vh; display: flex; flex-direction: column; z-index: 5; }
-.action-bar { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
-.action-btn-wrapper { position: relative; }
-.action-btn-wrapper button { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); color: white; font-size: 1.2rem; padding: 5px 8px; border-radius: 5px; cursor: pointer; transition: transform 0.1s; position: relative; }
-.action-btn-wrapper button:active { transform: scale(0.9); }
-.lock-icon { position: absolute; top: -5px; right: -5px; font-size: 0.8rem; background: rgba(0,0,0,0.8); border-radius: 50%; padding: 2px; }
-.message-list { flex-grow: 1; overflow-y: auto; margin-bottom: 5px; color: white; font-size: 0.9em; background-color: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 10px; scrollbar-width: none; }
+
+.chat-ui { 
+  position: absolute; 
+  bottom: 120px; 
+  left: 20px; 
+  width: 300px; 
+  max-width: 80%; 
+  max-height: 20vh; 
+  display: flex; 
+  flex-direction: column; 
+  z-index: 5; 
+}
+
+.action-bar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.action-btn-wrapper {
+  position: relative;
+}
+.action-btn-wrapper button {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  font-size: 1.2rem;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  position: relative;
+}
+.action-btn-wrapper button:active {
+  transform: scale(0.9);
+}
+.lock-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 0.8rem;
+  background: rgba(0,0,0,0.8);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.message-list { 
+  flex-grow: 1; 
+  overflow-y: auto; 
+  margin-bottom: 5px; 
+  color: white; 
+  font-size: 0.9em; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  border-radius: 8px; 
+  padding: 10px;
+  scrollbar-width: none; 
+}
 .message-list::-webkit-scrollbar { display: none; }
+
 .chat-message { margin-bottom: 6px; word-break: break-all; line-height: 1.4; }
 .chat-ui input { width: 100%; padding: 10px; border: none; border-radius: 4px; background-color: rgba(255, 255, 255, 0.15); color: white; outline: none; }
+
 .joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 150px; height: 150px; z-index: 6; opacity: 0.7; }
+
 .user-controls { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 8px; }
 .user-controls button { padding: 10px 15px; background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; cursor: pointer; font-weight: bold; transition: background 0.3s; white-space: nowrap; }
 .user-controls button:hover { background: rgba(0, 0, 0, 0.8); }
 .user-controls button.active { border-color: #28a745; color: #28a745; }
-.audio-blocked-msg { position: absolute; top: 80px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 8px; z-index: 99; font-size: 0.8rem; animation: pulse 2s infinite; }
+
+.audio-blocked-msg {
+  position: absolute; top: 80px; right: 20px; background: rgba(255,0,0,0.8);
+  color: white; padding: 10px; border-radius: 8px; z-index: 99; font-size: 0.8rem;
+  animation: pulse 2s infinite;
+}
+
 .admin-video-controls { position: absolute; top: 80px; right: 20px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 8px; color: white; z-index: 100; width: 150px; }
 .admin-video-controls h3 { margin: 0 0 8px 0; font-size: 0.9rem; text-align: center; }
 .admin-buttons { display: flex; gap: 5px; }
 .admin-buttons button { flex: 1; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 .admin-buttons button:hover { background: #0056b3; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
-.modal-content { background: white; width: 90%; max-width: 320px; padding: 20px; border-radius: 12px; text-align: center; }
-.price-tag { font-size: 1.2rem; font-weight: bold; color: #007bff; margin: 15px 0; }
-.modal-actions { display: flex; gap: 10px; justify-content: center; }
-.modal-actions button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background-color: #007bff; color: white; }
-.modal-actions button.cancel-btn { background-color: #6c757d; }
-.modal-actions button:disabled { background-color: #ccc; }
-.interaction-prompt { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); z-index: 20; }
-.interact-btn { background: linear-gradient(135deg, #FFD700, #FFA500); border: 2px solid #fff; color: #333; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5); cursor: pointer; animation: bounce 1s infinite alternate; display: flex; align-items: center; gap: 8px; }
-.chest-btn { background: linear-gradient(135deg, #00C6FF, #0072FF); box-shadow: 0 4px 15px rgba(0, 114, 255, 0.5); color: white; }
+
+/* 구매 모달 스타일 */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000;
+}
+.modal-content {
+  background: white; width: 90%; max-width: 320px; padding: 20px; border-radius: 12px; text-align: center;
+}
+.price-tag {
+  font-size: 1.2rem; font-weight: bold; color: #007bff; margin: 15px 0;
+}
+.modal-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.modal-actions button {
+  padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+  background-color: #007bff; color: white;
+}
+.modal-actions button.cancel-btn {
+  background-color: #6c757d;
+}
+.modal-actions button:disabled {
+  background-color: #ccc;
+}
+
+/* [신규] 상호작용 버튼 스타일 */
+.interaction-prompt {
+  position: absolute;
+  bottom: 180px; /* 채팅창 위 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+.interact-btn {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  border: 2px solid #fff;
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: bold;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5);
+  cursor: pointer;
+  animation: bounce 1s infinite alternate;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chest-btn {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    box-shadow: 0 4px 15px rgba(0, 114, 255, 0.5);
+    color: white;
+}
 @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
-.npc-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 3000; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 50px; }
-.npc-dialog-box { background: rgba(20, 20, 30, 0.95); border: 2px solid #FFD700; border-radius: 15px; width: 90%; max-width: 600px; padding: 20px; display: flex; gap: 20px; color: white; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-.npc-portrait img { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #FFD700; object-fit: cover; background: white; }
+
+/* [신규] NPC 대화창 스타일 */
+.npc-dialog-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 3000;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 50px;
+}
+.npc-dialog-box {
+  background: rgba(20, 20, 30, 0.95);
+  border: 2px solid #FFD700;
+  border-radius: 15px;
+  width: 90%; max-width: 600px;
+  padding: 20px;
+  display: flex; gap: 20px;
+  color: white;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+.npc-portrait img {
+  width: 100px; height: 100px; border-radius: 50%;
+  border: 3px solid #FFD700;
+  object-fit: cover;
+  background: white;
+}
 .npc-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .npc-content h3 { margin: 0; color: #FFD700; }
 .quest-desc { font-size: 1.1rem; line-height: 1.4; }
-.quest-progress-bar { background: #333; height: 20px; border-radius: 10px; position: relative; overflow: hidden; }
-.quest-progress-bar .fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-.quest-progress-bar span { position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px; font-size: 0.8rem; text-shadow: 0 0 3px black; }
+.quest-progress-bar {
+  background: #333; height: 20px; border-radius: 10px; position: relative; overflow: hidden;
+}
+.quest-progress-bar .fill {
+  background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s;
+}
+.quest-progress-bar span {
+  position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px;
+  font-size: 0.8rem; text-shadow: 0 0 3px black;
+}
 .dialog-actions { display: flex; gap: 10px; margin-top: 10px; }
-.dialog-actions button { padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
+.dialog-actions button {
+  padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold;
+}
 .btn-complete { background: #28a745; color: white; }
 .btn-disabled { background: #555; color: #ccc; cursor: default; }
 .btn-confirm { background: #007bff; color: white; }
-.close-dialog { position: absolute; top: 10px; right: 15px; background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer; }
-@media (max-width: 768px) { .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; } .user-controls { top: 15px; right: 15px; } .user-controls button { padding: 6px 10px; font-size: 0.75rem; } .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; } }
+.close-dialog {
+  position: absolute; top: 10px; right: 15px; background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }
+  .user-controls { top: 15px; right: 15px; }
+  .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
+  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
+}
 </style>
