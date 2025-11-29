@@ -311,46 +311,69 @@ const checkCollision = (currentPos, direction) => {
 // [수정] NPC 초기화 (모델 교체: Korean Female)
 // ----------------------------------------
 const initNPC = async () => {
-  // [수정] 검증된 한국 여성 모델로 교체 (안전성 확보)
-  const npc = await loadAvatar('/avatars/belly_dance.glb', null);
-  
-  const npcX = 37.16;
-  // Z축 0 (플레이어 시작 위치인 7.85에 더 가깝게 앞으로 5만큼 당김)
-  const npcZ = 0;
-  const npcY = getTerrainHeight(npcX, npcZ); 
+  try {
+    // 1. 모델 로드 시도
+    // 만약 debra 모델이 없다면 기본 큐브라도 띄우도록 방어 코드 추가
+    const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
+    
+    // 모델이 정상적으로 로드되지 않았을 경우 (Group이 비어있거나 등)
+    if (!npc || npc.children.length === 0) {
+        console.warn("NPC 모델 로드 실패. 기본 모델을 사용합니다.");
+        // 비상용 박스 모델 생성
+        const geometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.y = 0.75;
+        npc.add(cube);
+    }
 
-  // [수정] 크기를 1.5배 키움 (0.75 -> 1.15)
-  npc.scale.set(0.02, 0.02, 0.02);
-  npc.position.set(npcX, npcY, npcZ); 
-  npc.rotation.y = 0;
+    const npcX = 37.16;
+    const npcZ = -5.0;
+    const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] NPC 전용 조명 추가 (회색 방지)
-  const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
-  npcLight.position.set(0, 3, 2);
-  npc.add(npcLight);
+    // 2. 크기 및 위치 설정
+    npc.scale.set(0.75, 0.75, 0.75);
+    npc.position.set(npcX, npcY, npcZ); 
+    npc.rotation.y = 0; 
 
-  // [수정] 이름표 생성 (머리 위 2.3 높이)
-  const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 1.5, 0);
-  npc.add(nameTag);
+    // 3. 재질 보정 (회색 현상 방지)
+    npc.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          child.material.metalness = 0;
+          child.material.roughness = 0.8;
+          child.material.emissive = new THREE.Color(0x000000);
+          child.material.needsUpdate = true;
+        }
+      }
+    });
 
-// [수정] 모델 내장 애니메이션 랜덤 재생
-if (npc.animations && npc.animations.length > 0) {
-    const mixer = new THREE.AnimationMixer(npc);
-    npc.userData.mixer = mixer;
-    const action = mixer.clipAction(npc.animations[0]);
-    action.play();
-} else {
-    // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
+    // 4. 조명 추가
+    const npcLight = new THREE.PointLight(0xffffff, 1.2, 5);
+    npcLight.position.set(0, 2, 2);
+    npc.add(npcLight);
+
+    // 5. 이름표
+    const nameTag = createNicknameSprite("데브라 (NPC)");
+    nameTag.position.set(0, 2.4, 0);
+    npc.add(nameTag);
+
+    // 6. 단순 애니메이션 (숨쉬기)
     npc.userData.animate = (time) => {
         npc.position.y = npcY + Math.sin(time * 2) * 0.02;
     };
-}
 
-  scene.add(npc);
-  npcModel.value = npc;
+    scene.add(npc);
+    npcModel.value = npc;
+    
+    console.log("NPC 초기화 완료");
+    startNpcMuttering();
 
-  startNpcMuttering();
+  } catch (error) {
+    console.error("NPC 초기화 중 치명적 오류:", error);
+  }
 };
 
 // 혼잣말 함수
