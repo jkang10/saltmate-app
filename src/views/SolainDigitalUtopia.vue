@@ -312,9 +312,9 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async () => {
   try {
-    // 1. 모델 로드 시도
-    // 만약 debra 모델이 없다면 기본 큐브라도 띄우도록 방어 코드 추가
-    const npc = await loadAvatar('/avatars/belly_dance.glb', null);
+    // 1. 모델 로드 (미리 로드된 animations 객체를 전달하여 Idle 모션 적용)
+    // * 중요: initNPC 함수 인자로 animations를 받아야 합니다.
+    const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', animations);
     
     // 모델이 정상적으로 로드되지 않았을 경우 (Group이 비어있거나 등)
     if (!npc || npc.children.length === 0) {
@@ -357,21 +357,20 @@ const initNPC = async () => {
 
     // 5. 이름표
     const nameTag = createNicknameSprite("데브라 (NPC)");
-    nameTag.position.set(0, 2.4, 0);
+    nameTag.position.set(0, 1.8, 0);
     npc.add(nameTag);
 
-// 6. [수정] 내장 애니메이션 재생
-// * 중요: 이 모델은 이름처럼 춤추는 애니메이션이 내장되어 있으므로 바로 재생합니다.
-if (npc.animations && npc.animations.length > 0) {
-    const mixer = new THREE.AnimationMixer(npc);
-    npc.userData.mixer = mixer;
-    const action = mixer.clipAction(npc.animations[0]);
-    action.play();
-} else {
-    // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
-    npc.userData.animate = (time) => {
-        npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-    };
+	// 6. 애니메이션 재생
+	if (npc.userData.mixer && npc.userData.actions && npc.userData.actions['idle']) {
+	    // Idle 애니메이션이 있으면 재생
+	    npc.userData.actions['idle'].play();
+	} else {
+	    // 애니메이션이 없을 경우를 대비한 코드 (숨쉬기 + 팔 내리기 시도)
+	    // 팔 뼈대를 찾아 회전시키는 로직은 복잡하므로, 
+	    // animations 인자를 잘 넘겨주는 것이 핵심입니다.
+	    npc.userData.animate = (time) => {
+		npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+	    };
 }
 
     scene.add(npc);
@@ -1011,7 +1010,7 @@ onMounted(() => {
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      await initNPC();
+      await initNPC(preloadedAnimations);
       await checkDailyQuest();
       
       questPollingInterval = setInterval(checkDailyQuest, 5000);
