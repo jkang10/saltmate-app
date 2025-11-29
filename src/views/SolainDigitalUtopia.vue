@@ -465,7 +465,11 @@ const triggerAction = (actionName) => {
 const handleGlobalClick = () => {
     resumeAudioContext();
     Object.values(remoteAudioTracks).forEach(track => {
-        try { track.play(); } catch(e) {}
+        try { 
+            track.play(); 
+        } catch(e) {
+            // 에러 무시 (사용자 인터랙션 필요)
+        }
     });
 };
 
