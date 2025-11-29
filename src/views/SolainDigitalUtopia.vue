@@ -310,76 +310,68 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 // [수정] NPC 초기화 (모델 교체: Korean Female)
 // ----------------------------------------
-const initNPC = async (animations) => {
+// [수정] NPC 초기화 (belly_dance.glb 전용)
+const initNPC = async () => {
   try {
-    // 1. 모델 로드 (전달받은 animations 사용)
-    const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', animations);
+    // 1. 모델 로드 (애니메이션 없이 null로 로드 -> 모델 내부 애니메이션 사용)
+    const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', null);
     
-    // 모델이 정상적으로 로드되지 않았을 경우 (Group이 비어있거나 등)
-    if (!npc || npc.children.length === 0) {
-        console.warn("NPC 모델 로드 실패. 기본 모델을 사용합니다.");
-        // 비상용 박스 모델 생성
-        const geometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.y = 0.75;
-        npc.add(cube);
+    if (!npc) {
+        console.error("NPC 모델을 불러오지 못했습니다.");
+        return;
     }
-
+    
     const npcX = 37.16;
     const npcZ = -5.0;
     const npcY = getTerrainHeight(npcX, npcZ); 
 
-    // 2. 크기 및 위치 설정
+    // 2. [중요] 크기 조정
+    // 다운로드 받은 춤추는 모델들은 보통 크기가 매우 큽니다. 
+    // 0.015 ~ 0.02 정도로 아주 작게 줄여서 시작해야 합니다.
     npc.scale.set(1.4, 1.4, 1.4);
+    
     npc.position.set(npcX, npcY, npcZ); 
-    npc.rotation.y = 0; 
+    npc.rotation.y = 0; // 정면 응시
 
-    // 3. 재질 보정 (회색 현상 방지)
-    npc.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        if (child.material) {
-          child.material.metalness = 0;
-          child.material.roughness = 0.8;
-          child.material.emissive = new THREE.Color(0x000000);
-          child.material.needsUpdate = true;
-        }
-      }
-    });
-
-    // 4. 조명 추가
-    const npcLight = new THREE.PointLight(0xffffff, 1.2, 5);
-    npcLight.position.set(0, 2, 2);
+    // 3. 조명 추가 (밝게)
+    const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
+    npcLight.position.set(0, 200, 100); // 모델 스케일에 따라 조명 위치도 조정
     npc.add(npcLight);
 
-    // 5. 이름표
-    const nameTag = createNicknameSprite("데브라 (NPC)");
-    nameTag.position.set(0, 1.8, 0);
+    // 4. 이름표 (높이 조정)
+    const nameTag = createNicknameSprite("벨리 댄서 (NPC)");
+    // 스케일이 작아졌으므로 상대적 높이는 매우 커야 합니다 (약 180~200)
+    nameTag.position.set(0, 180, 0); 
     npc.add(nameTag);
 
-	// 6. 애니메이션 재생
-	if (npc.userData.mixer && npc.userData.actions && npc.userData.actions['idle']) {
-	    // Idle 애니메이션이 있으면 재생
-	    npc.userData.actions['idle'].play();
-	} else {
-	    // 애니메이션이 없을 경우를 대비한 코드 (숨쉬기 + 팔 내리기 시도)
-	    // 팔 뼈대를 찾아 회전시키는 로직은 복잡하므로, 
-	    // animations 인자를 잘 넘겨주는 것이 핵심입니다.
-	    npc.userData.animate = (time) => {
-		npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-	    };
-}
+    // 5. [핵심] 모델 내장 춤 애니메이션 재생
+    // loadAvatar 함수가 glb.animations를 npc.animations에 담아준다고 가정
+    // 만약 loadAvatar가 animations를 리턴하지 않는다면, loader.load 부분 수정이 필요할 수 있음.
+    // 여기서는 일반적인 GLTFLoader 패턴을 따릅니다.
+    
+    // *참고: loadAvatar 함수 내부에서 gltf.animations를 모델에 붙여줘야 함.
+    // 현재 코드 구조상 mixer를 새로 생성해서 재생 시도
+    
+    // (만약 모델에 애니메이션이 있다면)
+    if (npc.userData.gltfAnimations && npc.userData.gltfAnimations.length > 0) {
+        const mixer = new THREE.AnimationMixer(npc);
+        npc.userData.mixer = mixer;
+        const action = mixer.clipAction(npc.userData.gltfAnimations[0]); // 첫 번째 춤 동작
+        action.play();
+    } else {
+        // 애니메이션이 없거나 로드 실패 시 코드 애니메이션(숨쉬기) 적용
+        npc.userData.animate = (time) => {
+            npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+        };
+    }
 
     scene.add(npc);
     npcModel.value = npc;
-    
-    console.log("NPC 초기화 완료");
+
     startNpcMuttering();
 
   } catch (error) {
-    console.error("NPC 초기화 중 치명적 오류:", error);
+    console.error("NPC 초기화 중 오류:", error);
   }
 };
 
@@ -734,7 +726,81 @@ const forceInitialMove = () => {
 };
 
 const loadAnimations = async () => { const animationPaths = { walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb', strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb', idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb', idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb', dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb', psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb' }; const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null }; const keys = Object.keys(animationPaths); try { const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))); gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; }); return loadedAnimations; } catch (error) { return loadedAnimations; } };
-const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
+const loadAvatar = (url, animations) => {
+  return new Promise((resolve) => {
+    const model = new THREE.Group();
+    model.matrixAutoUpdate = true;
+    model.position.set(0, 0, 0);
+    model.userData.mixer = null;
+    model.userData.actions = {};
+
+    // URL이 없거나 GLB가 아닌 경우 기본 큐브 생성 (방어 코드)
+    if (!url || !url.endsWith('.glb')) {
+      const visuals = new THREE.Group();
+      const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
+      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+      const cube = new THREE.Mesh(geometry, material);
+      cube.position.y = 0.5;
+      visuals.add(cube);
+      model.add(visuals);
+      resolve(model);
+      return;
+    }
+
+    loader.load(
+      url,
+      (gltf) => {
+        const visuals = gltf.scene;
+
+        // [핵심 업데이트] 모델 파일 자체에 포함된 애니메이션 데이터를 저장
+        // (이 데이터는 initNPC 등에서 꺼내서 사용합니다)
+        model.userData.gltfAnimations = gltf.animations;
+
+        // 그림자 및 렌더링 설정
+        visuals.traverse((child) => {
+          if (child.isMesh || child.isSkinnedMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.frustumCulled = false;
+            child.matrixAutoUpdate = true;
+          }
+        });
+
+        // 기본 스케일 및 위치 조정
+        visuals.scale.set(0.7, 0.7, 0.7);
+        const box = new THREE.Box3().setFromObject(visuals);
+        visuals.position.y = -box.min.y; // 발바닥을 바닥(0)에 맞춤
+
+        model.add(visuals);
+        model.userData.visuals = visuals;
+
+        // 외부에서 주입된 공용 애니메이션(걷기, 대기 등) 처리
+        if (animations) {
+          const mixer = new THREE.AnimationMixer(visuals);
+          model.userData.mixer = mixer;
+          for (const key in animations) {
+            if (animations[key]) {
+              const action = mixer.clipAction(animations[key]);
+              model.userData.actions[key] = action;
+              // 기본 idle 재생
+              if (key === 'idle') action.play();
+            }
+          }
+          mixer.update(0.01);
+        }
+
+        resolve(model);
+      },
+      undefined,
+      (error) => {
+        console.error('아바타 로딩 실패:', error);
+        // 실패 시 빈 모델이라도 반환하여 앱이 멈추지 않게 함
+        resolve(model);
+      }
+    );
+  });
+};
+
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
 
 // [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
