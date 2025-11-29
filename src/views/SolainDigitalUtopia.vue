@@ -247,7 +247,6 @@ const MAX_CHAT_MESSAGES = 50;
 // Three.js
 let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
-const textureLoader = new THREE.TextureLoader();
 
 // Firebase
 const plazaPlayersPath = 'plazaPlayers';
@@ -295,37 +294,34 @@ const getTerrainHeight = (x, z) => {
 // ----------------------------------------
 // [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
 // ----------------------------------------
-const initNPC = async () => {
-  // 1. 모델 로드 (애니메이션 없이 로드하여 오류 방지)
+const initNPC = async (animations) => {
+  // [수정] 데브라 모델 로드 (애니메이션 인자 null 처리로 T-Pose 방지 준비)
   const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
   
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // 2. 크기 및 위치 설정 (크기 0.75, 정면 응시)
+  // [수정] 크기 0.75, 회전 0 (정면 바라보기)
   npc.scale.set(0.75, 0.75, 0.75);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // 3. [핵심] 조명 추가 (색상 회색 방지)
+  // [신규] NPC 전용 조명 추가 (회색 현상 해결)
   const npcLight = new THREE.PointLight(0xffffff, 1.0, 5);
   npcLight.position.set(0, 2, 1);
   npc.add(npcLight);
 
-  // 4. 상품 이미지 박스 제거 (요청 반영)
-  
-  // 5. NPC 이름표
+  // [삭제] 상품 이미지(heliaImgSrc) 로드 코드 제거
+
+  // [수정] 이름표 위치 조정
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.5, 0); // 머리 위
+  nameTag.position.set(0, 2.3, 0);
   npc.add(nameTag);
 
-  // 6. [핵심] 코드 기반 단순 애니메이션 (T-Pose 및 오류 방지)
-  // 믹서 사용 안 함. 대신 animate 루프에서 실행될 함수 정의.
+  // [신규] 코드 기반 단순 애니메이션 (숨쉬기 효과 - 콘솔 오류 방지)
   npc.userData.animate = (time) => {
-      // 숨쉬기 효과 (Y축 이동)
       npc.position.y = npcY + Math.sin(time * 1.5) * 0.02;
-      // 살짝 회전 효과
       npc.rotation.y = Math.sin(time * 0.5) * 0.1;
   };
 
@@ -351,7 +347,8 @@ const startNpcMuttering = () => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
             // [수정] 글자색 검정(#000000), 배경 흰색 반투명
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
+	// [수정] 검정 글씨(#000000), 흰색 반투명 배경
+	showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8);
         }
     }, 8000); 
 };
@@ -441,33 +438,34 @@ const completeQuest = async () => {
         
         alert(`퀘스트 완료! ${reward} SaltMate를 획득했습니다.`);
         
-        const remaining = dailyQuest.value.rewardsRemaining - 1;
-        
-        // [핵심] UI 상태 강제 리셋 (즉시 반응)
-        // Vue의 반응성을 위해 객체 속성을 하나씩 변경
-        dailyQuest.value.rewardsRemaining = remaining;
-        
-        if (remaining > 0) {
-            dailyQuest.value.currentCount = 0; 
-            dailyQuest.value.rewardClaimed = false; 
-            dailyQuest.value.completed = false; // 완료 상태 해제 -> 새 퀘스트 시작
+        // [핵심] 로컬 상태 즉시 초기화 (새 퀘스트 준비)
+	const remaining = dailyQuest.value.rewardsRemaining - 1;
+		
+		// [핵심] 남은 횟수 즉시 갱신
+		dailyQuest.value.rewardsRemaining = remaining;
+		
+		if (remaining > 0) {
+		    // [수정] 다음 퀘스트 진행을 위해 상태 강제 리셋
+		    dailyQuest.value.currentCount = 0; 
+		    dailyQuest.value.rewardClaimed = false; 
+		    dailyQuest.value.completed = false; // [추가] 완료 상태 해제
 
-            // 보물찾기라면 상자 리셋
-            if (dailyQuest.value.type === 'FIND_ITEM') {
-                 for(const id in chests) {
-                     scene.remove(chests[id]);
-                     delete chests[id];
-                 }
-                 dailyQuest.value.foundItems = [];
-                 // 서버 데이터도 리셋되었다고 가정하고 다시 생성 시도
-                 spawnTreasureChests(dailyQuest.value.hiddenItems, []);
-            }
-        } else {
-            dailyQuest.value.rewardClaimed = true;
-        }
-        
-        closeNpcDialog();
-    } catch (e) { alert(e.message); }
+		    // 보물찾기 퀘스트 리셋
+		    if (dailyQuest.value.type === 'FIND_ITEM') {
+			 for(const id in chests) {
+			     scene.remove(chests[id]);
+			     delete chests[id];
+			 }
+			 dailyQuest.value.foundItems = []; // [추가] 찾은 아이템 목록 초기화
+			 spawnTreasureChests(dailyQuest.value.hiddenItems, []);
+		    }
+		} else {
+		    // 횟수 소진 시 완료 처리
+		    dailyQuest.value.rewardClaimed = true;
+		}
+		
+	      closeNpcDialog();
+        } catch (e) { alert(e.message); }
 };
 
 // ----------------------------------------
@@ -538,7 +536,7 @@ const handleGlobalClick = () => {
     }
 
     Object.values(remoteAudioTracks).forEach(track => {
-        try { track.play(); } catch(e) { /* 에러 무시 */ }
+        try { track.play(); } catch { /* 에러 무시 */ }
     });
 };
 
@@ -628,6 +626,8 @@ const leaveAgora = async () => {
 };
 
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
+// [수정] eslint 무시 주석 추가
+// eslint-disable-next-line no-unused-vars
 const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); } } catch (error) { console.error(error); } } };
 const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStatus = !isVideoPlaying.value; if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e)); else cinemaVideoRef.value.pause(); update(dbRef(rtdb, plazaVideoPath), { isPlaying: newStatus, timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime }); };
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
@@ -743,22 +743,26 @@ const initThree = async () => {
           const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
           
-          // [수정] 백업 파일 로직 복원 (비디오 스크린 생성)
-          const video = cinemaVideoRef.value;
-          if (video) {
-            const videoTexture = new THREE.VideoTexture(video); 
-            videoTexture.minFilter = THREE.LinearFilter; 
-            videoTexture.magFilter = THREE.LinearFilter; 
-            videoTexture.colorSpace = THREE.SRGBColorSpace; 
-            
-            // 백업 파일에 있던 좌표와 설정 그대로 적용
-            const screenGeo = new THREE.PlaneGeometry(16, 9); 
-            const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
-            const screen = new THREE.Mesh(screenGeo, screenMat); 
-            screen.position.set(startX, 7, startZ - 15); 
-            screen.name = "cinemaScreen"; 
-            scene.add(screen);
-          }
+	// [수정] MeshBasicMaterial 사용으로 조명 영향 없이 원본 밝기 유지
+	const video = cinemaVideoRef.value;
+	if (video) {
+	  const videoTexture = new THREE.VideoTexture(video);
+	  videoTexture.minFilter = THREE.LinearFilter;
+	  videoTexture.magFilter = THREE.LinearFilter;
+	  videoTexture.colorSpace = THREE.SRGBColorSpace; 
+
+	  const screenGeo = new THREE.PlaneGeometry(16, 9);
+	  // [핵심] BasicMaterial 사용
+	  const screenMat = new THREE.MeshBasicMaterial({ 
+	      map: videoTexture, 
+	      side: THREE.DoubleSide
+	  });
+	  
+	  const screen = new THREE.Mesh(screenGeo, screenMat);
+	  screen.position.set(startX, 7, startZ - 15); 
+	  screen.name = "cinemaScreen";
+	  scene.add(screen);
+	}
 
           loader.load('/models/low_poly_city_pack.glb', (gltf) => {
               const city = gltf.scene; city.name = "cityMap";
