@@ -61,52 +61,57 @@
       <AnnouncementTicker />
     </div>
 
-    <router-link to="/salt-pang-pvp" v-if="isLoggedIn && matchmakingQueueCount > 0 && !isGamePage" class="fab-matchmaking-button" title="대전 참여">
-      <div class="pulse-ring"></div>
-      <i class="fas fa-fist-raised"></i>
-      <span class="fab-badge">{{ matchmakingQueueCount }}</span>
-    </router-link>
-
     <main class="main-content">
       <router-view />
     </main>
 
-    <!-- 우측 하단 플로팅 컨트롤러 -->
     <div class="floating-controls">
       
-      <!-- 1. 가족 레이스 카운트다운 위젯 그룹 -->
-      <div v-if="!isGamePage" class="race-control-group">
+      <div v-if="isLoggedIn && !isGamePage" class="control-group pvp-group">
+        <transition name="slide-fade">
+          <router-link 
+            v-if="isPvpWidgetVisible"
+            to="/salt-pang-pvp" 
+            class="fab-matchmaking-button" 
+            :class="{ 'active-queue': matchmakingQueueCount > 0 }"
+            title="대전 참여"
+          >
+            <div v-if="matchmakingQueueCount > 0" class="pulse-ring"></div>
+            <i class="fas fa-fist-raised"></i>
+            <span v-if="matchmakingQueueCount > 0" class="fab-badge">{{ matchmakingQueueCount }}</span>
+          </router-link>
+        </transition>
+        
+        <button class="toggle-btn" @click="isPvpWidgetVisible = !isPvpWidgetVisible">
+          <i :class="isPvpWidgetVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+        </button>
+      </div>
+
+      <div v-if="!isGamePage" class="control-group race-group">
         <transition name="slide-fade">
           <router-link v-if="isRaceWidgetVisible" to="/salt-racing?mode=family" class="race-widget">
             <div class="race-badge">NEXT</div>
             <div class="race-timer">{{ raceTimeLeft }}</div>
-            
-            <!-- [핵심] 참여자 수 표시 -->
             <div class="race-participants">
                <i class="fas fa-user"></i> {{ raceParticipantCount }}
             </div>
-            
             <i class="fas fa-flag-checkered race-icon"></i>
           </router-link>
         </transition>
 
-        <!-- 레이스 위젯 토글 버튼 -->
-        <button class="race-toggle-btn" @click="isRaceWidgetVisible = !isRaceWidgetVisible">
+        <button class="toggle-btn" @click="isRaceWidgetVisible = !isRaceWidgetVisible">
           <i :class="isRaceWidgetVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
         </button>
       </div>
 
-      <!-- 2. QR 코드 토글 버튼 -->
-      <div v-if="userRole === 'centerManager' && !isGamePage" class="qr-control-group">
-        <!-- QR 버튼 (슬라이드 애니메이션 적용) -->
+      <div v-if="userRole === 'centerManager' && !isGamePage" class="control-group qr-group">
         <transition name="slide-fade">
           <button v-if="isQrVisible" @click="generateQR" class="fab-qr-button">
             <i class="fas fa-qrcode"></i>
           </button>
         </transition>
         
-        <!-- QR 버튼 토글 -->
-        <button class="qr-toggle-btn" @click="isQrVisible = !isQrVisible">
+        <button class="toggle-btn" @click="isQrVisible = !isQrVisible">
           <i :class="isQrVisible ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
         </button>
       </div>
@@ -166,11 +171,13 @@ const market = ref({ currentPrice: 0, priceHistory: [] });
 const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
-// 상태 변수
+// 상태 변수 (토글)
+const isPvpWidgetVisible = ref(true); // [신규] PVP 버튼 보임 여부
 const isQrVisible = ref(true); 
-const isRaceWidgetVisible = ref(true); // 레이스 위젯 보임 여부
+const isRaceWidgetVisible = ref(true); 
+
 const raceTimeLeft = ref("00:00");
-const raceParticipantCount = ref(0); // [핵심] 참여자 수 상태 변수
+const raceParticipantCount = ref(0); 
 
 let saltPriceUnsubscribe = null;
 let authUnsubscribe = null;
@@ -263,9 +270,7 @@ const listenToRaceTimer = () => {
   raceTimerUnsubscribe = onSnapshot(raceRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
-      // [핵심] 참여자 수 필드(participantCount)를 실시간으로 가져옵니다.
       raceParticipantCount.value = data.participantCount || 0;
-      
       if (data.nextRaceTime) {
         startTimer(data.nextRaceTime.toDate());
       }
@@ -284,7 +289,7 @@ const startTimer = (targetDate) => {
     } else {
       const m = Math.floor(diff / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      raceTimeLeft.value = `${m}:${s < 10 ? '0'+s : s}`;
+      familyTimer.value = `${m}:${s < 10 ? '0'+s : s}`;
     }
   }, 1000);
 };
@@ -296,7 +301,7 @@ const checkAuthState = () => {
       isLoggedIn.value = true;
       listenToSaltPrice(); 
       listenToMatchmakingQueue();
-      listenToRaceTimer(); // 레이스 정보 리스너 시작
+      listenToRaceTimer();
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -407,7 +412,6 @@ watch(() => router.currentRoute.value, () => {
   position: relative;
 }
 
-/* 로고 */
 .nav-logo {
   display: flex;
   align-items: center;
@@ -421,7 +425,6 @@ watch(() => router.currentRoute.value, () => {
   margin-right: 6px;
 }
 
-/* 시세 티커 (중앙) */
 .nav-ticker {
   position: absolute;
   left: 50%;
@@ -449,7 +452,6 @@ watch(() => router.currentRoute.value, () => {
 .ticker-delta.up { color: #e74c3c; }
 .ticker-delta.down { color: #007bff; }
 
-/* 우측 영역 */
 .nav-right {
   display: flex;
   align-items: center;
@@ -472,7 +474,6 @@ watch(() => router.currentRoute.value, () => {
   transition: background 0.2s;
 }
 
-/* 드롭다운 */
 .dropdown-menu {
   position: absolute;
   top: 45px;
@@ -517,25 +518,21 @@ watch(() => router.currentRoute.value, () => {
 .dropdown-item.logout { color: #e74c3c; }
 hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 
-/* 메인 콘텐츠 여백 */
 .main-content {
   flex: 1;
-  margin-top: 56px; /* PC 헤더 높이 */
-  padding-top: 0;   /* 추가 패딩 제거 */
+  margin-top: 56px;
+  padding-top: 0;
 }
 
-/* Ticker 위치 제어 */
 .ticker-container :deep(.ticker-wrap) {
   transition: top 0.3s ease-in-out;
   top: 56px !important; 
 }
 
-/* 헤더가 숨겨졌을 때 */
 .ticker-container.ticker-up :deep(.ticker-wrap) {
   top: 0 !important; 
 }
 
-/* 게임 모드 헤더 */
 #app.game-mode .navbar {
   background: rgba(255,255,255,0.7);
 }
@@ -544,17 +541,17 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 .floating-controls {
   position: fixed;
   bottom: 20px;
-  right: 0; /* 화면 오른쪽 끝에 붙음 */
+  right: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end; /* 오른쪽 정렬 */
+  align-items: flex-end;
   gap: 15px;
   z-index: 999;
-  padding-right: 15px; /* 기본 여백 */
+  padding-right: 15px;
 }
 
-/* 1. 레이스 위젯 컨트롤 그룹 */
-.race-control-group {
+/* 공통 컨트롤 그룹 스타일 */
+.control-group {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -562,7 +559,52 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   justify-content: flex-end;
 }
 
-/* 레이스 위젯 */
+/* 공통 토글 버튼 스타일 */
+.toggle-btn {
+  width: 24px;
+  /* 높이는 위젯에 따라 다를 수 있으므로 min-height 사용 */
+  min-height: 42px; 
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  margin-right: -15px; /* 화면 끝에 붙임 */
+}
+
+/* 1. PVP 위젯 스타일 */
+.fab-matchmaking-button { 
+  width: 50px;
+  height: 50px;
+  /* 기본: 차분한 파란색 */
+  background: #2c3e50; 
+  color: white; 
+  border-radius: 50%;
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+  font-size: 1.2rem; 
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.1);
+  position: relative; /* 펄스 효과 기준점 */
+}
+.fab-matchmaking-button.active-queue {
+  background: #e74c3c;
+  border-color: #ff7675;
+  transform: scale(1.05);
+}
+.pvp-group .toggle-btn {
+    height: 50px; /* 버튼 높이에 맞춤 */
+}
+
+/* 2. 레이스 위젯 스타일 */
 .race-widget {
   background: linear-gradient(135deg, #ff512f, #dd2476);
   color: white;
@@ -589,50 +631,21 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
 .race-icon {
   font-size: 1.2rem;
 }
-/* [핵심] 참여자 수 스타일 */
 .race-participants {
   font-size: 0.9rem;
   margin-left: 5px;
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #ffeaa7; /* 부드러운 골드 색상 */
+  color: #ffeaa7;
   font-weight: 600;
 }
-
-/* 레이스 토글 버튼 */
-.race-toggle-btn {
-  width: 24px;
-  height: 42px; /* 위젯 높이와 비슷하게 맞춤 */
-  background: rgba(0, 0, 0, 0.3);
-  border: none;
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  margin-right: -15px; /* 화면 끝에 딱 붙이기 위해 */
+.race-group .toggle-btn {
+    height: 42px; /* 위젯 높이에 맞춤 */
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-
-/* 2. QR 버튼 그룹 */
-.qr-control-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: relative;
-}
-
-/* QR 버튼 */
+/* 3. QR 위젯 스타일 */
 .fab-qr-button {
-  position: static; 
   width: 50px;
   height: 50px;
   border-radius: 50%; 
@@ -646,22 +659,13 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   font-size: 1.5rem;
   cursor: pointer;
 }
+.qr-group .toggle-btn {
+    height: 50px;
+}
 
-/* QR 토글 버튼 */
-.qr-toggle-btn {
-  width: 24px;
-  height: 50px;
-  background: rgba(0, 0, 0, 0.3);
-  border: none;
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  margin-right: -15px; /* 화면 끝에 딱 붙이기 위해 */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
 /* 슬라이드 애니메이션 */
@@ -673,64 +677,47 @@ hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
   opacity: 0;
 }
 
-/* 모바일 반응형 (768px 이하) */
-@media (max-width: 768px) {
-  .navbar {
-    height: 46px; 
-    padding: 0 20px;
-  }
-  
-  .main-content {
-    margin-top: 46px; 
-    padding-top: 0;
-  }
-
-  .ticker-container :deep(.ticker-wrap) {
-    top: 46px !important; 
-  }
-
-  .logo-text { display: none; }
-  
-  .ticker-name { 
-    display: inline-block; 
-    font-size: 0.75rem; 
-    margin-right: 2px;
-  }
-  
-  .nav-ticker {
-    font-size: 0.8rem;
-    padding: 2px 8px;
-  }
-  .ticker-content { font-size: 0.85rem; }
-  
-  .mobile-nav-links { display: block; }
-}
-
-@media (min-width: 769px) {
-  .mobile-nav-links { display: block; }
-}
-
-/* 기타 */
+/* 기타 애니메이션 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.fab-matchmaking-button { 
-  position: fixed; bottom: 90px; right: 20px; width: 50px; height: 50px;
-  background: #e74c3c; color: white; border-radius: 50%;
-  display: flex; justify-content: center; align-items: center;
-  font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 998;
-  text-decoration: none;
-}
+
 .fab-badge {
   position: absolute; top: -5px; right: -5px;
   background: #f1c40f; color: #333; font-size: 0.7rem;
   font-weight: bold; padding: 2px 6px; border-radius: 10px;
   border: 2px solid #e74c3c;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+
 .pulse-ring {
   position: absolute; width: 100%; height: 100%; border-radius: 50%;
   border: 2px solid #e74c3c; animation: pulse 1.5s infinite;
 }
-@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+@keyframes popIn {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+@keyframes pulse { 
+  0% { transform: scale(1); opacity: 1; } 
+  100% { transform: scale(1.5); opacity: 0; } 
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .navbar { height: 46px; padding: 0 20px; }
+  .main-content { margin-top: 46px; }
+  .ticker-container :deep(.ticker-wrap) { top: 46px !important; }
+  .logo-text { display: none; }
+  .ticker-name { display: inline-block; font-size: 0.75rem; margin-right: 2px; }
+  .nav-ticker { font-size: 0.8rem; padding: 2px 8px; }
+  .ticker-content { font-size: 0.85rem; }
+  .mobile-nav-links { display: block; }
+}
+@media (min-width: 769px) {
+  .mobile-nav-links { display: block; }
+}
 
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
