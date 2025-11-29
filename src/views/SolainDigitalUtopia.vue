@@ -360,18 +360,19 @@ const initNPC = async () => {
     nameTag.position.set(0, 2.4, 0);
     npc.add(nameTag);
 
-	// 6. [수정] 내장 애니메이션 재생
-	// * 중요: 이 모델은 이름처럼 춤추는 애니메이션이 내장되어 있으므로 바로 재생합니다.
-	if (npc.animations && npc.animations.length > 0) {
-	    const mixer = new THREE.AnimationMixer(npc);
-	    npc.userData.mixer = mixer;
-	    const action = mixer.clipAction(npc.animations[0]);
-	    action.play();
-	} else {
-	    // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
-	    npc.userData.animate = (time) => {
-		npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-	    };
+// 6. [수정] 내장 애니메이션 재생
+// * 중요: 이 모델은 이름처럼 춤추는 애니메이션이 내장되어 있으므로 바로 재생합니다.
+if (npc.animations && npc.animations.length > 0) {
+    const mixer = new THREE.AnimationMixer(npc);
+    npc.userData.mixer = mixer;
+    const action = mixer.clipAction(npc.animations[0]);
+    action.play();
+} else {
+    // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
+    npc.userData.animate = (time) => {
+        npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+    };
+}
 
     scene.add(npc);
     npcModel.value = npc;
