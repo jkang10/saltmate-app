@@ -205,7 +205,7 @@ const submitStaking = async () => {
 
   isLoading.value = true;
   try {
-    const result = await stakeSaltmateFunc({ amount: depositAmount.value, durationDays: depositDuration.value });
+    await stakeSaltmateFunc({ amount: depositAmount.value, durationDays: depositDuration.value });
     alert("가입이 완료되었습니다! '나의 포트폴리오'에서 확인하세요.");
     depositAmount.value = 1000;
   } catch (error) {
