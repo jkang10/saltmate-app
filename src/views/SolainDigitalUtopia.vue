@@ -312,17 +312,18 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async () => {
   // [수정] 검증된 한국 여성 모델로 교체 (안전성 확보)
-  const npc = await loadAvatar('/avatars/korean_style_female.glb', null);
+  const npc = await loadAvatar('/avatars/belly_dance.glb', null);
   
   const npcX = 37.16;
   // Z축 0 (플레이어 시작 위치인 7.85에 더 가깝게 앞으로 5만큼 당김)
   const npcZ = 0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기를 1.5배 키움 (0.75 -> 1.15)
-  npc.scale.set(1.15, 1.15, 1.15);
-  npc.position.set(npcX, npcY, npcZ);	
-  npc.rotation.y = 0; 
+  // 2. [수정] 크기 조정 (모델 특성에 맞춰 0.02로 대폭 축소)
+  // * 중요: 이 모델은 원본 크기가 매우 커서 작게 줄여야 합니다.
+  npc.scale.set(0.02, 0.02, 0.02);
+  npc.position.set(npcX, npcY, npcZ); 
+  npc.rotation.y = 0;
 
   // [수정] NPC 전용 조명 추가 (회색 방지)
   const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
@@ -334,36 +335,18 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.5, 0);
   npc.add(nameTag);
 
-// [수정] 모델 내장 애니메이션 랜덤 재생
-  if (npc.userData.mixer && npc.userData.actions) {
-      const actionKeys = Object.keys(npc.userData.actions);
-      if (actionKeys.length > 0) {
-          // 랜덤 액션 선택
-          const randomActionName = actionKeys[Math.floor(Math.random() * actionKeys.length)];
-          const action = npc.userData.actions[randomActionName];
-          if(action) action.play();
-      }
+  // [수정] 모델 내장 애니메이션 랜덤 재생
+  if (npc.animations && npc.animations.length > 0) {
+    const mixer = new THREE.AnimationMixer(npc);
+    npc.userData.mixer = mixer;
+    const action = mixer.clipAction(npc.animations[0]);
+    action.play();
   } else {
-  // 6. [수정] 코드 기반 애니메이션 강화 (숨쉬기 + 회전 + 크기 변화)
-  // 모델 오류 없이 생동감을 주기 위해 코드로 움직임을 만듭니다.
-  npc.userData.animate = (time) => {
-      // 1. 위아래 둥둥 (숨쉬기) - 폭을 키움 (0.02 -> 0.08)
-      npc.position.y = npcY + Math.sin(time * 2) * 0.08;
-      
-      // 2. 좌우 살짝 회전 (주위를 두리번거리는 느낌)
-      npc.rotation.y = Math.sin(time * 0.5) * 0.15;
-
-      // 3. 미세한 스케일 변화 (호흡하는 느낌)
-      const breath = 1 + Math.sin(time * 3) * 0.005;
-      npc.scale.set(0.75 * breath, 0.75 * breath, 0.75 * breath);
-  };
+    // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
+    npc.userData.animate = (time) => {
+        npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+    };
   }
-
-  scene.add(npc);
-  npcModel.value = npc;
-
-  startNpcMuttering();
-};
 
 // 혼잣말 함수
 const startNpcMuttering = () => {
