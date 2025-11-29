@@ -111,13 +111,6 @@ const initBoard = () => {
   width = canvasWrapper.value.clientWidth;
   height = canvasWrapper.value.clientHeight;
 
-  // 모바일 화면 대응
-  if (width < 600) {
-      ballSize = 4; 
-  } else {
-      ballSize = 6;
-  }
-  
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
@@ -128,8 +121,28 @@ const initBoard = () => {
   canvas.style.height = `${height}px`;
 
   pegs.length = 0;
+  
+  // 1. 핀 간격 계산 (화면 너비에 따라 자동 조절)
   const spacing = width / (rows + 2);
-  const startY = 40;
+  
+  // 2. [핵심 수정] 볼 크기를 핀 간격에 비례하게 설정 (화면이 작아지면 볼도 작아짐)
+  // 간격의 약 22%를 반지름으로 설정하면 핀 사이를 부드럽게 통과합니다.
+  ballSize = spacing * 0.22; 
+  // 너무 작아지는 것 방지 (최소 2px)
+  if (ballSize < 2) ballSize = 2;
+
+  // 3. [핵심 수정] 핀 피라미드 전체 높이 계산 및 시작 위치(Y) 조정
+  const totalPyramidHeight = (rows - 1) * (spacing * 0.8);
+  
+  // 화면 하단에서 배수칸 영역(약 30~40px)만큼 띄우고 피라미드 배치를 시작
+  // 즉, 피라미드 끝부분이 배수칸 바로 위에 오도록 startY를 역산합니다.
+  const bottomMargin = 35; // 배수칸 높이 여유분
+  let calculatedStartY = height - totalPyramidHeight - bottomMargin;
+
+  // 화면이 너무 짧아서 위로 짤리는 경우 최소 여백 20px 유지
+  if (calculatedStartY < 20) calculatedStartY = 20;
+
+  const startY = calculatedStartY;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col <= row; col++) {
