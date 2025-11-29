@@ -319,8 +319,7 @@ const initNPC = async () => {
   const npcZ = 0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // 2. [수정] 크기 조정 (모델 특성에 맞춰 0.02로 대폭 축소)
-  // * 중요: 이 모델은 원본 크기가 매우 커서 작게 줄여야 합니다.
+  // [수정] 크기를 1.5배 키움 (0.75 -> 1.15)
   npc.scale.set(0.02, 0.02, 0.02);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0;
@@ -335,18 +334,24 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.5, 0);
   npc.add(nameTag);
 
-  // [수정] 모델 내장 애니메이션 랜덤 재생
-  if (npc.animations && npc.animations.length > 0) {
+// [수정] 모델 내장 애니메이션 랜덤 재생
+if (npc.animations && npc.animations.length > 0) {
     const mixer = new THREE.AnimationMixer(npc);
     npc.userData.mixer = mixer;
     const action = mixer.clipAction(npc.animations[0]);
     action.play();
-  } else {
+} else {
     // 애니메이션이 없을 경우 대비 (코드 기반 숨쉬기)
     npc.userData.animate = (time) => {
         npc.position.y = npcY + Math.sin(time * 2) * 0.02;
     };
-  }
+}
+
+  scene.add(npc);
+  npcModel.value = npc;
+
+  startNpcMuttering();
+};
 
 // 혼잣말 함수
 const startNpcMuttering = () => {
