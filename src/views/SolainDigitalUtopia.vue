@@ -331,7 +331,7 @@ const initNPC = async () => {
 
   // [수정] 이름표 생성 (머리 위 2.3 높이)
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.1, 0);
+  nameTag.position.set(0, 1.5, 0);
   npc.add(nameTag);
 
   // 코드 기반 단순 애니메이션
@@ -651,7 +651,7 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
           const nick = createNicknameSprite(val.userName); 
           
           // [핵심] 이름표를 머리 위에 부착 (고무줄 현상 방지)
-          attachToBone(model, nick, 0.9); 
+          attachToBone(model, nick, 1.2); 
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -699,7 +699,7 @@ const loadAvatar = (url, animations) => { return new Promise((resolve) => { cons
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
 
 // [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
-const attachToBone = (model, object, offsetY = 0.9) => {
+const attachToBone = (model, object, offsetY = 1.2) => {
     let bone = null;
     model.traverse((child) => {
         if (child.isBone && !bone) {
@@ -778,8 +778,8 @@ const initThree = async () => {
             const screenGeo = new THREE.PlaneGeometry(16, 9); 
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
-	    // Z축 -10 (건물 앞으로 10만큼 당김)
-	    screen.position.set(startX, 5.5, startZ - 10);
+	    // [수정] 높이 15.0으로 올려서 공중에 띄움
+	    screen.position.set(startX, 15.0, startZ - 10);
             screen.name = "cinemaScreen"; 
             scene.add(screen);
           }
@@ -963,7 +963,7 @@ onMounted(() => {
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
         // 이름표를 머리 뼈대에 부착
-        attachToBone(myAvatar, nick, 0.9); 
+        attachToBone(myAvatar, nick, 1.2); 
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
