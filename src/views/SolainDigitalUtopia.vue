@@ -61,7 +61,6 @@
         <div class="npc-content">
           <h3>데브라 (Helia Agent)</h3>
           <template v-if="dailyQuest">
-            
             <div v-if="dailyQuest.rewardsRemaining <= 0">
                 <p class="quest-desc">오늘의 의뢰는 모두 끝났어요. 내일 다시 와주세요.</p>
                 <div class="dialog-actions">
@@ -93,7 +92,6 @@
                 </div>
             </div>
           </template>
-          
           <template v-else>
             <p>잠시만 기다려주세요...</p>
           </template>
@@ -270,7 +268,6 @@ let joystickManager = null;
 // ---------------------------------------------------
 const isQuestReadyToClaim = computed(() => {
     if (!dailyQuest.value) return false;
-    // 현재 카운트가 목표 이상이고, 보상을 아직 안 받았으면 True
     return Number(dailyQuest.value.currentCount) >= Number(dailyQuest.value.target) && 
            !dailyQuest.value.rewardClaimed;
 });
@@ -293,21 +290,17 @@ const getTerrainHeight = (x, z) => {
     return 0.5; 
 };
 
-// [신규] 충돌 감지 함수 (앞에 장애물이 있는지 확인)
+// [신규] 충돌 감지 함수
 const checkCollision = (currentPos, direction) => {
     if (!scene) return false;
     const cityMap = scene.getObjectByName("cityMap");
     if (!cityMap) return false;
 
-    // 캐릭터 허리 높이(y+1.0)에서 진행 방향으로 레이저 발사
     const raycaster = new THREE.Raycaster();
     const origin = currentPos.clone().add(new THREE.Vector3(0, 1.0, 0));
-    
-    // 진행 방향으로 1.5m 앞까지 검사
     raycaster.set(origin, direction.normalize());
     const intersects = raycaster.intersectObject(cityMap, true);
 
-    // 1.5m 이내에 물체가 있으면 충돌로 간주
     if (intersects.length > 0 && intersects[0].distance < 1.5) {
         return true;
     }
@@ -315,47 +308,32 @@ const checkCollision = (currentPos, direction) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
+// [수정] NPC 초기화 (모델 교체: Korean Female)
 // ----------------------------------------
 const initNPC = async () => {
-  // 1. 모델 로드 (애니메이션 없이 로드하여 T-Pose 방지)
-  // [주의] 모델 경로가 정확해야 합니다.
-  const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
+  // [수정] 검증된 한국 여성 모델로 교체 (안전성 확보)
+  const npc = await loadAvatar('/avatars/korean_style_female.glb', null);
   
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // 2. 크기 및 위치
+  // [수정] 크기 0.75
   npc.scale.set(0.75, 0.75, 0.75);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // [핵심] 3. 재질 보정 (회색 현상 해결)
-  npc.traverse((child) => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-      if (child.material) {
-        child.material.metalness = 0;   
-        child.material.roughness = 0.8; 
-        child.material.emissive = new THREE.Color(0x000000); 
-        child.material.needsUpdate = true;
-      }
-    }
-  });
-
-  // 4. 조명 추가 (NPC 전용) - 밝게 보이도록
+  // [수정] NPC 전용 조명 추가 (회색 방지)
   const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
   npcLight.position.set(0, 3, 2);
   npc.add(npcLight);
 
-  // 5. 이름표 (크기: 기존 아바타와 동일하게)
+  // [수정] 이름표 생성 (머리 위 2.3 높이)
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  // npc.add(nameTag);  <-- 기존 코드 삭제
-  attachToBone(npc, nameTag, 2.0); // <-- 이렇게 변경 (높이 2.0)
+  nameTag.position.set(0, 2.3, 0);
+  npc.add(nameTag);
 
-  // 6. 코드 기반 단순 애니메이션 (숨쉬기)
+  // 코드 기반 단순 애니메이션
   npc.userData.animate = (time) => {
       npc.position.y = npcY + Math.sin(time * 2) * 0.02;
   };
@@ -381,7 +359,6 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-            // 검정 글씨, 흰색 반투명 배경, 높이 2.8 (이름표 위)
             showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
         }
     }, 8000); 
@@ -397,7 +374,6 @@ const checkDailyQuest = async () => {
         qData.rewardsRemaining = 3; 
     }
     
-    // UI 상태 동기화 보정
     if (qData.rewardsRemaining > 0 && qData.completed && qData.rewardClaimed) {
         qData.completed = false;
         qData.rewardClaimed = false;
@@ -412,7 +388,6 @@ const checkDailyQuest = async () => {
   } catch (e) { console.error("퀘스트 로딩 실패:", e); }
 };
 
-// [수정] 소금 상자 생성 (크기 대폭 확대, 위치 상향 조정)
 const spawnTreasureChests = async (allItems, foundItems) => {
     const itemsToSpawn = allItems.filter(id => !foundItems.includes(id));
     const positions = [
@@ -427,16 +402,12 @@ const spawnTreasureChests = async (allItems, foundItems) => {
         const realY = getTerrainHeight(pos.x, pos.z); 
         loader.load('/animations/box/treasure_chest.glb', (gltf) => {
             const chest = gltf.scene;
-            // [핵심] 크기 2.5배, 높이 +1.0 (땅에 묻히지 않게)
             chest.scale.set(2.5, 2.5, 2.5);
             chest.position.set(pos.x + (Math.random()*2), realY + 1.0, pos.z + (Math.random()*2));
             chest.userData.chestId = id;
-            
-            // 상자 자체 발광 효과
             const light = new THREE.PointLight(0xffff00, 1.5, 5);
             light.position.set(0, 0.5, 0);
             chest.add(light);
-            
             scene.add(chest);
             chests[id] = chest;
         });
@@ -462,7 +433,6 @@ const openNpcDialog = async () => {
 };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 
-// [수정] 퀘스트 완료 및 강제 초기화
 const completeQuest = async () => {
     try {
         if (dailyQuest.value.rewardsRemaining <= 0) {
@@ -476,7 +446,6 @@ const completeQuest = async () => {
         
         alert(`퀘스트 완료! ${reward} SaltMate를 획득했습니다.`);
         
-        // [핵심] 로컬 상태 즉시 초기화
         const remaining = dailyQuest.value.rewardsRemaining - 1;
         dailyQuest.value.rewardsRemaining = remaining;
         
@@ -530,7 +499,8 @@ const updateMyStateInRTDB = (actionName = null) => {
 };
 
 let lastUpdateTime = 0;
-const throttledUpdate = () => { const now = Date.now(); if (now - lastUpdateTime > 50) { updateMyStateInRTDB(); lastUpdateTime = now; } };
+// [수정] 동기화 간격 100ms로 조정 (고무줄 현상 완화)
+const throttledUpdate = () => { const now = Date.now(); if (now - lastUpdateTime > 100) { updateMyStateInRTDB(); lastUpdateTime = now; } };
 
 const triggerAction = (actionName) => {
   if (!myAvatar) return;
@@ -554,7 +524,6 @@ const triggerAction = (actionName) => {
   }
 };
 
-// [수정] 전역 클릭 시 비디오/오디오 강제 재생
 const handleGlobalClick = () => {
     resumeAudioContext();
     
@@ -654,7 +623,6 @@ const leaveAgora = async () => {
 
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
 
-// [수정] 린트 오류 방지용 주석 추가
 // eslint-disable-next-line no-unused-vars
 const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); } } catch (error) { console.error(error); } } };
 
@@ -678,10 +646,11 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     if (scene && otherPlayers[snapshot.key]) {
-if (val.userName !== '익명') { 
+      if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
-          // model.add(nick); <-- 기존 코드 삭제
-          attachToBone(model, nick, 0.5); // <-- 머리 위에 부착
+          
+          // [핵심] 이름표를 머리 위에 부착 (고무줄 현상 방지)
+          attachToBone(model, nick, 0.5); 
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -728,12 +697,12 @@ const loadAnimations = async () => { const animationPaths = { walk: '/animations
 const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
 
-// [신규] 이름표를 아바타의 머리/척추 뼈대에 부착하는 함수
+// [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
 const attachToBone = (model, object, offsetY = 0.5) => {
     let bone = null;
-    // Head, Neck, Spine, Hips 순서로 부착할 뼈를 찾음
     model.traverse((child) => {
         if (child.isBone && !bone) {
+            // 일반적으로 머리나 목 뼈를 찾음
             if (child.name.match(/Head|Neck|Spine|Hips/i)) {
                 bone = child;
             }
@@ -742,10 +711,9 @@ const attachToBone = (model, object, offsetY = 0.5) => {
     
     if (bone) {
         bone.add(object);
-        // 뼈대 기준 상대 위치 설정 (스케일에 따라 다를 수 있음)
         object.position.set(0, offsetY, 0); 
     } else {
-        model.add(object); // 뼈가 없으면 그냥 모델에 추가
+        model.add(object); 
         object.position.set(0, 2.3, 0);
     }
 };
@@ -797,7 +765,7 @@ const initThree = async () => {
           const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
           
-          // [수정] 비디오 스크린 복구 (MeshBasicMaterial)
+          // [수정] 비디오 스크린 축소 및 BasicMaterial 사용
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video); 
@@ -805,8 +773,8 @@ const initThree = async () => {
             videoTexture.magFilter = THREE.LinearFilter; 
             videoTexture.colorSpace = THREE.SRGBColorSpace; 
             
-            const screenGeo = new THREE.PlaneGeometry(32, 18); 
-            // BasicMaterial은 조명 영향을 받지 않음
+            // 크기 16, 9 (기존 32, 18에서 절반 축소)
+            const screenGeo = new THREE.PlaneGeometry(16, 9); 
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
             screen.position.set(startX, 15, startZ - 20); 
@@ -839,153 +807,60 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const handleResize = () => { if (!camera || !renderer) return; camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
 
 const updatePlayerMovement = (deltaTime) => {
-  // 필수 객체가 없으면 실행 중단
   if (!myAvatar || !isReady.value || !scene) return;
-
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = specialAction.value || currentIdle.value;
   let currentSpeedFactor = 1.0;
-
-  // 카메라의 현재 Y축 회전값 가져오기 (키보드 이동 시 기준)
-  const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-
-  // ----------------------------------
-  // 1. 모바일 조이스틱 입력 처리
-  // ----------------------------------
+  
   if (joystickData.value.active && joystickData.value.distance > 10) {
-	// [최종 수정] 조이스틱 각도 보정 (90도 회전하여 전방 일치)
-	// angle.radian은 오른쪽이 0, 위가 PI/2이므로, 3D 월드(Z축 전방)와 맞추기 위해 조정
-	const targetRotationY = joystickData.value.angle + Math.PI / 2;
-      
-      // 부드러운 회전 처리
-      let currentY = myAvatar.rotation.y; 
-      const PI2 = Math.PI * 2; 
-      let targetY = targetRotationY;
-      
-      currentY = (currentY % PI2 + PI2) % PI2; 
-      targetY = (targetY % PI2 + PI2) % PI2;
-      
-      let diff = targetY - currentY; 
-      if (Math.abs(diff) > Math.PI) { 
-          diff = diff > 0 ? diff - PI2 : diff + PI2; 
-      }
-      
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2 + Math.PI;
+      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
+      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
+      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8; 
-      
-      moveDirection.z = 1; // 아바타 기준 전방으로 이동
-      moved = true; 
-      currentAnimation = 'walk'; 
-      currentSpeedFactor = joystickData.value.force;
-  } 
-  // ----------------------------------
-  // 2. PC 키보드 입력 처리
-  // ----------------------------------
-  else if (!joystickData.value.active) { 
+      moveDirection.z = 1; 
+      moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
+  } else if (!joystickData.value.active) { 
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
       const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      
-      if (isKeyboardMoving) { 
-          // W키(앞으로)를 누르면 카메라를 등지고(180도 회전) 걷게 함
-          if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-               myAvatar.rotation.y = cameraEuler.y + Math.PI; 
-          } else {
-               // 그 외 방향은 카메라 방향 유지 (필요 시 로직 추가 가능)
-               myAvatar.rotation.y = cameraEuler.y + Math.PI; 
-          }
-          moved = true; 
-      }
-      
-      // 이동 벡터 설정 (카메라 기준)
-      // W: 전방, S: 후방, A: 좌측, D: 우측
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
-          moveDirection.z = 1; 
-          if(!specialAction.value) currentAnimation = 'walk'; 
-      }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
-          moveDirection.z = -1; 
-          if(!specialAction.value) currentAnimation = 'walkBackward'; 
-      }
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { 
-          moveDirection.x = 1; 
-          currentAnimation = 'strafeLeft'; 
-      }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { 
-          moveDirection.x = -1; 
-          currentAnimation = 'strafeRight'; 
-      }
+      if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y + Math.PI; moved = true; }
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
   }
   
-  // ----------------------------------
-  // 3. 실제 이동 및 충돌 감지 적용
-  // ----------------------------------
   if (moved) {
     specialAction.value = null;
-
-    // 속도 벡터 계산
-    const velocity = new THREE.Vector3(
-      moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
-      0,
-      moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime 
-    );
-
-    // 회전값 적용 (아바타가 바라보는 방향으로 벡터 변환)
+    const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
     velocity.applyQuaternion(myAvatar.quaternion); 
     
-    // [핵심] 충돌 감지 로직
-    // 이동하려는 방향으로 레이저를 쏘아 장애물이 있는지 확인
-    const directionVector = velocity.clone().normalize();
-    const isColliding = checkCollision(myAvatar.position, directionVector);
-
-    if (!isColliding) {
-        // 1. 아바타 이동
-        myAvatar.position.add(velocity); 
-        
-        // 2. 카메라도 같이 이동 (Follow Cam)
+    // [핵심] 충돌 체크
+    const direction = velocity.clone();
+    if (!checkCollision(myAvatar.position, direction)) {
+        myAvatar.position.add(velocity);
         camera.position.add(velocity); 
-        
-        // 3. 컨트롤 타겟(중심점)도 이동
-        if (controls) {
-            controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0));
-        }
-
-        // 4. 서버에 위치 동기화 (쓰로틀링 적용)
+        controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
         throttledUpdate();
     }
   }
-
-  // ----------------------------------
-  // 4. 맵 경계 제한 및 지형 높이 적용
-  // ----------------------------------
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  
-  // 지형 높이 계산하여 Y축 적용 (땅 위에 서있게 함)
   myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
-
-  // ----------------------------------
-  // 5. 애니메이션 재생
-  // ----------------------------------
-  const mixer = myAvatar.userData.mixer; 
-  const actions = myAvatar.userData.actions;
-  
+  const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
-    
-    // 현재 실행 중인 다른 액션 찾기
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
-    
-    if (targetAction && !targetAction.isRunning()) { 
-        targetAction.reset().play(); 
-        if (activeAction) {
-            activeAction.crossFadeTo(targetAction, 0.3); 
-        }
-    }
+    if (targetAction && !targetAction.isRunning()) { targetAction.reset().play(); if (activeAction) activeAction.crossFadeTo(targetAction, 0.3); }
   }
 };
 
 const updateOtherPlayersMovement = (deltaTime) => {
-  const lerpFactor = deltaTime * 15; 
+  // [핵심] Lerp 속도 낮춰서 고무줄 현상 완화 (15 -> 5)
+  const lerpFactor = deltaTime * 5; 
+  
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
@@ -998,7 +873,9 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor; 
+    
     player.mesh.updateMatrixWorld(true);
+    
     const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
       if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
@@ -1081,10 +958,10 @@ onMounted(() => {
       const startX = 37.16; const startZ = 7.85;
       const startY = getTerrainHeight(startX, startZ);
       myAvatar.position.set(startX, startY, startZ); 
-if (myUserName) {
+      if (myUserName) {
         const nick = createNicknameSprite(myUserName);
-        // myAvatar.add(nick); <-- 기존 코드 삭제
-        attachToBone(myAvatar, nick, 0.5); // <-- 머리 위에 부착 (높이 0.5)
+        // 이름표를 머리 뼈대에 부착
+        attachToBone(myAvatar, nick, 0.5); 
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
