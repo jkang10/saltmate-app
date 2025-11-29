@@ -172,7 +172,7 @@ const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
 // 상태 변수 (토글)
-const isPvpWidgetVisible = ref(true); // [신규] PVP 버튼 보임 여부
+const isPvpWidgetVisible = ref(true); 
 const isQrVisible = ref(true); 
 const isRaceWidgetVisible = ref(true); 
 
@@ -289,7 +289,8 @@ const startTimer = (targetDate) => {
     } else {
       const m = Math.floor(diff / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      familyTimer.value = `${m}:${s < 10 ? '0'+s : s}`;
+      // [수정 완료] familyTimer -> raceTimeLeft.value 로 변경
+      raceTimeLeft.value = `${m}:${s < 10 ? '0'+s : s}`;
     }
   }, 1000);
 };
