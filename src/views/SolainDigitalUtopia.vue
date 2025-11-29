@@ -314,7 +314,7 @@ const initNPC = async () => {
   try {
     // 1. 모델 로드 시도
     // 만약 debra 모델이 없다면 기본 큐브라도 띄우도록 방어 코드 추가
-    const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
+    const npc = await loadAvatar('/avatars/belly_dance.glb', null);
     
     // 모델이 정상적으로 로드되지 않았을 경우 (Group이 비어있거나 등)
     if (!npc || npc.children.length === 0) {
