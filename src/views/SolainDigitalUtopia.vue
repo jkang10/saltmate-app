@@ -26,7 +26,7 @@
 
     <div id="joystick-zone" class="joystick-zone"></div>
 
-    <div v-if="dailyQuest" class="quest-widget fade-in">
+    <div v-if="dailyQuest && dailyQuest.rewardsRemaining > 0" class="quest-widget fade-in">
       <div class="quest-title">📜 {{ dailyQuest.title }}</div>
       <div class="quest-info">
         진행: {{ dailyQuest.currentCount }} / {{ dailyQuest.target }}
@@ -35,10 +35,14 @@
         <span v-if="dailyQuest.currentCount >= dailyQuest.target && !dailyQuest.rewardClaimed" class="quest-complete"> (완료 가능!)</span>
       </div>
     </div>
+    <div v-else-if="dailyQuest && dailyQuest.rewardsRemaining <= 0" class="quest-widget fade-in">
+      <div class="quest-title">🎉 오늘의 의뢰 완료!</div>
+      <div class="quest-info">내일 다시 와주게나.</div>
+    </div>
 
     <div v-if="nearNpc && !isNpcModalOpen" class="interaction-prompt fade-in">
       <button class="interact-btn" @click="openNpcDialog">
-        <i class="fas fa-comment-dots"></i> 데브라와 대화하기 (F)
+        <i class="fas fa-comment-dots"></i> 헬리아와 대화하기 (F)
       </button>
     </div>
 
@@ -54,7 +58,7 @@
           <img :src="heliaImgSrc" alt="Helia">
         </div>
         <div class="npc-content">
-          <h3>데브라 (Helia Agent)</h3>
+          <h3>헬리아 (Helia)</h3>
           <template v-if="dailyQuest">
             <template v-if="dailyQuest.rewardsRemaining <= 0">
                 <p class="quest-desc">오늘의 의뢰는 모두 끝났어요. 내일 다시 와주세요.</p>
@@ -245,7 +249,7 @@ let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
-// Firebase
+// Firebase Refs
 const plazaPlayersPath = 'plazaPlayers';
 const plazaChatPath = 'plazaChat';
 const plazaVideoPath = 'plaza/videoState';
@@ -279,46 +283,47 @@ const getTerrainHeight = (x, z) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (모델 교체: cartoon_old_woman)
+// [수정] NPC 초기화 (할머니 모델, 크기 대폭 축소)
 // ----------------------------------------
 const initNPC = async () => {
-  // [수정] 할머니 모델 로드 (애니메이션 없이)
+  // 1. 모델 로드 (애니메이션 제거)
   const npc = await loadAvatar('/avatars/cartoon_old_woman.glb', null);
   
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기를 0.3으로 더 축소 (일반 아바타보다 작게)
-  npc.scale.set(0.3, 0.3, 0.3);
+  // 2. [수정] 크기를 0.25로 더 축소하여 위화감 제거
+  npc.scale.set(0.25, 0.25, 0.25);
   npc.position.set(npcX, npcY, npcZ); 
-  npc.rotation.y = Math.PI; 
+  
+  // 3. [수정] 회전을 0으로 설정하여 반대쪽(플레이어 진입 방향) 바라보기
+  npc.rotation.y = 0; 
 
-  // [수정] 헬리아 상품 위치 상향 조정 (이름표 가리지 않게)
+  // 4. 머리 위 헬리아 상품 (높이 조정)
   textureLoader.load(heliaImgSrc, (texture) => {
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(1.2, 1.2, 1);
-    sprite.position.set(0, 7.5, 0); // 더 위로 올림
+    // 모델이 작아졌으므로 상대적 높이를 낮춤 (2.2)
+    sprite.position.set(0, 2.2, 0); 
     npc.userData.floatingIcon = sprite;
     npc.userData.floatOffset = 0;
     npc.add(sprite);
   });
 
+  // 5. NPC 이름표 (높이 조정)
   const nameTag = createNicknameSprite("헬리아 (NPC)");
-  nameTag.position.set(0, 6.0, 0); // 이름표 위치 조정
+  nameTag.position.set(0, 1.8, 0); // 아이콘 아래
   npc.add(nameTag);
 
-  // [수정] 행동 애니메이션 제거 (매핑 오류 방지)
-  // 대신 단순 회전/점프 애니메이션으로 대체
-  
   scene.add(npc);
   npcModel.value = npc;
 
   startNpcMuttering();
 };
 
-// [수정] 혼잣말 함수 (말풍선 배경을 투명 검정으로 변경)
+// 혼잣말 함수
 const startNpcMuttering = () => {
     if (npcMutterInterval) clearInterval(npcMutterInterval);
     
@@ -333,16 +338,15 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-            // [수정] 텍스트 색상 노랑, 배경 검정(반투명)
-            showChatBubble(npcModel.value, text, "#FFFF00", "rgba(0, 0, 0, 0.7)", 8.0); 
+            // [수정] 말풍선 높이 3.0으로 설정하여 상품 위로 띄움
+            showChatBubble(npcModel.value, text, "#FFFF00", "rgba(0, 0, 0, 0.7)", 3.0); 
             
-            // [신규] NPC 단순 행동 (점프)
+            // NPC 단순 행동 (점프)
             npcModel.value.position.y += 0.2;
             setTimeout(() => { npcModel.value.position.y -= 0.2; }, 200);
         }
-    }, 7000); // 7초마다
+    }, 10000); // 10초마다
 };
-
 
 const checkDailyQuest = async () => {
   try {
@@ -406,6 +410,7 @@ const openNpcDialog = async () => {
 };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 
+// [수정] 퀘스트 완료 처리 (초기화 로직 강화)
 const completeQuest = async () => {
     try {
         if (dailyQuest.value.rewardsRemaining <= 0) {
@@ -421,11 +426,13 @@ const completeQuest = async () => {
         
         const remaining = dailyQuest.value.rewardsRemaining - 1;
         
+        // [핵심] 즉시 다음 회차 상태로 UI 변경
+        dailyQuest.value.rewardsRemaining = remaining;
+        
         if (remaining > 0) {
             dailyQuest.value.currentCount = 0; 
             dailyQuest.value.rewardClaimed = false; 
-            dailyQuest.value.rewardsRemaining = remaining; 
-
+            
             if (dailyQuest.value.type === 'FIND_ITEM') {
                  for(const id in chests) {
                      scene.remove(chests[id]);
@@ -435,17 +442,13 @@ const completeQuest = async () => {
                  spawnTreasureChests(dailyQuest.value.hiddenItems, []);
             }
         } else {
-            dailyQuest.value.rewardsRemaining = 0;
-            dailyQuest.value.rewardClaimed = true;
+            dailyQuest.value.rewardClaimed = true; // 오늘 모두 완료
         }
         
         closeNpcDialog();
     } catch (e) { alert(e.message); }
 };
 
-// ----------------------------------------
-// 기본 로직
-// ----------------------------------------
 const hasPurchased = (actionKey) => purchasedActions.value.includes(actionKey);
 const handleActionClick = (actionKey) => hasPurchased(actionKey) ? triggerAction(actionKey) : openPurchaseModal(actionKey);
 const openPurchaseModal = (actionKey) => { purchaseModal.actionKey = actionKey; purchaseModal.actionName = actionList[actionKey].name; purchaseModal.price = actionList[actionKey].price; purchaseModal.visible = true; };
@@ -499,18 +502,18 @@ const triggerAction = (actionName) => {
   }
 };
 
-// [수정] 전역 클릭 시 비디오 및 오디오 재생 보장
+// [수정] 전역 클릭 시 비디오/오디오 재생 로직 강화
 const handleGlobalClick = () => {
     resumeAudioContext();
     
-    // 비디오 재생
+    // 비디오 강제 재생
     if (cinemaVideoRef.value && cinemaVideoRef.value.paused) {
         cinemaVideoRef.value.play().catch(() => {});
     }
 
-    // 오디오 재생
+    // Agora 오디오 강제 재생
     Object.values(remoteAudioTracks).forEach(track => {
-        try { track.play(); } catch(e) { /* 에러 무시 */ }
+        try { track.play(); } catch(e) { /* no-empty 에러 방지 */ }
     });
 };
 
