@@ -13,8 +13,7 @@
       muted
       autoplay
       preload="auto"
-      @timeupdate="checkVideoProgress"
-      @error="(e) => console.error('비디오 에러:', e)"
+      @error="(e) => console.warn('비디오 에러(무시 가능):', e)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
     </video>
@@ -26,18 +25,20 @@
 
     <div id="joystick-zone" class="joystick-zone"></div>
 
-    <div v-if="dailyQuest && dailyQuest.rewardsRemaining > 0" class="quest-widget fade-in">
+    <div v-if="dailyQuest" class="quest-widget fade-in">
       <div class="quest-title">📜 {{ dailyQuest.title }}</div>
       <div class="quest-info">
-        진행: {{ dailyQuest.currentCount }} / {{ dailyQuest.target }}
-        <br>
-        <small>(남은 보상: {{ dailyQuest.rewardsRemaining }}회)</small>
-        <span v-if="dailyQuest.currentCount >= dailyQuest.target && !dailyQuest.rewardClaimed" class="quest-complete"> (완료 가능!)</span>
+        <template v-if="dailyQuest.rewardsRemaining > 0">
+            진행: {{ dailyQuest.currentCount }} / {{ dailyQuest.target }}
+            <br>
+            <small>(남은 보상: {{ dailyQuest.rewardsRemaining }}회)</small>
+            <span v-if="dailyQuest.currentCount >= dailyQuest.target && !dailyQuest.rewardClaimed" class="quest-complete"> (완료 가능!)</span>
+        </template>
+        <template v-else>
+            🎉 오늘의 의뢰 완료!
+            <br><small>내일 다시 와주세요.</small>
+        </template>
       </div>
-    </div>
-    <div v-else-if="dailyQuest && dailyQuest.rewardsRemaining <= 0" class="quest-widget fade-in">
-      <div class="quest-title">🎉 오늘의 의뢰 완료!</div>
-      <div class="quest-info">내일 다시 와주게나.</div>
     </div>
 
     <div v-if="nearNpc && !isNpcModalOpen" class="interaction-prompt fade-in">
@@ -55,19 +56,20 @@
     <div v-if="isNpcModalOpen" class="npc-dialog-overlay">
       <div class="npc-dialog-box">
         <div class="npc-portrait">
-          <img :src="heliaImgSrc" alt="Helia">
+          <div class="portrait-placeholder"><i class="fas fa-user-secret"></i></div>
         </div>
         <div class="npc-content">
           <h3>데브라 (Helia Agent)</h3>
           <template v-if="dailyQuest">
-            <template v-if="dailyQuest.rewardsRemaining <= 0">
+            
+            <div v-if="dailyQuest.rewardsRemaining <= 0">
                 <p class="quest-desc">오늘의 의뢰는 모두 끝났어요. 내일 다시 와주세요.</p>
                 <div class="dialog-actions">
                     <button class="btn-confirm" @click="closeNpcDialog">네, 알겠습니다.</button>
                 </div>
-            </template>
+            </div>
             
-            <template v-else-if="dailyQuest.currentCount >= dailyQuest.target && !dailyQuest.rewardClaimed">
+            <div v-else-if="isQuestReadyToClaim">
                 <p class="quest-desc">훌륭해요! 의뢰를 완수하셨군요. 여기 보상입니다.</p>
                 <div class="quest-progress-bar">
                   <div class="fill" style="width: 100%"></div>
@@ -78,9 +80,9 @@
                     랜덤 보상 받기 (남은 횟수: {{ dailyQuest.rewardsRemaining }})
                   </button>
                 </div>
-            </template>
+            </div>
 
-            <template v-else>
+            <div v-else>
                 <p class="quest-desc">{{ dailyQuest.desc }}</p>
                 <div class="quest-progress-bar">
                   <div class="fill" :style="{ width: Math.min(100, (dailyQuest.currentCount / dailyQuest.target) * 100) + '%' }"></div>
@@ -89,11 +91,11 @@
                 <div class="dialog-actions">
                   <button class="btn-confirm" @click="closeNpcDialog">다녀오겠습니다!</button>
                 </div>
-            </template>
+            </div>
           </template>
           
           <template v-else>
-            <p>잠시만 기다려주세요, 본부와 통신 중입니다...</p>
+            <p>잠시만 기다려주세요...</p>
           </template>
         </div>
         <button class="close-dialog" @click="closeNpcDialog">&times;</button>
@@ -165,7 +167,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -180,8 +182,6 @@ import {
 } from 'firebase/database';
 import nipplejs from 'nipplejs';
 import AgoraRTC from "agora-rtc-sdk-ng";
-
-import heliaImgSrc from '@/assets/hellia_img.png';
 
 const isFiniteNumber = (num) => (typeof num === 'number' && isFinite(num));
 
@@ -265,6 +265,16 @@ const joystickData = ref({ active: false, angle: 0, distance: 0, force: 0 });
 let joystickManager = null;
 
 // ---------------------------------------------------
+// 퀘스트 완료 상태 Computed
+// ---------------------------------------------------
+const isQuestReadyToClaim = computed(() => {
+    if (!dailyQuest.value) return false;
+    // 카운트가 목표치 이상이고, 아직 보상을 안 받았으면 True
+    return Number(dailyQuest.value.currentCount) >= Number(dailyQuest.value.target) && 
+           !dailyQuest.value.rewardClaimed;
+});
+
+// ---------------------------------------------------
 // 지형 높이 구하기 유틸리티
 // ---------------------------------------------------
 const getTerrainHeight = (x, z) => {
@@ -283,51 +293,49 @@ const getTerrainHeight = (x, z) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (모델 교체: Debra)
+// [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
 // ----------------------------------------
-const initNPC = async (animations) => {
-  // [수정] 모델 교체
-  const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', animations);
+const initNPC = async () => {
+  // 1. 모델 로드 (애니메이션 없이 로드하여 오류 방지)
+  const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
   
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기 조정 (일반 아바타 0.7과 비슷하게 0.75로 설정)
+  // 2. 크기 및 위치 설정 (크기 0.75, 정면 응시)
   npc.scale.set(0.75, 0.75, 0.75);
   npc.position.set(npcX, npcY, npcZ); 
-  
-  // [수정] 회전: 180도(PI)가 아닌 0으로 설정해 정면 응시
   npc.rotation.y = 0; 
 
-  textureLoader.load(heliaImgSrc, (texture) => {
-    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(material);
-    sprite.scale.set(1.0, 1.0, 1); 
-    sprite.position.set(0, 2.8, 0); 
-    npc.userData.floatingIcon = sprite;
-    npc.userData.floatOffset = 0;
-    npc.add(sprite);
-  });
+  // 3. [핵심] 조명 추가 (색상 회색 방지)
+  const npcLight = new THREE.PointLight(0xffffff, 1.0, 5);
+  npcLight.position.set(0, 2, 1);
+  npc.add(npcLight);
 
-  // [수정] 이름표 생성
+  // 4. 상품 이미지 박스 제거 (요청 반영)
+  
+  // 5. NPC 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.3, 0);
+  nameTag.position.set(0, 2.5, 0); // 머리 위
   npc.add(nameTag);
 
-  // [수정] 기본 idle 애니메이션 재생 (로드된 애니메이션 활용)
-  if (npc.userData.actions && npc.userData.actions['idle']) {
-      npc.userData.actions['idle'].play(); 
-  }
+  // 6. [핵심] 코드 기반 단순 애니메이션 (T-Pose 및 오류 방지)
+  // 믹서 사용 안 함. 대신 animate 루프에서 실행될 함수 정의.
+  npc.userData.animate = (time) => {
+      // 숨쉬기 효과 (Y축 이동)
+      npc.position.y = npcY + Math.sin(time * 1.5) * 0.02;
+      // 살짝 회전 효과
+      npc.rotation.y = Math.sin(time * 0.5) * 0.1;
+  };
 
   scene.add(npc);
   npcModel.value = npc;
 
-  // [수정] 혼잣말 시작
   startNpcMuttering();
 };
 
-// [수정] 혼잣말 함수 (채팅 버블 표시)
+// 혼잣말 함수 (검정 글씨)
 const startNpcMuttering = () => {
     if (npcMutterInterval) clearInterval(npcMutterInterval);
     
@@ -342,12 +350,11 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-            // [수정] 높이(y)를 3.0으로 높여서 머리 위에 확실히 보이게 함
-            showChatBubble(npcModel.value, text, "#FFD700", 3.0); 
+            // [수정] 글자색 검정(#000000), 배경 흰색 반투명
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
         }
-    }, 10000); 
+    }, 8000); 
 };
-
 
 const checkDailyQuest = async () => {
   try {
@@ -358,9 +365,17 @@ const checkDailyQuest = async () => {
     if (qData.rewardsRemaining === undefined) {
         qData.rewardsRemaining = 3; 
     }
+    
+    // [핵심] 만약 보상 횟수가 남았는데 완료 상태라면, UI에서 '진행 중'으로 보이게 로컬 데이터 보정
+    // (서버에서는 완료 기록이 있어도, 남은 횟수가 있으면 다시 할 수 있어야 함)
+    if (qData.rewardsRemaining > 0 && qData.completed && qData.rewardClaimed) {
+        qData.completed = false;
+        qData.rewardClaimed = false;
+        qData.currentCount = 0; // 처음부터 다시 시작
+    }
+
     dailyQuest.value = qData;
 
-    // 퀘스트가 '찾기' 타입이고 아직 완료(보상 수령) 전이면 상자 생성
     if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
         spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
     }
@@ -402,7 +417,7 @@ const collectChest = async () => {
         const collectFunc = httpsCallable(functions, 'collectPlazaItem');
         const result = await collectFunc({ itemId: chestId });
         if (dailyQuest.value) { dailyQuest.value.currentCount = result.data.newCount; }
-        showChatBubble(myAvatar, "보물상자 발견! 🎁", "#00ff00", 2.5);
+        showChatBubble(myAvatar, "보물상자 발견! 🎁", "#000000", "rgba(255,255,255,0.9)", 2.5);
     } catch (e) { alert("상자를 줍는데 실패했습니다."); }
 };
 
@@ -412,7 +427,7 @@ const openNpcDialog = async () => {
 };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 
-// [수정] 퀘스트 완료 처리 (초기화 및 재시작 로직)
+// [수정] 퀘스트 완료 및 강제 초기화
 const completeQuest = async () => {
     try {
         if (dailyQuest.value.rewardsRemaining <= 0) {
@@ -426,26 +441,29 @@ const completeQuest = async () => {
         
         alert(`퀘스트 완료! ${reward} SaltMate를 획득했습니다.`);
         
-        // 1. 보상 횟수 차감
         const remaining = dailyQuest.value.rewardsRemaining - 1;
         
-        // 2. 상태 리셋
+        // [핵심] UI 상태 강제 리셋 (즉시 반응)
+        // Vue의 반응성을 위해 객체 속성을 하나씩 변경
         dailyQuest.value.rewardsRemaining = remaining;
-        dailyQuest.value.rewardClaimed = false; // 다시 수행 가능하게 false로 리셋
-        dailyQuest.value.currentCount = 0;      // 진행도 초기화
+        
+        if (remaining > 0) {
+            dailyQuest.value.currentCount = 0; 
+            dailyQuest.value.rewardClaimed = false; 
+            dailyQuest.value.completed = false; // 완료 상태 해제 -> 새 퀘스트 시작
 
-        // 3. 보물찾기 퀘스트라면 상자 다시 생성 (로컬 리셋)
-        if (dailyQuest.value.type === 'FIND_ITEM') {
-                // 기존 상자 모두 제거
-                for(const id in chests) {
-                    scene.remove(chests[id]);
-                    delete chests[id];
-                }
-                // foundItems 목록 비우기 (서버와 별개로 UI 즉시 반영용)
-                dailyQuest.value.foundItems = [];
-                
-                // 다시 생성
-                spawnTreasureChests(dailyQuest.value.hiddenItems, []);
+            // 보물찾기라면 상자 리셋
+            if (dailyQuest.value.type === 'FIND_ITEM') {
+                 for(const id in chests) {
+                     scene.remove(chests[id]);
+                     delete chests[id];
+                 }
+                 dailyQuest.value.foundItems = [];
+                 // 서버 데이터도 리셋되었다고 가정하고 다시 생성 시도
+                 spawnTreasureChests(dailyQuest.value.hiddenItems, []);
+            }
+        } else {
+            dailyQuest.value.rewardClaimed = true;
         }
         
         closeNpcDialog();
@@ -508,8 +526,17 @@ const triggerAction = (actionName) => {
   }
 };
 
+// [수정] 전역 클릭 시 비디오/오디오 강제 재생 (백업 파일 로직 참조)
 const handleGlobalClick = () => {
     resumeAudioContext();
+    
+    // 비디오 재생
+    if (cinemaVideoRef.value) {
+        cinemaVideoRef.value.play().catch((e) => {
+            // console.warn("비디오 재생 실패 (재시도):", e); 
+        });
+    }
+
     Object.values(remoteAudioTracks).forEach(track => {
         try { track.play(); } catch(e) { /* 에러 무시 */ }
     });
@@ -522,19 +549,13 @@ const resumeAudioContext = () => {
     } 
 };
 
-// -------------------------------------------------------
-// Agora 음성 채팅
-// -------------------------------------------------------
 const initAgora = async (uid) => { 
   if (!uid) return;
   const stringUid = String(uid); 
   try {
     agoraClient.value = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     
-    AgoraRTC.onAutoplayFailed = () => { 
-        console.warn("Agora Autoplay Failed.");
-        audioBlocked.value = true; 
-    };
+    AgoraRTC.onAutoplayFailed = () => { audioBlocked.value = true; };
 
     agoraClient.value.enableAudioVolumeIndicator();
     agoraClient.value.on("volume-indicator", (volumes) => {
@@ -560,9 +581,7 @@ const initAgora = async (uid) => {
     });
 
     agoraClient.value.on("user-unpublished", (user, mediaType) => { 
-        if (mediaType === "audio") { 
-            delete remoteAudioTracks[user.uid];
-        } 
+        if (mediaType === "audio") { delete remoteAudioTracks[user.uid]; } 
     });
 
     await agoraClient.value.join(agoraAppId, agoraChannel, agoraToken, stringUid);
@@ -609,14 +628,14 @@ const leaveAgora = async () => {
 };
 
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
-const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", 2.5); } } catch (error) { console.error(error); } } };
+const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); } } catch (error) { console.error(error); } } };
 const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStatus = !isVideoPlaying.value; if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e)); else cinemaVideoRef.value.pause(); update(dbRef(rtdb, plazaVideoPath), { isPlaying: newStatus, timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime }); };
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
 const listenToVideoState = () => { videoListenerRef = dbRef(rtdb, plazaVideoPath); onValue(videoListenerRef, (snapshot) => { const data = snapshot.val(); if (!data || !cinemaVideoRef.value) return; isVideoPlaying.value = data.isPlaying; const videoEl = cinemaVideoRef.value; if (videoEl.readyState === 0) { videoEl.addEventListener('loadedmetadata', () => applyVideoState(videoEl, data), { once: true }); return; } applyVideoState(videoEl, data); }); };
 const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency = (Date.now() - data.timestamp) / 1000; const targetTime = data.videoTime + latency; if (Math.abs(videoEl.currentTime - targetTime) > 1) videoEl.currentTime = targetTime; videoEl.play().catch(() => {}); } else { videoEl.pause(); if (Math.abs(videoEl.currentTime - data.videoTime) > 0.5) videoEl.currentTime = data.videoTime; } };
 
 const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
-const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message, "black", 2.5); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message, "black", 2.5); } }); };
+const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message, "black", "rgba(255,255,255,0.9)", 2.5); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message, "black", "rgba(255,255,255,0.9)", 2.5); } }); };
 
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
@@ -678,30 +697,25 @@ const forceInitialMove = () => {
 
 const loadAnimations = async () => { const animationPaths = { walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb', strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb', idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb', idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb', dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb', psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb' }; const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null }; const keys = Object.keys(animationPaths); try { const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))); gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; }); return loadedAnimations; } catch (error) { return loadedAnimations; } };
 const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
-// [수정] 이름표 크기 축소 (40px -> 24px, scale 1.5 -> 1.0)
-const createNicknameSprite = (text) => { 
-    const canvas = document.createElement('canvas'); 
-    const context = canvas.getContext('2d'); 
-    canvas.width = 300; canvas.height = 100; 
-    context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
-    context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); 
-    context.fillStyle = 'white'; 
-    context.font = 'bold 24px Arial'; // 폰트 크기 축소
-    context.textAlign = 'center'; context.textBaseline = 'middle'; 
-    context.fillText(text, 150, 50); 
-    const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; 
+const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
+const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.9)") => { 
+    const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
+    context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; 
+    canvas.width = w; canvas.height = 60; 
+    context.fillStyle = bgColor; 
+    context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); 
+    context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; 
+    context.fillText(text, w / 2, 30); 
+    const texture = new THREE.CanvasTexture(canvas); 
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); 
-    sprite.scale.set(1.0, 0.33, 1); // 스케일 조정
-    sprite.position.set(0, 0, 0); 
+    sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; 
     return sprite; 
 };
-const createChatBubbleSprite = (text, textColor = "black") => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; canvas.width = w; canvas.height = 60; context.fillStyle = 'rgba(255, 255, 255, 0.9)'; context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, w / 2, 30); const texture = new THREE.CanvasTexture(canvas); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; return sprite; };
-// [수정] 말풍선 높이 인자 추가
-const showChatBubble = (avatar, message, color = "black", heightY = 2.2) => { 
+const showChatBubble = (avatar, message, color = "black", bgColor = "rgba(255,255,255,0.9)", heightY = 2.2) => { 
     if (!avatar) return; 
     if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); } 
-    const newBubble = createChatBubbleSprite(message, color); 
-    newBubble.position.y = heightY; // 높이 적용
+    const newBubble = createChatBubbleSprite(message, color, bgColor); 
+    newBubble.position.y = heightY; 
     const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000); 
     newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble); 
 };
@@ -729,6 +743,23 @@ const initThree = async () => {
           const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
           
+          // [수정] 백업 파일 로직 복원 (비디오 스크린 생성)
+          const video = cinemaVideoRef.value;
+          if (video) {
+            const videoTexture = new THREE.VideoTexture(video); 
+            videoTexture.minFilter = THREE.LinearFilter; 
+            videoTexture.magFilter = THREE.LinearFilter; 
+            videoTexture.colorSpace = THREE.SRGBColorSpace; 
+            
+            // 백업 파일에 있던 좌표와 설정 그대로 적용
+            const screenGeo = new THREE.PlaneGeometry(16, 9); 
+            const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
+            const screen = new THREE.Mesh(screenGeo, screenMat); 
+            screen.position.set(startX, 7, startZ - 15); 
+            screen.name = "cinemaScreen"; 
+            scene.add(screen);
+          }
+
           loader.load('/models/low_poly_city_pack.glb', (gltf) => {
               const city = gltf.scene; city.name = "cityMap";
               const box = new THREE.Box3().setFromObject(city);
@@ -740,13 +771,6 @@ const initThree = async () => {
               city.position.set(-center.x * scaleFactor, groundLevelY, -center.z * scaleFactor);
               city.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
               scene.add(city);
-
-              const video = cinemaVideoRef.value;
-              if (video) {
-                const videoTexture = new THREE.VideoTexture(video); videoTexture.minFilter = THREE.LinearFilter; videoTexture.magFilter = THREE.LinearFilter; videoTexture.colorSpace = THREE.SRGBColorSpace; 
-                const screenGeo = new THREE.PlaneGeometry(16, 9); const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
-                const screen = new THREE.Mesh(screenGeo, screenMat); screen.position.set(startX, groundLevelY + 7, startZ - 15); screen.name = "cinemaScreen"; scene.add(screen);
-              }
               resolve(true); 
           }, undefined, (e) => { console.error('맵 로드 실패', e); reject(false); });
           clock = new THREE.Clock();
@@ -768,14 +792,12 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      // [수정] 모바일 조이스틱 좌우 반전 보정
       const targetRotationY = -joystickData.value.angle + Math.PI / 2 + Math.PI;
-      
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8; 
-      moveDirection.z = 1; // 전방 이동
+      moveDirection.z = 1; 
       moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
       const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
@@ -822,10 +844,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor; 
-    
-    // [수정] 이름표 위치 동기화 로직 제거 (자식 객체이므로 자동 동기화됨)
     player.mesh.updateMatrixWorld(true);
-    
     const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
       if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
@@ -841,7 +860,7 @@ const updateDistances = () => {
         nearNpc.value = dist < 3.0; 
         if (npcModel.value.userData.floatingIcon) {
             npcModel.value.userData.floatOffset += 0.02;
-            npcModel.value.userData.floatingIcon.position.y = 2.5 + Math.sin(npcModel.value.userData.floatOffset) * 0.1;
+            npcModel.value.userData.floatingIcon.position.y = 2.8 + Math.sin(npcModel.value.userData.floatOffset) * 0.2;
         }
     }
     let closestChest = null;
@@ -859,7 +878,10 @@ const animate = () => {
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
   if (myAvatar && myAvatar.userData.mixer) myAvatar.userData.mixer.update(deltaTime);
-  if (npcModel.value && npcModel.value.userData.mixer) npcModel.value.userData.mixer.update(deltaTime);
+  if (npcModel.value && npcModel.value.userData.animate) {
+      // [수정] NPC 단순 애니메이션 (숨쉬기)
+      npcModel.value.userData.animate(clock.getElapsedTime());
+  }
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
@@ -916,7 +938,7 @@ onMounted(() => {
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      await initNPC(preloadedAnimations);
+      await initNPC();
       await checkDailyQuest();
       
       questPollingInterval = setInterval(checkDailyQuest, 5000);
@@ -1167,6 +1189,13 @@ onUnmounted(() => {
   border: 3px solid #FFD700;
   object-fit: cover;
   background: white;
+}
+.portrait-placeholder {
+  width: 100px; height: 100px; border-radius: 50%;
+  border: 3px solid #FFD700;
+  background: #444;
+  display: flex; justify-content: center; align-items: center;
+  font-size: 3em; color: #FFD700;
 }
 .npc-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .npc-content h3 { margin: 0; color: #FFD700; }
