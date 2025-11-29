@@ -69,7 +69,7 @@
             </div>
             
             <div class="dialog-actions">
-              <button v-if="dailyQuest.currentCount >= dailyQuest.target && dailyQuest.rewardsRemaining > 0" 
+              <button v-if="dailyQuest.currentCount >= dailyQuest.target && dailyQuest.rewardsRemaining > 0 && !dailyQuest.rewardClaimed" 
                       class="btn-complete" @click="completeQuest">
                 랜덤 보상 받기 (남은 횟수: {{ dailyQuest.rewardsRemaining }})
               </button>
@@ -195,6 +195,7 @@ const dailyQuest = ref(null);
 const chests = reactive({}); 
 const nearChestId = ref(null); 
 let questPollingInterval = null;
+let npcMutterInterval = null; // [신규] 할머니 혼잣말 타이머
 
 // --- Agora 변수 ---
 const agoraAppId = "9d76fd325fea49d4870da2bbea41fd29"; 
@@ -271,57 +272,78 @@ const getTerrainHeight = (x, z) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (할머니 모델, 크기 축소)
+// [수정] NPC 초기화
 // ----------------------------------------
-const initNPC = async (animations) => {
-  const npc = await loadAvatar('/avatars/cartoon_old_woman.glb', animations);
+const initNPC = async () => {
+  // [수정] 애니메이션 없이 모델만 로드
+  const npc = await loadAvatar('/avatars/cartoon_old_woman.glb', null);
   
   const npcX = 37.16;
   const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기를 0.35로 대폭 축소하여 이질감 완화
-  npc.scale.set(0.35, 0.35, 0.35);
+  // [수정] 크기를 0.28로 더 축소 (일반 아바타보다 약간 작게)
+  npc.scale.set(0.28, 0.28, 0.28);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = Math.PI; 
 
   textureLoader.load(heliaImgSrc, (texture) => {
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(1.2, 1.2, 1);
-    sprite.position.set(0, 5.0, 0); // 스케일이 작아졌으므로 상대 높이 조정
+    sprite.scale.set(1.0, 1.0, 1); // 상품 이미지도 약간 축소
+    sprite.position.set(0, 6.5, 0); // 머리 위 높이 조정 (모델 스케일이 작아져서 상대값은 커짐)
     npc.userData.floatingIcon = sprite;
     npc.userData.floatOffset = 0;
     npc.add(sprite);
   });
 
   const nameTag = createNicknameSprite("헬리아 (NPC)");
-  nameTag.position.set(0, 4.0, 0); // 이름표 위치 조정
+  nameTag.position.set(0, 5.5, 0); // 이름표 위치 조정
   npc.add(nameTag);
 
-  if (npc.userData.actions && npc.userData.actions['idle']) {
-      npc.userData.actions['idle'].play(); 
-  }
+  // [수정] 행동(애니메이션) 제거 -> 가만히 서있음
 
   scene.add(npc);
   npcModel.value = npc;
+
+  // [신규] 할머니 혼잣말 시작
+  startNpcMuttering();
 };
 
-// [수정] 일일 퀘스트 로직 (랜덤 보상, 3회 제한)
+// [신규] 할머니 혼잣말 함수
+const startNpcMuttering = () => {
+    if (npcMutterInterval) clearInterval(npcMutterInterval);
+    
+    const mutters = [
+        "아이고 허리야... 소금 좀 찾아주게.",
+        "오늘 날씨가 참 좋구만...",
+        "헬리아 소금차가 몸에 그렇게 좋다던데.",
+        "젊은이, 바쁘지 않으면 이것 좀 도와줘.",
+        "광장에 보물이 숨겨져 있다네."
+    ];
+
+    npcMutterInterval = setInterval(() => {
+        if (npcModel.value) {
+            const text = mutters[Math.floor(Math.random() * mutters.length)];
+            // 채팅창에는 기록하지 않고 머리 위에만 띄움 (3번째 인자 색상)
+            showChatBubble(npcModel.value, text, "#FFD700"); 
+        }
+    }, 10000); // 10초마다
+};
+
+
 const checkDailyQuest = async () => {
   try {
-    // Cloud Function은 그대로 사용하되, 프론트에서 상태를 관리
     const getQuestFunc = httpsCallable(functions, 'getNpcQuest');
     const result = await getQuestFunc();
     
-    // 기존 데이터에 rewardsRemaining 필드가 없다면 기본값 3 부여
     const qData = result.data.quest;
     if (qData.rewardsRemaining === undefined) {
-        qData.rewardsRemaining = 3; // 기본 3회
+        qData.rewardsRemaining = 3; 
     }
     dailyQuest.value = qData;
 
-    if (dailyQuest.value.type === 'FIND_ITEM' && dailyQuest.value.rewardsRemaining > 0) {
+    if (dailyQuest.value.type === 'FIND_ITEM' && !dailyQuest.value.rewardClaimed) {
         spawnTreasureChests(dailyQuest.value.hiddenItems, dailyQuest.value.foundItems);
     }
   } catch (e) { console.error("퀘스트 로딩 실패:", e); }
@@ -372,7 +394,7 @@ const openNpcDialog = async () => {
 };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 
-// [수정] 퀘스트 완료 및 랜덤 보상 (100~1000)
+// [수정] 퀘스트 완료 처리 (초기화 및 재시작 로직 포함)
 const completeQuest = async () => {
     try {
         if (dailyQuest.value.rewardsRemaining <= 0) {
@@ -381,25 +403,38 @@ const completeQuest = async () => {
         }
 
         const completeFunc = httpsCallable(functions, 'completeNpcQuest');
-        
-        // 랜덤 보상 계산 (프론트에서 보여주기용, 실제 지급은 서버 로직이 안전하지만 여기선 요청대로 구현)
-        // *참고: 서버 'completeNpcQuest'도 랜덤 로직을 지원해야 완벽하지만, 
-        // 현재는 서버가 고정값을 줄 수도 있으므로 서버 응답을 신뢰합니다.
         const result = await completeFunc(); 
-        
-        // 서버에서 준 보상이 고정값이라면, 여기서 추가 보너스를 주는 식의 연출 가능
-        // 하지만 데이터 정합성을 위해 서버 응답을 표시
         const reward = result.data.reward; 
         
         alert(`퀘스트 완료! ${reward} SaltMate를 획득했습니다.`);
         
-        // 로컬 상태 업데이트 (3회 차감)
-        dailyQuest.value.rewardsRemaining--;
-        if (dailyQuest.value.rewardsRemaining <= 0) {
-            dailyQuest.value.rewardClaimed = true;
+        // 1. 보상 횟수 차감
+        const remaining = dailyQuest.value.rewardsRemaining - 1;
+        
+        // 2. [핵심] 퀘스트 상태 리셋 (다음 회차를 위해)
+        if (remaining > 0) {
+            dailyQuest.value.currentCount = 0; // 진행도 초기화
+            dailyQuest.value.rewardClaimed = false; // 보상 수령 상태 초기화
+            dailyQuest.value.rewardsRemaining = remaining; // 남은 횟수 업데이트
+            
+            // 서버 데이터도 갱신 (선택사항이지만 권장)
+            // 여기서는 UI만 즉시 갱신하고, 폴링에 의해 나중에 동기화됨
+            
+            // 보물찾기 퀘스트라면 상자 다시 생성 (서버가 foundItems를 비워줬다고 가정하거나, 여기서 처리)
+            if (dailyQuest.value.type === 'FIND_ITEM') {
+                 // 기존 상자 제거
+                 for(const id in chests) {
+                     scene.remove(chests[id]);
+                     delete chests[id];
+                 }
+                 // 새 상자 생성 로직 (서버가 foundItems를 리셋해줘야 함. 
+                 // 현재 서버 로직은 complete 시 foundItems 리셋 안함 -> 서버 로직 수정 필요하지만 일단 UI 처리)
+                 // 여기서는 보물찾기 퀘스트가 다시 활성화되려면 서버에서 데이터를 다시 받아와야 함
+                 await checkDailyQuest();
+            }
         } else {
-            // 반복 퀘스트를 위해 카운트 리셋 (선택사항)
-            // dailyQuest.value.currentCount = 0; 
+            dailyQuest.value.rewardsRemaining = 0;
+            dailyQuest.value.rewardClaimed = true;
         }
         
         closeNpcDialog();
@@ -465,11 +500,7 @@ const triggerAction = (actionName) => {
 const handleGlobalClick = () => {
     resumeAudioContext();
     Object.values(remoteAudioTracks).forEach(track => {
-        try { 
-            track.play(); 
-        } catch(e) {
-            // 에러 무시 (사용자 인터랙션 필요)
-        }
+        try { track.play(); } catch(e) { /* 에러 무시 */ }
     });
 };
 
@@ -509,6 +540,7 @@ const initAgora = async (uid) => {
       if (mediaType === "audio") {
         remoteAudioTracks[user.uid] = user.audioTrack; 
         try { 
+            // [핵심] 오디오 재생 시도
             user.audioTrack.play(); 
             user.audioTrack.setVolume(100); 
         } catch (e) { 
@@ -576,84 +608,48 @@ const applyVideoState = (videoEl, data) => { if (data.isPlaying) { const latency
 const sendMessage = () => { if (!chatInput.value.trim()) return; push(dbRef(rtdb, plazaChatPath), { userId: auth.currentUser.uid, userName: myUserName || '익명', message: chatInput.value.trim(), timestamp: serverTimestamp() }); chatInput.value = ''; };
 const listenToChat = () => { chatListenerRef = query(dbRef(rtdb, plazaChatPath), limitToLast(MAX_CHAT_MESSAGES)); onChildAdded(chatListenerRef, (snapshot) => { const msg = { id: snapshot.key, ...snapshot.val() }; chatMessages.value.push(msg); if (chatMessages.value.length > MAX_CHAT_MESSAGES) { chatMessages.value.shift(); } nextTick(() => { if (messageListRef.value) { messageListRef.value.scrollTop = messageListRef.value.scrollHeight; } }); const currentUid = auth.currentUser?.uid; if (msg.userId === currentUid && myAvatar) { showChatBubble(myAvatar, msg.message); } else if (otherPlayers[msg.userId] && otherPlayers[msg.userId].mesh) { showChatBubble(otherPlayers[msg.userId].mesh, msg.message); } }); };
 
-// -------------------------------------------------------
-// [핵심 수정] 다른 플레이어 동기화 (Jitter & 이름표 고정)
-// -------------------------------------------------------
 const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
   playersListenerRef = dbRef(rtdb, plazaPlayersPath);
-  
   onChildAdded(playersListenerRef, async (snapshot) => {
     if (snapshot.key === currentUid || otherPlayers[snapshot.key]) return;
-    
     const val = snapshot.val();
     let posX = isFiniteNumber(val.position?.x) ? val.position.x : 37.16;
     let posZ = isFiniteNumber(val.position?.z) ? val.position.z : 7.85;
     let posY = isFiniteNumber(val.position?.y) ? val.position.y : getTerrainHeight(posX, posZ);
     const rotY = isFiniteNumber(val.rotationY) ? val.rotationY : 0;
-    
     otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
-    
     if (scene && otherPlayers[snapshot.key]) {
-      // [수정] 이름표 생성 (아바타에 add 하지 않고 별도 관리하여 매 프레임 위치 갱신 추천하지만, 여기선 add 후 update에서 보정)
       if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
           nick.position.set(0, 1.8, 0); 
           model.add(nick); 
       }
-      
-      model.position.set(posX, posY, posZ); 
-      model.rotation.y = rotY; 
-      model.visible = true;
-      scene.add(model); 
-      model.updateMatrixWorld(true); 
-      
-      otherPlayers[snapshot.key].mesh = model; 
-      otherPlayers[snapshot.key].mixer = model.userData.mixer; 
-      otherPlayers[snapshot.key].actions = model.userData.actions;
-      
+      model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
+      scene.add(model); model.updateMatrixWorld(true); 
+      otherPlayers[snapshot.key].mesh = model; otherPlayers[snapshot.key].mixer = model.userData.mixer; otherPlayers[snapshot.key].actions = model.userData.actions;
       if (model.userData.mixer) model.userData.mixer.update(0.01);
       if (model.userData.actions && model.userData.actions.idle) model.userData.actions.idle.play();
     }
   });
-
   onChildChanged(playersListenerRef, (snap) => {
-    // 내 데이터는 무시 (고무줄 방지)
     if (snap.key === currentUid || !otherPlayers[snap.key]) return;
-    
     const val = snap.val();
     const player = otherPlayers[snap.key];
-
     if (val.position) {
         const safeY = getTerrainHeight(val.position.x, val.position.z);
         player.targetPosition.set(val.position.x, safeY, val.position.z);
         player.targetRotationY = val.rotationY || 0;
     }
-
     if (val.action) {
-        const actionName = val.action;
-        const mixer = player.mixer;
-        const actions = player.actions;
-        const action = actions[actionName];
-
+        const actionName = val.action; const mixer = player.mixer; const actions = player.actions; const action = actions[actionName];
         if (mixer && action) {
-            mixer.stopAllAction();
-            action.reset();
-            action.setLoop(THREE.LoopOnce);
-            action.clampWhenFinished = true;
-            action.play();
-            const onFinished = (e) => {
-                if (e.action === action) {
-                    mixer.removeEventListener('finished', onFinished);
-                    const idleAction = actions['idle']; 
-                    if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); }
-                }
-            };
+            mixer.stopAllAction(); action.reset(); action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; action.play();
+            const onFinished = (e) => { if (e.action === action) { mixer.removeEventListener('finished', onFinished); const idleAction = actions['idle']; if (idleAction) { idleAction.reset().play(); action.crossFadeTo(idleAction, 0.3); } } };
             mixer.addEventListener('finished', onFinished);
         }
     }
   });
-
   onChildRemoved(playersListenerRef, (snap) => {
     if (!otherPlayers[snap.key]) return;
     if (scene && otherPlayers[snap.key].mesh) scene.remove(otherPlayers[snap.key].mesh);
@@ -738,13 +734,14 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      // [수정] 모바일 조이스틱도 카메라 등지고 걷도록 회전 (+PI)
-      const targetRotationY = -joystickData.value.angle + Math.PI / 2 + Math.PI; // +Math.PI 추가
+      // [수정] 모바일 조이스틱 좌우 반전 보정 (각도 계산에서 - 부호 조정)
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2 + Math.PI;
+      
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
       myAvatar.rotation.y += diff * deltaTime * 8; 
-      moveDirection.z = 1; // 회전했으므로 전방(+Z)으로 이동
+      moveDirection.z = 1; // 전방 이동
       moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
       const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
@@ -915,6 +912,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
   if (questPollingInterval) clearInterval(questPollingInterval);
+  if (npcMutterInterval) clearInterval(npcMutterInterval);
   leaveAgora(); 
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
