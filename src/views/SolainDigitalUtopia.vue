@@ -315,12 +315,13 @@ const initNPC = async () => {
   const npc = await loadAvatar('/avatars/korean_style_female.glb', null);
   
   const npcX = 37.16;
-  const npcZ = -5.0;
+  // Z축 0 (플레이어 시작 위치인 7.85에 더 가깝게 앞으로 5만큼 당김)
+  const npcZ = 0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
-  // [수정] 크기 0.75
-  npc.scale.set(0.75, 0.75, 0.75);
-  npc.position.set(npcX, npcY, npcZ); 
+  // [수정] 크기를 1.5배 키움 (0.75 -> 1.15)
+  npc.scale.set(1.15, 1.15, 1.15);
+  npc.position.set(npcX, npcY, npcZ);	
   npc.rotation.y = 0; 
 
   // [수정] NPC 전용 조명 추가 (회색 방지)
@@ -330,7 +331,7 @@ const initNPC = async () => {
 
   // [수정] 이름표 생성 (머리 위 2.3 높이)
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.3, 0);
+  nameTag.position.set(0, 2.1, 0);
   npc.add(nameTag);
 
   // 코드 기반 단순 애니메이션
@@ -650,7 +651,7 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
           const nick = createNicknameSprite(val.userName); 
           
           // [핵심] 이름표를 머리 위에 부착 (고무줄 현상 방지)
-          attachToBone(model, nick, 0.5); 
+          attachToBone(model, nick, 0.9); 
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -698,7 +699,7 @@ const loadAvatar = (url, animations) => { return new Promise((resolve) => { cons
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
 
 // [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
-const attachToBone = (model, object, offsetY = 0.5) => {
+const attachToBone = (model, object, offsetY = 0.9) => {
     let bone = null;
     model.traverse((child) => {
         if (child.isBone && !bone) {
@@ -777,7 +778,8 @@ const initThree = async () => {
             const screenGeo = new THREE.PlaneGeometry(16, 9); 
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
-            screen.position.set(startX, 15, startZ - 20); 
+	    // Z축 -10 (건물 앞으로 10만큼 당김)
+	    screen.position.set(startX, 5.5, startZ - 10);
             screen.name = "cinemaScreen"; 
             scene.add(screen);
           }
@@ -961,7 +963,7 @@ onMounted(() => {
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
         // 이름표를 머리 뼈대에 부착
-        attachToBone(myAvatar, nick, 0.5); 
+        attachToBone(myAvatar, nick, 0.9); 
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
