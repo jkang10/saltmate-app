@@ -310,10 +310,9 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 // [수정] NPC 초기화 (모델 교체: Korean Female)
 // ----------------------------------------
-const initNPC = async () => {
+const initNPC = async (animations) => {
   try {
-    // 1. 모델 로드 (미리 로드된 animations 객체를 전달하여 Idle 모션 적용)
-    // * 중요: initNPC 함수 인자로 animations를 받아야 합니다.
+    // 1. 모델 로드 (전달받은 animations 사용)
     const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', animations);
     
     // 모델이 정상적으로 로드되지 않았을 경우 (Group이 비어있거나 등)
