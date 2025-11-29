@@ -334,10 +334,21 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.5, 0);
   npc.add(nameTag);
 
-  // 코드 기반 단순 애니메이션
-  npc.userData.animate = (time) => {
-      npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-  };
+// [수정] 모델 내장 애니메이션 랜덤 재생
+  if (npc.userData.mixer && npc.userData.actions) {
+      const actionKeys = Object.keys(npc.userData.actions);
+      if (actionKeys.length > 0) {
+          // 랜덤 액션 선택
+          const randomActionName = actionKeys[Math.floor(Math.random() * actionKeys.length)];
+          const action = npc.userData.actions[randomActionName];
+          if(action) action.play();
+      }
+  } else {
+      // 애니메이션이 없을 경우 대비 (기존 코드 유지)
+      npc.userData.animate = (time) => {
+          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+      };
+  }
 
   scene.add(npc);
   npcModel.value = npc;
@@ -360,7 +371,8 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
+	// [수정] 높이 1.9로 낮춤 (머리 바로 위), 폰트 크기는 createChatBubbleSprite에서 60px로 이미 2배 확대되어 있음
+	showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.9)", 1.9); 
         }
     }, 8000); 
 };
@@ -778,8 +790,8 @@ const initThree = async () => {
             const screenGeo = new THREE.PlaneGeometry(16, 9); 
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
-	    // [수정] 높이 15.0으로 올려서 공중에 띄움
-	    screen.position.set(startX, 15.0, startZ - 10);
+	    // [수정] 높이 13.0으로 올려서 공중에 띄움
+	    screen.position.set(startX, 12.0, startZ - 10);
             screen.name = "cinemaScreen"; 
             scene.add(screen);
           }
@@ -1065,7 +1077,7 @@ onUnmounted(() => {
 
 .chat-ui { 
   position: absolute; 
-  bottom: 120px; 
+  bottom: 20px; 
   left: 20px; 
   width: 300px; 
   max-width: 80%; 
