@@ -293,6 +293,27 @@ const getTerrainHeight = (x, z) => {
     return 0.5; 
 };
 
+// [신규] 충돌 감지 함수 (앞에 장애물이 있는지 확인)
+const checkCollision = (currentPos, direction) => {
+    if (!scene) return false;
+    const cityMap = scene.getObjectByName("cityMap");
+    if (!cityMap) return false;
+
+    // 캐릭터 허리 높이(y+1.0)에서 진행 방향으로 레이저 발사
+    const raycaster = new THREE.Raycaster();
+    const origin = currentPos.clone().add(new THREE.Vector3(0, 1.0, 0));
+    
+    // 진행 방향으로 1.5m 앞까지 검사
+    raycaster.set(origin, direction.normalize());
+    const intersects = raycaster.intersectObject(cityMap, true);
+
+    // 1.5m 이내에 물체가 있으면 충돌로 간주
+    if (intersects.length > 0 && intersects[0].distance < 1.5) {
+        return true;
+    }
+    return false;
+};
+
 // ----------------------------------------
 // [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
 // ----------------------------------------
@@ -331,8 +352,8 @@ const initNPC = async () => {
 
   // 5. 이름표 (크기: 기존 아바타와 동일하게)
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.4, 0);
-  npc.add(nameTag);
+  // npc.add(nameTag);  <-- 기존 코드 삭제
+  attachToBone(npc, nameTag, 2.0); // <-- 이렇게 변경 (높이 2.0)
 
   // 6. 코드 기반 단순 애니메이션 (숨쉬기)
   npc.userData.animate = (time) => {
@@ -657,10 +678,10 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     otherPlayers[snapshot.key] = { mesh: null, mixer: null, actions: {}, targetPosition: new THREE.Vector3(posX, posY, posZ), targetRotationY: rotY, userName: val.userName, isMoving: false };
     const model = await loadAvatar(val.avatarUrl, preloadedAnimations);
     if (scene && otherPlayers[snapshot.key]) {
-      if (val.userName !== '익명') { 
+if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
-          nick.position.set(0, 1.8, 0); 
-          model.add(nick); 
+          // model.add(nick); <-- 기존 코드 삭제
+          attachToBone(model, nick, 0.5); // <-- 머리 위에 부착
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -706,6 +727,29 @@ const forceInitialMove = () => {
 const loadAnimations = async () => { const animationPaths = { walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb', strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb', idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb', idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb', dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb', psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb' }; const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null }; const keys = Object.keys(animationPaths); try { const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))); gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; }); return loadedAnimations; } catch (error) { return loadedAnimations; } };
 const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
 const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
+
+// [신규] 이름표를 아바타의 머리/척추 뼈대에 부착하는 함수
+const attachToBone = (model, object, offsetY = 0.5) => {
+    let bone = null;
+    // Head, Neck, Spine, Hips 순서로 부착할 뼈를 찾음
+    model.traverse((child) => {
+        if (child.isBone && !bone) {
+            if (child.name.match(/Head|Neck|Spine|Hips/i)) {
+                bone = child;
+            }
+        }
+    });
+    
+    if (bone) {
+        bone.add(object);
+        // 뼈대 기준 상대 위치 설정 (스케일에 따라 다를 수 있음)
+        object.position.set(0, offsetY, 0); 
+    } else {
+        model.add(object); // 뼈가 없으면 그냥 모델에 추가
+        object.position.set(0, 2.3, 0);
+    }
+};
+
 // [수정] 말풍선 배경색 인자 추가
 const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.9)") => { 
     const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
@@ -795,49 +839,148 @@ const handleJoystickEnd = () => { joystickData.value = { active: false, angle: 0
 const handleResize = () => { if (!camera || !renderer) return; camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
 
 const updatePlayerMovement = (deltaTime) => {
+  // 필수 객체가 없으면 실행 중단
   if (!myAvatar || !isReady.value || !scene) return;
+
   let moved = false;
   let moveDirection = { x: 0, z: 0 };
   let currentAnimation = specialAction.value || currentIdle.value;
   let currentSpeedFactor = 1.0;
-  
+
+  // 카메라의 현재 Y축 회전값 가져오기 (키보드 이동 시 기준)
+  const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+
+  // ----------------------------------
+  // 1. 모바일 조이스틱 입력 처리
+  // ----------------------------------
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      // [수정] 모바일 조이스틱 좌우 정상화 (- 부호 제거)
-      const targetRotationY = joystickData.value.angle + Math.PI / 2 + Math.PI;
-      let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
-      currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
-      let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
+	// [최종 수정] 조이스틱 각도 보정 (90도 회전하여 전방 일치)
+	// angle.radian은 오른쪽이 0, 위가 PI/2이므로, 3D 월드(Z축 전방)와 맞추기 위해 조정
+	const targetRotationY = joystickData.value.angle + Math.PI / 2;
+      
+      // 부드러운 회전 처리
+      let currentY = myAvatar.rotation.y; 
+      const PI2 = Math.PI * 2; 
+      let targetY = targetRotationY;
+      
+      currentY = (currentY % PI2 + PI2) % PI2; 
+      targetY = (targetY % PI2 + PI2) % PI2;
+      
+      let diff = targetY - currentY; 
+      if (Math.abs(diff) > Math.PI) { 
+          diff = diff > 0 ? diff - PI2 : diff + PI2; 
+      }
+      
       myAvatar.rotation.y += diff * deltaTime * 8; 
-      moveDirection.z = 1; 
-      moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
-  } else if (!joystickData.value.active) { 
-      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      
+      moveDirection.z = 1; // 아바타 기준 전방으로 이동
+      moved = true; 
+      currentAnimation = 'walk'; 
+      currentSpeedFactor = joystickData.value.force;
+  } 
+  // ----------------------------------
+  // 2. PC 키보드 입력 처리
+  // ----------------------------------
+  else if (!joystickData.value.active) { 
       const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y + Math.PI; moved = true; }
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
+      
+      if (isKeyboardMoving) { 
+          // W키(앞으로)를 누르면 카메라를 등지고(180도 회전) 걷게 함
+          if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+               myAvatar.rotation.y = cameraEuler.y + Math.PI; 
+          } else {
+               // 그 외 방향은 카메라 방향 유지 (필요 시 로직 추가 가능)
+               myAvatar.rotation.y = cameraEuler.y + Math.PI; 
+          }
+          moved = true; 
+      }
+      
+      // 이동 벡터 설정 (카메라 기준)
+      // W: 전방, S: 후방, A: 좌측, D: 우측
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { 
+          moveDirection.z = 1; 
+          if(!specialAction.value) currentAnimation = 'walk'; 
+      }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { 
+          moveDirection.z = -1; 
+          if(!specialAction.value) currentAnimation = 'walkBackward'; 
+      }
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { 
+          moveDirection.x = 1; 
+          currentAnimation = 'strafeLeft'; 
+      }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { 
+          moveDirection.x = -1; 
+          currentAnimation = 'strafeRight'; 
+      }
   }
   
+  // ----------------------------------
+  // 3. 실제 이동 및 충돌 감지 적용
+  // ----------------------------------
   if (moved) {
     specialAction.value = null;
-    const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
+
+    // 속도 벡터 계산
+    const velocity = new THREE.Vector3(
+      moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 
+      0,
+      moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime 
+    );
+
+    // 회전값 적용 (아바타가 바라보는 방향으로 벡터 변환)
     velocity.applyQuaternion(myAvatar.quaternion); 
-    myAvatar.position.add(velocity); 
-    camera.position.add(velocity); 
-    controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
-    throttledUpdate();
+    
+    // [핵심] 충돌 감지 로직
+    // 이동하려는 방향으로 레이저를 쏘아 장애물이 있는지 확인
+    const directionVector = velocity.clone().normalize();
+    const isColliding = checkCollision(myAvatar.position, directionVector);
+
+    if (!isColliding) {
+        // 1. 아바타 이동
+        myAvatar.position.add(velocity); 
+        
+        // 2. 카메라도 같이 이동 (Follow Cam)
+        camera.position.add(velocity); 
+        
+        // 3. 컨트롤 타겟(중심점)도 이동
+        if (controls) {
+            controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0));
+        }
+
+        // 4. 서버에 위치 동기화 (쓰로틀링 적용)
+        throttledUpdate();
+    }
   }
+
+  // ----------------------------------
+  // 4. 맵 경계 제한 및 지형 높이 적용
+  // ----------------------------------
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
+  
+  // 지형 높이 계산하여 Y축 적용 (땅 위에 서있게 함)
   myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
-  const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
+
+  // ----------------------------------
+  // 5. 애니메이션 재생
+  // ----------------------------------
+  const mixer = myAvatar.userData.mixer; 
+  const actions = myAvatar.userData.actions;
+  
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
+    
+    // 현재 실행 중인 다른 액션 찾기
     const activeAction = mixer._actions.find(a => a.isRunning() && a !== targetAction);
-    if (targetAction && !targetAction.isRunning()) { targetAction.reset().play(); if (activeAction) activeAction.crossFadeTo(targetAction, 0.3); }
+    
+    if (targetAction && !targetAction.isRunning()) { 
+        targetAction.reset().play(); 
+        if (activeAction) {
+            activeAction.crossFadeTo(targetAction, 0.3); 
+        }
+    }
   }
 };
 
@@ -938,10 +1081,10 @@ onMounted(() => {
       const startX = 37.16; const startZ = 7.85;
       const startY = getTerrainHeight(startX, startZ);
       myAvatar.position.set(startX, startY, startZ); 
-      if (myUserName) {
+if (myUserName) {
         const nick = createNicknameSprite(myUserName);
-        nick.position.set(0, 1.8, 0); 
-        myAvatar.add(nick);
+        // myAvatar.add(nick); <-- 기존 코드 삭제
+        attachToBone(myAvatar, nick, 0.5); // <-- 머리 위에 부착 (높이 0.5)
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
