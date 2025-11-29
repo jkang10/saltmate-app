@@ -344,10 +344,19 @@ const initNPC = async () => {
           if(action) action.play();
       }
   } else {
-      // 애니메이션이 없을 경우 대비 (기존 코드 유지)
-      npc.userData.animate = (time) => {
-          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-      };
+  // 6. [수정] 코드 기반 애니메이션 강화 (숨쉬기 + 회전 + 크기 변화)
+  // 모델 오류 없이 생동감을 주기 위해 코드로 움직임을 만듭니다.
+  npc.userData.animate = (time) => {
+      // 1. 위아래 둥둥 (숨쉬기) - 폭을 키움 (0.02 -> 0.08)
+      npc.position.y = npcY + Math.sin(time * 2) * 0.08;
+      
+      // 2. 좌우 살짝 회전 (주위를 두리번거리는 느낌)
+      npc.rotation.y = Math.sin(time * 0.5) * 0.15;
+
+      // 3. 미세한 스케일 변화 (호흡하는 느낌)
+      const breath = 1 + Math.sin(time * 3) * 0.005;
+      npc.scale.set(0.75 * breath, 0.75 * breath, 0.75 * breath);
+  };
   }
 
   scene.add(npc);
@@ -1077,16 +1086,16 @@ onUnmounted(() => {
 
 .chat-ui { 
   position: absolute; 
-  bottom: 20px; 
+  /* [수정] 바닥에서 좀 더 띄워서 입력창 확보 */
+  bottom: 50px; 
   left: 20px; 
   width: 300px; 
   max-width: 80%; 
-  max-height: 20vh; 
+  max-height: 30vh; /* 높이도 조금 여유 있게 */
   display: flex; 
   flex-direction: column; 
   z-index: 5; 
 }
-
 .action-bar {
   display: flex;
   gap: 5px;
@@ -1259,9 +1268,14 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }
+  /* [수정] 모바일에서는 조이스틱(bottom: 30px) 위로 오도록 조정 */
+  .chat-ui { 
+      bottom: 100px; 
+      width: 65%; 
+      font-size: 0.8rem; 
+  }
   .user-controls { top: 15px; right: 15px; }
   .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
-  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
+  .joystick-zone { bottom: 30px; right: 20px; width: 120px; height: 120px; }
 }
 </style>

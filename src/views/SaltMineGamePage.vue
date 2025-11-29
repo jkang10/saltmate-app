@@ -41,7 +41,14 @@
     <div class="click-effect" :class="{ 'animate': isClickAnimating }"></div>
   </div>
   <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-  <button @click.stop="mineSalt" class="mine-button" :disabled="isMiningCooldown">채굴하기</button>
+	  <button 
+	  @click.stop="mineSalt" 
+	  class="mine-button" 
+	  :disabled="isMiningCooldown || isPenaltyActive"
+	  :style="isPenaltyActive ? 'background-color: #ef4444; color: white;' : ''"
+	>
+	  {{ isPenaltyActive ? '과열! 잠시 대기하세요' : '채굴하기' }}
+	</button>
 </div>
 
         <div class="log-card card">
@@ -293,6 +300,9 @@ const isMiningCooldown = ref(false);
 // ▼▼▼ [신규] 클릭 이펙트 상태 변수 추가 ▼▼▼
 const isClickAnimating = ref(false);
 
+const clickHistory = ref([]); // 최근 클릭 시간 기록
+const isPenaltyActive = ref(false); // 패널티 활성화 여부
+
 let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
 // --- 헬퍼 함수 ---
@@ -529,21 +539,46 @@ const triggerClickEffect = () => {
   }, 300); // 애니메이션 시간과 일치
 };
 
-// [수정] mineSalt 함수에서 황금 소금 발견 확률에 보너스 추가
 const mineSalt = () => {
-  if (isMiningCooldown.value) return;
+  // 1. 패널티 중이거나 쿨다운 중이면 중단
+  if (isMiningCooldown.value || isPenaltyActive.value) return;
+
+  // --- [신규] 오토 클릭 방지 로직 ---
+  const now = Date.now();
+  // 최근 1초(1000ms) 이내의 클릭만 남김
+  clickHistory.value = clickHistory.value.filter(time => now - time < 1000);
+  clickHistory.value.push(now);
+
+  // 1초에 12회 이상 클릭 시 오토로 간주 (사람은 보통 초당 6~8회가 한계)
+  if (clickHistory.value.length > 12) {
+      isPenaltyActive.value = true;
+      logEvent("⚠️ <strong>채굴기 과열!</strong> 너무 빠릅니다. 5초간 식혀주세요.");
+      
+      // 5초 후 패널티 해제
+      setTimeout(() => {
+          isPenaltyActive.value = false;
+          clickHistory.value = []; // 기록 초기화
+      }, 5000);
+      return;
+  }
+  // --------------------------------
+
   isMiningCooldown.value = true;
 
   salt.value += boostedPerClick.value;
   totalClicks.value++;
   
-  // 기본 확률 1% + 스킨 보너스 확률
-  const goldFindChance = 0.01 + (skinBonus.value.goldChancePercent / 100);
+  // [수정] 황금 소금 확률 대폭 하향 (기존 1% -> 0.1%로 변경)
+  // 0.01 (1%) -> 0.001 (0.1%)
+  const baseGoldChance = 0.001; 
+  const goldFindChance = baseGoldChance + (skinBonus.value.goldChancePercent / 100);
+  
   if (Math.random() < goldFindChance) {
     gold.value += 1;
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
   }
 
+  // 클릭 쿨다운 (기존 유지)
   setTimeout(() => { isMiningCooldown.value = false; }, 100); 
 };
 
