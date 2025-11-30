@@ -317,14 +317,13 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async () => {
   // 1. 모델 로드
-  const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', null);
-  
+  const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', animations);
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.75, 0.75, 0.75);
+  npc.scale.set(1.5, 1.5, 1.5);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
@@ -342,9 +341,9 @@ const initNPC = async () => {
     }
   });
 
-  // 4. 조명 추가 (NPC 전용)
-  const npcLight = new THREE.PointLight(0xffffff, 1.2, 5);
-  npcLight.position.set(0, 2, 2);
+  // 4. 조명 추가
+  const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
+  npcLight.position.set(0, 3, 2);
   npc.add(npcLight);
 
   // 5. 이름표
@@ -352,10 +351,17 @@ const initNPC = async () => {
   nameTag.position.set(0, 2.0, 0);
   npc.add(nameTag);
 
-  // 6. 단순 애니메이션 (숨쉬기)
-  npc.userData.animate = (time) => {
-      npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-  };
+  // 6. [핵심 수정] 'dance' 애니메이션 재생
+  // loadAvatar 함수 내부에서 mixer와 actions를 생성해 두었습니다.
+  // F_Dances_006.glb 파일이 'dance'라는 키로 매핑되어 있습니다.
+  if (npc.userData.mixer && npc.userData.actions) {
+      // 우선순위: 댄스 > 대기
+      const action = npc.userData.actions['dance'] || npc.userData.actions['idle'];
+      if (action) {
+          action.play();
+          console.log("NPC 애니메이션 재생 성공:", action.getClip().name);
+      }
+  }
 
   scene.add(npc);
   npcModel.value = npc;
@@ -1017,10 +1023,10 @@ onMounted(() => {
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      await initNPC(preloadedAnimations);
+      // [수정] 미리 로드된 애니메이션(preloadedAnimations)을 NPC에게 전달합니다.
+      await initNPC(preloadedAnimations); 
       await checkDailyQuest();
       
-      // [신규] 퀘스트 상태 폴링 시작 (5초마다)
       questPollingInterval = setInterval(checkDailyQuest, 5000);
 
       await nextTick();
