@@ -41,14 +41,15 @@
     <div class="click-effect" :class="{ 'animate': isClickAnimating }"></div>
   </div>
   <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
-	  <button 
-	  @click.stop="mineSalt" 
-	  class="mine-button" 
-	  :disabled="isMiningCooldown || isPenaltyActive"
-	  :style="isPenaltyActive ? 'background-color: #ef4444; color: white;' : ''"
-	>
-	  {{ isPenaltyActive ? '과열! 잠시 대기하세요' : '채굴하기' }}
-	</button>
+	<button 
+	    @click.stop="mineSalt" 
+	    class="mine-button" 
+	    :disabled="isPenaltyActive" 
+	    :class="{ 'cooldown': isMiningCooldown }" 
+	    :style="isPenaltyActive ? 'background-color: #ef4444; color: white;' : ''"
+	  >
+	    {{ isPenaltyActive ? '과열! 잠시 대기하세요' : '채굴하기' }}
+	  </button>
 </div>
 
         <div class="log-card card">
@@ -953,4 +954,9 @@ onUnmounted(() => {
   100% { transform: scale(1.5); opacity: 0; }
 }
 /* ▲▲▲ */
+/* 쿨타임 중일 때 살짝 투명하게 표시 (클릭은 가능) */
+.mine-button.cooldown {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
 </style>
