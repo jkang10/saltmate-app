@@ -550,7 +550,7 @@ const mineSalt = () => {
   clickHistory.value.push(now);
 
   // 1초에 12회 이상 클릭 시 오토로 간주 (사람은 보통 초당 6~8회가 한계)
-  if (clickHistory.value.length > 12) {
+  if (clickHistory.value.length > 9) {
       isPenaltyActive.value = true;
       logEvent("⚠️ <strong>채굴기 과열!</strong> 너무 빠릅니다. 5초간 식혀주세요.");
       
