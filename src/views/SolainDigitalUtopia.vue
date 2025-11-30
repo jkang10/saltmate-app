@@ -817,45 +817,70 @@ const attachToBone = (model, object, offsetY = 1.1) => {
     }
 };
 
-// [수정 후] 폰트 크기 및 해상도 2배 증가 (선명하고 크게 보임)
-const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.9)") => { 
+// [수정 후] 폰트 크기 확대, 여백 최소화, 3D 크기 최적화
+const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.95)") => { 
     const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
     
-    // 1) 폰트: 'bold 30px' -> '900 60px' (크기 2배, 두께 최대)
-    context.font = '900 60px Arial'; 
+    // 1) 폰트 설정: 크기를 100px로 대폭 키워 해상도 확보
+    // '900'은 가장 두꺼운 굵기입니다.
+    const fontSize = 100;
+    context.font = `900 ${fontSize}px "Noto Sans KR", Arial, sans-serif`; 
     
-    // 2) 여백: 40 -> 80 (폰트가 커졌으므로 여백도 2배)
-    const w = context.measureText(text).width + 80; 
+    // 2) 텍스트 너비 측정
+    const textMetrics = context.measureText(text);
+    const textWidth = textMetrics.width;
+
+    // 3) 캔버스 크기 계산 (여백을 줄여서 글씨가 꽉 차게 만듦)
+    // 가로: 텍스트 너비 + 50px (좌우 25px 씩)
+    const w = textWidth + 50; 
+    // 세로: 폰트 크기 100px + 40px 여백 = 140px
+    const h = 140; 
     
     canvas.width = w; 
-    // 3) 높이: 60 -> 120 (2배)
-    canvas.height = 120; 
+    canvas.height = h; 
     
+    // 4) 배경 그리기 (둥근 사각형)
     context.fillStyle = bgColor; 
-    // 4) 사각형 그리기: 높이 120, 라운드 반경 20 (모두 2배)
-    context.roundRect(0, 0, w, 120, 20); 
-    context.fill(); context.stroke(); 
+    context.beginPath();
+    // 모서리 둥글기 30px
+    context.roundRect(0, 0, w, h, 30); 
+    context.fill(); 
     
-    context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; 
-    
-    // 5) 텍스트 위치: Y축 30 -> 60 (중앙 정렬)
-    context.fillText(text, w / 2, 60); 
-    
-    const texture = new THREE.CanvasTexture(canvas); 
-    // 텍스처 필터링을 Linear로 설정하여 축소 시 깨짐 방지
-    texture.minFilter = THREE.LinearFilter; 
+    // 테두리 추가 (선택 사항: 더 또렷하게 보이게 함)
+    context.lineWidth = 5;
+    context.strokeStyle = "rgba(0,0,0,0.1)";
+    context.stroke();
 
+    // 5) 텍스트 그리기
+    context.fillStyle = textColor; 
+    context.textAlign = 'center'; 
+    context.textBaseline = 'middle'; 
+    // 텍스트를 정중앙에 배치 (높이의 절반 + 미세 조정)
+    context.fillText(text, w / 2, h / 2 + 5); 
+    
+    // 6) 텍스처 생성
+    const texture = new THREE.CanvasTexture(canvas); 
+    texture.minFilter = THREE.LinearFilter; // 축소 시 부드럽게
+
+    // 7) 스프라이트 생성
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
-        map: texture, transparent: true, depthTest: false, depthWrite: false 
+        map: texture, 
+        transparent: true, 
+        depthTest: false, // 다른 물체에 가려지지 않게
+        depthWrite: false 
     })); 
     sprite.renderOrder = 1000; 
     
-    // 6) 스케일 설정:
-    // 픽셀 해상도를 2배로 늘렸지만 계수(0.005)를 그대로 유지하면
-    // 3D 상에서의 크기도 정확히 2배가 됩니다. (120px * 0.005 = 0.6 unit height)
-    sprite.scale.set(w * 0.005, 120 * 0.005, 1); 
+    // 8) [중요] 3D 월드 상의 크기 설정 (스케일)
+    // 픽셀 해상도가 높아졌으므로 스케일 계수를 조정하여
+    // 화면상에 실제로 크게 보이도록 설정 (0.0035 배율 적용)
+    // 예: "안녕하세요" -> 캔버스 550px -> 월드 크기 약 1.9 (캐릭터 키와 비슷하게 큼직함)
+    const scaleFactor = 0.0035; 
+    sprite.scale.set(w * scaleFactor, h * scaleFactor, 1); 
     
-	sprite.position.y = 2.2; 
+    // 9) 위치 조정 (캐릭터 머리 위, 기존보다 조금 더 위로)
+    sprite.position.y = 2.4; 
+    
     return sprite; 
 };
 
