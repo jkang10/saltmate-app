@@ -355,7 +355,7 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.4, 0);
   npc.add(nameTag);
 
-// 6. [핵심 수정] 랜덤 애니메이션 재생 로직
+  // 6. [핵심 수정] 랜덤 애니메이션 재생 로직
   if (npc.animations && npc.animations.length > 0) {
        const mixer = new THREE.AnimationMixer(npc);
        npc.userData.mixer = mixer;
