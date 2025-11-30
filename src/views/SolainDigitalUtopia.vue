@@ -314,15 +314,14 @@ const checkCollision = (currentPos, direction) => {
 };
 
 // ----------------------------------------
-// NPC 초기화
+// NPC 초기화 (수정됨: 랜덤 행동 적용)
 // ----------------------------------------
-const initNPC = async () => {
-  // [수정] 관리자가 만든 아바타 URL을 직접 사용합니다.
-  // 예시: 'https://models.readyplayer.me/674...' 형식의 링크를 여기에 넣으세요.
-  const npcUrl = 'https://models.readyplayer.me/6925738afadfd987ccb2722e.glb'; // <-- 여기에 링크
+const initNPC = async (preloadedAnimations) => { // [수정1] 애니메이션 인자 받기
+  const npcUrl = 'https://models.readyplayer.me/6925738afadfd987ccb2722e.glb';
 
-  // 1. 모델 로드 (URL 사용)
-  const npc = await loadAvatar(npcUrl, null);
+  // [수정2] loadAvatar에 애니메이션 전달 (null -> preloadedAnimations)
+  const npc = await loadAvatar(npcUrl, preloadedAnimations);
+  
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
@@ -332,12 +331,11 @@ const initNPC = async () => {
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // 3. 재질 보정 (RPM 아바타는 보통 설정이 잘 되어있지만, 안전하게 유지)
+  // 3. 재질 보정
   npc.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
-      // 재질이 어두워지는 것을 방지
       if (child.material) {
         child.material.metalness = 0;   
         child.material.roughness = 0.8; 
@@ -353,42 +351,53 @@ const initNPC = async () => {
 
   // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 1.6, 0);
+  nameTag.position.set(0, 1.6, 0); // 머리 위 위치 조정
   npc.add(nameTag);
 
-  // 6. [핵심 수정] 랜덤 애니메이션 재생 로직
-  // loadAvatar가 animations를 이용해 만든 actions를 사용합니다.
-  if (npc.animations && npc.animations.length > 0) {
-       // [수정] 로컬 변수 선언 없이 바로 할당하여 오류 해결
-       npc.userData.mixer = new THREE.AnimationMixer(npc);
-       
-       // 현재 실행 중인 액션 저장용
-       let currentAction = null;
+  // 6. [핵심 수정] 랜덤 애니메이션 로직 적용
+  // NPC가 수행할 랜덤 행동 목록 (loadAnimations에서 로드된 키 이름들)
+  const randomActions = ['idle', 'idle2', 'idle3', 'dance', 'psy', 'footwork', 'backflip'];
+  
+  if (npc.userData.mixer && npc.userData.actions) {
+       // 초기 상태: idle 실행
+       let currentActionName = 'idle';
+       const startAction = npc.userData.actions[currentActionName];
+       if (startAction) startAction.play();
 
        // 랜덤 행동 변경 함수
        const playRandomAction = () => {
-           const clips = npc.animations;
-           const nextClip = clips[Math.floor(Math.random() * clips.length)];
-           // [수정] mixer 변수 대신 npc.userData.mixer 사용
-           const nextAction = npc.userData.mixer.clipAction(nextClip);
+           // 랜덤으로 다음 행동 뽑기
+           const nextActionName = randomActions[Math.floor(Math.random() * randomActions.length)];
+           
+           // 같은 행동이면 건너뛰기
+           if (currentActionName !== nextActionName) {
+               const prevAction = npc.userData.actions[currentActionName];
+               const nextAction = npc.userData.actions[nextActionName];
 
-           if (currentAction !== nextAction) {
-               nextAction.reset().fadeIn(0.5).play(); 
-               if (currentAction) {
-                   currentAction.fadeOut(0.5); 
+               if (nextAction) {
+                   // 자연스럽게 오버랩되며 전환 (0.5초)
+                   nextAction.reset().fadeIn(0.5).play();
+                   if (prevAction) {
+                       prevAction.fadeOut(0.5);
+                   }
+                   currentActionName = nextActionName;
                }
-               currentAction = nextAction;
            }
        };
 
-       // 즉시 시작
-       playRandomAction();
-
-       // 5초마다 다른 행동으로 변경
-       setInterval(playRandomAction, 5000);
+       // 5초 ~ 10초 사이 랜덤한 간격으로 행동 변경 스케줄링
+       const scheduleNextAction = () => {
+           const delay = Math.floor(Math.random() * 5000) + 5000; // 5000ms ~ 10000ms
+           setTimeout(() => {
+               playRandomAction();
+               scheduleNextAction(); // 재귀 호출로 계속 실행
+           }, delay);
+       };
+       
+       scheduleNextAction(); // 스케줄 시작
 
   } else {
-      // 애니메이션 로드 실패 시 대비 (기존 숨쉬기 코드)
+      // 애니메이션 로드 실패 시 대비 (단순 위아래 움직임)
       npc.userData.animate = (time) => {
           npc.position.y = npcY + Math.sin(time * 2) * 0.02;
       };
