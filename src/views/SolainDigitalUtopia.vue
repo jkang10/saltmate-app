@@ -316,11 +316,12 @@ const initNPC = async () => {
   const npc = await loadAvatar('/avatars/sophia_animated_003_-_animated_3d_woman.glb', null);
   
   const npcX = 37.16;
-  const npcZ = -5.0;
+  // [수정] 플레이어 쪽으로 7만큼 더 당김 (영상판과 거리를 벌림) 
+  const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.05, 0.05, 0.05);
+  npc.scale.set(0.01, 0.01, 0.01);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
@@ -336,14 +337,16 @@ const initNPC = async () => {
   // 5. [핵심 수정] 애니메이션 재생 로직 강화
   // loadAvatar에서 저장한 animations 배열을 확인
   if (npc.animations && npc.animations.length > 0) {
+       // 믹서(애니메이션 플레이어) 생성
        const mixer = new THREE.AnimationMixer(npc);
-       npc.userData.mixer = mixer;
-       // 첫 번째 애니메이션(보통 Idle이나 Dance) 재생
-       const action = mixer.clipAction(npc.animations[0]); 
+       npc.userData.mixer = mixer; // animate 루프에서 업데이트됨
+       
+       // 첫 번째 애니메이션 클립 재생 (보통 0번이 기본 동작)
+       const action = mixer.clipAction(npc.animations[0]);
        action.play();
-       console.log("NPC 애니메이션 재생 성공:", npc.animations[0].name);
+       console.log("NPC 애니메이션 재생 시작:", npc.animations[0].name);
   } else {
-      // 애니메이션이 없을 경우 코드 기반 움직임 (숨쉬기)
+      // 애니메이션이 없는 경우에만 기존 숨쉬기 코드 사용
       npc.userData.animate = (time) => {
           npc.position.y = npcY + Math.sin(time * 2) * 0.02;
       };
@@ -736,9 +739,8 @@ const loadAvatar = (url, animations) => {
         // (이 데이터는 initNPC 등에서 꺼내서 사용합니다)
         model.userData.gltfAnimations = gltf.animations;
 
-	// [핵심 수정] 모델 파일 자체의 애니메이션 데이터를 상위 객체에 저장
-        // 이 코드가 있어야 initNPC에서 춤/대기 동작을 꺼내 쓸 수 있습니다.
-        model.animations = gltf.animations; 
+	// [★핵심 수정★] 모델 파일에 포함된 애니메이션 데이터를 저장합니다.
+        model.animations = gltf.animations;
 
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
