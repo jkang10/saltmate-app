@@ -2,7 +2,7 @@
   <div class="utopia-container" @click="handleGlobalClick">
     <canvas ref="canvasRef" class="main-canvas" tabindex="0"></canvas>
 
-    <video
+     <video
       ref="cinemaVideoRef"
       id="cinema-video"
       style="position: absolute; top: -9999px; left: -9999px; opacity: 0;"
@@ -13,6 +13,7 @@
       muted
       autoplay
       preload="auto"
+      @timeupdate="checkVideoProgress"
       @error="(e) => console.warn('비디오 에러(무시 가능):', e)"
     >
       <source src="/videos/helia_tea.mp4" type="video/mp4">
