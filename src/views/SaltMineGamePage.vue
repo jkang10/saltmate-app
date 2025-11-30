@@ -541,25 +541,28 @@ const triggerClickEffect = () => {
   }, 300); // 애니메이션 시간과 일치
 };
 
+// [수정] 오토 방지 상태 저장 기능 추가
 const mineSalt = () => {
-  // 1. [핵심 수정] 오토 감지 로직을 맨 위로 이동 (쿨타임 무시하고 클릭 횟수 집계)
   const now = Date.now();
-  // 최근 1초(1000ms) 이내의 클릭만 남김
   clickHistory.value = clickHistory.value.filter(time => now - time < 1000);
   clickHistory.value.push(now);
 
-  // [핵심 수정] 1초에 6회 초과(7회부터) 클릭 시 오토로 간주
-  // 70ms~100ms 오토도 확실하게 잡아냅니다.
-  if (clickHistory.value.length > 6) {
-      // 이미 패널티 중이면 중복 실행 방지
+  // 1. 오토 감지 (초당 7회 초과)
+  if (clickHistory.value.length > 7) {
       if (!isPenaltyActive.value) {
-          penaltyCount.value++; // 누적 횟수 증가
+          penaltyCount.value++; 
           
-          // 시간 계산: 기본 20초 + (추가 횟수 * 60초)
           const baseDuration = 20000; 
           const addDuration = 60000;  
           const duration = baseDuration + (penaltyCount.value - 1) * addDuration;
           const durationSec = duration / 1000;
+          
+          // [신규] 종료 시간 계산 및 로컬 스토리지 저장
+          const penaltyEndTime = now + duration;
+          localStorage.setItem('saltMine_macro_penalty', JSON.stringify({
+              count: penaltyCount.value,
+              endTime: penaltyEndTime
+          }));
 
           isPenaltyActive.value = true;
           
@@ -567,22 +570,24 @@ const mineSalt = () => {
           
           setTimeout(() => {
               isPenaltyActive.value = false;
-              clickHistory.value = []; 
+              clickHistory.value = [];
+              
+              // [신규] 페널티 종료 후 상태 업데이트 (누적 횟수는 유지)
+              localStorage.setItem('saltMine_macro_penalty', JSON.stringify({
+                  count: penaltyCount.value,
+                  endTime: null
+              }));
           }, duration);
       }
-      return; // 오토 감지 시 여기서 종료
+      return; 
   }
 
-  // 2. 패널티 중이거나 쿨다운 중이면 여기서 중단 (오토 체크 후 실행)
   if (isMiningCooldown.value || isPenaltyActive.value) return;
 
-  // 3. 정상 채굴 로직 수행
   isMiningCooldown.value = true;
-
   salt.value += boostedPerClick.value;
   totalClicks.value++;
   
-  // 황금 소금 확률 (0.05%)
   const baseGoldChance = 0.0005;
   const goldFindChance = baseGoldChance + (skinBonus.value.goldChancePercent / 100);
   
@@ -591,7 +596,6 @@ const mineSalt = () => {
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
   }
 
-  // 클릭 쿨다운 (0.1초)
   setTimeout(() => { isMiningCooldown.value = false; }, 100); 
 };
 
@@ -701,9 +705,37 @@ const executePrestige = async () => {
   finally { isProcessing.value = false; }
 };
 
-// --- 라이프사이클 훅 ---
-// --- 라이프사이클 훅 ---
+// [수정] 페이지 로드 시 오토 방지 상태 복구
 onMounted(() => {
+  // 1. 오토 방지 상태 복구
+  const savedPenalty = localStorage.getItem('saltMine_macro_penalty');
+  if (savedPenalty) {
+      try {
+          const { count, endTime } = JSON.parse(savedPenalty);
+          penaltyCount.value = count || 0;
+
+          if (endTime && endTime > Date.now()) {
+              const remainingTime = endTime - Date.now();
+              isPenaltyActive.value = true;
+              
+              logEvent(`⚠️ <strong>채굴기 과열 유지!</strong> 이전 페널티가 ${Math.ceil(remainingTime / 1000)}초 남았습니다.`);
+              
+              setTimeout(() => {
+                  isPenaltyActive.value = false;
+                  clickHistory.value = [];
+                  // 페널티 종료 후 상태 업데이트
+                  localStorage.setItem('saltMine_macro_penalty', JSON.stringify({
+                      count: penaltyCount.value,
+                      endTime: null
+                  }));
+              }, remainingTime);
+          }
+      } catch (e) {
+          console.error("페널티 정보 복구 실패:", e);
+      }
+  }
+
+  // 2. 기존 로직 유지
   authUnsubscribe = onAuthStateChanged(auth, (user) => {
     resetGameState();
     if (user) {
