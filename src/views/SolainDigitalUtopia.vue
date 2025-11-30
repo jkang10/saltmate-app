@@ -320,7 +320,7 @@ const initNPC = async () => {
   const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
   
   const npcX = 37.16;
-  const npcZ = -5.0;
+  const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
@@ -820,7 +820,7 @@ const initThree = async () => {
             // [수정] MeshBasicMaterial로 교체 (조명 영향 무시 -> 검은 화면 해결)
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
-            screen.position.set(startX, 7, startZ - 15); 
+	    screen.position.set(startX, 15.0, startZ - 10);
             screen.name = "cinemaScreen"; 
             scene.add(screen);
           }
@@ -1010,7 +1010,7 @@ onMounted(() => {
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
         // [핵심] 이름표를 뼈대에 부착
-        attachToBone(myAvatar, nick, 0.5); 
+        attachToBone(myAvatar, nick, 1.1); 
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
