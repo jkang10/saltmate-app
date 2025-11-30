@@ -302,6 +302,7 @@ const isClickAnimating = ref(false);
 
 const clickHistory = ref([]); // 최근 클릭 시간 기록
 const isPenaltyActive = ref(false); // 패널티 활성화 여부
+const penaltyCount = ref(0); // [신규] 오토 감지 누적 횟수
 
 let gameStateRef = null, authUnsubscribe = null, gameInterval = null, saveInterval = null;
 
@@ -549,16 +550,30 @@ const mineSalt = () => {
   clickHistory.value = clickHistory.value.filter(time => now - time < 1000);
   clickHistory.value.push(now);
 
-  // 1초에 12회 이상 클릭 시 오토로 간주 (사람은 보통 초당 6~8회가 한계)
-  if (clickHistory.value.length > 9) {
-      isPenaltyActive.value = true;
-      logEvent("⚠️ <strong>채굴기 과열!</strong> 너무 빠릅니다. 5초간 식혀주세요.");
-      
-      // 5초 후 패널티 해제
-      setTimeout(() => {
-          isPenaltyActive.value = false;
-          clickHistory.value = []; // 기록 초기화
-      }, 5000);
+// 1초에 12회 이상 클릭 시 오토로 간주
+  if (clickHistory.value.length > 7) {
+      // 이미 패널티 중이면 중복 실행 방지
+      if (!isPenaltyActive.value) {
+          penaltyCount.value++; // 누적 횟수 증가
+          
+          // [핵심] 시간 계산: 기본 20초 + (추가 횟수 * 60초)
+          // 1회: 20초
+          // 2회: 80초 (1분 20초)
+          // 3회: 140초 (2분 20초) ...
+          const baseDuration = 20000; // 20초
+          const addDuration = 60000;  // 60초
+          const duration = baseDuration + (penaltyCount.value - 1) * addDuration;
+          const durationSec = duration / 1000;
+
+          isPenaltyActive.value = true;
+          
+          logEvent(`⚠️ <strong>채굴기 과열!</strong> 매크로 감지(${penaltyCount.value}회 누적). ${durationSec}초간 채굴이 중지됩니다.`);
+          
+          setTimeout(() => {
+              isPenaltyActive.value = false;
+              clickHistory.value = []; 
+          }, duration);
+      }
       return;
   }
   // --------------------------------
