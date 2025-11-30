@@ -61,6 +61,7 @@
         <div class="npc-content">
           <h3>데브라 (Helia Agent)</h3>
           <template v-if="dailyQuest">
+            
             <div v-if="dailyQuest.rewardsRemaining <= 0">
                 <p class="quest-desc">오늘의 의뢰는 모두 끝났어요. 내일 다시 와주세요.</p>
                 <div class="dialog-actions">
@@ -92,6 +93,7 @@
                 </div>
             </div>
           </template>
+          
           <template v-else>
             <p>잠시만 기다려주세요...</p>
           </template>
@@ -247,6 +249,7 @@ const MAX_CHAT_MESSAGES = 50;
 // Three.js
 let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
 
 // Firebase
 const plazaPlayersPath = 'plazaPlayers';
@@ -301,58 +304,56 @@ const checkCollision = (currentPos, direction) => {
     raycaster.set(origin, direction.normalize());
     const intersects = raycaster.intersectObject(cityMap, true);
 
-    if (intersects.length > 0 && intersects[0].distance < 1.5) {
+    if (intersects.length > 0 && intersects[0].distance < 0.8) {
         return true;
     }
     return false;
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (모델 교체: Korean Female)
+// [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
 // ----------------------------------------
-// [수정] NPC 초기화 (belly_dance.glb 전용)
 const initNPC = async () => {
-  // 1. 소피아 모델 로드
-  const npc = await loadAvatar('/avatars/sophia_animated_003_-_animated_3d_woman.glb', null);
+  const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
   
   const npcX = 37.16;
-  // [수정] 플레이어 쪽으로 7만큼 더 당김 (영상판과 거리를 벌림) 
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.013 0.013, 0.013);
+  npc.scale.set(0.013, 0.013, 0.013);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // 3. 조명 추가
-  const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
-  npcLight.position.set(0, 3, 2);
+  // [핵심] 3. 재질 보정 (회색 현상 해결)
+  npc.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+      if (child.material) {
+        child.material.metalness = 0;   
+        child.material.roughness = 0.8; 
+        child.material.emissive = new THREE.Color(0x000000); 
+        child.material.needsUpdate = true;
+      }
+    }
+  });
+
+  // 4. 조명 추가 (NPC 전용)
+  const npcLight = new THREE.PointLight(0xffffff, 1.2, 5);
+  npcLight.position.set(0, 2, 2);
   npc.add(npcLight);
 
-  // 4. [수정] 이름표: 머리 뼈대에 부착하여 위치 고정 (높이 2.5로 하향 조정)
+  // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  // [수정] 높이를 2.5로 살짝 올려서 확실히 머리 위에 뜨게 함
-  nameTag.position.set(0, 2.5, 0); 
+  // [수정] 위치 살짝 조정
+  nameTag.position.set(0, 2.5, 0);
   npc.add(nameTag);
 
-  // 5. [핵심 수정] 애니메이션 재생 로직 강화
-  // loadAvatar에서 저장한 animations 배열을 확인
-  if (npc.animations && npc.animations.length > 0) {
-       // 믹서(애니메이션 플레이어) 생성
-       const mixer = new THREE.AnimationMixer(npc);
-       npc.userData.mixer = mixer; // animate 루프에서 업데이트됨
-       
-       // 첫 번째 애니메이션 클립 재생 (보통 0번이 기본 동작)
-       const action = mixer.clipAction(npc.animations[0]);
-       action.play();
-       console.log("NPC 애니메이션 재생 시작:", npc.animations[0].name);
-  } else {
-      // 애니메이션이 없는 경우에만 기존 숨쉬기 코드 사용
-      npc.userData.animate = (time) => {
-          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-      };
-  }
+  // 6. 코드 기반 단순 애니메이션 (숨쉬기)
+  npc.userData.animate = (time) => {
+      npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+  };
 
   scene.add(npc);
   npcModel.value = npc;
@@ -375,8 +376,8 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-	// [수정] 높이 1.9로 낮춤 (머리 바로 위), 폰트 크기는 createChatBubbleSprite에서 60px로 이미 2배 확대되어 있음
-	showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.9)", 1.9); 
+            // [수정] 검정 글씨, 말풍선 높이 조정
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 3.2); 
         }
     }, 8000); 
 };
@@ -450,6 +451,7 @@ const openNpcDialog = async () => {
 };
 const closeNpcDialog = () => { isNpcModalOpen.value = false; };
 
+// [수정] 퀘스트 완료 및 강제 초기화
 const completeQuest = async () => {
     try {
         if (dailyQuest.value.rewardsRemaining <= 0) {
@@ -516,7 +518,6 @@ const updateMyStateInRTDB = (actionName = null) => {
 };
 
 let lastUpdateTime = 0;
-// [수정] 동기화 간격 100ms로 조정 (고무줄 현상 완화)
 const throttledUpdate = () => { const now = Date.now(); if (now - lastUpdateTime > 100) { updateMyStateInRTDB(); lastUpdateTime = now; } };
 
 const triggerAction = (actionName) => {
@@ -665,9 +666,8 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
     if (scene && otherPlayers[snapshot.key]) {
       if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
-          
-          // [핵심] 이름표를 머리 위에 부착 (고무줄 현상 방지)
-          attachToBone(model, nick, 1.2); 
+          // [핵심] 머리에 부착
+          attachToBone(model, nick, 0.8); 
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -711,103 +711,32 @@ const forceInitialMove = () => {
 };
 
 const loadAnimations = async () => { const animationPaths = { walk: '/animations/F_Walk_003.glb', walkBackward: '/animations/M_Walk_Backwards_001.glb', strafeLeft: '/animations/M_Walk_Strafe_Left_002.glb', strafeRight: '/animations/M_Walk_Strafe_Right_002.glb', idle: '/animations/M_Standing_Idle_Variations_008.glb', idle2: '/animations/M_Standing_Idle_Variations_007.glb', idle3: '/animations/M_Standing_Idle_Variations_005.glb', idle4: '/animations/M_Standing_Idle_Variations_006.glb', dance: '/animations/F_Dances_006.glb', backflip: '/animations/F_Dances_007.glb', psy: '/animations/M_Dances_001.glb', footwork: '/animations/M_Dances_009.glb', jump: '/animations/M_Walk_Jump_003.glb' }; const loadedAnimations = { idle: null, idle2: null, idle3: null, idle4: null, walk: null, walkBackward: null, strafeLeft: null, strafeRight: null, dance: null, backflip: null, psy: null, footwork: null, jump: null }; const keys = Object.keys(animationPaths); try { const gltfResults = await Promise.all(Object.values(animationPaths).map(path => loader.loadAsync(path).catch(() => null))); gltfResults.forEach((gltf, index) => { if (gltf && gltf.animations.length > 0) loadedAnimations[keys[index]] = gltf.animations[0]; }); return loadedAnimations; } catch (error) { return loadedAnimations; } };
-const loadAvatar = (url, animations) => {
-  return new Promise((resolve) => {
-    const model = new THREE.Group();
-    model.matrixAutoUpdate = true;
-    model.position.set(0, 0, 0);
-    model.userData.mixer = null;
-    model.userData.actions = {};
-
-    // URL이 없거나 GLB가 아닌 경우 기본 큐브 생성 (방어 코드)
-    if (!url || !url.endsWith('.glb')) {
-      const visuals = new THREE.Group();
-      const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-      const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.5;
-      visuals.add(cube);
-      model.add(visuals);
-      resolve(model);
-      return;
-    }
-
-    loader.load(
-      url,
-      (gltf) => {
-        const visuals = gltf.scene;
-
-        // [핵심 업데이트] 모델 파일 자체에 포함된 애니메이션 데이터를 저장
-        // (이 데이터는 initNPC 등에서 꺼내서 사용합니다)
-        model.userData.gltfAnimations = gltf.animations;
-
-	// [★핵심 수정★] 모델 파일에 포함된 애니메이션 데이터를 저장합니다.
-        model.animations = gltf.animations;
-
-        visuals.traverse((child) => {
-          if (child.isMesh || child.isSkinnedMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.frustumCulled = false;
-            child.matrixAutoUpdate = true;
-          }
-        });
-
-        // 기본 스케일 및 위치 조정
-        visuals.scale.set(0.7, 0.7, 0.7);
-        const box = new THREE.Box3().setFromObject(visuals);
-        visuals.position.y = -box.min.y; // 발바닥을 바닥(0)에 맞춤
-
-        model.add(visuals);
-        model.userData.visuals = visuals;
-
-        // 외부에서 주입된 공용 애니메이션(걷기, 대기 등) 처리
-        if (animations) {
-          const mixer = new THREE.AnimationMixer(visuals);
-          model.userData.mixer = mixer;
-          for (const key in animations) {
-            if (animations[key]) {
-              const action = mixer.clipAction(animations[key]);
-              model.userData.actions[key] = action;
-              // 기본 idle 재생
-              if (key === 'idle') action.play();
-            }
-          }
-          mixer.update(0.01);
-        }
-
-        resolve(model);
-      },
-      undefined,
-      (error) => {
-        console.error('아바타 로딩 실패:', error);
-        // 실패 시 빈 모델이라도 반환하여 앱이 멈추지 않게 함
-        resolve(model);
-      }
-    );
-  });
-};
-
-const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); 
-const texture = new THREE.CanvasTexture(canvas); 
-    texture.needsUpdate = true; 
+const loadAvatar = (url, animations) => { return new Promise((resolve) => { const model = new THREE.Group(); model.matrixAutoUpdate = true; model.position.set(0, 0, 0); model.userData.mixer = null; model.userData.actions = {}; if (!url || !url.endsWith('.glb')) { const visuals = new THREE.Group(); const geometry = new THREE.BoxGeometry(0.5, 1, 0.5); const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); const cube = new THREE.Mesh(geometry, material); cube.position.y = 0.5; visuals.add(cube); model.add(visuals); resolve(model); return; } loader.load(url, (gltf) => { const visuals = gltf.scene; visuals.traverse((child) => { if (child.isMesh || child.isSkinnedMesh) { child.castShadow = true; child.receiveShadow = true; child.frustumCulled = false; child.matrixAutoUpdate = true; } }); visuals.scale.set(0.7, 0.7, 0.7); const box = new THREE.Box3().setFromObject(visuals); visuals.position.y = -box.min.y; model.add(visuals); model.userData.visuals = visuals; if (animations) { const mixer = new THREE.AnimationMixer(visuals); model.userData.mixer = mixer; for (const key in animations) { if (animations[key]) { const action = mixer.clipAction(animations[key]); model.userData.actions[key] = action; if (key === 'idle') action.play(); } } mixer.update(0.01); } resolve(model); }, undefined, (error) => { console.error('아바타 로딩 실패:', error); resolve(model); }); }); };
+// [수정] 닉네임 스프라이트 렌더 순서 지정
+const createNicknameSprite = (text) => { 
+    const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
+    canvas.width = 300; canvas.height = 100; 
+    context.fillStyle = 'rgba(0, 0, 0, 0.5)'; 
+    context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); 
+    context.fillStyle = 'white'; 
+    context.font = 'bold 24px Arial'; 
+    context.textAlign = 'center'; context.textBaseline = 'middle'; 
+    context.fillText(text, 150, 50); 
+    const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; 
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
-        map: texture, 
-        transparent: true, 
-        depthTest: false, // 깊이 테스트 끔 (항상 보이게)
-        depthWrite: false // 깊이 버퍼 쓰기 금지
+        map: texture, transparent: true, depthTest: false, depthWrite: false 
     })); 
-    sprite.renderOrder = 999; // [중요] 다른 물체보다 나중에 그려져서 가려지지 않게 함
+    sprite.renderOrder = 999; // 맨 위에 그리기
     sprite.scale.set(1.0, 0.33, 1); 
     sprite.position.set(0, 0, 0); 
     return sprite; 
 };
-// [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
-const attachToBone = (model, object, offsetY = 1.2) => {
+
+// [수정] 뼈대 부착 헬퍼
+const attachToBone = (model, object, offsetY = 0.5) => {
     let bone = null;
     model.traverse((child) => {
         if (child.isBone && !bone) {
-            // 일반적으로 머리나 목 뼈를 찾음
             if (child.name.match(/Head|Neck|Spine|Hips/i)) {
                 bone = child;
             }
@@ -823,33 +752,29 @@ const attachToBone = (model, object, offsetY = 1.2) => {
     }
 };
 
-// [수정] 말풍선 배경색 인자 추가
+// [수정] 말풍선 스프라이트 렌더 순서 지정
 const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.9)") => { 
     const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
     context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; 
     canvas.width = w; canvas.height = 60; 
-    context.fillStyle = bgColor; // 배경색 적용
+    context.fillStyle = bgColor; 
     context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); 
     context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; 
     context.fillText(text, w / 2, 30); 
-	const texture = new THREE.CanvasTexture(canvas); 
-	    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
-		map: texture, 
-		transparent: true, 
-		depthTest: false,
-		depthWrite: false
-	    })); 
-	    sprite.renderOrder = 1000; // [중요] 이름표보다도 더 위에 그려지도록 1000으로 설정
-	    sprite.scale.set(w * 0.005, 60 * 0.005, 1); 
-	    sprite.position.y = 2.2; 
-	    return sprite; 
-	};
+    const texture = new THREE.CanvasTexture(canvas); 
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
+        map: texture, transparent: true, depthTest: false, depthWrite: false 
+    })); 
+    sprite.renderOrder = 1000; // 이름표보다 더 위에
+    sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; 
+    return sprite; 
+};
 // [수정] showChatBubble 함수 인자 확장
 const showChatBubble = (avatar, message, color = "black", bgColor = "rgba(255,255,255,0.9)", heightY = 2.2) => { 
     if (!avatar) return; 
     if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); } 
     const newBubble = createChatBubbleSprite(message, color, bgColor); 
-    newBubble.position.y = heightY; // 높이 적용
+    newBubble.position.y = heightY; 
     const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000); 
     newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble); 
 };
@@ -877,7 +802,6 @@ const initThree = async () => {
           const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
           
-          // [수정] 비디오 스크린 축소 및 BasicMaterial 사용
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video); 
@@ -885,12 +809,11 @@ const initThree = async () => {
             videoTexture.magFilter = THREE.LinearFilter; 
             videoTexture.colorSpace = THREE.SRGBColorSpace; 
             
-            // 크기 16, 9 (기존 32, 18에서 절반 축소)
             const screenGeo = new THREE.PlaneGeometry(16, 9); 
+            // [수정] MeshBasicMaterial로 교체 (조명 영향 무시 -> 검은 화면 해결)
             const screenMat = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
             const screen = new THREE.Mesh(screenGeo, screenMat); 
-	    // [수정] 높이 13.0으로 올려서 공중에 띄움
-	    screen.position.set(startX, 12.0, startZ - 10);
+            screen.position.set(startX, 7, startZ - 15); 
             screen.name = "cinemaScreen"; 
             scene.add(screen);
           }
@@ -948,15 +871,10 @@ const updatePlayerMovement = (deltaTime) => {
     specialAction.value = null;
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
     velocity.applyQuaternion(myAvatar.quaternion); 
-    
-    // [핵심] 충돌 체크
-    const direction = velocity.clone();
-    if (!checkCollision(myAvatar.position, direction)) {
-        myAvatar.position.add(velocity);
-        camera.position.add(velocity); 
-        controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
-        throttledUpdate();
-    }
+    myAvatar.position.add(velocity); 
+    camera.position.add(velocity); 
+    controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
+    throttledUpdate();
   }
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
@@ -971,9 +889,7 @@ const updatePlayerMovement = (deltaTime) => {
 };
 
 const updateOtherPlayersMovement = (deltaTime) => {
-  // [핵심] Lerp 속도 낮춰서 고무줄 현상 완화 (15 -> 5)
-  const lerpFactor = deltaTime * 5; 
-  
+  const lerpFactor = deltaTime * 15; 
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
@@ -986,9 +902,7 @@ const updateOtherPlayersMovement = (deltaTime) => {
     const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
     player.mesh.rotation.y += diff * lerpFactor; 
-    
     player.mesh.updateMatrixWorld(true);
-    
     const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
       if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
@@ -1022,9 +936,7 @@ const animate = () => {
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
   if (myAvatar && myAvatar.userData.mixer) myAvatar.userData.mixer.update(deltaTime);
-  if (npcModel.value && npcModel.value.userData.animate) {
-      npcModel.value.userData.animate(clock.getElapsedTime());
-  }
+  if (npcModel.value && npcModel.value.userData.mixer) npcModel.value.userData.mixer.update(deltaTime);
   for (const userId in otherPlayers) { if (otherPlayers[userId].mixer) { otherPlayers[userId].mixer.update(deltaTime); } }
   updatePlayerMovement(deltaTime);
   updateOtherPlayersMovement(deltaTime);
@@ -1073,15 +985,15 @@ onMounted(() => {
       myAvatar.position.set(startX, startY, startZ); 
       if (myUserName) {
         const nick = createNicknameSprite(myUserName);
-        // 이름표를 머리 뼈대에 부착
-        attachToBone(myAvatar, nick, 1.2); 
+        // [핵심] 이름표를 뼈대에 부착
+        attachToBone(myAvatar, nick, 0.5); 
       }
       scene.add(myAvatar);
       myAvatar.visible = true; 
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      await initNPC(preloadedAnimations);
+      await initNPC();
       await checkDailyQuest();
       
       questPollingInterval = setInterval(checkDailyQuest, 5000);
@@ -1176,16 +1088,16 @@ onUnmounted(() => {
 
 .chat-ui { 
   position: absolute; 
-  /* [수정] 바닥에서 좀 더 띄워서 입력창 확보 */
-  bottom: 50px; 
+  bottom: 120px; 
   left: 20px; 
   width: 300px; 
   max-width: 80%; 
-  max-height: 30vh; /* 높이도 조금 여유 있게 */
+  max-height: 20vh; 
   display: flex; 
   flex-direction: column; 
   z-index: 5; 
 }
+
 .action-bar {
   display: flex;
   gap: 5px;
@@ -1358,14 +1270,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  /* [수정] 모바일에서는 조이스틱(bottom: 30px) 위로 오도록 조정 */
-  .chat-ui { 
-      bottom: 100px; 
-      width: 65%; 
-      font-size: 0.8rem; 
-  }
+  .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }
   .user-controls { top: 15px; right: 15px; }
   .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
-  .joystick-zone { bottom: 30px; right: 20px; width: 120px; height: 120px; }
+  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
 }
 </style>
+}
