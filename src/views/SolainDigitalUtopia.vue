@@ -315,9 +315,9 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 // NPC 초기화
 // ----------------------------------------
-const initNPC = async (animations) => {
+const initNPC = async () => {
   // 1. 모델 로드
-  const npc = await loadAvatar('/avatars//avatars/NCP_belly_dance.glb', animations);
+  const npc = await loadAvatar('/avatars//avatars/NCP_belly_dance.glb', null);
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
@@ -390,7 +390,7 @@ const startNpcMuttering = () => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
             // 검정 글씨, 흰색 반투명 배경, 높이 2.8 (이름표 위)
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 1.6); 
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 1.8); 
         }
     }, 8000); 
 };
