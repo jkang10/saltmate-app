@@ -316,8 +316,12 @@ const checkCollision = (currentPos, direction) => {
 // NPC 초기화
 // ----------------------------------------
 const initNPC = async () => {
-  // 1. 모델 로드
-  const npc = await loadAvatar('https://models.readyplayer.me/6925738afadfd987ccb2722e.glb', null);
+  // [수정] 관리자가 만든 아바타 URL을 직접 사용합니다.
+  // 예시: 'https://models.readyplayer.me/674...' 형식의 링크를 여기에 넣으세요.
+  const npcUrl = 'https://models.readyplayer.me/6925738afadfd987ccb2722e.glb'; // <-- 여기에 링크
+
+  // 1. 모델 로드 (URL 사용)
+  const npc = await loadAvatar(npcUrl, null);
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
@@ -327,29 +331,22 @@ const initNPC = async () => {
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // 3. [핵심] T-Pose 강제 수정 (팔 내리기)
-  // 모델의 뼈대를 찾아 강제로 회전시킵니다.
+  // 3. 재질 보정 (RPM 아바타는 보통 설정이 잘 되어있지만, 안전하게 유지)
   npc.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
-    }
-    // 뼈대(Bone)를 찾아서 팔을 내립니다.
-    if (child.isBone) {
-        const name = child.name.toLowerCase();
-        // 왼쪽 팔 (어깨/팔) 내리기
-        if (name.includes('leftarm') || name.includes('leftshoulder') || name.includes('l_arm')) {
-            child.rotation.z += Math.PI / 2.5; // 약 70도 내림
-        }
-        // 오른쪽 팔 내리기
-        if (name.includes('rightarm') || name.includes('rightshoulder') || name.includes('r_arm')) {
-            child.rotation.z -= Math.PI / 2.5; // 반대쪽으로 70도 내림
-        }
+      // 재질이 어두워지는 것을 방지
+      if (child.material) {
+        child.material.metalness = 0;   
+        child.material.roughness = 0.8; 
+        child.material.emissive = new THREE.Color(0x000000); 
+      }
     }
   });
 
   // 4. 조명 추가
-  const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
+  const npcLight = new THREE.PointLight(0xffffff, 1.2, 5);
   npcLight.position.set(0, 2, 2);
   npc.add(npcLight);
 
@@ -358,21 +355,16 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.4, 0);
   npc.add(nameTag);
 
-  // 6. [핵심] 코드 기반 애니메이션 (숨쉬기 + 살짝 움직임)
-  // 믹서(Mixer)를 쓰지 않고 좌표를 직접 움직여 생동감을 줍니다.
+  // 6. 코드 기반 단순 애니메이션 (숨쉬기)
   npc.userData.animate = (time) => {
-      // 1. 위아래 둥둥 (숨쉬기)
-      npc.position.y = npcY + Math.sin(time * 2) * 0.03;
-      
-      // 2. 좌우 살짝 회전 (두리번)
-      npc.rotation.y = Math.sin(time * 0.5) * 0.1;
+      npc.position.y = npcY + Math.sin(time * 2) * 0.01;
   };
 
   scene.add(npc);
   npcModel.value = npc;
 
   startNpcMuttering();
-};
+  };
 
 // 혼잣말 함수
 const startNpcMuttering = () => {
