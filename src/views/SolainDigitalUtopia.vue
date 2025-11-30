@@ -855,9 +855,44 @@ const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,2
     // 3D 상에서의 크기도 정확히 2배가 됩니다. (120px * 0.005 = 0.6 unit height)
     sprite.scale.set(w * 0.005, 120 * 0.005, 1); 
     
-    sprite.position.y = 2.2; 
+	sprite.position.y = 2.2; 
     return sprite; 
 };
+
+// ▼▼▼ [신규 추가] 말풍선을 화면에 표시하는 함수 ▼▼▼
+const showChatBubble = (mesh, text, textColor = "black", bgColor = "rgba(255,255,255,0.9)", heightY = 2.5) => {
+    if (!mesh) return;
+
+    // 1. 기존에 떠있는 말풍선이 있으면 제거 (중복 방지)
+    const existingBubble = mesh.getObjectByName("chatBubble");
+    if (existingBubble) {
+        mesh.remove(existingBubble);
+        if (existingBubble.material.map) existingBubble.material.map.dispose();
+        existingBubble.material.dispose();
+    }
+
+    // 2. createChatBubbleSprite 함수를 사용하여 스프라이트 생성
+    const sprite = createChatBubbleSprite(text, textColor, bgColor);
+    sprite.name = "chatBubble";
+    
+    // 3. 위치 조정 (머리 위)
+    sprite.position.set(0, heightY, 0);
+
+    // 4. 캐릭터 메쉬에 추가
+    mesh.add(sprite);
+
+    // 5. 3초(3000ms) 후에 자동으로 사라지게 설정
+    setTimeout(() => {
+        const bubble = mesh.getObjectByName("chatBubble");
+        // 아직 같은 말풍선이 존재한다면 제거
+        if (bubble && bubble === sprite) {
+            mesh.remove(bubble);
+            if (bubble.material.map) bubble.material.map.dispose();
+            bubble.material.dispose();
+        }
+    }, 3000);
+};
+// ▲▲▲ 추가 완료 ▲▲▲
 
 const initThree = async () => {
   return new Promise((resolve, reject) => {
