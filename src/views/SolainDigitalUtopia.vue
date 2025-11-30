@@ -365,7 +365,6 @@ const startNpcMuttering = () => {
         "헬리아의 비밀을 알고 싶나?",
         "광장 곳곳을 잘 살펴보게.",
         "오늘 날씨는 수사하기 딱 좋군."
-	"안녕하세요 ^^ 솔레인 가족 여러분. 환영합니다!!"
     ];
 
     npcMutterInterval = setInterval(() => {
