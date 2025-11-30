@@ -312,67 +312,47 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 // [수정] NPC 초기화 (belly_dance.glb 전용)
 const initNPC = async () => {
-  try {
-    // 1. 모델 로드 (애니메이션 없이 null로 로드 -> 모델 내부 애니메이션 사용)
-    const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', null);
-    
-    if (!npc) {
-        console.error("NPC 모델을 불러오지 못했습니다.");
-        return;
-    }
-    
-    const npcX = 37.16;
-    const npcZ = -5.0;
-    const npcY = getTerrainHeight(npcX, npcZ); 
+  // 1. 소피아 모델 로드
+  const npc = await loadAvatar('/avatars/sophia_animated_003_-_animated_3d_woman.glb', null);
+  
+  const npcX = 37.16;
+  const npcZ = -5.0;
+  const npcY = getTerrainHeight(npcX, npcZ); 
 
-    // 2. [중요] 크기 조정
-    // 다운로드 받은 춤추는 모델들은 보통 크기가 매우 큽니다. 
-    // 0.015 ~ 0.02 정도로 아주 작게 줄여서 시작해야 합니다.
-    npc.scale.set(1.4, 1.4, 1.4);
-    
-    npc.position.set(npcX, npcY, npcZ); 
-    npc.rotation.y = 0; // 정면 응시
+  // 2. 크기 및 위치
+  npc.scale.set(0.7, 0.7, 0.7);
+  npc.position.set(npcX, npcY, npcZ); 
+  npc.rotation.y = 0; 
 
-    // 3. 조명 추가 (밝게)
-    const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
-    npcLight.position.set(0, 200, 100); // 모델 스케일에 따라 조명 위치도 조정
-    npc.add(npcLight);
+  // 3. 조명 추가
+  const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
+  npcLight.position.set(0, 3, 2);
+  npc.add(npcLight);
 
-    // 4. 이름표 (높이 조정)
-    const nameTag = createNicknameSprite("벨리 댄서 (NPC)");
-    // 스케일이 작아졌으므로 상대적 높이는 매우 커야 합니다 (약 180~200)
-    nameTag.position.set(0, 180, 0); 
-    npc.add(nameTag);
+  // 4. [수정] 이름표: 머리 뼈대에 부착하여 위치 고정 (높이 2.1로 하향 조정)
+  const nameTag = createNicknameSprite("소피아 (NPC)");
+  attachToBone(npc, nameTag, 2.1); 
 
-    // 5. [핵심] 모델 내장 춤 애니메이션 재생
-    // loadAvatar 함수가 glb.animations를 npc.animations에 담아준다고 가정
-    // 만약 loadAvatar가 animations를 리턴하지 않는다면, loader.load 부분 수정이 필요할 수 있음.
-    // 여기서는 일반적인 GLTFLoader 패턴을 따릅니다.
-    
-    // *참고: loadAvatar 함수 내부에서 gltf.animations를 모델에 붙여줘야 함.
-    // 현재 코드 구조상 mixer를 새로 생성해서 재생 시도
-    
-    // (만약 모델에 애니메이션이 있다면)
-    if (npc.userData.gltfAnimations && npc.userData.gltfAnimations.length > 0) {
-        const mixer = new THREE.AnimationMixer(npc);
-        npc.userData.mixer = mixer;
-        const action = mixer.clipAction(npc.userData.gltfAnimations[0]); // 첫 번째 춤 동작
-        action.play();
-    } else {
-        // 애니메이션이 없거나 로드 실패 시 코드 애니메이션(숨쉬기) 적용
-        npc.userData.animate = (time) => {
-            npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-        };
-    }
-
-    scene.add(npc);
-    npcModel.value = npc;
-
-    startNpcMuttering();
-
-  } catch (error) {
-    console.error("NPC 초기화 중 오류:", error);
+  // 5. [핵심 수정] 애니메이션 재생 로직 강화
+  // loadAvatar에서 저장한 animations 배열을 확인
+  if (npc.animations && npc.animations.length > 0) {
+       const mixer = new THREE.AnimationMixer(npc);
+       npc.userData.mixer = mixer;
+       // 첫 번째 애니메이션(보통 Idle이나 Dance) 재생
+       const action = mixer.clipAction(npc.animations[0]); 
+       action.play();
+       console.log("NPC 애니메이션 재생 성공:", npc.animations[0].name);
+  } else {
+      // 애니메이션이 없을 경우 코드 기반 움직임 (숨쉬기)
+      npc.userData.animate = (time) => {
+          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+      };
   }
+
+  scene.add(npc);
+  npcModel.value = npc;
+
+  startNpcMuttering();
 };
 
 // 혼잣말 함수
@@ -756,7 +736,10 @@ const loadAvatar = (url, animations) => {
         // (이 데이터는 initNPC 등에서 꺼내서 사용합니다)
         model.userData.gltfAnimations = gltf.animations;
 
-        // 그림자 및 렌더링 설정
+	// [핵심 수정] 모델 파일 자체의 애니메이션 데이터를 상위 객체에 저장
+        // 이 코드가 있어야 initNPC에서 춤/대기 동작을 꺼내 쓸 수 있습니다.
+        model.animations = gltf.animations; 
+
         visuals.traverse((child) => {
           if (child.isMesh || child.isSkinnedMesh) {
             child.castShadow = true;
