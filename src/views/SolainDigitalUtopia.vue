@@ -317,13 +317,13 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async (animations) => {
   // 1. 모델 로드
-  const npc = await loadAvatar('/avatars//avatars/NCP_belly_dance.glb', null);
+  const npc = await loadAvatar('/avatars//avatars/NCP_belly_dance.glb', animations);
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(1.2, 1.2, 1.2);
+  npc.scale.set(1.3, 1.3, 1.3);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
