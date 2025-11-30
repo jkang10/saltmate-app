@@ -317,7 +317,7 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async () => {
   // 1. 모델 로드
-  const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
+  const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', null);
   
   const npcX = 37.16;
   const npcZ = 2.0;
@@ -349,7 +349,7 @@ const initNPC = async () => {
 
   // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.4, 0);
+  nameTag.position.set(0, 2.0, 0);
   npc.add(nameTag);
 
   // 6. 단순 애니메이션 (숨쉬기)
@@ -673,7 +673,7 @@ const listenToOtherPlayers = (currentUid, preloadedAnimations) => {
       if (val.userName !== '익명') { 
           const nick = createNicknameSprite(val.userName); 
           // [핵심] 머리에 부착
-          attachToBone(model, nick, 0.8); 
+          attachToBone(model, nick, 1.1); 
       }
       model.position.set(posX, posY, posZ); model.rotation.y = rotY; model.visible = true;
       scene.add(model); model.updateMatrixWorld(true); 
@@ -739,7 +739,7 @@ const createNicknameSprite = (text) => {
 };
 
 // [수정] 뼈대 부착 헬퍼
-const attachToBone = (model, object, offsetY = 0.5) => {
+const attachToBone = (model, object, offsetY = 1.1) => {
     let bone = null;
     model.traverse((child) => {
         if (child.isBone && !bone) {
@@ -1112,11 +1112,12 @@ onUnmounted(() => {
 
 .chat-ui { 
   position: absolute; 
-  bottom: 120px; 
+  /* [수정] 바닥에서 좀 더 띄워서 입력창 확보 */
+  bottom: 50px; 
   left: 20px; 
   width: 300px; 
   max-width: 80%; 
-  max-height: 20vh; 
+  max-height: 30vh; /* 높이도 조금 여유 있게 */
   display: flex; 
   flex-direction: column; 
   z-index: 5; 
@@ -1294,9 +1295,14 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .chat-ui { bottom: 140px; width: 60%; font-size: 0.8rem; }
+  /* [수정] 모바일에서는 조이스틱(bottom: 30px) 위로 오도록 조정 */
+  .chat-ui { 
+      bottom: 100px; 
+      width: 65%; 
+      font-size: 0.8rem; 
+  }
   .user-controls { top: 15px; right: 15px; }
   .user-controls button { padding: 6px 10px; font-size: 0.75rem; }
-  .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
+  .joystick-zone { bottom: 30px; right: 20px; width: 120px; height: 120px; }
 }
 </style>
