@@ -551,7 +551,7 @@ const mineSalt = () => {
   clickHistory.value.push(now);
 
 // 1초에 12회 이상 클릭 시 오토로 간주
-  if (clickHistory.value.length > 7) {
+  if (clickHistory.value.length > 8) {
       // 이미 패널티 중이면 중복 실행 방지
       if (!isPenaltyActive.value) {
           penaltyCount.value++; // 누적 횟수 증가
