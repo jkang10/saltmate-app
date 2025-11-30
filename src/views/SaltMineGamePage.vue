@@ -541,27 +541,22 @@ const triggerClickEffect = () => {
 };
 
 const mineSalt = () => {
-  // 1. 패널티 중이거나 쿨다운 중이면 중단
-  if (isMiningCooldown.value || isPenaltyActive.value) return;
-
-  // --- [신규] 오토 클릭 방지 로직 ---
+  // 1. [핵심 수정] 오토 감지 로직을 맨 위로 이동 (쿨타임 무시하고 클릭 횟수 집계)
   const now = Date.now();
   // 최근 1초(1000ms) 이내의 클릭만 남김
   clickHistory.value = clickHistory.value.filter(time => now - time < 1000);
   clickHistory.value.push(now);
 
-// 1초에 12회 이상 클릭 시 오토로 간주
+  // 1초에 7회 초과(8회부터) 클릭 시 오토로 간주
+  // (이제 쿨타임과 상관없이 입력된 모든 클릭을 셉니다)
   if (clickHistory.value.length > 7) {
       // 이미 패널티 중이면 중복 실행 방지
       if (!isPenaltyActive.value) {
           penaltyCount.value++; // 누적 횟수 증가
           
-          // [핵심] 시간 계산: 기본 20초 + (추가 횟수 * 60초)
-          // 1회: 20초
-          // 2회: 80초 (1분 20초)
-          // 3회: 140초 (2분 20초) ...
-          const baseDuration = 20000; // 20초
-          const addDuration = 60000;  // 60초
+          // 시간 계산: 기본 20초 + (추가 횟수 * 60초)
+          const baseDuration = 20000; 
+          const addDuration = 60000;  
           const duration = baseDuration + (penaltyCount.value - 1) * addDuration;
           const durationSec = duration / 1000;
 
@@ -574,18 +569,20 @@ const mineSalt = () => {
               clickHistory.value = []; 
           }, duration);
       }
-      return;
+      return; // 오토 감지 시 여기서 종료
   }
-  // --------------------------------
 
+  // 2. 패널티 중이거나 쿨다운 중이면 여기서 중단 (오토 체크 후 실행)
+  if (isMiningCooldown.value || isPenaltyActive.value) return;
+
+  // 3. 정상 채굴 로직 수행
   isMiningCooldown.value = true;
 
   salt.value += boostedPerClick.value;
   totalClicks.value++;
   
-  // [수정] 황금 소금 확률 대폭 하향 (기존 1% -> 0.1%로 변경)
-  // 0.01 (1%) -> 0.001 (0.1%)
-  const baseGoldChance = 0.001; 
+  // 황금 소금 확률 (0.05%)
+  const baseGoldChance = 0.0005;
   const goldFindChance = baseGoldChance + (skinBonus.value.goldChancePercent / 100);
   
   if (Math.random() < goldFindChance) {
@@ -593,7 +590,7 @@ const mineSalt = () => {
     logEvent("✨ <strong>황금 소금</strong>을 발견했습니다!");
   }
 
-  // 클릭 쿨다운 (기존 유지)
+  // 클릭 쿨다운 (0.1초)
   setTimeout(() => { isMiningCooldown.value = false; }, 100); 
 };
 
