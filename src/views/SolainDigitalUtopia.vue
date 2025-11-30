@@ -358,29 +358,26 @@ const initNPC = async () => {
 
   // 6. [핵심 수정] 랜덤 애니메이션 재생 로직
   // loadAvatar가 animations를 이용해 만든 actions를 사용합니다.
-  if (npc.userData.mixer && npc.userData.actions) {
-       const mixer = npc.userData.mixer;
-       const actions = npc.userData.actions;
-       const actionKeys = Object.keys(actions); // ['idle', 'walk', 'dance' ...]
-
+  if (npc.animations && npc.animations.length > 0) {
+       // [수정] 로컬 변수 선언 없이 바로 할당하여 오류 해결
+       npc.userData.mixer = new THREE.AnimationMixer(npc);
+       
+       // 현재 실행 중인 액션 저장용
        let currentAction = null;
 
+       // 랜덤 행동 변경 함수
        const playRandomAction = () => {
-           if (actionKeys.length === 0) return;
-           
-           // 랜덤 액션 선택
-           const randomKey = actionKeys[Math.floor(Math.random() * actionKeys.length)];
-           const newAction = actions[randomKey];
+           const clips = npc.animations;
+           const nextClip = clips[Math.floor(Math.random() * clips.length)];
+           // [수정] mixer 변수 대신 npc.userData.mixer 사용
+           const nextAction = npc.userData.mixer.clipAction(nextClip);
 
-           if (newAction && newAction !== currentAction) {
-               // 이전 동작 페이드 아웃
-               if (currentAction) currentAction.fadeOut(0.5);
-               // 새 동작 페이드 인 & 재생
-               newAction.reset().fadeIn(0.5).play();
-               currentAction = newAction;
-               
-               // 만약 이동 동작(walk)이 선택되면 제자리에서 걷지 않도록 처리하거나
-               // 여기서는 단순 모션 재생만 수행
+           if (currentAction !== nextAction) {
+               nextAction.reset().fadeIn(0.5).play(); 
+               if (currentAction) {
+                   currentAction.fadeOut(0.5); 
+               }
+               currentAction = nextAction;
            }
        };
 
