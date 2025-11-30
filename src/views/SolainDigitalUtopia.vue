@@ -321,7 +321,7 @@ const initNPC = async () => {
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.01, 0.01, 0.01);
+  npc.scale.set(0.015, 0.015, 0.015);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
@@ -330,9 +330,11 @@ const initNPC = async () => {
   npcLight.position.set(0, 3, 2);
   npc.add(npcLight);
 
-  // 4. [수정] 이름표: 머리 뼈대에 부착하여 위치 고정 (높이 2.1로 하향 조정)
-  const nameTag = createNicknameSprite("소피아 (NPC)");
-  attachToBone(npc, nameTag, 2.1); 
+  // 4. [수정] 이름표: 머리 뼈대에 부착하여 위치 고정 (높이 2.5로 하향 조정)
+  const nameTag = createNicknameSprite("데브라 (NPC)");
+  // [수정] 높이를 2.5로 살짝 올려서 확실히 머리 위에 뜨게 함
+  nameTag.position.set(0, 2.5, 0); 
+  npc.add(nameTag);
 
   // 5. [핵심 수정] 애니메이션 재생 로직 강화
   // loadAvatar에서 저장한 animations 배열을 확인
@@ -786,8 +788,20 @@ const loadAvatar = (url, animations) => {
   });
 };
 
-const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(1.0, 0.33, 1); sprite.position.set(0, 0, 0); return sprite; };
-
+const createNicknameSprite = (text) => { const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.width = 300; canvas.height = 100; context.fillStyle = 'rgba(0, 0, 0, 0.5)'; context.beginPath(); context.roundRect(10, 20, 280, 60, 10); context.fill(); context.fillStyle = 'white'; context.font = 'bold 24px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, 150, 50); 
+const texture = new THREE.CanvasTexture(canvas); 
+    texture.needsUpdate = true; 
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
+        map: texture, 
+        transparent: true, 
+        depthTest: false, // 깊이 테스트 끔 (항상 보이게)
+        depthWrite: false // 깊이 버퍼 쓰기 금지
+    })); 
+    sprite.renderOrder = 999; // [중요] 다른 물체보다 나중에 그려져서 가려지지 않게 함
+    sprite.scale.set(1.0, 0.33, 1); 
+    sprite.position.set(0, 0, 0); 
+    return sprite; 
+};
 // [신규] 이름표를 뼈대에 부착하는 함수 (고무줄 현상 해결)
 const attachToBone = (model, object, offsetY = 1.2) => {
     let bone = null;
@@ -818,11 +832,18 @@ const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,2
     context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); 
     context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; 
     context.fillText(text, w / 2, 30); 
-    const texture = new THREE.CanvasTexture(canvas); 
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); 
-    sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; 
-    return sprite; 
-};
+	const texture = new THREE.CanvasTexture(canvas); 
+	    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
+		map: texture, 
+		transparent: true, 
+		depthTest: false,
+		depthWrite: false
+	    })); 
+	    sprite.renderOrder = 1000; // [중요] 이름표보다도 더 위에 그려지도록 1000으로 설정
+	    sprite.scale.set(w * 0.005, 60 * 0.005, 1); 
+	    sprite.position.y = 2.2; 
+	    return sprite; 
+	};
 // [수정] showChatBubble 함수 인자 확장
 const showChatBubble = (avatar, message, color = "black", bgColor = "rgba(255,255,255,0.9)", heightY = 2.2) => { 
     if (!avatar) return; 
