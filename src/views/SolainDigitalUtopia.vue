@@ -353,45 +353,45 @@ const initNPC = async () => {
 
   // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 1.4, 0);
+  nameTag.position.set(0, 1.6, 0);
   npc.add(nameTag);
 
   // 6. [핵심 수정] 랜덤 애니메이션 재생 로직
-  if (npc.animations && npc.animations.length > 0) {
-       const mixer = new THREE.AnimationMixer(npc);
-       npc.userData.mixer = mixer;
-       
-       // 현재 실행 중인 액션 저장용
+  // loadAvatar가 animations를 이용해 만든 actions를 사용합니다.
+  if (npc.userData.mixer && npc.userData.actions) {
+       const mixer = npc.userData.mixer;
+       const actions = npc.userData.actions;
+       const actionKeys = Object.keys(actions); // ['idle', 'walk', 'dance' ...]
+
        let currentAction = null;
 
-       // 랜덤 행동 변경 함수
        const playRandomAction = () => {
-           const clips = npc.animations;
-           // 랜덤으로 하나 선택
-           const nextClip = clips[Math.floor(Math.random() * clips.length)];
-           const nextAction = mixer.clipAction(nextClip);
+           if (actionKeys.length === 0) return;
+           
+           // 랜덤 액션 선택
+           const randomKey = actionKeys[Math.floor(Math.random() * actionKeys.length)];
+           const newAction = actions[randomKey];
 
-           // 같은 동작이 아닐 때만 전환
-           if (currentAction !== nextAction) {
-               nextAction.reset().fadeIn(0.5).play(); // 부드럽게 시작
-               if (currentAction) {
-                   currentAction.fadeOut(0.5); // 이전 동작 부드럽게 종료
-               }
-               currentAction = nextAction;
-               console.log("NPC 행동 변경:", nextClip.name);
+           if (newAction && newAction !== currentAction) {
+               // 이전 동작 페이드 아웃
+               if (currentAction) currentAction.fadeOut(0.5);
+               // 새 동작 페이드 인 & 재생
+               newAction.reset().fadeIn(0.5).play();
+               currentAction = newAction;
+               
+               // 만약 이동 동작(walk)이 선택되면 제자리에서 걷지 않도록 처리하거나
+               // 여기서는 단순 모션 재생만 수행
            }
        };
 
-       // 초기 실행
+       // 즉시 시작
        playRandomAction();
 
-       // 5초~10초마다 행동 변경 (랜덤성 부여)
-       setInterval(() => {
-           playRandomAction();
-       }, 8000); // 8초마다 변경 시도
+       // 5초마다 다른 행동으로 변경
+       setInterval(playRandomAction, 5000);
 
   } else {
-      // 애니메이션이 없는 경우 (코드 기반 숨쉬기)
+      // 애니메이션 로드 실패 시 대비 (기존 숨쉬기 코드)
       npc.userData.animate = (time) => {
           npc.position.y = npcY + Math.sin(time * 2) * 0.02;
       };
@@ -419,7 +419,7 @@ const startNpcMuttering = () => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
             // 검정 글씨, 흰색 반투명 배경, 높이 2.8 (이름표 위)
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 1.7); 
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 1.9); 
         }
     }, 8000); 
 };
