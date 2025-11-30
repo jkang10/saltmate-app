@@ -320,7 +320,7 @@ const initNPC = async () => {
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.7, 0.7, 0.7);
+  npc.scale.set(0.05, 0.05, 0.05);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
@@ -365,6 +365,7 @@ const startNpcMuttering = () => {
         "헬리아의 비밀을 알고 싶나?",
         "광장 곳곳을 잘 살펴보게.",
         "오늘 날씨는 수사하기 딱 좋군."
+	"안녕하세요 ^^ 솔레인 가족 여러분. 환영합니다!!"
     ];
 
     npcMutterInterval = setInterval(() => {
