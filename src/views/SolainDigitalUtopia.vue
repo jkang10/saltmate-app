@@ -321,7 +321,7 @@ const initNPC = async () => {
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.015, 0.015, 0.015);
+  npc.scale.set(0.013 0.013, 0.013);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
