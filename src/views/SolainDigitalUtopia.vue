@@ -317,50 +317,56 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 const initNPC = async (animations) => {
   // 1. 모델 로드
-  const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', animations);
+  const npc = await loadAvatar('/avatars//avatars/NCP_belly_dance.glb', null);
   const npcX = 37.16;
   const npcZ = 2.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(1.5, 1.5, 1.5);
+  npc.scale.set(1.2, 1.2, 1.2);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // 3. 재질 보정 (회색 현상 해결)
+  // 3. [핵심] T-Pose 강제 수정 (팔 내리기)
+  // 모델의 뼈대를 찾아 강제로 회전시킵니다.
   npc.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
-      if (child.material) {
-        child.material.metalness = 0;   
-        child.material.roughness = 0.8; 
-        child.material.emissive = new THREE.Color(0x000000); 
-        child.material.needsUpdate = true;
-      }
+    }
+    // 뼈대(Bone)를 찾아서 팔을 내립니다.
+    if (child.isBone) {
+        const name = child.name.toLowerCase();
+        // 왼쪽 팔 (어깨/팔) 내리기
+        if (name.includes('leftarm') || name.includes('leftshoulder') || name.includes('l_arm')) {
+            child.rotation.z += Math.PI / 2.5; // 약 70도 내림
+        }
+        // 오른쪽 팔 내리기
+        if (name.includes('rightarm') || name.includes('rightshoulder') || name.includes('r_arm')) {
+            child.rotation.z -= Math.PI / 2.5; // 반대쪽으로 70도 내림
+        }
     }
   });
 
   // 4. 조명 추가
   const npcLight = new THREE.PointLight(0xffffff, 1.5, 5);
-  npcLight.position.set(0, 3, 2);
+  npcLight.position.set(0, 2, 2);
   npc.add(npcLight);
 
   // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  nameTag.position.set(0, 2.0, 0);
+  nameTag.position.set(0, 1.4, 0);
   npc.add(nameTag);
 
-  // 6. [핵심] 애니메이션 재생 (Idle)
-  // animations가 있고, 그 안에 idle 동작이 있다면 재생
-  if (npc.userData.mixer && npc.userData.actions && npc.userData.actions['idle']) {
-      npc.userData.actions['idle'].play();
-  } else {
-      // 애니메이션이 없을 경우 코드 기반 움직임 (숨쉬기)
-      npc.userData.animate = (time) => {
-          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
-      };
-  }
+  // 6. [핵심] 코드 기반 애니메이션 (숨쉬기 + 살짝 움직임)
+  // 믹서(Mixer)를 쓰지 않고 좌표를 직접 움직여 생동감을 줍니다.
+  npc.userData.animate = (time) => {
+      // 1. 위아래 둥둥 (숨쉬기)
+      npc.position.y = npcY + Math.sin(time * 2) * 0.03;
+      
+      // 2. 좌우 살짝 회전 (두리번)
+      npc.rotation.y = Math.sin(time * 0.5) * 0.1;
+  };
 
   scene.add(npc);
   npcModel.value = npc;
@@ -384,7 +390,7 @@ const startNpcMuttering = () => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
             // 검정 글씨, 흰색 반투명 배경, 높이 2.8 (이름표 위)
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 1.6); 
         }
     }, 8000); 
 };
