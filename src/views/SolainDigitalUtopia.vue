@@ -817,31 +817,46 @@ const attachToBone = (model, object, offsetY = 1.1) => {
     }
 };
 
-// [수정] 말풍선 스프라이트 렌더 순서 지정
+// [수정 후] 폰트 크기 및 해상도 2배 증가 (선명하고 크게 보임)
 const createChatBubbleSprite = (text, textColor = "black", bgColor = "rgba(255,255,255,0.9)") => { 
     const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); 
-    context.font = 'bold 30px Arial'; const w = context.measureText(text).width + 40; 
-    canvas.width = w; canvas.height = 60; 
+    
+    // 1) 폰트: 'bold 30px' -> '900 60px' (크기 2배, 두께 최대)
+    context.font = '900 60px Arial'; 
+    
+    // 2) 여백: 40 -> 80 (폰트가 커졌으므로 여백도 2배)
+    const w = context.measureText(text).width + 80; 
+    
+    canvas.width = w; 
+    // 3) 높이: 60 -> 120 (2배)
+    canvas.height = 120; 
+    
     context.fillStyle = bgColor; 
-    context.roundRect(0, 0, w, 60, 10); context.fill(); context.stroke(); 
+    // 4) 사각형 그리기: 높이 120, 라운드 반경 20 (모두 2배)
+    context.roundRect(0, 0, w, 120, 20); 
+    context.fill(); context.stroke(); 
+    
     context.fillStyle = textColor; context.textAlign = 'center'; context.textBaseline = 'middle'; 
-    context.fillText(text, w / 2, 30); 
+    
+    // 5) 텍스트 위치: Y축 30 -> 60 (중앙 정렬)
+    context.fillText(text, w / 2, 60); 
+    
     const texture = new THREE.CanvasTexture(canvas); 
+    // 텍스처 필터링을 Linear로 설정하여 축소 시 깨짐 방지
+    texture.minFilter = THREE.LinearFilter; 
+
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ 
         map: texture, transparent: true, depthTest: false, depthWrite: false 
     })); 
-    sprite.renderOrder = 1000; // 이름표보다 더 위에
-    sprite.scale.set(w * 0.005, 60 * 0.005, 1); sprite.position.y = 2.2; 
+    sprite.renderOrder = 1000; 
+    
+    // 6) 스케일 설정:
+    // 픽셀 해상도를 2배로 늘렸지만 계수(0.005)를 그대로 유지하면
+    // 3D 상에서의 크기도 정확히 2배가 됩니다. (120px * 0.005 = 0.6 unit height)
+    sprite.scale.set(w * 0.005, 120 * 0.005, 1); 
+    
+    sprite.position.y = 2.2; 
     return sprite; 
-};
-// [수정] showChatBubble 함수 인자 확장
-const showChatBubble = (avatar, message, color = "black", bgColor = "rgba(255,255,255,0.9)", heightY = 2.2) => { 
-    if (!avatar) return; 
-    if (avatar.activeBubble) { avatar.remove(avatar.activeBubble); avatar.activeBubble.material.dispose(); clearTimeout(avatar.activeBubble.timeoutId); } 
-    const newBubble = createChatBubbleSprite(message, color, bgColor); 
-    newBubble.position.y = heightY; 
-    const timeoutId = setTimeout(() => { if (avatar.activeBubble === newBubble) { avatar.remove(newBubble); newBubble.material.dispose(); avatar.activeBubble = null; } }, 5000); 
-    newBubble.timeoutId = timeoutId; avatar.activeBubble = newBubble; avatar.add(newBubble); 
 };
 
 const initThree = async () => {
