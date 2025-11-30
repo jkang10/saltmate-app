@@ -42,12 +42,12 @@
   </div>
   <p>소금을 채굴하려면 아래 버튼을 클릭하세요!</p>
 	<button 
-	    @click.stop="mineSalt" 
-	    class="mine-button" 
-	    :disabled="isPenaltyActive" 
-	    :class="{ 'cooldown': isMiningCooldown }" 
-	    :style="isPenaltyActive ? 'background-color: #ef4444; color: white;' : ''"
-	  >
+	  @pointerdown.stop.prevent="mineSalt" 
+	  class="mine-button" 
+	  :disabled="isPenaltyActive" 
+	  :class="{ 'cooldown': isMiningCooldown }" 
+	  :style="isPenaltyActive ? 'background-color: #ef4444; color: white;' : ''"
+	>
 	    {{ isPenaltyActive ? '과열! 잠시 대기하세요' : '채굴하기' }}
 	  </button>
 </div>
@@ -548,9 +548,9 @@ const mineSalt = () => {
   clickHistory.value = clickHistory.value.filter(time => now - time < 1000);
   clickHistory.value.push(now);
 
-  // 1초에 7회 초과(8회부터) 클릭 시 오토로 간주
-  // (이제 쿨타임과 상관없이 입력된 모든 클릭을 셉니다)
-  if (clickHistory.value.length > 7) {
+  // [핵심 수정] 1초에 6회 초과(7회부터) 클릭 시 오토로 간주
+  // 70ms~100ms 오토도 확실하게 잡아냅니다.
+  if (clickHistory.value.length > 6) {
       // 이미 패널티 중이면 중복 실행 방지
       if (!isPenaltyActive.value) {
           penaltyCount.value++; // 누적 횟수 증가
@@ -780,7 +780,7 @@ onUnmounted(() => {
   75% { transform: rotate(-8deg); }
   100% { transform: rotate(0deg); }
 }
-.mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
+.mine-button { padding: 15px 30px; font-size: 1.2em; font-weight: bold; background-color: #ffd166; color: #1e293b; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; touch-action: manipulation; user-select: none; -webkit-user-select: none;}
 .mine-button:hover { transform: scale(1.05); }
 .log-card { padding: 20px; }
 .log-card h3 { margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #1e293b; }
