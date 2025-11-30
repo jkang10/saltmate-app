@@ -857,38 +857,52 @@ const updatePlayerMovement = (deltaTime) => {
   let currentSpeedFactor = 1.0;
   
   if (joystickData.value.active && joystickData.value.distance > 10) {
-      const targetRotationY = -joystickData.value.angle + Math.PI / 2 + Math.PI;
+      // [수정] 모바일 조이스틱 좌우 반전 보정 (- 부호 적용)
+      const targetRotationY = -joystickData.value.angle + Math.PI / 2;
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      myAvatar.rotation.y += diff * deltaTime * 8; moveDirection.z = -1; moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
+      myAvatar.rotation.y += diff * deltaTime * 8; 
+      moveDirection.z = 1; 
+      moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
-    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-    if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y; moved = true; }
-    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
-    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
-    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
-    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
+      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+      if (isKeyboardMoving) { 
+          if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
+             myAvatar.rotation.y = cameraEuler.y + Math.PI; 
+          } else {
+             myAvatar.rotation.y = cameraEuler.y;
+          }
+          moved = true; 
+      }
+      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
+      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
+      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
+      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
   }
+  
   if (moved) {
     specialAction.value = null;
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion); myAvatar.position.add(velocity); 
-    // [수정] 카메라 이동 동기화
-    camera.position.add(velocity); 
-    controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
-    throttledUpdate();
+    velocity.applyQuaternion(myAvatar.quaternion); 
+    
+    // ▼▼▼ [핵심 수정] 충돌 체크 로직 추가 ▼▼▼
+    const direction = velocity.clone();
+    // checkCollision 함수를 사용하여 이동 가능 여부 확인
+    if (!checkCollision(myAvatar.position, direction)) {
+        myAvatar.position.add(velocity);
+        camera.position.add(velocity); 
+        controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
+        throttledUpdate();
+    }
+    // ▲▲▲ 수정 완료 ▲▲▲
   }
+
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  const cityMap = scene.getObjectByName("cityMap");
-  if (cityMap) {
-      const raycaster = new THREE.Raycaster(); raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0));
-      const intersects = raycaster.intersectObject(cityMap, true);
-      if (intersects.length > 0) myAvatar.position.y = intersects[0].point.y;
-  }
+  myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
   const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
