@@ -249,7 +249,7 @@ const MAX_CHAT_MESSAGES = 50;
 // Three.js
 let scene, camera, renderer, clock, controls;
 const loader = new GLTFLoader();
-const textureLoader = new THREE.TextureLoader();
+// [수정] textureLoader 변수 삭제 (사용되지 않음)
 
 // Firebase
 const plazaPlayersPath = 'plazaPlayers';
@@ -293,17 +293,19 @@ const getTerrainHeight = (x, z) => {
     return 0.5; 
 };
 
-// [신규] 충돌 감지 함수
+// [신규] 충돌 감지 함수 (updatePlayerMovement에서 사용)
 const checkCollision = (currentPos, direction) => {
     if (!scene) return false;
     const cityMap = scene.getObjectByName("cityMap");
     if (!cityMap) return false;
 
     const raycaster = new THREE.Raycaster();
+    // 캐릭터 허리 높이(y+1.0)에서 진행 방향으로 레이저 발사
     const origin = currentPos.clone().add(new THREE.Vector3(0, 1.0, 0));
     raycaster.set(origin, direction.normalize());
     const intersects = raycaster.intersectObject(cityMap, true);
 
+    // 0.8m 이내에 물체가 있으면 충돌로 간주
     if (intersects.length > 0 && intersects[0].distance < 0.8) {
         return true;
     }
@@ -311,21 +313,22 @@ const checkCollision = (currentPos, direction) => {
 };
 
 // ----------------------------------------
-// [수정] NPC 초기화 (데브라, 색상 복구, 애니메이션 오류 제거)
+// NPC 초기화
 // ----------------------------------------
 const initNPC = async () => {
+  // 1. 모델 로드
   const npc = await loadAvatar('/avatars/debra_-_detective_woman_game_model.glb', null);
   
   const npcX = 37.16;
-  const npcZ = 2.0;
+  const npcZ = -5.0;
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(0.013, 0.013, 0.013);
+  npc.scale.set(0.75, 0.75, 0.75);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
-  // [핵심] 3. 재질 보정 (회색 현상 해결)
+  // 3. 재질 보정 (회색 현상 해결)
   npc.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = true;
@@ -346,11 +349,10 @@ const initNPC = async () => {
 
   // 5. 이름표
   const nameTag = createNicknameSprite("데브라 (NPC)");
-  // [수정] 위치 살짝 조정
-  nameTag.position.set(0, 2.5, 0);
+  nameTag.position.set(0, 2.4, 0);
   npc.add(nameTag);
 
-  // 6. 코드 기반 단순 애니메이션 (숨쉬기)
+  // 6. 단순 애니메이션 (숨쉬기)
   npc.userData.animate = (time) => {
       npc.position.y = npcY + Math.sin(time * 2) * 0.02;
   };
@@ -376,8 +378,8 @@ const startNpcMuttering = () => {
     npcMutterInterval = setInterval(() => {
         if (npcModel.value) {
             const text = mutters[Math.floor(Math.random() * mutters.length)];
-            // [수정] 검정 글씨, 말풍선 높이 조정
-            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 3.2); 
+            // 검정 글씨, 흰색 반투명 배경, 높이 2.8 (이름표 위)
+            showChatBubble(npcModel.value, text, "#000000", "rgba(255, 255, 255, 0.8)", 2.8); 
         }
     }, 8000); 
 };
@@ -392,6 +394,7 @@ const checkDailyQuest = async () => {
         qData.rewardsRemaining = 3; 
     }
     
+    // UI 상태 동기화 보정
     if (qData.rewardsRemaining > 0 && qData.completed && qData.rewardClaimed) {
         qData.completed = false;
         qData.rewardClaimed = false;
@@ -465,6 +468,7 @@ const completeQuest = async () => {
         
         alert(`퀘스트 완료! ${reward} SaltMate를 획득했습니다.`);
         
+        // [핵심] 로컬 상태 즉시 초기화
         const remaining = dailyQuest.value.rewardsRemaining - 1;
         dailyQuest.value.rewardsRemaining = remaining;
         
@@ -550,6 +554,7 @@ const handleGlobalClick = () => {
     }
 
     Object.values(remoteAudioTracks).forEach(track => {
+        // [수정] 린트 오류 해결
         try { track.play(); } catch { /* 에러 무시 */ }
     });
 };
@@ -641,6 +646,7 @@ const leaveAgora = async () => {
 
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
 
+// [수정] 린트 오류 방지용 주석 추가
 // eslint-disable-next-line no-unused-vars
 const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); } } catch (error) { console.error(error); } } };
 
@@ -802,6 +808,7 @@ const initThree = async () => {
           const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 40); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xade6ff, 0x444444, 0.6); scene.add(hemiLight);
           
+          // [수정] 비디오 스크린 복구 (MeshBasicMaterial)
           const video = cinemaVideoRef.value;
           if (video) {
             const videoTexture = new THREE.VideoTexture(video); 
@@ -854,24 +861,21 @@ const updatePlayerMovement = (deltaTime) => {
       let currentY = myAvatar.rotation.y; const PI2 = Math.PI * 2; let targetY = targetRotationY;
       currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
       let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-      myAvatar.rotation.y += diff * deltaTime * 8; 
-      moveDirection.z = 1; 
-      moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
+      myAvatar.rotation.y += diff * deltaTime * 8; moveDirection.z = -1; moved = true; currentAnimation = 'walk'; currentSpeedFactor = joystickData.value.force;
   } else if (!joystickData.value.active) { 
-      const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-      const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
-      if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y + Math.PI; moved = true; }
-      if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
-      if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
-      if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
-      if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
+    const cameraEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+    const isKeyboardMoving = keysPressed['KeyW'] || keysPressed['ArrowUp'] || keysPressed['KeyS'] || keysPressed['ArrowDown'] || keysPressed['KeyA'] || keysPressed['ArrowLeft'] || keysPressed['KeyD'] || keysPressed['ArrowRight'];
+    if (isKeyboardMoving) { myAvatar.rotation.y = cameraEuler.y; moved = true; }
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) { moveDirection.x = 1; currentAnimation = 'strafeLeft'; }
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight']) { moveDirection.x = -1; currentAnimation = 'strafeRight'; }
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp']) { moveDirection.z = 1; if(!specialAction.value) currentAnimation = 'walk'; }
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown']) { moveDirection.z = -1; if(!specialAction.value) currentAnimation = 'walkBackward'; }
   }
-  
   if (moved) {
     specialAction.value = null;
     const velocity = new THREE.Vector3(moveDirection.x * moveSpeed * currentSpeedFactor * deltaTime, 0, moveDirection.z * moveSpeed * currentSpeedFactor * deltaTime);
-    velocity.applyQuaternion(myAvatar.quaternion); 
-    myAvatar.position.add(velocity); 
+    velocity.applyQuaternion(myAvatar.quaternion); myAvatar.position.add(velocity); 
+    // [수정] 카메라 이동 동기화
     camera.position.add(velocity); 
     controls.target.copy(myAvatar.position).add(new THREE.Vector3(0, 1.5, 0)); 
     throttledUpdate();
@@ -879,7 +883,12 @@ const updatePlayerMovement = (deltaTime) => {
   const boundary = 74.5;
   myAvatar.position.x = Math.max(-boundary, Math.min(boundary, myAvatar.position.x));
   myAvatar.position.z = Math.max(-boundary, Math.min(boundary, myAvatar.position.z));
-  myAvatar.position.y = getTerrainHeight(myAvatar.position.x, myAvatar.position.z);
+  const cityMap = scene.getObjectByName("cityMap");
+  if (cityMap) {
+      const raycaster = new THREE.Raycaster(); raycaster.set(myAvatar.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0));
+      const intersects = raycaster.intersectObject(cityMap, true);
+      if (intersects.length > 0) myAvatar.position.y = intersects[0].point.y;
+  }
   const mixer = myAvatar.userData.mixer; const actions = myAvatar.userData.actions;
   if (mixer) {
     const targetAction = actions[currentAnimation] || actions['idle'];
@@ -893,16 +902,14 @@ const updateOtherPlayersMovement = (deltaTime) => {
   for (const userId in otherPlayers) {
     const player = otherPlayers[userId];
     if (!player.mesh) continue;
-    player.mesh.position.lerp(player.targetPosition, lerpFactor);
-    player.mesh.position.y = getTerrainHeight(player.mesh.position.x, player.mesh.position.z);
     const distance = player.mesh.position.distanceTo(player.targetPosition);
     const wasMoving = player.isMoving;
     player.isMoving = distance > 0.01;
+    player.mesh.position.lerp(player.targetPosition, lerpFactor);
     let currentY = player.mesh.rotation.y; let targetY = player.targetRotationY; 
     const PI2 = Math.PI * 2; currentY = (currentY % PI2 + PI2) % PI2; targetY = (targetY % PI2 + PI2) % PI2;
     let diff = targetY - currentY; if (Math.abs(diff) > Math.PI) { diff = diff > 0 ? diff - PI2 : diff + PI2; }
-    player.mesh.rotation.y += diff * lerpFactor; 
-    player.mesh.updateMatrixWorld(true);
+    player.mesh.rotation.y += diff * lerpFactor; player.mesh.updateMatrixWorld(true);
     const mixer = player.mixer; const actions = player.actions;
     if (mixer && actions.walk && actions.idle) {
       if (player.isMoving && !wasMoving) { actions.walk.reset().play(); actions.idle.crossFadeTo(actions.walk, 0.2); }
@@ -966,6 +973,9 @@ onMounted(() => {
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
       
+      // [수정] handleUserInteraction은 필요 없으므로 제거 (전체 클릭 핸들러 사용)
+      // window.addEventListener('touchstart', handleUserInteraction); 
+
       animate();
 
       try {
@@ -993,9 +1003,10 @@ onMounted(() => {
       myAvatar.updateMatrixWorld(true);
       if (myAvatar.userData.mixer) myAvatar.userData.mixer.update(0.01);
 
-      await initNPC();
+      await initNPC(preloadedAnimations);
       await checkDailyQuest();
       
+      // [신규] 퀘스트 상태 폴링 시작 (5초마다)
       questPollingInterval = setInterval(checkDailyQuest, 5000);
 
       await nextTick();
@@ -1027,7 +1038,6 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
   if (questPollingInterval) clearInterval(questPollingInterval);
-  if (npcMutterInterval) clearInterval(npcMutterInterval);
   leaveAgora(); 
   if (playersListenerRef) off(playersListenerRef);
   if (chatListenerRef) off(chatListenerRef);
@@ -1276,4 +1286,3 @@ onUnmounted(() => {
   .joystick-zone { bottom: 20px; right: 20px; width: 120px; height: 120px; }
 }
 </style>
-}
