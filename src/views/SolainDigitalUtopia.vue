@@ -315,7 +315,7 @@ const checkCollision = (currentPos, direction) => {
 // ----------------------------------------
 // NPC 초기화
 // ----------------------------------------
-const initNPC = async () => {
+const initNPC = async (animations) => {
   // 1. 모델 로드
   const npc = await loadAvatar('/avatars/NCP_belly_dance.glb', animations);
   const npcX = 37.16;
