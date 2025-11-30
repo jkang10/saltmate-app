@@ -327,7 +327,7 @@ const initNPC = async () => {
   const npcY = getTerrainHeight(npcX, npcZ); 
 
   // 2. 크기 및 위치
-  npc.scale.set(1.3, 1.3, 1.3);
+  npc.scale.set(1.0, 1.0, 1.0);
   npc.position.set(npcX, npcY, npcZ); 
   npc.rotation.y = 0; 
 
@@ -355,16 +355,52 @@ const initNPC = async () => {
   nameTag.position.set(0, 1.4, 0);
   npc.add(nameTag);
 
-  // 6. 코드 기반 단순 애니메이션 (숨쉬기)
-  npc.userData.animate = (time) => {
-      npc.position.y = npcY + Math.sin(time * 2) * 0.01;
-  };
+// 6. [핵심 수정] 랜덤 애니메이션 재생 로직
+  if (npc.animations && npc.animations.length > 0) {
+       const mixer = new THREE.AnimationMixer(npc);
+       npc.userData.mixer = mixer;
+       
+       // 현재 실행 중인 액션 저장용
+       let currentAction = null;
+
+       // 랜덤 행동 변경 함수
+       const playRandomAction = () => {
+           const clips = npc.animations;
+           // 랜덤으로 하나 선택
+           const nextClip = clips[Math.floor(Math.random() * clips.length)];
+           const nextAction = mixer.clipAction(nextClip);
+
+           // 같은 동작이 아닐 때만 전환
+           if (currentAction !== nextAction) {
+               nextAction.reset().fadeIn(0.5).play(); // 부드럽게 시작
+               if (currentAction) {
+                   currentAction.fadeOut(0.5); // 이전 동작 부드럽게 종료
+               }
+               currentAction = nextAction;
+               console.log("NPC 행동 변경:", nextClip.name);
+           }
+       };
+
+       // 초기 실행
+       playRandomAction();
+
+       // 5초~10초마다 행동 변경 (랜덤성 부여)
+       setInterval(() => {
+           playRandomAction();
+       }, 8000); // 8초마다 변경 시도
+
+  } else {
+      // 애니메이션이 없는 경우 (코드 기반 숨쉬기)
+      npc.userData.animate = (time) => {
+          npc.position.y = npcY + Math.sin(time * 2) * 0.02;
+      };
+  }
 
   scene.add(npc);
   npcModel.value = npc;
 
   startNpcMuttering();
-  };
+};
 
 // 혼잣말 함수
 const startNpcMuttering = () => {
@@ -649,9 +685,22 @@ const leaveAgora = async () => {
 
 const toggleMute = () => { const video = cinemaVideoRef.value; if (video) { isMuted.value = !isMuted.value; video.muted = isMuted.value; if (!isMuted.value) { video.volume = 1.0; if (isVideoPlaying.value && video.paused) { video.play().catch(e => console.log("Video Play Error:", e)); } } } };
 
-// [수정] 린트 오류 방지용 주석 추가
-// eslint-disable-next-line no-unused-vars
-const checkVideoProgress = async () => { const video = cinemaVideoRef.value; if (!video || rewardClaimedLocal.value || !auth.currentUser) return; if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { rewardClaimedLocal.value = true; try { const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); const result = await claimRewardFunc(); if (result.data.success) { showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); } } catch (error) { console.error(error); } } };
+const checkVideoProgress = async () => { 
+    const video = cinemaVideoRef.value; 
+    if (!video || rewardClaimedLocal.value || !auth.currentUser) return; 
+    if (video.duration > 0 && video.currentTime >= video.duration * 0.95) { 
+        rewardClaimedLocal.value = true; 
+        try { 
+            const claimRewardFunc = httpsCallable(functions, 'claimVideoReward'); 
+            const result = await claimRewardFunc(); 
+            if (result.data.success) { 
+                showChatBubble(myAvatar, "🎉 영상 시청 완료! 1,000 SaltMate 지급!", "#FFD700", "rgba(0,0,0,0.7)", 2.5); 
+            } 
+        } catch (error) { 
+            console.error(error);
+        } 
+    } 
+};
 
 const toggleVideoPlay = () => { if (!cinemaVideoRef.value) return; const newStatus = !isVideoPlaying.value; if (newStatus) cinemaVideoRef.value.play().catch(e => console.log(e)); else cinemaVideoRef.value.pause(); update(dbRef(rtdb, plazaVideoPath), { isPlaying: newStatus, timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime }); };
 const syncVideoTime = () => { if (!cinemaVideoRef.value) return; update(dbRef(rtdb, plazaVideoPath), { timestamp: Date.now(), videoTime: cinemaVideoRef.value.currentTime, forceSync: true }); };
