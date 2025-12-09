@@ -172,9 +172,9 @@ const saltPrice = ref(0);
 const matchmakingQueueCount = ref(0);
 
 // 상태 변수 (토글)
-const isPvpWidgetVisible = ref(true); 
-const isQrVisible = ref(true); 
-const isRaceWidgetVisible = ref(true); 
+const isPvpWidgetVisible = ref(false); 
+const isQrVisible = ref(false); 
+const isRaceWidgetVisible = ref(false); 
 
 const raceTimeLeft = ref("00:00");
 const raceParticipantCount = ref(0); 
